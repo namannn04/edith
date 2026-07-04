@@ -6,6 +6,11 @@ struct LimitWindow {
     let resetsAt: Date?
 }
 
+extension UserDefaults {
+    /// KVO hook for the menu-bar toggle ("limitsInMenuBar" key).
+    @objc dynamic var limitsInMenuBar: Bool { bool(forKey: "limitsInMenuBar") }
+}
+
 struct RangeStat: Identifiable {
     let id: String
     let label: String
@@ -57,6 +62,8 @@ final class UsageStore: ObservableObject {
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var process: Process?
+    private var limitsKVO: NSKeyValueObservation?
+    private var launchObserver: NSObjectProtocol?
     let notifier = LimitNotifier()
     private var history = LimitsHistory()
     @Published private(set) var limitPoints: [LimitPoint] = []
@@ -88,7 +95,26 @@ final class UsageStore: ObservableObject {
             await loadStats()
         }
 
-        syncStatusItem()
+        // Status bar work must wait for launch: at first boot this init runs
+        // from EdithApp.init, BEFORE NSApp exists. Creating our NSStatusItem
+        // that early cross-wires it with MenuBarExtra's own item - toggling
+        // ours off then tears the glasses icon down with it.
+        if let app = NSApp, app.isRunning {
+            syncStatusItem() // usage tab re-enabled at runtime - app is up
+        } else {
+            launchObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.syncStatusItem() }
+            }
+        }
+
+        // React to the setting wherever it changes - the Settings toggle, or an
+        // external `defaults write` (KVO sees both; didChangeNotification only
+        // sees in-process writes). syncStatusItem is idempotent and cheap.
+        limitsKVO = UserDefaults.standard.observe(\.limitsInMenuBar) { [weak self] _, _ in
+            Task { @MainActor in self?.syncStatusItem() }
+        }
     }
 
     /// Tab disabled → stop everything and drop the parsed data.
@@ -109,10 +135,19 @@ final class UsageStore: ObservableObject {
         statusItem?.remove()
         statusItem = nil
         notifier.cancelReminders()
+        limitsKVO?.invalidate()
+        limitsKVO = nil
+        if let launchObserver {
+            NotificationCenter.default.removeObserver(launchObserver)
+            self.launchObserver = nil
+        }
     }
 
     /// Reconcile the menu bar numbers item with the "limitsInMenuBar" setting.
+    /// No-ops until the app finished launching - the status bar (and NSApp
+    /// itself) don't exist during EdithApp.init.
     func syncStatusItem() {
+        guard NSApp?.isRunning == true else { return }
         let on = UserDefaults.standard.object(forKey: "limitsInMenuBar") as? Bool ?? true
         if on, statusItem == nil {
             statusItem = LimitsStatusItem()

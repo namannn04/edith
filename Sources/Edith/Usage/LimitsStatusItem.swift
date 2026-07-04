@@ -16,6 +16,13 @@ final class LimitsStatusItem {
 
     init() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Own identity in the visibility store. Auto-assigned names ("CC Item-N")
+        // are creation-order dependent and collide with MenuBarExtra's item -
+        // a persisted "hidden" under a shared name spawns the WRONG item
+        // invisible on the next launch (seen in the wild: both items hidden,
+        // then AppKit auto-terminated the "windowless" app).
+        item.autosaveName = "limits"
+        item.isVisible = true // undo any stale persisted hide for this name
         item.button?.target = self
         item.button?.action = #selector(clicked)
         Self.button = item.button

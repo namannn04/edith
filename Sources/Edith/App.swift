@@ -53,6 +53,17 @@ struct EdithApp: App {
     private let services = AppServices()
 
     init() {
+        // Heal poisoned status-item visibility state. Auto-assigned autosave
+        // names ("Item-N") are creation-order dependent; a persisted hide under
+        // one of them makes SwiftUI spawn the MenuBarExtra invisible, conclude
+        // it was user-removed, and terminate the "windowless" app at launch.
+        // Force-visible (mere key removal loses to the system's cached
+        // "removed" verdict); without its icon the app is unreachable anyway.
+        for key in ["NSStatusItem VisibleCC Item-0", "NSStatusItem VisibleCC Item-1",
+                    "NSStatusItem VisibleCC limits"] {
+            UserDefaults.standard.set(true, forKey: key)
+        }
+
         // Close when focus leaves the panel (click elsewhere / switch app).
         // didResignActive alone is unreliable for LSUIElement apps - the app
         // may never have been "active" - so watch the panel's key status too.
@@ -185,13 +196,19 @@ enum HotKey {
     }
 }
 
-/// The MenuBarExtra's own status window. With the limits item in the bar
-/// there are two of our StatusBarWindows; exclude the limits one explicitly.
+/// The MenuBarExtra's own status window, identified POSITIVELY: the one
+/// status window hosting a real button with an image (the glasses). The
+/// limits item's button carries only an attributed title, and per-screen
+/// replicant windows (second display) mirror pixels, not view hierarchies,
+/// so they host no NSButton at all - both fall out of this filter naturally.
+/// Exclusion by window identity broke on multi-display Macs.
 /// No isolation annotation - matches the surrounding plain globals
 /// (clickStatusItem, centerPanelUnderIcon), which all run on main in practice.
 private func menuBarExtraStatusWindow() -> NSWindow? {
     NSApp.windows.first {
-        $0.className.contains("StatusBarWindow") && $0 !== LimitsStatusItem.button?.window
+        guard $0.className.contains("StatusBarWindow"),
+              let button = firstButton(in: $0.contentView) else { return false }
+        return button.image != nil && button !== LimitsStatusItem.button
     }
 }
 
