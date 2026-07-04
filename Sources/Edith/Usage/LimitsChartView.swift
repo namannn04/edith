@@ -11,16 +11,17 @@ struct LimitsChartView: View {
     @AppStorage("warnPercent") private var warn = 60
     @AppStorage("critPercent") private var crit = 85
 
-    private struct Sample: Identifiable {
+    struct Sample: Identifiable {
         let date: Date
         let value: Double
         let series: String
         var id: String { "\(series)-\(date.timeIntervalSince1970)" }
     }
 
-    private var samples: [Sample] {
+    private var samples: [Sample] { Self.samples(from: points) }
+
+    static func samples(from points: [LimitPoint], now: Date = Date()) -> [Sample] {
         var out: [Sample] = []
-        let now = Date()
         for (key, name) in [(\LimitPoint.s, "Session"), (\LimitPoint.w, "Weekly")] {
             let pts = points.compactMap { p in p[keyPath: key].map { (p.date, $0) } }
             out += pts.map { Sample(date: $0.0, value: $0.1, series: name) }

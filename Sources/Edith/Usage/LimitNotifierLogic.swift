@@ -209,4 +209,17 @@ enum LimitNotifierLogic {
     static func time(_ d: Date) -> String {
         d.formatted(date: .omitted, time: .shortened)
     }
+
+    /// Matches the Settings picker labels: round hours as "2 h", else "30 min".
+    static func offsetLabel(minutes: Int) -> String {
+        minutes >= 60 && minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes) min"
+    }
+
+    /// The fire date for a reminder that fires `offsetMinutes` before `reset`,
+    /// or nil if there's no reset to count down to or that date has already passed.
+    static func reminderFireDate(reset: Date?, offsetMinutes: Int, now: Date = Date()) -> Date? {
+        guard let reset else { return nil }
+        let fire = reset.addingTimeInterval(-Double(offsetMinutes) * 60)
+        return fire > now ? fire : nil
+    }
 }

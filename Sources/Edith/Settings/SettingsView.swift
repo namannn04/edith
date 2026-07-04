@@ -53,6 +53,7 @@ struct SettingsView: View {
     @AppStorage("notifyTokenExpired") private var notifyTokenExpired = true
     @State private var notifDenied = false
     @State private var showAllNotifSettings = false
+    @State private var testResult: String?
 
     private var theme: Color { themeColor(themeName) }
 
@@ -199,12 +200,20 @@ struct SettingsView: View {
                             .labelsHidden().pickerStyle(.menu).fixedSize()
                             .disabled(!reminderWeekly)
                         }
-                        Button("Send test notification") {
-                            services.usage?.notifier.sendTest()
+                        VStack(alignment: .leading, spacing: 4) {
+                            Button("Send test notification") {
+                                testResult = "Sending..."
+                                Task { testResult = await services.usage?.notifier.sendTest() }
+                            }
+                            .buttonStyle(HoverButtonStyle())
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme)
+                            if let testResult {
+                                Text(testResult)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
-                        .buttonStyle(HoverButtonStyle())
-                        .font(.system(size: 12))
-                        .foregroundStyle(theme)
                     }
                     .disabled(!notifyMaster)
                     .opacity(notifyMaster ? 1 : 0.45)

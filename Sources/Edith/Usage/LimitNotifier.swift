@@ -43,13 +43,43 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
                         title: "Claude token expired", body: "Run claude to log in again"))
     }
 
-    func sendTest() {
-        send(LimitAlert(id: "test_\(UUID().uuidString)",
-                        title: "Hey, you're set", body: "If you see this, notifications work"))
+    /// Sends a test notification and reports what actually happened - the
+    /// errors were previously swallowed, which made "it doesn't work" undebuggable.
+    func sendTest() async -> String {
+        let status = await center.notificationSettings().authorizationStatus
+        switch status {
+        case .denied:
+            return "Blocked - enable Edith in System Settings > Notifications"
+        case .notDetermined:
+            let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+            guard granted else { return "Permission not granted" }
+        default:
+            break
+        }
+        let id = "test_\(UUID().uuidString)"
+        let content = UNMutableNotificationContent()
+        content.title = "Hey, you're set"
+        content.body = "If you see this, notifications work"
+        content.sound = .default
+        do {
+            try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+        } catch {
+            return "Failed: \(error.localizedDescription)"
+        }
+        // Confirm it actually landed in Notification Center.
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        let delivered = await center.deliveredNotifications().contains { $0.request.identifier == id }
+        return delivered ? "Delivered" : "Sent but not delivered - check Focus / System Settings"
     }
 
     func requestPermission() {
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error {
+                NSLog("Edith notifications: authorization error: %@", error.localizedDescription)
+            } else {
+                NSLog("Edith notifications: authorization granted=%d", granted)
+            }
+        }
     }
 
     func authorizationStatus() async -> UNAuthorizationStatus {
@@ -88,22 +118,29 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
         content.title = alert.title
         content.body = alert.body
         content.sound = .default
-        center.add(UNNotificationRequest(identifier: alert.id, content: content, trigger: nil))
+        let id = alert.id
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
+            if let error {
+                NSLog("Edith notifications: add failed (%@): %@", id, error.localizedDescription)
+            }
+        }
     }
 
     private func scheduleReminders(session: LimitWindow?, week: LimitWindow?, settings: NotifySettings) {
         center.removePendingNotificationRequests(withIdentifiers: ["reminder_session", "reminder_weekly"])
-        if settings.reminderSession, let reset = session?.resetsAt {
+        if settings.reminderSession,
+           let fire = LimitNotifierLogic.reminderFireDate(reset: session?.resetsAt, offsetMinutes: settings.reminderSessionOffsetMin) {
             schedule(id: "reminder_session",
-                     title: "Session resets in \(offsetLabel(settings.reminderSessionOffsetMin))",
+                     title: "Session resets in \(LimitNotifierLogic.offsetLabel(minutes: settings.reminderSessionOffsetMin))",
                      body: "Save your spot or send it",
-                     at: reset.addingTimeInterval(-Double(settings.reminderSessionOffsetMin) * 60))
+                     at: fire)
         }
-        if settings.reminderWeekly, let reset = week?.resetsAt {
+        if settings.reminderWeekly,
+           let fire = LimitNotifierLogic.reminderFireDate(reset: week?.resetsAt, offsetMinutes: settings.reminderWeeklyOffsetMin) {
             schedule(id: "reminder_weekly",
-                     title: "Weekly resets in \(offsetLabel(settings.reminderWeeklyOffsetMin))",
+                     title: "Weekly resets in \(LimitNotifierLogic.offsetLabel(minutes: settings.reminderWeeklyOffsetMin))",
                      body: "Last lap on the cycle",
-                     at: reset.addingTimeInterval(-Double(settings.reminderWeeklyOffsetMin) * 60))
+                     at: fire)
         }
     }
 
@@ -116,11 +153,10 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
         let comps = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute, .second], from: fire)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
-    }
-
-    /// Matches the Settings picker labels: round hours as "2 h", else "30 min".
-    private func offsetLabel(_ minutes: Int) -> String {
-        minutes >= 60 && minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes) min"
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger)) { error in
+            if let error {
+                NSLog("Edith notifications: add failed (%@): %@", id, error.localizedDescription)
+            }
+        }
     }
 }

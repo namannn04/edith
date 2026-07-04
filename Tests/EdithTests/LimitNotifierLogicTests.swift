@@ -96,4 +96,38 @@ import Testing
         #expect(LimitNotifierLogic.countdown(from: now, to: now.addingTimeInterval(3 * 3600)) == "3 h")
         #expect(LimitNotifierLogic.countdown(from: now, to: now.addingTimeInterval(26 * 3600)) == "1 d 2 h")
     }
+
+    @Test func partialDeescalationAdvancesStateSilently() {
+        var state = LimitNotifierState(); state.sessionLevel = .red
+        // 70% is orange in threshold mode - a de-escalation from red, not a
+        // recovery to green, so it should be silent but still update state.
+        let session = LimitWindow(percent: 70, resetsAt: now.addingTimeInterval(3600))
+        let alerts = decide(session, nil, settings: settings, state: &state)
+        #expect(alerts.isEmpty)
+        #expect(state.sessionLevel == .orange)
+    }
+
+    @Test func offsetLabelFormatting() {
+        #expect(LimitNotifierLogic.offsetLabel(minutes: 30) == "30 min")
+        #expect(LimitNotifierLogic.offsetLabel(minutes: 60) == "1 h")
+        #expect(LimitNotifierLogic.offsetLabel(minutes: 120) == "2 h")
+        #expect(LimitNotifierLogic.offsetLabel(minutes: 90) == "90 min")
+        #expect(LimitNotifierLogic.offsetLabel(minutes: 720) == "12 h")
+    }
+
+    @Test func reminderFireDateComputesOffsetFromReset() {
+        let reset = now.addingTimeInterval(3600)
+        let fire = LimitNotifierLogic.reminderFireDate(reset: reset, offsetMinutes: 30, now: now)
+        #expect(fire == reset.addingTimeInterval(-30 * 60))
+    }
+
+    @Test func reminderFireDateNilWhenOffsetPastNow() {
+        let reset = now.addingTimeInterval(10 * 60) // resets in 10 min
+        // 30 min offset would fire 20 min in the past.
+        #expect(LimitNotifierLogic.reminderFireDate(reset: reset, offsetMinutes: 30, now: now) == nil)
+    }
+
+    @Test func reminderFireDateNilWhenResetIsNil() {
+        #expect(LimitNotifierLogic.reminderFireDate(reset: nil, offsetMinutes: 30, now: now) == nil)
+    }
 }
