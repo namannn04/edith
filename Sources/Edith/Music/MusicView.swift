@@ -6,22 +6,25 @@ struct MusicView: View {
     @AppStorage("presenterMode") private var presenter = false
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             if player.tracks.isEmpty {
-                Text("No mp3 files in \(Repo.musicDir.path)")
-                    .font(.caption)
+                Text("No playable files in \(Repo.musicDir.path)")
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.vertical, 24)
+                    .padding(.vertical, 28)
             } else {
+                // Size the list to its real content (46pt rows + 2pt gaps) so no
+                // scrollbar appears until the library actually outgrows 520pt.
                 ScrollView {
-                    LazyVStack(spacing: 1) {
+                    LazyVStack(spacing: 2) {
                         ForEach(player.tracks) { track in
                             TrackRow(track: track)
                         }
                     }
                 }
-                .frame(maxHeight: 340)
+                .scrollIndicators(.hidden)
+                .frame(height: min(CGFloat(player.tracks.count) * 48 - 2, 520))
                 nowPlayingBar
             }
         }
@@ -29,25 +32,25 @@ struct MusicView: View {
     }
 
     private var nowPlayingBar: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             if player.current != nil {
                 // Ticks only while the panel is visible — zero cost when closed.
                 TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-                    HStack(spacing: 8) {
+                    HStack(spacing: 10) {
                         Text(timeLabel(player.elapsed))
-                            .frame(width: 34, alignment: .leading)
+                            .frame(width: 40, alignment: .leading)
                         scrubber
                         Text(timeLabel(player.trackDuration))
-                            .frame(width: 34, alignment: .trailing)
+                            .frame(width: 40, alignment: .trailing)
                     }
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
                 }
             }
-            HStack(spacing: 14) {
+            HStack(spacing: 16) {
                 Text(player.current?.title ?? "Not playing")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
                     .foregroundStyle(player.current == nil ? .secondary : .primary)
                     .presenterBlur(presenter && player.current != nil)
@@ -55,19 +58,22 @@ struct MusicView: View {
                 Button { player.previous() } label: {
                     Image(systemName: "backward.fill")
                 }
+                .buttonStyle(HoverButtonStyle())
                 Button { player.playPause() } label: {
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 15))
+                        .font(.system(size: 18))
                 }
+                .buttonStyle(HoverButtonStyle())
                 Button { player.next() } label: {
                     Image(systemName: "forward.fill")
                 }
+                .buttonStyle(HoverButtonStyle())
                 Slider(value: $player.volume, in: 0...1)
-                    .controlSize(.mini)
-                    .frame(width: 64)
+                    .controlSize(.small)
+                    .frame(width: 74)
             }
             .buttonStyle(.plain)
-            .font(.system(size: 11))
+            .font(.system(size: 13))
         }
         .card()
     }
@@ -93,7 +99,7 @@ struct MusicView: View {
                     }
             )
         }
-        .frame(height: 4)
+        .frame(height: 5)
     }
 
     private func timeLabel(_ t: TimeInterval) -> String {
@@ -119,7 +125,7 @@ private struct TrackRow: View {
         Button {
             player.toggle(track)
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Group {
                     if let artwork {
                         Image(nsImage: artwork)
@@ -136,16 +142,16 @@ private struct TrackRow: View {
                                 startPoint: .top, endPoint: .bottom
                             )
                             Image(systemName: "music.note")
-                                .font(.system(size: 11))
+                                .font(.system(size: 13))
                                 .foregroundStyle(.white.opacity(0.8))
                         }
                     }
                 }
-                .frame(width: 28, height: 28)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .frame(width: 34, height: 34)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
 
                 Text(track.title)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .lineLimit(1)
                     .foregroundStyle(isCurrent ? Color.accentColor : .primary)
                     .presenterBlur(presenter)
@@ -154,27 +160,30 @@ private struct TrackRow: View {
 
                 if isCurrent {
                     Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(Color.accentColor)
                 }
 
                 if let duration {
                     Text(duration)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .monospacedDigit()
                         .foregroundStyle(.tertiary)
                 }
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background(
             isCurrent ? Color.white.opacity(0.07) : hovering ? Color.white.opacity(0.04) : .clear,
-            in: RoundedRectangle(cornerRadius: 6)
+            in: RoundedRectangle(cornerRadius: 7)
         )
-        .onHover { hovering = $0 }
+        .onHover { over in
+            hovering = over
+            over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+        }
         .task {
             artwork = await player.artwork(for: track)
             duration = await player.durationLabel(for: track)

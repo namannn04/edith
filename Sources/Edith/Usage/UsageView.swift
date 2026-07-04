@@ -6,7 +6,7 @@ struct UsageView: View {
     @AppStorage("presenterMode") private var presenter = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             limitsCard
             if !store.calendarDays.isEmpty {
                 activityCard
@@ -19,7 +19,7 @@ struct UsageView: View {
     // MARK: - Limits
 
     private var limitsCard: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 eyebrow("LIMITS")
                 Spacer()
@@ -27,82 +27,80 @@ struct UsageView: View {
                     let next = store.nextLimitsRefresh
                         .map { $0.formatted(date: .omitted, time: .shortened) } ?? "—"
                     Text("updated \(at.formatted(date: .omitted, time: .shortened)) · next \(next)")
-                        .font(.system(size: 9))
+                        .font(.system(size: 10))
                         .monospacedDigit()
                         .foregroundStyle(.tertiary)
                 }
                 Button {
                     Task { await store.refreshLimits(force: true) }
                 } label: {
-                    if store.refreshingLimits {
-                        ProgressView().controlSize(.mini)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                    Group {
+                        if store.refreshingLimits {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .controlSize(.mini)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .frame(width: 16, height: 16) // stable slot: icon ↔ spinner swap
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .disabled(store.refreshingLimits)
                 .help("Refresh limits now")
             }
-            limitRow("Session", window: store.session)
-            limitRow("Week", window: store.week)
+            HStack(spacing: 12) {
+                ring("SESSION", window: store.session)
+                ring("WEEK", window: store.week)
+            }
             if let err = store.limitsError {
                 Text(err)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .card()
     }
 
-    private func limitRow(_ label: String, window: LimitWindow?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                Spacer()
-                if let w = window {
-                    if let reset = w.resetsAt, reset > Date() {
-                        // Live countdown, "2d 3:45:12" above 24h. TimelineView only
-                        // ticks while the panel is visible; monospacedDigit keeps
-                        // the row width stable as seconds change.
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            Text(countdown(from: context.date, to: reset))
-                                .font(.system(size: 10))
-                                .monospacedDigit()
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
-                    }
-                    Text("\(Int(w.percent))%")
-                        .font(.system(size: 12, weight: .semibold))
+    /// Ring gauge: recessed track + rounded progress arc with a soft glow,
+    /// percent in the middle, label and live countdown beneath.
+    private func ring(_ label: String, window: LimitWindow?) -> some View {
+        let pct = window?.percent ?? 0
+        let fill = color(for: pct)
+        return VStack(spacing: 7) {
+            ZStack {
+                Circle()
+                    .stroke(.white.opacity(0.08), lineWidth: 7)
+                Circle()
+                    .trim(from: 0, to: min(pct / 100, 1))
+                    .stroke(fill, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.5), value: pct)
+                Text(window != nil ? "\(Int(pct))%" : "—")
+                    .font(.system(size: 18, weight: .semibold))
+                    .monospacedDigit()
+            }
+            .frame(width: 88, height: 88)
+            .padding(.bottom, 2)
+            eyebrow(label)
+            if let reset = window?.resetsAt, reset > Date() {
+                // Live countdown, "2d 3:45:12" above 24h. TimelineView only ticks
+                // while the panel is visible; monospacedDigit keeps width stable.
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(countdown(from: context.date, to: reset))
+                        .font(.system(size: 11))
                         .monospacedDigit()
-                        .foregroundStyle(color(for: w.percent))
-                        .frame(minWidth: 34, alignment: .trailing)
-                } else {
-                    Text("—")
-                        .font(.caption)
                         .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
-            }
-            gauge(percent: window?.percent ?? 0)
-        }
-    }
-
-    private func gauge(percent: Double) -> some View {
-        let fill = color(for: percent)
-        return GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.08))
-                Capsule()
-                    .fill(fill)
-                    .frame(width: max(5, geo.size.width * min(percent / 100, 1)))
-                    .shadow(color: fill.opacity(0.5), radius: 3) // the one glow
+            } else {
+                Text(" ").font(.system(size: 11)) // keep both columns level
             }
         }
-        .frame(height: 5)
+        .frame(maxWidth: .infinity)
     }
 
     private func countdown(from now: Date, to reset: Date) -> String {
@@ -137,34 +135,34 @@ struct UsageView: View {
                 eyebrow("ACTIVITY")
                 Spacer()
                 Text(String(format: "$%.0f · %d weeks", total, weeks.count))
-                    .font(.caption2)
+                    .font(.system(size: 11))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
                     .presenterBlur(presenter)
             }
-            HStack(alignment: .top, spacing: 3) {
-                VStack(spacing: 3) {
+            HStack(alignment: .top, spacing: 4) {
+                VStack(spacing: 4) {
                     ForEach(Array(["M", "", "W", "", "F", "", "S"].enumerated()), id: \.offset) { _, label in
                         Text(label)
-                            .font(.system(size: 8))
+                            .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
-                            .frame(width: 12, height: 15)
+                            .frame(width: 13, height: 17)
                     }
                 }
-                .padding(.top, 13) // clears the month-label row
+                .padding(.top, 16) // clears the month-label row
                 // Full history since the first data day; lands on the newest week.
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 3) {
+                    HStack(alignment: .top, spacing: 4) {
                         ForEach(Array(weeks.enumerated()), id: \.offset) { index, week in
-                            VStack(spacing: 3) {
+                            VStack(spacing: 4) {
                                 Text(monthLabel(for: weeks, at: index))
-                                    .font(.system(size: 8))
+                                    .font(.system(size: 9))
                                     .foregroundStyle(.tertiary)
-                                    .frame(height: 10)
+                                    .frame(height: 12)
                                 ForEach(week) { day in
-                                    RoundedRectangle(cornerRadius: 3)
+                                    RoundedRectangle(cornerRadius: 3.5)
                                         .fill(cellColor(day.cost, cuts: cuts))
-                                        .frame(width: 15, height: 15)
+                                        .frame(width: 17, height: 17)
                                         .help(presenter
                                             ? day.date.formatted(.dateTime.day().month())
                                             : "\(day.date.formatted(.dateTime.day().month())) — $\(String(format: "%.2f", day.cost))")
@@ -173,9 +171,9 @@ struct UsageView: View {
                         }
                     }
                 }
-                // ponytail: ~18 week columns fit the card; under that the anchor
+                // ponytail: ~19 week columns fit the card; under that the anchor
                 // must be leading or narrow content gets shoved to the right edge
-                .defaultScrollAnchor(weeks.count > 18 ? .trailing : .leading)
+                .defaultScrollAnchor(weeks.count > 19 ? .trailing : .leading)
             }
         }
         .card()
@@ -202,20 +200,25 @@ struct UsageView: View {
     // MARK: - Usage stats
 
     private var usageCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
                 eyebrow("USAGE")
                 Spacer()
                 Button {
                     store.runUpdate()
                 } label: {
-                    if store.updating {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
+                    Group {
+                        if store.updating {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .controlSize(.mini)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
                     }
+                    .frame(width: 16, height: 16)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
                 .disabled(store.updating)
                 .help("Run cc-update")
@@ -225,7 +228,7 @@ struct UsageView: View {
                     Image(systemName: "terminal")
                         .foregroundStyle(showLog ? Color.accentColor : Color.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .help("Show cc-update logs")
                 Button {
                     store.openDashboard()
@@ -233,18 +236,18 @@ struct UsageView: View {
                 } label: {
                     Image(systemName: "arrow.up.forward.square")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
                 .help("Open dashboard in browser (keeps filters)")
             }
-            .font(.system(size: 12))
+            .font(.system(size: 13))
 
             HStack {
                 sourcePicker
                 Spacer()
                 if let at = store.statsGeneratedAt {
                     Text("Data from \(at.formatted(.relative(presentation: .named)))")
-                        .font(.system(size: 9))
+                        .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
             }
@@ -258,7 +261,7 @@ struct UsageView: View {
                     .font(.caption2)
                     .foregroundStyle(.orange)
             } else {
-                VStack(spacing: 7) {
+                VStack(spacing: 9) {
                     ForEach(store.stats) { stat in
                         HStack {
                             Text(stat.label)
@@ -270,10 +273,10 @@ struct UsageView: View {
                             Text(String(format: "$%.2f", stat.cost))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
-                                .frame(width: 76, alignment: .trailing)
+                                .frame(width: 84, alignment: .trailing)
                                 .presenterBlur(presenter)
                         }
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                     }
                 }
             }
@@ -305,8 +308,9 @@ struct UsageView: View {
                 Text(sourceSummary)
                     .lineLimit(1)
             }
-            .font(.system(size: 11))
+            .font(.system(size: 12))
             .foregroundStyle(.secondary)
+            .hoverButton() // on the label so the padded area stays clickable
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -323,7 +327,7 @@ struct UsageView: View {
         ScrollView {
             ScrollViewReader { proxy in
                 Text(store.log.isEmpty ? "No output yet — hit ↻" : store.log)
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
@@ -333,9 +337,9 @@ struct UsageView: View {
                     }
             }
         }
-        .frame(height: 110)
-        .padding(6)
-        .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
+        .frame(height: 130)
+        .padding(8)
+        .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

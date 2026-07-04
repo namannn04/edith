@@ -99,7 +99,14 @@ final class UsageStore: ObservableObject {
         if !force, let gate = retryNotBefore, gate > Date() { return }
         guard !refreshingLimits else { return }
         refreshingLimits = true
-        defer { refreshingLimits = false }
+        await fetchLimitsOnce()
+        // The fetch often finishes in ~200ms — hold the spinner briefly so the
+        // reload visibly reacts instead of appearing to do nothing.
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        refreshingLimits = false
+    }
+
+    private func fetchLimitsOnce() async {
         guard let token = currentToken() else {
             limitsError = "Claude Code token not found"
             return

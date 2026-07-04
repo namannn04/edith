@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import SwiftUI
 
 // Repo layout the app leans on: dashboard/ holds the usage dashboard + data
@@ -22,11 +23,25 @@ struct EdithApp: App {
     private let music = MusicPlayer()
 
     init() {
-        // Switching to another app closes the panel, like system menu bar extras.
+        // Close when focus leaves the panel (click elsewhere / switch app).
+        // didResignActive alone is unreliable for LSUIElement apps — the app
+        // may never have been "active" — so watch the panel's key status too.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { _ in
             dismissPanel()
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: nil, queue: .main
+        ) { note in
+            guard let panel = note.object as? NSWindow,
+                  panel.className.contains("MenuBarExtraWindow") else { return }
+            // Deferred one tick: if the panel is mid-close (normal toggle) it's
+            // gone by then and this no-ops; if focus genuinely left, close it
+            // through the status item so the highlight clears with it.
+            DispatchQueue.main.async { [weak panel] in
+                if let panel, panel.isVisible { dismissPanel() }
+            }
         }
         // MenuBarExtra re-anchors the panel's leading edge to the icon on every
         // open/resize/system reposition — and its anchor pass can run AFTER our
@@ -51,6 +66,7 @@ struct EdithApp: App {
                 }
             }
         }
+        HotKey.register() // ⌥⌘E toggles the panel from anywhere
     }
 
     var body: some Scene {
@@ -62,6 +78,50 @@ struct EdithApp: App {
         }
         .menuBarExtraStyle(.window)
     }
+}
+
+/// Global ⌥⌘E hotkey via Carbon — the one API that needs no accessibility
+/// permission. Toggling works by synthesizing a click on our own status item,
+/// so open/close behaves exactly like a real click (centering included).
+enum HotKey {
+    private static var ref: EventHotKeyRef?
+
+    static func register() {
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+            DispatchQueue.main.async { togglePanel() }
+            return noErr
+        }, 1, &eventType, nil, nil)
+        let id = EventHotKeyID(signature: OSType(0x4544_4954), id: 1) // 'EDIT'
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_E), UInt32(cmdKey | optionKey), id,
+            GetApplicationEventTarget(), 0, &ref)
+    }
+}
+
+/// Synthesize a click on the status item. This is the ONLY correct way to open
+/// OR close the panel: it toggles through MenuBarExtra's own state machine, so
+/// the icon highlight always matches. Closing the window directly desyncs that
+/// state — the icon stays lit and the next toggle gets eaten resetting it.
+func clickStatusItem() {
+    if let statusWindow = NSApp.windows.first(where: { $0.className.contains("StatusBarWindow") }),
+       let button = firstButton(in: statusWindow.contentView) {
+        button.performClick(nil)
+    }
+}
+
+func togglePanel() {
+    clickStatusItem() // open or close — MenuBarExtra decides from its own state
+}
+
+private func firstButton(in view: NSView?) -> NSButton? {
+    guard let view else { return nil }
+    if let button = view as? NSButton { return button }
+    for sub in view.subviews {
+        if let found = firstButton(in: sub) { return found }
+    }
+    return nil
 }
 
 /// Align the panel's horizontal center with the menu bar icon's center. The
@@ -82,32 +142,68 @@ func centerPanelUnderIcon(_ panel: NSWindow) {
 }
 
 /// MenuBarExtra windows don't auto-dismiss on button actions; close explicitly
-/// after actions that take the user elsewhere (browser, Finder).
+/// after actions that take the user elsewhere (browser, Finder). Goes through
+/// the status-item click so the icon highlight stays in sync (see above).
 func dismissPanel() {
-    for window in NSApp.windows where window.className.contains("MenuBarExtraWindow") {
-        window.close()
+    guard NSApp.windows.contains(where: {
+        $0.className.contains("MenuBarExtraWindow") && $0.isVisible
+    }) else { return }
+    clickStatusItem()
+}
+
+/// Hover affordance for clickable controls: pointing-hand cursor plus a soft
+/// border, fill, and shadow that fade in under the pointer.
+struct HoverButton: ViewModifier {
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(4)
+            .background(.white.opacity(hovering ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(.white.opacity(hovering ? 0.16 : 0), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(hovering ? 0.35 : 0), radius: 4, y: 1)
+            .onHover { over in
+                hovering = over
+                over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+            }
+            .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+/// Button style wrapping the hover chrome INSIDE the button, so the whole
+/// padded/bordered area is the hit target, with pressed-state feedback.
+struct HoverButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .modifier(HoverButton())
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
 // Shared panel styling: grouped-settings cards + tracked small-caps eyebrows.
 extension View {
+    func hoverButton() -> some View { modifier(HoverButton()) }
+
     /// Presenter view hides sensitive text behind a blur (readable shape, not content).
     func presenterBlur(_ on: Bool) -> some View {
         blur(radius: on ? 4 : 0)
     }
 
     func card() -> some View {
-        padding(10)
+        padding(13)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.white.opacity(0.07), lineWidth: 0.5))
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
 func eyebrow(_ text: String) -> some View {
     Text(text)
-        .font(.system(size: 9, weight: .semibold))
-        .tracking(1.2)
+        .font(.system(size: 10, weight: .semibold))
+        .tracking(1.4)
         .foregroundStyle(.tertiary)
 }
 
@@ -116,14 +212,14 @@ struct RootView: View {
     @AppStorage("presenterMode") private var presenter = false
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Image(systemName: "eyeglasses")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
                 Text("EDITH")
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(2.5)
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(3)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if tab == "music" {
@@ -132,18 +228,21 @@ struct RootView: View {
                         dismissPanel()
                     } label: {
                         Image(systemName: "folder")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HoverButtonStyle())
                     .help("Open music folder in Finder")
                 }
                 Menu {
                     Toggle("Presenter view", isOn: $presenter)
+                    Divider()
+                    Text("Toggle panel: ⌥⌘E")
                 } label: {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 11))
+                        .font(.system(size: 13))
                         .foregroundStyle(presenter ? Color.accentColor : Color.secondary)
+                        .hoverButton() // on the label so the padded area stays clickable
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -153,10 +252,10 @@ struct RootView: View {
                     NSApp.terminate(nil)
                 } label: {
                     Image(systemName: "power")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .keyboardShortcut("q", modifiers: .command)
                 .help("Quit Edith (⌘Q)")
             }
@@ -166,6 +265,7 @@ struct RootView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .controlSize(.large)
             // match the track's corners to the capsule-shaped selection knob
             .clipShape(Capsule())
             if tab == "usage" {
@@ -174,8 +274,8 @@ struct RootView: View {
                 MusicView()
             }
         }
-        .padding(12)
-        .frame(width: 400)
+        .padding(14)
+        .frame(width: 480)
         // Darken the system material — pure vibrancy washes out over light screens.
         .background(Color.black.opacity(0.55).ignoresSafeArea())
         .onExitCommand { dismissPanel() } // Esc closes the panel
