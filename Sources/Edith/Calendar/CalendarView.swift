@@ -14,17 +14,22 @@ struct CalendarView: View {
                     .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
                         store.refreshAuthStatus()
                     }
-            } else if store.events.isEmpty {
-                Text("No events today")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 28)
-                    .frame(maxWidth: .infinity)
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(store.events, id: \.eventIdentifier) { event in
-                            row(for: event)
+                VStack(alignment: .leading, spacing: 10) {
+                    dateNavigation
+                    if store.events.isEmpty {
+                        Text("No events on \(dateLabel)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 28)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(store.events, id: \.eventIdentifier) { event in
+                                    row(for: event)
+                                }
+                            }
                         }
                     }
                 }
@@ -33,10 +38,47 @@ struct CalendarView: View {
         .onAppear { store.refreshAuthStatus() }
     }
 
+    private var dateNavigation: some View {
+        HStack(spacing: 6) {
+            Button {
+                shiftDate(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Previous day")
+
+            DatePicker("", selection: $store.selectedDate, displayedComponents: .date)
+                .datePickerStyle(.compact)
+                .labelsHidden()
+
+            Button {
+                shiftDate(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Next day")
+
+            Spacer()
+        }
+    }
+
+    private func shiftDate(by days: Int) {
+        store.selectedDate = Calendar.current.date(
+            byAdding: .day, value: days, to: store.selectedDate) ?? store.selectedDate
+    }
+
+    private var dateLabel: String {
+        store.selectedDate.formatted(date: .abbreviated, time: .omitted)
+    }
+
     private var permissionPrompt: some View {
         VStack(alignment: .leading, spacing: 12) {
             eyebrow("CALENDAR ACCESS")
-            Text("Edith needs calendar access to show today's schedule.")
+            Text("Edith needs calendar access to show your schedule.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

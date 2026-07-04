@@ -1,13 +1,18 @@
 import AppKit
 import EventKit
 
-/// Calendar tab: today's events via EventKit. Read-only, all calendars,
-/// no polling - EventKit pushes `.EKEventStoreChanged` on any edit and we
-/// also refresh on wake (matches UsageStore's wake-refresh).
+/// Calendar tab: a day's events via EventKit, defaulting to today and
+/// navigable via `selectedDate`. Read-only, all calendars, no polling -
+/// EventKit pushes `.EKEventStoreChanged` on any edit and we also refresh
+/// on wake (matches UsageStore's wake-refresh), both re-fetching whatever
+/// day is currently selected.
 @MainActor
 final class CalendarStore: ObservableObject {
     @Published private(set) var events: [EKEvent] = []
     @Published private(set) var authStatus: EKAuthorizationStatus
+    @Published var selectedDate = Date() {
+        didSet { refresh() }
+    }
 
     private let store = EKEventStore()
     private var changeObserver: NSObjectProtocol?
@@ -56,7 +61,7 @@ final class CalendarStore: ObservableObject {
 
     func refresh() {
         guard authStatus == .fullAccess else { return }
-        let start = Calendar.current.startOfDay(for: Date())
+        let start = Calendar.current.startOfDay(for: selectedDate)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
         let predicate = store.predicateForEvents(
             withStart: start, end: end, calendars: store.calendars(for: .event))
