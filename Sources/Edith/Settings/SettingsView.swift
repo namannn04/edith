@@ -4,23 +4,30 @@ import SwiftUI
 
 // The app theme: one accent used by the limit rings, the activity calendar,
 // and the player controls. Stored by name in UserDefaults ("theme").
+// "accent" (default) follows the macOS system accent color.
 let themePalette: [(name: String, color: Color)] = [
-    ("blue", .blue), ("teal", .teal), ("green", .green),
-    ("purple", .purple), ("pink", .pink), ("orange", .orange),
+    ("blue", .blue), ("indigo", .indigo), ("teal", .teal), ("green", .green),
+    ("purple", .purple), ("pink", .pink), ("red", .red), ("orange", .orange),
 ]
 
 func themeColor(_ name: String) -> Color {
-    themePalette.first { $0.name == name }?.color ?? .blue
+    if name == "accent" { return .accentColor }
+    return themePalette.first { $0.name == name }?.color ?? .accentColor
 }
 
 struct SettingsView: View {
     @EnvironmentObject private var services: AppServices
     @AppStorage("presenterMode") private var presenter = false
-    @AppStorage("theme") private var themeName = "blue"
+    @AppStorage("theme") private var themeName = "accent"
+    @AppStorage("lastPaletteTheme") private var lastPaletteTheme = "blue"
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
     @AppStorage("icloudBackup") private var icloudBackup = false
     @AppStorage("lastBackupAt") private var lastBackupAt = 0.0
+    @AppStorage("musicBackup") private var musicBackup = false
+    @AppStorage("lastMusicBackupAt") private var lastMusicBackupAt = 0.0
+    @ObservedObject private var backupService = SettingsBackup.shared
+    @State private var musicSize = ""
 
     private var theme: Color { themeColor(themeName) }
 
@@ -60,30 +67,31 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 eyebrow("THEME")
-                HStack(spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Use system accent")
+                            .font(.system(size: 13))
+                        Text("Follows the accent color in System Settings")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { themeName == "accent" },
+                        set: { themeName = $0 ? "accent" : lastPaletteTheme }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .tint(theme)
+                }
+                HStack(spacing: 11) {
                     ForEach(themePalette, id: \.name) { entry in
-                        Button {
-                            themeName = entry.name
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(entry.color)
-                                    .frame(width: 26, height: 26)
-                                if themeName == entry.name {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(.white)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .onHover { over in
-                            over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                        }
-                        .help(entry.name.capitalized)
+                        swatch(entry.name, color: entry.color, help: entry.name.capitalized)
                     }
                     Spacer()
                 }
+                .opacity(themeName == "accent" ? 0.4 : 1)
             }
             .card()
 
@@ -125,11 +133,78 @@ struct SettingsView: View {
                         .tint(theme)
                         .disabled(!AppData.cloudAvailable)
                 }
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Back up music to iCloud")
+                            .font(.system(size: 13))
+                        Text(musicSubtitle)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $musicBackup)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .tint(theme)
+                        .disabled(!AppData.cloudAvailable)
+                }
             }
             .card()
             .onChange(of: icloudBackup) {
                 if icloudBackup { SettingsBackup.shared.export() }
             }
+            .onChange(of: musicBackup) {
+                if musicBackup { SettingsBackup.shared.backupMusic() }
+            }
+            .onAppear { computeMusicSize() }
+        }
+    }
+
+    private func swatch(_ name: String, color: Color, help: String) -> some View {
+        Button {
+            themeName = name
+            lastPaletteTheme = name // what the system-accent switch falls back to
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(color)
+                    .frame(width: 26, height: 26)
+                if themeName == name {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { over in
+            over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+        }
+        .help(help)
+    }
+
+    private var musicSubtitle: String {
+        if !AppData.cloudAvailable { return "iCloud Drive is not available on this Mac" }
+        var parts: [String] = [musicSize.isEmpty ? "measuring…" : "\(musicSize) in local/music"]
+        if backupService.musicBackupRunning {
+            parts.append("backing up…")
+        } else if musicBackup, lastMusicBackupAt > 0 {
+            let at = Date(timeIntervalSince1970: lastMusicBackupAt)
+            parts.append("backed up \(at.formatted(date: .abbreviated, time: .shortened))")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func computeMusicSize() {
+        Task.detached(priority: .utility) {
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: Repo.musicDir, includingPropertiesForKeys: [.fileSizeKey])) ?? []
+            let total = files.reduce(0) {
+                $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            }
+            let label = ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file)
+            await MainActor.run { musicSize = label }
         }
     }
 

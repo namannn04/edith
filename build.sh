@@ -28,6 +28,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Edith "$APP/Contents/MacOS/"
 cp Info.plist "$APP/Contents/"
 cp AppIcon.icns "$APP/Contents/Resources/"
+# the logo glyph the app loads for the menu bar + header (256px is plenty)
+sips -z 256 256 Assets/logo.png --out "$APP/Contents/Resources/Logo.png" >/dev/null
 codesign --force --sign - "$APP"
 
 killall Edith 2>/dev/null || true

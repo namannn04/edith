@@ -27,14 +27,16 @@ enum AppData {
 /// afterwards every settings change re-exports, debounced and content-compared
 /// so unchanged snapshots never touch mtimes.
 @MainActor
-final class SettingsBackup {
+final class SettingsBackup: ObservableObject {
     static let shared = SettingsBackup()
+
+    @Published private(set) var musicBackupRunning = false
 
     /// Every persisted preference the app has. New settings join this list.
     private static let keys = [
         "theme", "tab", "presenterMode", "tabUsageEnabled", "tabMusicEnabled",
         "hotKeyCode", "hotKeyMods", "hotKeyLabel", "musicVolume", "repoPath",
-        "icloudBackup",
+        "icloudBackup", "musicBackup", "lastPaletteTheme",
     ]
 
     private var debounce: Timer?
@@ -48,6 +50,36 @@ final class SettingsBackup {
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.scheduleExport() }
+        }
+        if UserDefaults.standard.bool(forKey: "musicBackup") {
+            backupMusic() // rsync no-ops fast when nothing changed
+        }
+    }
+
+    /// Copy new/changed music files into iCloud Drive (additive, never deletes).
+    func backupMusic() {
+        guard !musicBackupRunning, AppData.cloudAvailable,
+              FileManager.default.fileExists(atPath: Repo.musicDir.path) else { return }
+        musicBackupRunning = true
+        let destination = AppData.cloudDir.appendingPathComponent("music")
+        try? FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/rsync")
+        p.arguments = ["-a", Repo.musicDir.path + "/", destination.path + "/"]
+        p.qualityOfService = .utility
+        p.terminationHandler = { process in
+            Task { @MainActor in
+                self.musicBackupRunning = false
+                if process.terminationStatus == 0 {
+                    UserDefaults.standard.set(
+                        Date().timeIntervalSince1970, forKey: "lastMusicBackupAt")
+                }
+            }
+        }
+        do {
+            try p.run()
+        } catch {
+            musicBackupRunning = false
         }
     }
 

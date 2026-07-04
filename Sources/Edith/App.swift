@@ -16,6 +16,30 @@ enum Repo {
     static var musicDir: URL { root.appendingPathComponent("local/music") }
 }
 
+/// The Edith mark (Assets/logo.png, bundled as Logo.png by build.sh).
+/// Template images so the menu bar and theme tinting both work.
+enum Logo {
+    private static func load() -> NSImage? {
+        guard let url = Bundle.main.url(forResource: "Logo", withExtension: "png") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    /// Menu bar: template → macOS handles light/dark/highlight tinting.
+    static let menuBar: NSImage = {
+        let image = load() ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }()
+
+    /// Panel header: template so SwiftUI can tint it with the theme color.
+    static let header: NSImage = {
+        let image = load() ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
+        image.isTemplate = true
+        return image
+    }()
+}
+
 @main
 struct EdithApp: App {
     // Plain let, not @StateObject: App.body must not re-evaluate on store changes.
@@ -37,9 +61,12 @@ struct EdithApp: App {
                   panel.className.contains("MenuBarExtraWindow") else { return }
             // Deferred one tick: if the panel is mid-close (normal toggle) it's
             // gone by then and this no-ops; if focus genuinely left, close it
-            // through the status item so the highlight clears with it.
+            // through the status item so the highlight clears with it. The
+            // system color panel is ours — picking a color must not close us.
             DispatchQueue.main.async { [weak panel] in
-                if let panel, panel.isVisible { dismissPanel() }
+                if let panel, panel.isVisible, !NSColorPanel.shared.isVisible {
+                    dismissPanel()
+                }
             }
         }
         // MenuBarExtra re-anchors the panel's leading edge to the icon on every
@@ -73,6 +100,7 @@ struct EdithApp: App {
         // directly. The shortcut recorder gets first claim on Esc to cancel.
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53, !ShortcutRecorder.isRecording,
+               !NSColorPanel.shared.isVisible, // Esc closes the color panel first
                NSApp.windows.contains(where: {
                    $0.className.contains("MenuBarExtraWindow") && $0.isVisible
                }) {
@@ -84,10 +112,12 @@ struct EdithApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("Edith", systemImage: "eyeglasses") {
+        MenuBarExtra {
             RootView()
                 .environmentObject(services)
                 .preferredColorScheme(.dark)
+        } label: {
+            Image(nsImage: Logo.menuBar)
         }
         .menuBarExtraStyle(.window)
     }
@@ -184,6 +214,7 @@ func centerPanelUnderIcon(_ panel: NSWindow) {
 /// after actions that take the user elsewhere (browser, Finder). Goes through
 /// the status-item click so the icon highlight stays in sync (see above).
 func dismissPanel() {
+    if NSColorPanel.shared.isVisible { NSColorPanel.shared.close() }
     guard NSApp.windows.contains(where: {
         $0.className.contains("MenuBarExtraWindow") && $0.isVisible
     }) else { return }
@@ -249,7 +280,7 @@ func eyebrow(_ text: String) -> some View {
 struct RootView: View {
     @EnvironmentObject private var services: AppServices
     @AppStorage("tab") private var tab = "usage"
-    @AppStorage("theme") private var themeName = "blue"
+    @AppStorage("theme") private var themeName = "accent"
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
     @State private var showSettings = false
@@ -265,9 +296,12 @@ struct RootView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "eyeglasses")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
+                Image(nsImage: Logo.header)
+                    .resizable()
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 17, height: 17)
+                    .foregroundStyle(themeColor(themeName))
                 Text(showSettings ? "EDITH · SETTINGS" : "EDITH")
                     .font(.system(size: 12, weight: .semibold))
                     .tracking(3)

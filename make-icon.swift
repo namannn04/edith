@@ -1,4 +1,4 @@
-// Renders AppIcon.png (1024×1024): EDITH glasses on a dark gradient squircle.
+// Renders AppIcon.png (1024×1024): the Edith logo on a dark gradient squircle.
 // Run via `swift make-icon.swift AppIcon.png`; build.sh turns it into the .icns.
 import AppKit
 
@@ -35,14 +35,12 @@ func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
     return copy
 }
 
-let config = NSImage.SymbolConfiguration(pointSize: 200, weight: .medium)
-if let glasses = NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)?
-    .withSymbolConfiguration(config) {
-    let symbol = tinted(glasses, NSColor(calibratedRed: 0.62, green: 0.80, blue: 1.0, alpha: 1))
-    let targetWidth = side * 0.62
-    let scale = targetWidth / symbol.size.width
-    let targetSize = NSSize(width: targetWidth, height: symbol.size.height * scale)
-    symbol.draw(
+if let logo = NSImage(contentsOfFile: "Assets/logo.png") {
+    let mark = tinted(logo, NSColor(calibratedRed: 0.62, green: 0.80, blue: 1.0, alpha: 1))
+    let targetWidth = side * 0.66
+    let scale = targetWidth / mark.size.width
+    let targetSize = NSSize(width: targetWidth, height: mark.size.height * scale)
+    mark.draw(
         in: NSRect(
             x: (CGFloat(px) - targetSize.width) / 2,
             y: (CGFloat(px) - targetSize.height) / 2,

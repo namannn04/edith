@@ -4,7 +4,7 @@ struct UsageView: View {
     @EnvironmentObject private var store: UsageStore
     @State private var showLog = false
     @AppStorage("presenterMode") private var presenter = false
-    @AppStorage("theme") private var themeName = "blue"
+    @AppStorage("theme") private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
 

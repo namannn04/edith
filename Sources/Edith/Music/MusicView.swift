@@ -4,7 +4,7 @@ struct MusicView: View {
     @EnvironmentObject private var player: MusicPlayer
     @State private var dragFraction: Double?
     @AppStorage("presenterMode") private var presenter = false
-    @AppStorage("theme") private var themeName = "blue"
+    @AppStorage("theme") private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
 
@@ -125,7 +125,7 @@ private struct TrackRow: View {
     @State private var duration: String?
     @State private var hovering = false
     @AppStorage("presenterMode") private var presenter = false
-    @AppStorage("theme") private var themeName = "blue"
+    @AppStorage("theme") private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
     private var isCurrent: Bool { player.current == track }
