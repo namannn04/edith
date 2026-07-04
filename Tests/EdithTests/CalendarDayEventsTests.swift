@@ -34,4 +34,47 @@ import EventKit
 
         #expect(sorted.map(\.title) == ["First", "Second"])
     }
+
+    @Test func groupsByDayAscendingSortedWithin() {
+        // Fixed calendar so the test doesn't depend on the machine's zone.
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        // Anchor to midnight so "+2h" stays within the same day.
+        let day0 = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        let day1 = day0.addingTimeInterval(86_400)
+
+        let d0Late = Self.event(title: "d0-late", start: day0.addingTimeInterval(7200))
+        let d0Early = Self.event(title: "d0-early", start: day0.addingTimeInterval(3600))
+        let d1 = Self.event(title: "d1", start: day1.addingTimeInterval(3600))
+
+        let groups = CalendarDayEvents.groupedByDay([d1, d0Late, d0Early], calendar: calendar)
+
+        #expect(groups.count == 2)
+        #expect(groups[0].events.map(\.title) == ["d0-early", "d0-late"])
+        #expect(groups[1].events.map(\.title) == ["d1"])
+    }
+}
+
+@Suite struct MeetingLinkTests {
+    @Test func findsZoomLinkInNotes() {
+        let notes = "Join Zoom Meeting\nhttps://us02web.zoom.us/j/8412345678?pwd=abc\nID: 841"
+        #expect(MeetingLink.find(in: notes)?.host == "us02web.zoom.us")
+    }
+
+    @Test func findsGoogleMeet() {
+        let url = MeetingLink.find(in: "video call: https://meet.google.com/abc-defg-hij")
+        #expect(url?.absoluteString == "https://meet.google.com/abc-defg-hij")
+    }
+
+    @Test func ignoresNonMeetingLinks() {
+        #expect(MeetingLink.find(in: "Directions https://maps.google.com/?q=cafe") == nil)
+    }
+
+    @Test func lookalikeHostRejected() {
+        #expect(MeetingLink.find(in: "https://zoom.us.phishy.example/j/1") == nil)
+    }
+
+    @Test func plainTextHasNoLink() {
+        #expect(MeetingLink.find(in: "Lunch with the team") == nil)
+    }
 }

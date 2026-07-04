@@ -1,18 +1,20 @@
 import AppKit
 import EventKit
 
-/// Calendar tab: a day's events via EventKit, defaulting to today and
-/// navigable via `selectedDate`. Read-only, all calendars, no polling -
-/// EventKit pushes `.EKEventStoreChanged` on any edit and we also refresh
-/// on wake (matches UsageStore's wake-refresh), both re-fetching whatever
-/// day is currently selected.
+/// Calendar tab: an upcoming-events agenda via EventKit, from the start of
+/// today forward over a rolling window that grows as the user scrolls. Read-
+/// only, all calendars, no polling - EventKit pushes `.EKEventStoreChanged`
+/// on any edit and we also refresh on wake (matches UsageStore's wake-
+/// refresh), both re-fetching the current window.
 @MainActor
 final class CalendarStore: ObservableObject {
     @Published private(set) var events: [EKEvent] = []
     @Published private(set) var authStatus: EKAuthorizationStatus
-    @Published var selectedDate = Date() {
-        didSet { refresh() }
-    }
+
+    // How many days ahead the agenda currently covers. Grows on scroll (see
+    // loadMore) up to a ceiling so an empty calendar can't loop forever.
+    private var daysLoaded = 14
+    private static let maxDays = 120
 
     private let store = EKEventStore()
     private var changeObserver: NSObjectProtocol?
@@ -61,11 +63,19 @@ final class CalendarStore: ObservableObject {
 
     func refresh() {
         guard authStatus == .fullAccess else { return }
-        let start = Calendar.current.startOfDay(for: selectedDate)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
+        let start = Calendar.current.startOfDay(for: Date())
+        let end = Calendar.current.date(byAdding: .day, value: daysLoaded, to: start)!
         let predicate = store.predicateForEvents(
             withStart: start, end: end, calendars: store.calendars(for: .event))
         events = CalendarDayEvents.sorted(store.events(matching: predicate))
+    }
+
+    /// Scrolled to the bottom: widen the window and re-fetch. No-op once we've
+    /// hit the ceiling, so a sparse calendar stops instead of loading forever.
+    func loadMore() {
+        guard daysLoaded < Self.maxDays else { return }
+        daysLoaded = min(daysLoaded + 14, Self.maxDays)
+        refresh()
     }
 
     func openCalendarSettings() {
