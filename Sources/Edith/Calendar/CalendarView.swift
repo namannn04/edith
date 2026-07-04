@@ -91,7 +91,7 @@ struct CalendarView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(providerColor(url))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .help(url.absoluteString) // full link on hover
             }
         }

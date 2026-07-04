@@ -42,6 +42,7 @@ struct MiniPlayer: View {
                     .controlSize(.mini)
                     .tint(theme)
                     .frame(width: 60)
+                    .pointerCursor()
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

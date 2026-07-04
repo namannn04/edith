@@ -92,6 +92,7 @@ struct SettingsView: View {
                         .toggleStyle(.switch)
                         .controlSize(.small)
                         .tint(theme)
+                        .pointerCursor()
                 }
                 HStack {
                     Text("Toggle shortcut")
@@ -136,7 +137,7 @@ struct SettingsView: View {
                         Text("White").tag("white")
                         Text("Black").tag("black")
                     }
-                    .labelsHidden().pickerStyle(.menu).fixedSize()
+                    .labelsHidden().pickerStyle(.menu).fixedSize().pointerCursor()
                 }
                 toggleRow("Smart color",
                           subtitle: "Time-aware risk drives colors and alerts",
@@ -146,9 +147,9 @@ struct SettingsView: View {
                         Text("Warning / critical").font(.system(size: 13))
                         Spacer()
                         Stepper("\(warnPercent)%", value: $warnPercent, in: 10...critPercent - 5, step: 5)
-                            .font(.system(size: 12)).fixedSize()
+                            .font(.system(size: 12)).fixedSize().pointerCursor()
                         Stepper("\(critPercent)%", value: $critPercent, in: warnPercent + 5...100, step: 5)
-                            .font(.system(size: 12)).fixedSize()
+                            .font(.system(size: 12)).fixedSize().pointerCursor()
                     }
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -158,7 +159,7 @@ struct SettingsView: View {
                         }
                         Spacer()
                         Stepper("±\(Int(pacingMargin))pp", value: $pacingMargin, in: 5...25, step: 5)
-                            .font(.system(size: 12)).fixedSize()
+                            .font(.system(size: 12)).fixedSize().pointerCursor()
                     }
                 }
                 Button {
@@ -205,7 +206,7 @@ struct SettingsView: View {
                                 Text("5 min").tag(5); Text("15 min").tag(15)
                                 Text("30 min").tag(30); Text("1 h").tag(60)
                             }
-                            .labelsHidden().pickerStyle(.menu).fixedSize()
+                            .labelsHidden().pickerStyle(.menu).fixedSize().pointerCursor()
                             .disabled(!reminderSession)
                         }
                         HStack {
@@ -214,7 +215,7 @@ struct SettingsView: View {
                                 Text("1 h").tag(60); Text("2 h").tag(120)
                                 Text("6 h").tag(360); Text("12 h").tag(720)
                             }
-                            .labelsHidden().pickerStyle(.menu).fixedSize()
+                            .labelsHidden().pickerStyle(.menu).fixedSize().pointerCursor()
                             .disabled(!reminderWeekly)
                         }
                         VStack(alignment: .leading, spacing: 4) {
@@ -286,6 +287,7 @@ struct SettingsView: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .tint(theme)
+                    .pointerCursor()
                 }
                 HStack(spacing: 11) {
                     ForEach(themePalette, id: \.name) { entry in
@@ -330,6 +332,7 @@ struct SettingsView: View {
                         .toggleStyle(.switch)
                         .controlSize(.small)
                         .tint(theme)
+                        .pointerCursor()
                         .disabled(!AppData.cloudAvailable)
                 }
                 HStack {
@@ -346,6 +349,7 @@ struct SettingsView: View {
                         .toggleStyle(.switch)
                         .controlSize(.small)
                         .tint(theme)
+                        .pointerCursor()
                         .disabled(!AppData.cloudAvailable)
                 }
             }
@@ -467,6 +471,7 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .tint(theme)
+                .pointerCursor()
         }
         // Lift look with zero layout impact: negative-padded background and a
         // scale, never real padding - resizing the row mid-drag causes jitter.
@@ -536,7 +541,7 @@ struct SettingsView: View {
             }
             Spacer()
             Toggle("", isOn: isOn)
-                .labelsHidden().toggleStyle(.switch).controlSize(.small).tint(theme)
+                .labelsHidden().toggleStyle(.switch).controlSize(.small).tint(theme).pointerCursor()
         }
     }
 }

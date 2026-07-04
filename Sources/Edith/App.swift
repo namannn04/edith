@@ -322,6 +322,12 @@ struct HoverButtonStyle: ButtonStyle {
 extension View {
     func hoverButton() -> some View { modifier(HoverButton()) }
 
+    /// Pointing-hand cursor while hovered. For native controls (sliders,
+    /// toggles, pickers) that don't get HoverButtonStyle's chrome.
+    func pointerCursor() -> some View {
+        onHover { $0 ? NSCursor.pointingHand.set() : NSCursor.arrow.set() }
+    }
+
     /// Presenter view hides sensitive text behind a blur (readable shape, not content).
     func presenterBlur(_ on: Bool) -> some View {
         blur(radius: on ? 4 : 0)

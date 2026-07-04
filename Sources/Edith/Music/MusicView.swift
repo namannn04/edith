@@ -87,6 +87,7 @@ struct MusicView: View {
                     .controlSize(.small)
                     .tint(theme)
                     .frame(width: 74)
+                    .pointerCursor()
             }
             .buttonStyle(.plain)
             .font(.system(size: 13))
@@ -124,6 +125,7 @@ struct MusicView: View {
             )
         }
         .frame(height: 5)
+        .pointerCursor()
     }
 
     private func timeLabel(_ t: TimeInterval) -> String {
