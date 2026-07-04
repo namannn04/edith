@@ -28,6 +28,7 @@
 | Key | Type | Default |
 |---|---|---|
 | `limitsInMenuBar` | Bool | true |
+| `menuBarColorMode` | String ("auto" / "white" / "black") | "auto" |
 | `notifyMaster` | Bool | false |
 | `notifyTrackSession` / `notifyTrackWeekly` | Bool | true / true |
 | `notifyRecovery` | Bool | true |
@@ -1308,10 +1309,32 @@ git commit -m "Menu bar limits item: risk-tinted session/weekly numbers"
 
 **Files:**
 - Modify: `Sources/Edith/Settings/SettingsView.swift`
+- Modify: `Sources/Edith/Usage/LimitsStatusItem.swift` (menu bar color override)
 
 **Interfaces:**
 - Consumes: `services.usage?.syncStatusItem()`, `services.usage?.refreshMenuBarItem()`, `services.usage?.notifier` (`requestPermission`, `sendTest`, `authorizationStatus()`), UserDefaults keys from the registry.
-- Produces: two new cards between the GENERAL and THEME cards.
+- Produces: two new cards between the GENERAL and THEME cards, plus `menuBarColorMode` support in the status item (user request added mid-plan: a White/Black uniform color choice, Auto = existing risk tints, default).
+
+- [ ] **Step 0: Menu bar color override in LimitsStatusItem**
+
+In `Sources/Edith/Usage/LimitsStatusItem.swift`, add below the `color(for:kind:)` method:
+
+```swift
+    /// "white" / "black" -> that color for every part of the widget;
+    /// "auto" (default) -> gray labels + risk-tinted numbers.
+    private var fixedColor: NSColor? {
+        switch UserDefaults.standard.string(forKey: "menuBarColorMode") {
+        case "white": return .white
+        case "black": return .black
+        default: return nil
+        }
+    }
+```
+
+And in `segment(_:window:kind:into:)` apply it to all three text parts:
+- label attributes: `.foregroundColor: fixedColor ?? NSColor.secondaryLabelColor`
+- nil-window dash: `.foregroundColor: fixedColor ?? NSColor.tertiaryLabelColor`
+- number: `.foregroundColor: fixedColor ?? color(for: window, kind: kind)`
 
 - [ ] **Step 1: Add the @AppStorage properties**
 
@@ -1319,6 +1342,7 @@ In `SettingsView`, after the existing `@AppStorage` block (line ~34):
 
 ```swift
     @AppStorage("limitsInMenuBar") private var limitsInMenuBar = true
+    @AppStorage("menuBarColorMode") private var menuBarColorMode = "auto"
     @AppStorage("smartColor") private var smartColor = true
     @AppStorage("warnPercent") private var warnPercent = 60
     @AppStorage("critPercent") private var critPercent = 85
@@ -1365,6 +1389,20 @@ The LIMITS card:
                 toggleRow("Show in menu bar",
                           subtitle: "Session + weekly percentages next to the clock",
                           isOn: $limitsInMenuBar)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Menu bar color").font(.system(size: 13))
+                        Text("Auto tints the numbers by risk")
+                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Picker("", selection: $menuBarColorMode) {
+                        Text("Auto").tag("auto")
+                        Text("White").tag("white")
+                        Text("Black").tag("black")
+                    }
+                    .labelsHidden().pickerStyle(.menu).fixedSize()
+                }
                 toggleRow("Smart color",
                           subtitle: "Time-aware risk drives colors and alerts",
                           isOn: $smartColor)
@@ -1389,6 +1427,7 @@ The LIMITS card:
             }
             .card()
             .onChange(of: limitsInMenuBar) { services.usage?.syncStatusItem() }
+            .onChange(of: menuBarColorMode) { services.usage?.refreshMenuBarItem() }
             .onChange(of: smartColor) { services.usage?.refreshMenuBarItem() }
             .onChange(of: warnPercent) { services.usage?.refreshMenuBarItem() }
             .onChange(of: critPercent) { services.usage?.refreshMenuBarItem() }

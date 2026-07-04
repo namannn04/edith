@@ -28,6 +28,9 @@ data for.
 - Click action: `togglePanel()` - opens/closes the same Edith panel.
 - Settings toggle "Show limits in menu bar" (default on). Off destroys the
   status item entirely.
+- Menu bar color setting (user addition): Auto (default, risk tints as
+  above) | White | Black. A fixed choice colors every part of the widget -
+  labels, numbers, dashes - uniformly.
 - While limits are unavailable (no token, offline, 429 backoff): dimmed `–`
   placeholders. The item never disappears on its own; only the setting
   removes it.
@@ -92,6 +95,7 @@ localization (English strings hardcoded, copy adapted from TokenEater's
 | Smart Color | on |
 | Pacing margin | 10pp |
 | Warning / critical thresholds | 60% / 85% (TokenEater defaults) |
+| Menu bar color | auto (white / black optional) |
 | Test notification button | - |
 
 Thresholds and Smart Color also drive the menu bar number colors so all
