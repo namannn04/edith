@@ -18,8 +18,10 @@ data for.
 ## 1. Menu bar numbers
 
 - A plain AppKit `NSStatusItem` next to the existing MenuBarExtra glasses
-  icon. Its button title is an attributed string like `⏱ 42  W 67` - session
-  first, weekly second, each number tinted independently.
+  icon. Its button title is an attributed string like `5h 42%  7d 67%` -
+  session first, weekly second, each number tinted independently (labels
+  were "S"/"W" originally; user asked for the clearer 5h/7d + percent
+  signs).
 - Colors: with Smart Color enabled (default), the tint comes from the
   continuous risk score via the ported `nsColorForRisk` (green -> orange ->
   red HSB interpolation, anchors fixed at system green/orange/red - no theme

@@ -38,9 +38,9 @@ final class LimitsStatusItem {
 
     func update(session: LimitWindow?, week: LimitWindow?) {
         let title = NSMutableAttributedString()
-        segment("S", window: session, kind: .session, into: title)
+        segment("5h", window: session, kind: .session, into: title)
         title.append(NSAttributedString(string: "  "))
-        segment("W", window: week, kind: .weekly, into: title)
+        segment("7d", window: week, kind: .weekly, into: title)
         item.button?.attributedTitle = title
     }
 
@@ -62,8 +62,13 @@ final class LimitsStatusItem {
             ]))
             return
         }
+        let tint = fixedColor ?? color(for: window, kind: kind)
         out.append(NSAttributedString(string: "\(Int(window.percent.rounded()))", attributes: [
-            .font: numberFont, .foregroundColor: fixedColor ?? color(for: window, kind: kind),
+            .font: numberFont, .foregroundColor: tint,
+        ]))
+        out.append(NSAttributedString(string: "%", attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold),
+            .foregroundColor: tint.withAlphaComponent(0.75),
         ]))
     }
 
