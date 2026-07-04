@@ -1,22 +1,31 @@
 # Edith
 
 Native SwiftUI menu bar app for the Mac (the eyeglasses icon next to the
-system controls) — a personal control center with two tabs, one folder per
-feature so more slot in later:
+system controls) — a personal control center. Dark, minimal, built to run
+24/7 on near-zero resources.
 
-- **Agent Usage** (`Sources/Edith/Usage/`) — session (5h) and weekly limit
-  bars with live second countdowns ("2d 3:45:12" past 24h) from the OAuth
-  usage endpoint (token read silently via `/usr/bin/security`, auto-refresh
-  every 5 min + on wake), a full-history activity-calendar heatmap, token/cost
-  stats for today / yesterday / this week / this billing cycle from
-  `dashboard/data/usage.json`, a source filter, a ↻ button that runs
-  `dashboard/cc-update` (with a collapsible live log), and ↗ which opens the
-  dashboard in the browser carrying the panel's filters as `?sources=`.
-- **Music** (`Sources/Edith/Music/`) — lists every playable file in
-  `local/music/` straight from the folder (mp3/m4a/mp4/webm/wav/flac/…, no
-  manifest), thumbnails from embedded art or a video frame, drag-to-seek,
-  play/pause with short fades, prev/next, auto-advance loop, volume, media-key
-  / Now Playing integration, and a folder button to open the directory.
+## Features
+
+- **Rate limit rings** — session (5h) and weekly usage as animated gauges
+  with live second countdowns; auto-refresh every 5 min, instantly on wake
+- **Activity heatmap** — GitHub-style daily spend calendar, full history,
+  horizontally scrollable
+- **Token & cost stats** — today / yesterday / this week / billing cycle,
+  filterable by agent source (Claude Code, Codex, OpenCode, …)
+- **Dashboard link** — one click opens the full HTML dashboard in the
+  browser, carrying the panel's filters; ↻ runs the data pipeline with a
+  collapsible live log
+- **Music player** — plays whatever is in the music folder (mp3/m4a/mp4/webm/
+  …), thumbnails, drag-to-seek, fades, auto-advance, media keys + Now Playing
+- **Global shortcut** — toggle the panel from anywhere (default ⌥⌘E),
+  re-recordable in settings; Esc or clicking away closes it
+- **Settings screen** — enable/disable tabs (an off tab's module is never
+  loaded), app-wide theme color, presenter view that blurs sensitive values
+  for screen sharing
+- **Settings backup** — mirrored to Application Support, optional iCloud
+  Drive sync across Macs (newest copy wins)
+- **Agent Usage** code lives in `Sources/Edith/Usage/`, **Music** in
+  `Sources/Edith/Music/` — one folder per feature so future tabs slot in.
 
 ## Layout
 

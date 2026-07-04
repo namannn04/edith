@@ -19,6 +19,8 @@ struct SettingsView: View {
     @AppStorage("theme") private var themeName = "blue"
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
+    @AppStorage("icloudBackup") private var icloudBackup = false
+    @AppStorage("lastBackupAt") private var lastBackupAt = 0.0
 
     private var theme: Color { themeColor(themeName) }
 
@@ -84,7 +86,61 @@ struct SettingsView: View {
                 }
             }
             .card()
+
+            VStack(alignment: .leading, spacing: 12) {
+                eyebrow("DATA")
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("App data")
+                            .font(.system(size: 13))
+                        Text("~/Library/Application Support/Edith")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Button("Open") {
+                        NSWorkspace.shared.open(AppData.supportDir)
+                        dismissPanel()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(theme)
+                    .onHover { over in
+                        over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                    }
+                }
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Back up settings to iCloud")
+                            .font(.system(size: 13))
+                        Text(backupSubtitle)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $icloudBackup)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .tint(theme)
+                        .disabled(!AppData.cloudAvailable)
+                }
+            }
+            .card()
+            .onChange(of: icloudBackup) {
+                if icloudBackup { SettingsBackup.shared.export() }
+            }
         }
+    }
+
+    private var backupSubtitle: String {
+        if !AppData.cloudAvailable { return "iCloud Drive is not available on this Mac" }
+        if !icloudBackup { return "Syncs via iCloud Drive; newest copy wins across Macs" }
+        if lastBackupAt > 0 {
+            let at = Date(timeIntervalSince1970: lastBackupAt)
+            return "Backed up \(at.formatted(date: .abbreviated, time: .shortened))"
+        }
+        return "Waiting for first backup…"
     }
 
     private func tabToggle(_ title: String, subtitle: String, isOn: Binding<Bool>) -> some View {

@@ -66,6 +66,7 @@ struct EdithApp: App {
             }
         }
         HotKey.register() // ⌥⌘E toggles the panel from anywhere
+        SettingsBackup.shared.start() // settings mirror + optional iCloud sync
 
         // Esc closes the panel. onExitCommand alone needs SwiftUI focus inside
         // the panel, which a non-activating panel rarely has — catch the key
