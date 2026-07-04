@@ -57,6 +57,7 @@ final class UsageStore: ObservableObject {
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var process: Process?
+    let notifier = LimitNotifier()
 
     init() {
         // 5-min limit poll; generous tolerance lets macOS coalesce wakeups.
@@ -137,6 +138,7 @@ final class UsageStore: ObservableObject {
                 apply(usage)
             } else {
                 limitsError = "Token expired - run claude to re-login"
+                notifier.notifyTokenExpired()
             }
         } catch FetchError.rateLimited(let after) {
             // ponytail: flat backoff, no exponential ladder - endpoint 429s are rare
@@ -152,6 +154,7 @@ final class UsageStore: ObservableObject {
         limitsError = nil
         limitsUpdatedAt = Date()
         retryNotBefore = nil
+        notifier.evaluate(session: session, week: week)
     }
 
     private struct OAuthUsage: Decodable {

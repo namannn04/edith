@@ -21,7 +21,7 @@
 - TokenEater reference source (read-only, gitignored): `local/extras/TokenEater/`.
 - Work directly on `main` (user's explicit choice).
 - All new UserDefaults keys ride the existing SettingsBackup mirror automatically — nothing to do there.
-- `swift build` / `swift test` run from repo root; `bun test` / `bun build.mjs` run from `dashboard/`.
+- `swift build` runs from repo root; Swift tests run via `./test.sh` (wraps `swift test` with the CLT Testing.framework search paths — bare `swift test` fails on this machine); `bun test` / `bun build.mjs` run from `dashboard/`.
 
 ### UserDefaults key registry (used across tasks — exact strings)
 
