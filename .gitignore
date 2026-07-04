@@ -1,0 +1,7 @@
+.DS_Store
+local/
+edith/.build/
+edith/dist/
+# usage data stays local — never pushed
+dashboard/data/
+dashboard/dashboard.html
