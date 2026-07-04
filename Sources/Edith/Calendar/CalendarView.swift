@@ -40,28 +40,33 @@ struct CalendarView: View {
     }
 
     private var dateNavigation: some View {
-        HStack(spacing: 4) {
-            chevronButton("chevron.left", help: "Previous day") { shiftDate(by: -1) }
+        // MenuBarExtra's panel is a non-activating NSPanel - SwiftUI's
+        // .popover fails to anchor/show inside it, so the picker expands
+        // inline instead of in a popover.
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                chevronButton("chevron.left", help: "Previous day") { shiftDate(by: -1) }
 
-            Button {
-                showDatePicker.toggle()
-            } label: {
-                Text(dateLabel)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(minWidth: 92)
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showDatePicker.toggle() }
+                } label: {
+                    Text(dateLabel)
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(minWidth: 92)
+                }
+                .buttonStyle(HoverButtonStyle())
+
+                chevronButton("chevron.right", help: "Next day") { shiftDate(by: 1) }
+                Spacer()
             }
-            .buttonStyle(HoverButtonStyle())
-            .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+            if showDatePicker {
                 DatePicker("", selection: $store.selectedDate, displayedComponents: .date)
                     .datePickerStyle(.graphical)
                     .labelsHidden()
-                    .padding(12)
-                    .frame(width: 260)
-                    .onChange(of: store.selectedDate) { showDatePicker = false }
+                    .onChange(of: store.selectedDate) {
+                        withAnimation(.easeOut(duration: 0.15)) { showDatePicker = false }
+                    }
             }
-
-            chevronButton("chevron.right", help: "Next day") { shiftDate(by: 1) }
-            Spacer()
         }
     }
 
