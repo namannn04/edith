@@ -356,6 +356,8 @@ let allTabs: [TabInfo] = [
             subtitle: "player, media keys", enabledKey: "tabMusicEnabled"),
     TabInfo(id: "system", title: "System",
             subtitle: "prevent sleep, keyboard cleaning", enabledKey: "tabSystemEnabled"),
+    TabInfo(id: "calendar", title: "Calendar",
+            subtitle: "today's schedule", enabledKey: "tabCalendarEnabled"),
 ]
 
 /// Stored order, cleaned of unknown ids, with any new tabs appended.
@@ -379,6 +381,7 @@ struct RootView: View {
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
     @AppStorage("tabSystemEnabled") private var systemEnabled = true
+    @AppStorage("tabCalendarEnabled") private var calendarEnabled = true
     @AppStorage("tabOrder") private var tabOrderRaw = "usage,music,system"
     @State private var showSettings = false
 
@@ -390,6 +393,7 @@ struct RootView: View {
             case "usage": usageEnabled
             case "music": musicEnabled
             case "system": systemEnabled
+            case "calendar": calendarEnabled
             default: false
             }
             return on ? (info.id, info.title) : nil
@@ -459,6 +463,8 @@ struct RootView: View {
                     MusicView().environmentObject(player)
                 } else if tab == "system", let system = services.system {
                     SystemView().environmentObject(system)
+                } else if tab == "calendar", let calendar = services.calendar {
+                    CalendarView().environmentObject(calendar)
                 } else if enabledTabs.isEmpty {
                     Text("All tabs are off - enable one in Settings (⚙)")
                         .font(.system(size: 12))
@@ -492,6 +498,7 @@ struct RootView: View {
         .onChange(of: usageEnabled) { pinTab() }
         .onChange(of: musicEnabled) { pinTab() }
         .onChange(of: systemEnabled) { pinTab() }
+        .onChange(of: calendarEnabled) { pinTab() }
         .padding(14)
         .frame(width: 480)
         // Solidify the system material - pure vibrancy washes out over busy screens.

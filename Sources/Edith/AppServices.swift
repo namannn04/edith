@@ -9,6 +9,7 @@ final class AppServices: ObservableObject {
     @Published private(set) var usage: UsageStore?
     @Published private(set) var music: MusicPlayer?
     @Published private(set) var system: SystemStore?
+    @Published private(set) var calendar: CalendarStore?
 
     static func tabEnabled(_ key: String) -> Bool {
         UserDefaults.standard.object(forKey: key) as? Bool ?? true
@@ -39,6 +40,13 @@ final class AppServices: ObservableObject {
         if !systemOn, let store = system {
             store.shutdown()
             system = nil
+        }
+
+        let calendarOn = Self.tabEnabled("tabCalendarEnabled")
+        if calendarOn, calendar == nil { calendar = CalendarStore() }
+        if !calendarOn, let store = calendar {
+            store.shutdown()
+            calendar = nil
         }
     }
 }
