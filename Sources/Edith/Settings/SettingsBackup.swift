@@ -34,11 +34,23 @@ final class SettingsBackup: ObservableObject {
     @Published private(set) var musicBackupRunning = false
 
     /// Every persisted preference the app has. New settings join this list.
+    /// Deliberately absent: notifier edge-trigger state (notifSessionLevel &
+    /// friends - syncing those would suppress alerts on the other Mac),
+    /// migratedFromControlCenter, and NSStatusItem visibility keys.
     private static let keys = [
         "theme", "tab", "presenterMode", "tabUsageEnabled", "tabMusicEnabled",
         "hotKeyCode", "hotKeyMods", "hotKeyLabel", "musicVolume", "repoPath",
         "icloudBackup", "musicBackup", "lastPaletteTheme", "appearance",
         "tabSystemEnabled", "preventSleep", "tabOrder",
+        // limits + menu bar widget
+        "limitsInMenuBar", "menuBarColorMode", "smartColor",
+        "warnPercent", "critPercent", "pacingMargin",
+        // notifications
+        "notifyMaster", "notifyTrackSession", "notifyTrackWeekly",
+        "notifyRecovery", "notifyPacingWarning", "notifyPacingHot",
+        "notifyReminderSession", "notifyReminderSessionOffsetMin",
+        "notifyReminderWeekly", "notifyReminderWeeklyOffsetMin",
+        "notifyTokenExpired",
     ]
 
     private var debounce: Timer?
