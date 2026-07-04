@@ -293,20 +293,59 @@ func eyebrow(_ text: String) -> some View {
         .foregroundStyle(.tertiary)
 }
 
+/// Single registry for everything tab-related; order lives in "tabOrder".
+struct TabInfo {
+    let id: String
+    let title: String
+    let subtitle: String
+    let enabledKey: String
+}
+
+let allTabs: [TabInfo] = [
+    TabInfo(id: "usage", title: "Agent Usage",
+            subtitle: "limit polling, usage stats", enabledKey: "tabUsageEnabled"),
+    TabInfo(id: "music", title: "Music",
+            subtitle: "player, media keys", enabledKey: "tabMusicEnabled"),
+    TabInfo(id: "system", title: "System",
+            subtitle: "prevent sleep, keyboard cleaning", enabledKey: "tabSystemEnabled"),
+]
+
+/// Stored order, cleaned of unknown ids, with any new tabs appended.
+func orderedTabIDs(_ raw: String) -> [String] {
+    var ids = raw.split(separator: ",").map(String.init)
+        .filter { id in allTabs.contains { $0.id == id } }
+    for tab in allTabs where !ids.contains(tab.id) {
+        ids.append(tab.id)
+    }
+    return ids
+}
+
 struct RootView: View {
     @EnvironmentObject private var services: AppServices
-    @AppStorage("tab") private var tab = "usage"
+    // @State, not @AppStorage: defaults-backed storage re-renders via a
+    // UserDefaults hop that DROPS the withAnimation transaction, which is why
+    // settings (plain @State) resized smoothly and tab switches snapped.
+    // Persisted manually in onChange below.
+    @State private var tab = UserDefaults.standard.string(forKey: "tab") ?? "usage"
     @AppStorage("theme") private var themeName = "accent"
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
+    @AppStorage("tabSystemEnabled") private var systemEnabled = true
+    @AppStorage("tabOrder") private var tabOrderRaw = "usage,music,system"
     @State private var showSettings = false
 
-    // Future tabs: append here (id, title) + a store in AppServices.
+    // Registry order comes from settings; enabled flags gate each entry.
     private var enabledTabs: [(id: String, title: String)] {
-        var tabs: [(String, String)] = []
-        if usageEnabled { tabs.append(("usage", "Agent Usage")) }
-        if musicEnabled { tabs.append(("music", "Music")) }
-        return tabs
+        orderedTabIDs(tabOrderRaw).compactMap { id in
+            guard let info = allTabs.first(where: { $0.id == id }) else { return nil }
+            let on = switch id {
+            case "usage": usageEnabled
+            case "music": musicEnabled
+            case "system": systemEnabled
+            default: false
+            }
+            return on ? (info.id, info.title) : nil
+        }
     }
 
     var body: some View {
@@ -365,6 +404,8 @@ struct RootView: View {
                     UsageView().environmentObject(store)
                 } else if tab == "music", let player = services.music {
                     MusicView().environmentObject(player)
+                } else if tab == "system", let system = services.system {
+                    SystemView().environmentObject(system)
                 } else if enabledTabs.isEmpty {
                     Text("All tabs are off - enable one in Settings (⚙)")
                         .font(.system(size: 12))
@@ -383,6 +424,7 @@ struct RootView: View {
             MiniPanel.shared.sync()
         }
         .onChange(of: tab) {
+            UserDefaults.standard.set(tab, forKey: "tab")
             MiniPanel.shared.tab = tab
             MiniPanel.shared.expectResize()
             MiniPanel.shared.sync()
@@ -396,6 +438,7 @@ struct RootView: View {
         }
         .onChange(of: usageEnabled) { pinTab() }
         .onChange(of: musicEnabled) { pinTab() }
+        .onChange(of: systemEnabled) { pinTab() }
         .padding(14)
         .frame(width: 480)
         // Solidify the system material - pure vibrancy washes out over busy screens.

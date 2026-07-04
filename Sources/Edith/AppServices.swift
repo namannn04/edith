@@ -8,6 +8,7 @@ import Foundation
 final class AppServices: ObservableObject {
     @Published private(set) var usage: UsageStore?
     @Published private(set) var music: MusicPlayer?
+    @Published private(set) var system: SystemStore?
 
     static func tabEnabled(_ key: String) -> Bool {
         UserDefaults.standard.object(forKey: key) as? Bool ?? true
@@ -31,6 +32,13 @@ final class AppServices: ObservableObject {
         if !musicOn, let player = music {
             player.shutdown()
             music = nil
+        }
+
+        let systemOn = Self.tabEnabled("tabSystemEnabled")
+        if systemOn, system == nil { system = SystemStore() }
+        if !systemOn, let store = system {
+            store.shutdown()
+            system = nil
         }
     }
 }

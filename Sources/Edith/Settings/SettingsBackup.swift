@@ -38,6 +38,7 @@ final class SettingsBackup: ObservableObject {
         "theme", "tab", "presenterMode", "tabUsageEnabled", "tabMusicEnabled",
         "hotKeyCode", "hotKeyMods", "hotKeyLabel", "musicVolume", "repoPath",
         "icloudBackup", "musicBackup", "lastPaletteTheme", "appearance",
+        "tabSystemEnabled", "preventSleep", "tabOrder",
     ]
 
     private var debounce: Timer?

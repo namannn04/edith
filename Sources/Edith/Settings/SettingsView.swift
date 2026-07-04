@@ -21,8 +21,13 @@ struct SettingsView: View {
     @AppStorage("theme") private var themeName = "accent"
     @AppStorage("lastPaletteTheme") private var lastPaletteTheme = "blue"
     @AppStorage("appearance") private var appearance = "system"
+    @State private var draggingTab: String?
+    @State private var dragTranslation: CGFloat = 0
+    @State private var rowPitch: CGFloat = 46
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
+    @AppStorage("tabSystemEnabled") private var systemEnabled = true
+    @AppStorage("tabOrder") private var tabOrderRaw = "usage,music,system"
     @AppStorage("icloudBackup") private var icloudBackup = false
     @AppStorage("lastBackupAt") private var lastBackupAt = 0.0
     @AppStorage("musicBackup") private var musicBackup = false
@@ -36,14 +41,24 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 12) {
                 eyebrow("TABS")
-                tabToggle("Agent Usage", subtitle: "limit polling, usage stats", isOn: $usageEnabled)
-                tabToggle("Music", subtitle: "player, media keys", isOn: $musicEnabled)
+                let order = orderedTabIDs(tabOrderRaw)
+                ForEach(Array(order.enumerated()), id: \.element) { index, id in
+                    if let info = allTabs.first(where: { $0.id == id }) {
+                        tabRow(info)
+                            .offset(y: rowOffset(index: index, id: id, order: order))
+                            .zIndex(draggingTab == id ? 1 : 0)
+                            .animation(
+                                draggingTab == id ? nil : .easeOut(duration: 0.15),
+                                value: projectedDelta)
+                    }
+                }
             }
             .card()
             // Toggling a tab creates or tears down its whole module - timers,
             // network, audio, caches - so an off tab costs nothing.
             .onChange(of: usageEnabled) { services.sync() }
             .onChange(of: musicEnabled) { services.sync() }
+            .onChange(of: systemEnabled) { services.sync() }
 
             VStack(alignment: .leading, spacing: 12) {
                 eyebrow("GENERAL")
@@ -75,6 +90,9 @@ struct SettingsView: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .fixedSize()
+                    .onHover { over in
+                        over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                    }
                     .onChange(of: appearance) { applyAppearance(appearance) }
                 }
             }
@@ -125,12 +143,9 @@ struct SettingsView: View {
                         NSWorkspace.shared.open(AppData.supportDir)
                         dismissPanel()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HoverButtonStyle())
                     .font(.system(size: 12))
                     .foregroundStyle(theme)
-                    .onHover { over in
-                        over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                    }
                 }
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -182,12 +197,9 @@ struct SettingsView: View {
                     NSWorkspace.shared.open(URL(string: "https://pulkit.page")!)
                     dismissPanel()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(theme)
-                .onHover { over in
-                    over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                }
                 .help("pulkit.page")
             }
             .frame(maxWidth: .infinity)
@@ -211,10 +223,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
-        .onHover { over in
-            over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-        }
+        .buttonStyle(HoverButtonStyle())
         .help(help)
     }
 
@@ -252,21 +261,99 @@ struct SettingsView: View {
         return "Waiting for first backup…"
     }
 
-    private func tabToggle(_ title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
-        HStack {
+    private func tabRow(_ info: TabInfo) -> some View {
+        HStack(spacing: 10) {
+            // grip: press here and drag the whole row to reorder
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 11))
+                .foregroundStyle(draggingTab == info.id ? AnyShapeStyle(theme) : AnyShapeStyle(.tertiary))
+                .frame(width: 18, height: 26)
+                .contentShape(Rectangle())
+                .onHover { over in
+                    over ? NSCursor.openHand.set() : NSCursor.arrow.set()
+                }
+                .gesture(
+                    // Global space: local coordinates move with the row's own
+                    // offset, feeding the translation back into itself (jitter).
+                    DragGesture(coordinateSpace: .global)
+                        .onChanged { value in
+                            if draggingTab == nil {
+                                draggingTab = info.id
+                                NSCursor.closedHand.set()
+                            }
+                            dragTranslation = value.translation.height
+                        }
+                        .onEnded { _ in commitDrag() }
+                )
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(info.title)
                     .font(.system(size: 13))
-                Text(subtitle)
+                Text(info.subtitle)
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            Toggle("", isOn: isOn)
+            Toggle("", isOn: tabBinding(info.id))
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .tint(theme)
+        }
+        // Lift look with zero layout impact: negative-padded background and a
+        // scale, never real padding - resizing the row mid-drag causes jitter.
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(draggingTab == info.id ? Color.primary.opacity(0.08) : .clear)
+                .padding(.horizontal, -8)
+                .padding(.vertical, -5)
+        )
+        .scaleEffect(draggingTab == info.id ? 1.02 : 1)
+        .shadow(color: .black.opacity(draggingTab == info.id ? 0.3 : 0), radius: 6, y: 2)
+        .background(GeometryReader { geo in
+            Color.clear.onAppear { rowPitch = geo.size.height + 12 } // height + card spacing
+        })
+    }
+
+    /// How many slots the dragged row has moved (rounded to the nearest row).
+    private var projectedDelta: Int {
+        guard rowPitch > 0 else { return 0 }
+        return Int((dragTranslation / rowPitch).rounded())
+    }
+
+    private func rowOffset(index: Int, id: String, order: [String]) -> CGFloat {
+        guard let dragging = draggingTab,
+              let from = order.firstIndex(of: dragging) else { return 0 }
+        if id == dragging { return dragTranslation }
+        let to = max(0, min(order.count - 1, from + projectedDelta))
+        if from < to, index > from, index <= to { return -rowPitch }
+        if to < from, index >= to, index < from { return rowPitch }
+        return 0
+    }
+
+    private func commitDrag() {
+        defer {
+            withAnimation(.easeOut(duration: 0.18)) {
+                draggingTab = nil
+                dragTranslation = 0
+            }
+            NSCursor.arrow.set()
+        }
+        guard let dragging = draggingTab else { return }
+        var order = orderedTabIDs(tabOrderRaw)
+        guard let from = order.firstIndex(of: dragging) else { return }
+        let to = max(0, min(order.count - 1, from + projectedDelta))
+        guard to != from else { return }
+        let item = order.remove(at: from)
+        order.insert(item, at: to)
+        tabOrderRaw = order.joined(separator: ",")
+    }
+
+    private func tabBinding(_ id: String) -> Binding<Bool> {
+        switch id {
+        case "usage": $usageEnabled
+        case "music": $musicEnabled
+        case "system": $systemEnabled
+        default: .constant(false)
         }
     }
 }
@@ -284,17 +371,18 @@ struct ShortcutRecorder: View {
     @State private var label = HotKey.label
 
     var body: some View {
-        Button(recording ? "Press shortcut…" : label) {
+        Button {
             recording ? stop() : start()
+        } label: {
+            Text(recording ? "Press shortcut…" : label)
+                .font(.system(size: 12, weight: .medium))
+                .padding(.vertical, 2)
+                .padding(.horizontal, 6)
+                .background(
+                    .primary.opacity(recording ? 0.12 : 0.06),
+                    in: RoundedRectangle(cornerRadius: 5))
         }
-        .buttonStyle(.plain)
-        .font(.system(size: 12, weight: .medium))
-        .padding(.vertical, 4)
-        .padding(.horizontal, 10)
-        .background(.white.opacity(recording ? 0.12 : 0.06), in: RoundedRectangle(cornerRadius: 6))
-        .onHover { over in
-            over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-        }
+        .buttonStyle(HoverButtonStyle())
         .onDisappear { if recording { stop() } }
         .help("Click, then press the new shortcut (Esc cancels)")
     }

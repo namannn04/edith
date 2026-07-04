@@ -64,7 +64,12 @@ struct TabBar: View {
 
     private func chip(_ entry: (id: String, title: String), expand: Bool) -> some View {
         Button {
-            selection = entry.id
+            // withAnimation puts the whole layout change - including the
+            // panel's height resize - into one animated transaction, matching
+            // the settings open/close feel.
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                selection = entry.id
+            }
         } label: {
             Text(entry.title)
                 .font(.system(size: 13, weight: selection == entry.id ? .semibold : .regular))

@@ -17,6 +17,9 @@ system controls) - a personal control center. Dark, minimal, built to run
   collapsible live log
 - **Music player** - plays whatever is in the music folder (mp3/m4a/mp4/webm/
   …), thumbnails, drag-to-seek, fades, auto-advance, media keys + Now Playing
+- **System tools** - prevent-sleep toggle (IOKit assertion) and a keyboard
+  cleaning lock that blocks every key, media row included, with an overlay,
+  Done button, and 60s auto-restore
 - **Global shortcut** - toggle the panel from anywhere (default ⌥⌘E),
   re-recordable in settings; Esc or clicking away closes it
 - **Settings screen** - enable/disable tabs (an off tab's module is never
