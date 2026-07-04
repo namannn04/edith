@@ -7,7 +7,16 @@ system controls) - a personal control center. Dark, minimal, built to run
 ## Features
 
 - **Rate limit rings** - session (5h) and weekly usage as animated gauges
-  with live second countdowns; auto-refresh every 5 min, instantly on wake
+  with live second countdowns; auto-refresh every 5 min, instantly on wake;
+  a 24h history mini-chart under the rings
+- **Limits in the menu bar** - optional second menu bar item with the
+  session + weekly percentages, tinted by a time-aware risk model (Smart
+  Color) or a fixed color (white/black); click opens the panel
+- **Limit notifications** - threshold escalations with pacing-aware copy,
+  ahead-of-pace and burning-hot alerts, back-to-green recovery, reminders
+  before session/weekly resets, token-expired nudge - all configurable in
+  Settings, off by default; a self-diagnosing test-notification button
+  reports Delivered / Blocked / Permission not granted / Failed
 - **Activity heatmap** - GitHub-style daily spend calendar, full history,
   horizontally scrollable
 - **Token & cost stats** - today / yesterday / this week / billing cycle,
@@ -24,7 +33,8 @@ system controls) - a personal control center. Dark, minimal, built to run
   re-recordable in settings; Esc or clicking away closes it
 - **Settings screen** - enable/disable tabs (an off tab's module is never
   loaded), app-wide theme color, presenter view that blurs sensitive values
-  for screen sharing
+  for screen sharing; the pane scroll-caps at ~640pt, with detail rows
+  (Limits, Notifications) tucked behind View more disclosures
 - **Settings backup** - mirrored to Application Support, optional iCloud
   Drive sync across Macs (newest copy wins)
 - **Agent Usage** code lives in `Sources/Edith/Usage/`, **Music** in
@@ -45,10 +55,13 @@ system controls) - a personal control center. Dark, minimal, built to run
 ```bash
 ./build.sh            # build + run from dist/
 ./build.sh --install  # build + copy to /Applications + launch
+./test.sh             # run the Swift test suite
 ```
 
 Needs only Xcode Command Line Tools (Swift 6). The bundle is assembled by the
-script and ad-hoc signed.
+script and ad-hoc signed. `test.sh` wraps `swift test` with the CLT-bundled
+`Testing.framework` search paths, which plain `swift test` misses without a
+full Xcode install.
 
 ## Data & paths
 

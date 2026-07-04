@@ -18,10 +18,12 @@ configurable via the billing-day input - is shared across all of them).
 | `js/*.js`, `css/styles.css` | **Source.** The dashboard as ~10 focused ES modules + its stylesheet. |
 | `dashboard.template.html` | **Source.** The HTML shell (markup + `<link>`/`<script src>` placeholders the build inlines into). |
 | `build.mjs` | Build step (run with **bun**): inlines `css/styles.css` + the bundled `js/app.js` graph into the template → `dashboard.html`, preserving the data block. |
-| `render.mjs` | Assembles `data/usage.json` from the per-agent ccusage manifest and inlines it into `dashboard.html`. |
+| `render.mjs` | Assembles `data/usage.json` from the per-agent ccusage manifest and inlines it into `dashboard.html`. Also inlines `data/limits-history.jsonl` into the `<script id="limits-data">` block (raw for the last ≤7 days, hourly maxima beyond that). |
 | `merge.mjs` | Pure helpers: normalizes each ccusage agent's daily schema into one shape and defines the source→tool grouping. Unit-tested. |
+| `limits.mjs`, `js/limitsChart.js` | Limits-history helpers (pure, shared with render.mjs like merge.mjs) + the Limits card (Chart.js). |
 | `cc-update` | The script you run. Pulls usage → renders. With `--push`, also commits & pushes. |
 | `data/usage.json` | Historical snapshot (written each run; committed on `--push`). |
+| `data/limits-history.jsonl` | Limit-poll history, appended by the Edith app (one JSON line per changed poll). |
 | `com.pulkit.ccusage-dashboard.plist` | launchd schedule - runs `cc-update --push` daily at 10:00. |
 
 ## Use it

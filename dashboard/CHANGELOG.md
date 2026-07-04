@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-04 - Limits card
+
+Added a **Limits** card: session and weekly usage curves, threshold-rule
+shading, and reset markers, over four ranges (24h / 7d / 30d / all).
+
+### Data: limits-history.jsonl
+The Edith app appends `data/limits-history.jsonl` on every changed poll (one
+JSON line per session/weekly percent change). `render.mjs` inlines it into a
+new `<script id="limits-data">` block - raw for the last ≤7 days, downsampled
+to hourly maxima beyond that - so the card stays self-contained like the rest
+of the dashboard, no fetch required.
+
+### Dashboard
+- New **Limits** card: session (5h) and weekly usage lines, colored by the
+  same threshold rules as the app, with vertical markers at each reset.
+- Range picker (24h / 7d / 30d / all), consistent with the rest of the
+  filters.
+
 ## 2026-05-31 - Light / dark theme
 
 Added a theme toggle (top-right). Defaults to the OS `prefers-color-scheme`,
