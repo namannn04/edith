@@ -8,6 +8,11 @@ let package = Package(
         .executableTarget(
             name: "Edith",
             swiftSettings: [.swiftLanguageMode(.v5)]
-        )
+        ),
+        .testTarget(
+            name: "EdithTests",
+            dependencies: ["Edith"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
     ]
 )
