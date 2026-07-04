@@ -4,6 +4,7 @@ import SwiftUI
 struct CalendarView: View {
     @EnvironmentObject private var store: CalendarStore
     @AppStorage("theme") private var themeName = "accent"
+    @State private var showDatePicker = false
 
     private var theme: Color { themeColor(themeName) }
 
@@ -39,31 +40,42 @@ struct CalendarView: View {
     }
 
     private var dateNavigation: some View {
-        HStack(spacing: 6) {
-            Button {
-                shiftDate(by: -1)
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .semibold))
-            }
-            .buttonStyle(HoverButtonStyle())
-            .help("Previous day")
-
-            DatePicker("", selection: $store.selectedDate, displayedComponents: .date)
-                .datePickerStyle(.compact)
-                .labelsHidden()
+        HStack(spacing: 4) {
+            chevronButton("chevron.left", help: "Previous day") { shiftDate(by: -1) }
 
             Button {
-                shiftDate(by: 1)
+                showDatePicker.toggle()
             } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                Text(dateLabel)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(minWidth: 92)
             }
             .buttonStyle(HoverButtonStyle())
-            .help("Next day")
+            .popover(isPresented: $showDatePicker, arrowEdge: .bottom) {
+                DatePicker("", selection: $store.selectedDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .padding(12)
+                    .frame(width: 260)
+                    .onChange(of: store.selectedDate) { showDatePicker = false }
+            }
 
+            chevronButton("chevron.right", help: "Next day") { shiftDate(by: 1) }
             Spacer()
         }
+    }
+
+    private func chevronButton(
+        _ systemName: String, help: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(HoverButtonStyle())
+        .help(help)
     }
 
     private func shiftDate(by days: Int) {
@@ -72,7 +84,7 @@ struct CalendarView: View {
     }
 
     private var dateLabel: String {
-        store.selectedDate.formatted(date: .abbreviated, time: .omitted)
+        store.selectedDate.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
 
     private var permissionPrompt: some View {
