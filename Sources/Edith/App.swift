@@ -402,7 +402,12 @@ struct RootView: View {
                 .help("Quit Edith (⌘Q)")
             }
             if showSettings {
-                SettingsView()
+                // Settings outgrew the screen; cap near the usage tab's height
+                // and scroll inside. ponytail: fixed cap, tune if tabs multiply.
+                ScrollView {
+                    SettingsView()
+                }
+                .frame(height: 640)
             } else {
                 if enabledTabs.count > 1 {
                     // Custom bar: the AppKit segmented control always paints its

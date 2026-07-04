@@ -52,6 +52,7 @@ struct SettingsView: View {
     @AppStorage("notifyReminderWeeklyOffsetMin") private var reminderWeeklyOffset = 120
     @AppStorage("notifyTokenExpired") private var notifyTokenExpired = true
     @State private var notifDenied = false
+    @State private var showAllNotifSettings = false
 
     private var theme: Color { themeColor(themeName) }
 
@@ -172,40 +173,56 @@ struct SettingsView: View {
                             ? "Denied in System Settings > Notifications > Edith"
                             : "Alerts for limit levels, pacing, resets",
                           isOn: $notifyMaster)
-                Group {
-                    toggleRow("Session (5h) alerts", isOn: $notifyTrackSession)
-                    toggleRow("Weekly alerts", isOn: $notifyTrackWeekly)
-                    toggleRow("Recovery (back to green)", isOn: $notifyRecovery)
-                    toggleRow("Pacing: drifting fast", isOn: $notifyPacingWarning)
-                    toggleRow("Pacing: burning hot", isOn: $notifyPacingHot)
-                    toggleRow("Token expired", isOn: $notifyTokenExpired)
-                    HStack {
-                        toggleRow("Remind before session reset", isOn: $reminderSession)
-                        Picker("", selection: $reminderSessionOffset) {
-                            Text("5 min").tag(5); Text("15 min").tag(15)
-                            Text("30 min").tag(30); Text("1 h").tag(60)
+                if showAllNotifSettings {
+                    Group {
+                        toggleRow("Session (5h) alerts", isOn: $notifyTrackSession)
+                        toggleRow("Weekly alerts", isOn: $notifyTrackWeekly)
+                        toggleRow("Recovery (back to green)", isOn: $notifyRecovery)
+                        toggleRow("Pacing: drifting fast", isOn: $notifyPacingWarning)
+                        toggleRow("Pacing: burning hot", isOn: $notifyPacingHot)
+                        toggleRow("Token expired", isOn: $notifyTokenExpired)
+                        HStack {
+                            toggleRow("Remind before session reset", isOn: $reminderSession)
+                            Picker("", selection: $reminderSessionOffset) {
+                                Text("5 min").tag(5); Text("15 min").tag(15)
+                                Text("30 min").tag(30); Text("1 h").tag(60)
+                            }
+                            .labelsHidden().pickerStyle(.menu).fixedSize()
+                            .disabled(!reminderSession)
                         }
-                        .labelsHidden().pickerStyle(.menu).fixedSize()
-                        .disabled(!reminderSession)
-                    }
-                    HStack {
-                        toggleRow("Remind before weekly reset", isOn: $reminderWeekly)
-                        Picker("", selection: $reminderWeeklyOffset) {
-                            Text("1 h").tag(60); Text("2 h").tag(120)
-                            Text("6 h").tag(360); Text("12 h").tag(720)
+                        HStack {
+                            toggleRow("Remind before weekly reset", isOn: $reminderWeekly)
+                            Picker("", selection: $reminderWeeklyOffset) {
+                                Text("1 h").tag(60); Text("2 h").tag(120)
+                                Text("6 h").tag(360); Text("12 h").tag(720)
+                            }
+                            .labelsHidden().pickerStyle(.menu).fixedSize()
+                            .disabled(!reminderWeekly)
                         }
-                        .labelsHidden().pickerStyle(.menu).fixedSize()
-                        .disabled(!reminderWeekly)
+                        Button("Send test notification") {
+                            services.usage?.notifier.sendTest()
+                        }
+                        .buttonStyle(HoverButtonStyle())
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme)
                     }
-                    Button("Send test notification") {
-                        services.usage?.notifier.sendTest()
-                    }
-                    .buttonStyle(HoverButtonStyle())
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme)
+                    .disabled(!notifyMaster)
+                    .opacity(notifyMaster ? 1 : 0.45)
                 }
-                .disabled(!notifyMaster)
-                .opacity(notifyMaster ? 1 : 0.45)
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showAllNotifSettings.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showAllNotifSettings ? "View less" : "View more")
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .rotationEffect(.degrees(showAllNotifSettings ? 180 : 0))
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(HoverButtonStyle())
+                .frame(maxWidth: .infinity)
             }
             .card()
             .onChange(of: notifyMaster) {
@@ -396,7 +413,7 @@ struct SettingsView: View {
                 .onHover { over in
                     over ? NSCursor.openHand.set() : NSCursor.arrow.set()
                 }
-                .gesture(
+                .highPriorityGesture(
                     // Global space: local coordinates move with the row's own
                     // offset, feeding the translation back into itself (jitter).
                     DragGesture(coordinateSpace: .global)
