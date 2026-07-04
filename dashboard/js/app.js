@@ -26,7 +26,7 @@ import { wireShareButtons } from "./share.js";
 
 // ---------- empty state ----------
 // No data yet: show the placeholder and skip all rendering. This file is an ES
-// module — top level can't use a bare `return`, so instead of early-returning
+// module - top level can't use a bare `return`, so instead of early-returning
 // we set HAS_DATA and guard the init block below with it. data.js is written to
 // be empty-data-safe (EARLIEST/LATEST default to null), so importing it is fine.
 const HAS_DATA = DAILY.length > 0;

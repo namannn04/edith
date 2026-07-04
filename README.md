@@ -1,37 +1,37 @@
 # <img src="Assets/appicon.png" width="30" align="top" alt=""> Edith
 
 Native SwiftUI menu bar app for the Mac (the eyeglasses icon next to the
-system controls) — a personal control center. Dark, minimal, built to run
+system controls) - a personal control center. Dark, minimal, built to run
 24/7 on near-zero resources.
 
 ## Features
 
-- **Rate limit rings** — session (5h) and weekly usage as animated gauges
+- **Rate limit rings** - session (5h) and weekly usage as animated gauges
   with live second countdowns; auto-refresh every 5 min, instantly on wake
-- **Activity heatmap** — GitHub-style daily spend calendar, full history,
+- **Activity heatmap** - GitHub-style daily spend calendar, full history,
   horizontally scrollable
-- **Token & cost stats** — today / yesterday / this week / billing cycle,
+- **Token & cost stats** - today / yesterday / this week / billing cycle,
   filterable by agent source (Claude Code, Codex, OpenCode, …)
-- **Dashboard link** — one click opens the full HTML dashboard in the
+- **Dashboard link** - one click opens the full HTML dashboard in the
   browser, carrying the panel's filters; ↻ runs the data pipeline with a
   collapsible live log
-- **Music player** — plays whatever is in the music folder (mp3/m4a/mp4/webm/
+- **Music player** - plays whatever is in the music folder (mp3/m4a/mp4/webm/
   …), thumbnails, drag-to-seek, fades, auto-advance, media keys + Now Playing
-- **Global shortcut** — toggle the panel from anywhere (default ⌥⌘E),
+- **Global shortcut** - toggle the panel from anywhere (default ⌥⌘E),
   re-recordable in settings; Esc or clicking away closes it
-- **Settings screen** — enable/disable tabs (an off tab's module is never
+- **Settings screen** - enable/disable tabs (an off tab's module is never
   loaded), app-wide theme color, presenter view that blurs sensitive values
   for screen sharing
-- **Settings backup** — mirrored to Application Support, optional iCloud
+- **Settings backup** - mirrored to Application Support, optional iCloud
   Drive sync across Macs (newest copy wins)
 - **Agent Usage** code lives in `Sources/Edith/Usage/`, **Music** in
-  `Sources/Edith/Music/` — one folder per feature so future tabs slot in.
+  `Sources/Edith/Music/` - one folder per feature so future tabs slot in.
 
 ## Layout
 
 | Path | What it is |
 |---|---|
-| `Package.swift`, `Sources/Edith/` | The app — plain SwiftUI executable, no Xcode project. |
+| `Package.swift`, `Sources/Edith/` | The app - plain SwiftUI executable, no Xcode project. |
 | `build.sh`, `Info.plist`, `Assets/`, `AppIcon.icns` | Build script, bundle bits, icon + logo artwork. |
 | `dashboard/` | The self-contained usage dashboard + data pipeline (`cc-update` → `data/usage.json` → `dashboard.html`). See `dashboard/README.md`. |
 | `local/` | Gitignored personal files: `local/music/`, `local/extras/`. |

@@ -12,19 +12,19 @@
 
 ## File Structure
 
-- **Create `js/stats.js`** — pure `statsSummary(rows)` over `derive()` rows → headline numbers. No DOM.
-- **Create `tests/stats.test.js`** — `bun test` coverage for `statsSummary`.
-- **Create `js/share.js`** — DOM/canvas: `rangeLabel()`, `drawShareCard()`, `downloadChart(id)`, `wireShareButtons()`.
-- **Modify `dashboard.template.html`** — add the `⤓ Card` button.
-- **Modify `css/styles.css`** — `.chart-dl` icon button + card positioning.
-- **Modify `js/app.js`** — call `wireShareButtons()` on init.
+- **Create `js/stats.js`** - pure `statsSummary(rows)` over `derive()` rows → headline numbers. No DOM.
+- **Create `tests/stats.test.js`** - `bun test` coverage for `statsSummary`.
+- **Create `js/share.js`** - DOM/canvas: `rangeLabel()`, `drawShareCard()`, `downloadChart(id)`, `wireShareButtons()`.
+- **Modify `dashboard.template.html`** - add the `⤓ Card` button.
+- **Modify `css/styles.css`** - `.chart-dl` icon button + card positioning.
+- **Modify `js/app.js`** - call `wireShareButtons()` on init.
 - **Rebuild** `dashboard.html` via `bun build.mjs`.
 
 All commands run from repo root: `/Users/pulkit/scripts/ccusage-dashboard/usage-repo`.
 
 ---
 
-### Task 1: Pure summary stats (`js/stats.js`) — TDD
+### Task 1: Pure summary stats (`js/stats.js`) - TDD
 
 **Files:**
 - Create: `tests/stats.test.js`
@@ -88,7 +88,7 @@ test("statsSummary: all-zero and empty -> safe zeros, null topModel/peakDay", ()
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `bun test tests/stats.test.js`
-Expected: FAIL — `Cannot find module "../js/stats.js"`.
+Expected: FAIL - `Cannot find module "../js/stats.js"`.
 
 - [ ] **Step 3: Implement `js/stats.js`**
 
@@ -133,7 +133,7 @@ Create `js/stats.js`:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `bun test tests/stats.test.js`
-Expected: PASS — all 5 tests green.
+Expected: PASS - all 5 tests green.
 
 - [ ] **Step 5: Commit**
 
@@ -234,8 +234,8 @@ Read `js/charts.js` (theme-color reading pattern), `js/compute.js` (`derive`, `a
     ctx.fillStyle = t.ink;  ctx.font = `22px ${t.mono}`;
     ctx.fillText(`in ${fmtTok(s.input)}   ·   out ${fmtTok(s.output)}   ·   cache ${fmtTok(s.cache)}`, PAD, 420);
     ctx.fillStyle = t.soft;
-    ctx.fillText(`cache hit ${fmtPct(s.cacheRate)}   ·   top ${s.topModel ? shortModel(s.topModel) : "—"}`, PAD, 460);
-    const peak = s.peakDay ? fmtDate(s.peakDay.date) : "—";
+    ctx.fillText(`cache hit ${fmtPct(s.cacheRate)}   ·   top ${s.topModel ? shortModel(s.topModel) : "-"}`, PAD, 460);
+    const peak = s.peakDay ? fmtDate(s.peakDay.date) : "-";
     ctx.fillText(`avg ${fmtUSD(s.dailyAvg)}/day   ·   ${s.activeDays} active day${s.activeDays===1?"":"s"}   ·   peak ${peak}`, PAD, 500);
 
     ctx.fillStyle = t.faint; ctx.font = `20px ${t.mono}`;
@@ -289,13 +289,13 @@ Read `js/charts.js` (theme-color reading pattern), `js/compute.js` (`derive`, `a
 - [ ] **Step 2: Verify the module compiles and imports resolve**
 
 Run: `bun build js/share.js --target=browser --outfile=/tmp/share-check.js && echo OK && rm /tmp/share-check.js`
-Expected: a bundle line then `OK` — no "could not resolve" / syntax errors. (`bun build` only resolves+bundles; it does not execute DOM code, so this is a safe compile check even though the module uses `document`/`getComputedStyle` at call time.)
+Expected: a bundle line then `OK` - no "could not resolve" / syntax errors. (`bun build` only resolves+bundles; it does not execute DOM code, so this is a safe compile check even though the module uses `document`/`getComputedStyle` at call time.)
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add js/share.js
-git commit -m "feat: share.js — branded stats card + per-chart PNG export"
+git commit -m "feat: share.js - branded stats card + per-chart PNG export"
 ```
 End the commit body with:
 ```
@@ -356,7 +356,7 @@ Then, inside the `if (HAS_DATA) { ... }` init block, find the `renderAll();` cal
 - [ ] **Step 4: Rebuild**
 
 Run: `bun build.mjs`
-Expected: `built dashboard.html — self-contained (… KB)`, no errors.
+Expected: `built dashboard.html - self-contained (… KB)`, no errors.
 
 - [ ] **Step 5: Verify the controls landed in the built artifact**
 
@@ -391,7 +391,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 ## Notes for the executor
 
-- `dashboard.html` is a generated artifact — never hand-edit it; `bun build.mjs` regenerates it (preserving the inlined `<script id="usage-data">` data block). Commit it only in Task 3. Leave `data/usage.json` unstaged (it's an unrelated local data refresh).
-- `render.js`/KPIs are intentionally NOT modified — the card computes its own numbers via `statsSummary(derive())`.
+- `dashboard.html` is a generated artifact - never hand-edit it; `bun build.mjs` regenerates it (preserving the inlined `<script id="usage-data">` data block). Commit it only in Task 3. Leave `data/usage.json` unstaged (it's an unrelated local data refresh).
+- `render.js`/KPIs are intentionally NOT modified - the card computes its own numbers via `statsSummary(derive())`.
 - The exact pixel coordinates in `drawShareCard()` are a sensible starting layout; the Task 3 manual check is where you confirm nothing clips and tune spacing if needed (keep the content/structure from the spec).
 - All work happens on the `feat/share-download` branch.

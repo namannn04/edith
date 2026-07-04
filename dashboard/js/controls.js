@@ -151,7 +151,7 @@ function setSeg(container, attr, val) {
 export function buildMonthSelect() {
   const sel = document.getElementById("month-select");
   sel.innerHTML =
-    `<option value="">— pick month —</option>` +
+    `<option value="">- pick month -</option>` +
     monthsInData()
       .map((m) => `<option value="${m.ym}">${m.label}</option>`)
       .join("");
@@ -159,7 +159,7 @@ export function buildMonthSelect() {
 export function buildCycleSelect() {
   const sel = document.getElementById("cycle-select");
   sel.innerHTML =
-    `<option value="">— pick cycle —</option>` +
+    `<option value="">- pick cycle -</option>` +
     cyclesInData(state.billingDay)
       .map((c) => `<option value="${c.start}">${c.label}</option>`)
       .join("");
@@ -311,7 +311,7 @@ export function wireControls() {
     if (cell && cell.dataset.date && !cell.dataset.empty)
       openHourly(cell.dataset.date);
   });
-  // activity-calendar metric toggle (transient — intentionally not persisted to the URL)
+  // activity-calendar metric toggle (transient - intentionally not persisted to the URL)
   document.getElementById("heat-metric").addEventListener("change", (e) => {
     setHeatMetric(e.target.value);
   });
@@ -329,7 +329,7 @@ export function wireControls() {
     // "Reset" returns to the pristine first-load view: the current billing cycle
     // (which rangeToParam leaves as a clean URL), the default (Claude Code) models
     // and source filter, and a collapsed project list. Billing day & theme are
-    // preferences — left as set.
+    // preferences - left as set.
     state.range = LATEST
       ? { mode: "cycle", cycle: ymd(cycleStart(LATEST, state.billingDay)) }
       : { mode: "all" };

@@ -12,7 +12,7 @@ struct Track: Identifiable, Equatable {
             .replacingOccurrences(of: "_", with: " ")
             .capitalized
     }
-    /// Stable per-track hue for the no-artwork tile (djb2 — String.hashValue
+    /// Stable per-track hue for the no-artwork tile (djb2 - String.hashValue
     /// is randomized per launch and would repaint every restart).
     var hue: Double {
         var h: UInt64 = 5381
@@ -86,11 +86,11 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
         center.playbackState = isPlaying ? .playing : .paused
     }
 
-    // Everything CoreAudio opens on this machine — verified including mp4 and webm.
+    // Everything CoreAudio opens on this machine - verified including mp4 and webm.
     private static let playableExtensions: Set<String> =
         ["mp3", "m4a", "m4b", "aac", "wav", "aiff", "flac", "mp4", "mov", "webm"]
 
-    /// The music folder is the source of truth — a plain directory listing, no manifest.
+    /// The music folder is the source of truth - a plain directory listing, no manifest.
     func rescan() {
         let files = (try? FileManager.default.contentsOfDirectory(
             at: Repo.musicDir, includingPropertiesForKeys: nil
@@ -134,7 +134,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private func play(_ track: Track) {
         player?.stop()
         guard let p = try? AVAudioPlayer(contentsOf: track.url) else {
-            // unreadable file — drop it from the list and move on
+            // unreadable file - drop it from the list and move on
             tracks.removeAll { $0 == track }
             return
         }
@@ -207,7 +207,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     private var durationCache: [URL: TimeInterval] = [:]
 
-    /// "3:42" — loaded lazily per row, cached for the app's lifetime.
+    /// "3:42" - loaded lazily per row, cached for the app's lifetime.
     func durationLabel(for track: Track) async -> String? {
         let seconds: TimeInterval
         if let hit = durationCache[track.url] {

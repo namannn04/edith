@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * build.mjs — build a self-contained dashboard.html from the modular sources.
+ * build.mjs - build a self-contained dashboard.html from the modular sources.
  *
  * Run with bun:  bun build.mjs   (or ./build.mjs)
  *
@@ -8,11 +8,11 @@
  * dashboard.template.html, producing a single dashboard.html that works both
  * by double-clicking (file://) and when served over http. The
  * <script id="usage-data"> block is preserved from the existing dashboard.html
- * so a rebuild never drops the latest snapshot — render.mjs keeps writing the
+ * so a rebuild never drops the latest snapshot - render.mjs keeps writing the
  * real usage data into that block and does not need to know about this build.
  *
  * Edit the modules (js/*.js, css/styles.css) and re-run this; dashboard.html is
- * a generated artifact — don't hand-edit it.
+ * a generated artifact - don't hand-edit it.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
@@ -22,7 +22,7 @@ const p = (f) => `${root}/${f}`;
 const tmpl = readFileSync(p("dashboard.template.html"), "utf8");
 const css = readFileSync(p("css/styles.css"), "utf8");
 
-// Bundle the ES modules into a single classic IIFE — no import statements remain,
+// Bundle the ES modules into a single classic IIFE - no import statements remain,
 // so it runs inline (works on file://, which native ES modules do not).
 const out = await Bun.build({
   entrypoints: [p("js/app.js")],
@@ -57,5 +57,5 @@ if (existsSync(p("dashboard.html"))) {
 
 writeFileSync(p("dashboard.html"), html);
 console.log(
-  `built dashboard.html — self-contained (${(html.length / 1024).toFixed(0)} KB)`,
+  `built dashboard.html - self-contained (${(html.length / 1024).toFixed(0)} KB)`,
 );

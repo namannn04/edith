@@ -1,4 +1,4 @@
-# Modularize the dashboard page — design
+# Modularize the dashboard page - design
 
 **Date:** 2026-06-01
 **Status:** Approved (pending spec review)
@@ -11,7 +11,7 @@ HTML, an inlined JSON data block, and one ~1165-line JavaScript IIFE containing
 focused, single-purpose files so the code is easier to read, navigate, and change.
 
 This is a **behavior-preserving refactor**. The rendered page must look and
-behave identically — same charts, filters, theme toggle, URL params, tooltips.
+behave identically - same charts, filters, theme toggle, URL params, tooltips.
 
 ## Constraints / what must NOT change
 
@@ -19,14 +19,14 @@ behave identically — same charts, filters, theme toggle, URL params, tooltips.
   `<script id="usage-data" type="application/json">` block, which stays in
   `dashboard.html`. The data layer reads that block from the DOM. The
   `cc-update` pipeline (`git add data/usage.json dashboard.html`) keeps working
-  as-is — `render.mjs` never touches the new `css/` or `js/` files.
+  as-is - `render.mjs` never touches the new `css/` or `js/` files.
 - **The head theme-flash script stays inline** in `<head>`. It must run before
   first paint (sets `data-theme` to avoid a flash); a deferred module would be
   too late.
 - **No bundler, no build step for JS.** Files are served directly as native
   `<script type="module">`. Chart.js stays a CDN `<script>`.
 - **Output is multiple files served over HTTP** (the site is served at
-  cc.pulkitxm.com). `file://` will not work for ES modules (CORS) — local dev
+  cc.pulkitxm.com). `file://` will not work for ES modules (CORS) - local dev
   uses a static server (`python3 -m http.server`).
 
 ## Target structure
@@ -67,23 +67,23 @@ data.js    ──┼─→ palette.js ─→ state.js ─→ compute.js ─→ c
 Lower layers never import higher ones. `app.js` is the only entry point and the
 only file referenced by `dashboard.html`.
 
-## Shared mutable state — the key mechanism
+## Shared mutable state - the key mechanism
 
 ES modules don't share a closure, so shared state moves to owning modules and is
 reached via **live bindings**:
 
-- **Objects/Sets mutated by reference** — `state` (and `state.models`,
+- **Objects/Sets mutated by reference** - `state` (and `state.models`,
   `state.sources`, `state.projExpanded` Sets), `charts`, `MODEL_COLOR`,
-  `modelTotals` — exported once; importers mutate the same object. No special
+  `modelTotals` - exported once; importers mutate the same object. No special
   handling.
-- **Primitives reassigned at runtime** — `PALETTE`, `SLATE`, `TOKEN_COLORS`,
+- **Primitives reassigned at runtime** - `PALETTE`, `SLATE`, `TOKEN_COLORS`,
   `SOURCE_COLOR`. Each is reassigned **only inside `setPalette`**, which lives in
   `palette.js`. Exported `let` bindings are live: importers see the new value
   after `setPalette` runs, but never reassign them themselves. This invariant
   (a mutable `let` is reassigned only in its owning module) already holds in the
   current code and must be preserved.
 
-If any consumer needs to *reassign* one of these primitives, that's a smell —
+If any consumer needs to *reassign* one of these primitives, that's a smell -
 wrap it in an object or add a setter in the owning module instead.
 
 ## Migration approach
@@ -108,7 +108,7 @@ After the split, serve locally and confirm the page is identical to before:
 cd usage-repo && python3 -m http.server 8000   # then open http://localhost:8000/dashboard.html
 ```
 
-Checklist — every item must behave as it did pre-split:
+Checklist - every item must behave as it did pre-split:
 - No errors in the browser console; all chart canvases mount.
 - KPIs, daily chart, donut, tokens, model-time, day-of-week, heatmap, table,
   source card, projects tree, hourly card all render.
@@ -123,7 +123,7 @@ Compare against the current committed `dashboard.html` (open both side by side).
 ## Deployment note
 
 The static host must now serve `css/` and `js/` alongside `dashboard.html`
-(trivial for a static site — it already serves the repo). No path changes to the
+(trivial for a static site - it already serves the repo). No path changes to the
 data pipeline. The pre-split `dashboard.html` remains in git history as the
 reference if a regression appears.
 

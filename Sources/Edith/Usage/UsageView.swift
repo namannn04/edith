@@ -28,7 +28,7 @@ struct UsageView: View {
                 Spacer()
                 if let at = store.limitsUpdatedAt {
                     let next = store.nextLimitsRefresh
-                        .map { $0.formatted(date: .omitted, time: .shortened) } ?? "—"
+                        .map { $0.formatted(date: .omitted, time: .shortened) } ?? "-"
                     Text("updated \(at.formatted(date: .omitted, time: .shortened)) · next \(next)")
                         .font(.system(size: 10))
                         .monospacedDigit()
@@ -82,7 +82,7 @@ struct UsageView: View {
                     .stroke(fill, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.easeOut(duration: 0.5), value: pct)
-                Text(window != nil ? "\(Int(pct))%" : "—")
+                Text(window != nil ? "\(Int(pct))%" : "-")
                     .font(.system(size: 18, weight: .semibold))
                     .monospacedDigit()
             }
@@ -169,7 +169,7 @@ struct UsageView: View {
                                         .frame(width: 17, height: 17)
                                         .help(presenter
                                             ? day.date.formatted(.dateTime.day().month())
-                                            : "\(day.date.formatted(.dateTime.day().month())) — $\(String(format: "%.2f", day.cost))")
+                                            : "\(day.date.formatted(.dateTime.day().month())) - $\(String(format: "%.2f", day.cost))")
                                 }
                             }
                         }
@@ -330,7 +330,7 @@ struct UsageView: View {
     private var logView: some View {
         ScrollView {
             ScrollViewReader { proxy in
-                Text(store.log.isEmpty ? "No output yet — hit ↻" : store.log)
+                Text(store.log.isEmpty ? "No output yet - hit ↻" : store.log)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -348,7 +348,7 @@ struct UsageView: View {
 }
 
 extension Double {
-    /// 12_345_678 → "12.3M" — token-count formatting like the dashboard's.
+    /// 12_345_678 → "12.3M" - token-count formatting like the dashboard's.
     var compactTokens: String {
         switch self {
         case 1e9...: return String(format: "%.2fB", self / 1e9)

@@ -40,8 +40,8 @@ struct SettingsView: View {
                 tabToggle("Music", subtitle: "player, media keys", isOn: $musicEnabled)
             }
             .card()
-            // Toggling a tab creates or tears down its whole module — timers,
-            // network, audio, caches — so an off tab costs nothing.
+            // Toggling a tab creates or tears down its whole module - timers,
+            // network, audio, caches - so an off tab costs nothing.
             .onChange(of: usageEnabled) { services.sync() }
             .onChange(of: musicEnabled) { services.sync() }
 

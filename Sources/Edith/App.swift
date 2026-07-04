@@ -29,7 +29,7 @@ func applyAppearance(_ value: String) {
 }
 
 /// The Edith mark: the glasses tile (margin-trimmed MenuBar.png bundled by
-/// build.sh), used colored everywhere — menu bar, header, dock.
+/// build.sh), used colored everywhere - menu bar, header, dock.
 enum Logo {
     private static func loadTile() -> NSImage? {
         Bundle.main.url(forResource: "MenuBar", withExtension: "png")
@@ -54,8 +54,8 @@ struct EdithApp: App {
 
     init() {
         // Close when focus leaves the panel (click elsewhere / switch app).
-        // didResignActive alone is unreliable for LSUIElement apps — the app
-        // may never have been "active" — so watch the panel's key status too.
+        // didResignActive alone is unreliable for LSUIElement apps - the app
+        // may never have been "active" - so watch the panel's key status too.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { _ in
@@ -69,7 +69,7 @@ struct EdithApp: App {
             // Deferred one tick: if the panel is mid-close (normal toggle) it's
             // gone by then and this no-ops; if focus genuinely left, close it
             // through the status item so the highlight clears with it. The
-            // system color panel is ours — picking a color must not close us.
+            // system color panel is ours - picking a color must not close us.
             DispatchQueue.main.async { [weak panel] in
                 if let panel, panel.isVisible, !NSColorPanel.shared.isVisible {
                     dismissPanel()
@@ -77,7 +77,7 @@ struct EdithApp: App {
             }
         }
         // MenuBarExtra re-anchors the panel's leading edge to the icon on every
-        // open/resize/system reposition — and its anchor pass can run AFTER our
+        // open/resize/system reposition - and its anchor pass can run AFTER our
         // handler in the same tick. So: pin on key/resize/move (the move observer
         // catches the system's own repositioning; the idempotence check inside
         // centerPanelUnderIcon stops that from looping), and pin once more on
@@ -104,7 +104,7 @@ struct EdithApp: App {
         applyAppearance(UserDefaults.standard.string(forKey: "appearance") ?? "system")
 
         // Esc closes the panel. onExitCommand alone needs SwiftUI focus inside
-        // the panel, which a non-activating panel rarely has — catch the key
+        // the panel, which a non-activating panel rarely has - catch the key
         // directly. The shortcut recorder gets first claim on Esc to cancel.
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53, !ShortcutRecorder.isRecording,
@@ -130,7 +130,7 @@ struct EdithApp: App {
     }
 }
 
-/// Global toggle hotkey via Carbon — the one API that needs no accessibility
+/// Global toggle hotkey via Carbon - the one API that needs no accessibility
 /// permission. Default ⌥⌘E; customizable from Settings (stored in defaults).
 enum HotKey {
     private static var ref: EventHotKeyRef?
@@ -179,7 +179,7 @@ enum HotKey {
 /// Synthesize a click on the status item. This is the ONLY correct way to open
 /// OR close the panel: it toggles through MenuBarExtra's own state machine, so
 /// the icon highlight always matches. Closing the window directly desyncs that
-/// state — the icon stays lit and the next toggle gets eaten resetting it.
+/// state - the icon stays lit and the next toggle gets eaten resetting it.
 func clickStatusItem() {
     if let statusWindow = NSApp.windows.first(where: { $0.className.contains("StatusBarWindow") }),
        let button = firstButton(in: statusWindow.contentView) {
@@ -188,7 +188,7 @@ func clickStatusItem() {
 }
 
 func togglePanel() {
-    clickStatusItem() // open or close — MenuBarExtra decides from its own state
+    clickStatusItem() // open or close - MenuBarExtra decides from its own state
 }
 
 private func firstButton(in view: NSView?) -> NSButton? {
@@ -203,7 +203,7 @@ private func firstButton(in view: NSView?) -> NSButton? {
 /// Align the panel's horizontal center with the menu bar icon's center. The
 /// status item is one of our own windows (NSStatusBarWindow), so its frame
 /// gives the icon's exact screen position; clamp so the panel stays on-screen.
-/// No-ops when already centered — that's what lets the didMove observer call
+/// No-ops when already centered - that's what lets the didMove observer call
 /// this without our own setFrameOrigin re-triggering an endless move loop.
 func centerPanelUnderIcon(_ panel: NSWindow) {
     guard let icon = NSApp.windows.first(where: { $0.className.contains("StatusBarWindow") })
@@ -357,7 +357,7 @@ struct RootView: View {
                 } else if tab == "music", let player = services.music {
                     MusicView().environmentObject(player)
                 } else if enabledTabs.isEmpty {
-                    Text("All tabs are off — enable one in Settings (⚙)")
+                    Text("All tabs are off - enable one in Settings (⚙)")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 28)
@@ -375,7 +375,7 @@ struct RootView: View {
         .onChange(of: musicEnabled) { pinTab() }
         .padding(14)
         .frame(width: 480)
-        // Solidify the system material — pure vibrancy washes out over busy screens.
+        // Solidify the system material - pure vibrancy washes out over busy screens.
         .background(PanelBackground())
         .onExitCommand { dismissPanel() } // Esc closes the panel
     }

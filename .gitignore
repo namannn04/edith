@@ -2,6 +2,6 @@
 .build/
 dist/
 local/
-# usage data stays local — never pushed
+# usage data stays local - never pushed
 dashboard/data/
 dashboard/dashboard.html

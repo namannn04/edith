@@ -5,7 +5,7 @@ import { cycleEnd } from "./cycles.js";
 
 // ---------- sources (v2) with v1 back-compat ----------
 // v2 rows carry bySource:{cli:[...],cowork:[...]}. Old v1 rows had a flat
-// modelBreakdowns[] — treat those as a single "cli" source.
+// modelBreakdowns[] - treat those as a single "cli" source.
 // model breakdown entries for a day across the currently-selected sources
 export function dayBreakdowns(d) {
   const out = [];

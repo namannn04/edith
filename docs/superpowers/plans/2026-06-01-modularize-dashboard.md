@@ -6,7 +6,7 @@
 
 **Architecture:** Native ES modules served over HTTP, no bundler. The inline IIFE becomes `js/app.js` (the single `<script type="module">` entry), then leaf-first carving moves functions into focused modules. Shared mutable state moves to owning modules and is reached via ES-module live bindings. `dashboard.html` keeps its inline head theme-flash script and its `<script id="usage-data">` data block, so `render.mjs` / `cc-update` are untouched.
 
-**Tech Stack:** Vanilla JS (ES modules), Chart.js via CDN, plain CSS. No build, no test framework — verification is manual visual check via `python3 -m http.server`.
+**Tech Stack:** Vanilla JS (ES modules), Chart.js via CDN, plain CSS. No build, no test framework - verification is manual visual check via `python3 -m http.server`.
 
 **Reference spec:** `docs/superpowers/specs/2026-06-01-modularize-dashboard-design.md`
 
@@ -23,7 +23,7 @@
 - **Commit message prefix:** `refactor:` (this changes structure, not behavior).
 - **Import order within a file:** group imports at the top, lowest-layer modules first.
 
-## Dependency layering (extract in this order — lower layers first)
+## Dependency layering (extract in this order - lower layers first)
 
 ```
 format  →  data  →  palette  →  state  →  params  →  compute  →  charts  →  render  →  controls  →  app
@@ -33,16 +33,16 @@ A module only ever imports from layers to its left. `app.js` is the only file `d
 
 ## Module ownership map (what each file exports)
 
-- **format.js** — `fmtUSD`, `fmtUSDfull`, `fmtTok`, `fmtTokFull`, `fmtPct`, `shortModel`, `parseDate`, `ymd`, `fmtDate`, `MON`, `DOW`, `MONTH_NAMES`, `hexA`. Pure; imports nothing.
-- **data.js** — `RAW`, `DAILY`, `SESSIONS`, `SOURCES`, `SOURCE_LABEL`, `sourceLabel`, `modelTotals`, `ALL_MODELS`, `EARLIEST`, `LATEST`, `ALL_SPAN_DAYS`, `monthsInData`. Imports: `parseDate` from format. (Loads `RAW` from `#usage-data`.)
-- **palette.js** — `PALETTES`, `OTHER_COLOR`, `MODEL_COLOR`, `SOURCE_COLOR`, `PALETTE`, `SLATE`, `TOKEN_COLORS`, `setPalette`, `sourceColor`, `systemTheme`. Imports: `hexA` from format; `ALL_MODELS` from data. **`setPalette` is the only place the `let` bindings are reassigned.**
-- **state.js** — `state`, `charts`. Imports: `ALL_MODELS`, `SOURCES` from data; `systemTheme` from palette.
-- **params.js** — `shortToFull`, `readParams`, `writeParams`, `rangeToParam`. Imports: `state`; `ALL_MODELS`, `SOURCES` from data; `shortModel` from format.
-- **compute.js** — `tokensOf`, `dayBreakdowns`, `activeWindow`, `inRangeDays`, `derive`, `deriveBySource`, `rolling`. Imports: `DAILY`, `SOURCES`, `EARLIEST`, `LATEST` from data; `state`; `parseDate` from format.
-- **charts.js** — `cssVar`, `readThemeColors`, `dualScales`, `sizeChartInner`, `autoScrollRight`, `liveRetheme`, `applyChartTheme`, `mount` (+ Chart.js global defaults setup). Imports: `charts` from state; `MODEL_COLOR`, `TOKEN_COLORS`, `SOURCE_COLOR`, `PALETTE`, `SLATE` from palette; format helpers. Uses global `Chart` (CDN).
-- **render.js** — all `render*`, `heat*`, `wireHeat`, `mergeChats`, `aggregateProjects`, `nameCell`, `chatRows`, `latestDayWithHours`, `openHourly`, `dualLabel`, `renderAll`. Imports from compute, data, format, palette, charts, state, params as needed.
-- **controls.js** — `buildSourceChips`, `buildChips`, `skinChips`, `setSeg`, `buildMonthSelect`, `syncRangeControls`, `applyTheme`, `switchTheme`, `wireControls` (attaches theme-toggle + reset listeners). Imports from state, data, palette, compute, render, charts, params.
-- **app.js** — entry point. Imports init/build/render fns; runs the `INIT` sequence and `initHourly`. The only file referenced by `dashboard.html`.
+- **format.js** - `fmtUSD`, `fmtUSDfull`, `fmtTok`, `fmtTokFull`, `fmtPct`, `shortModel`, `parseDate`, `ymd`, `fmtDate`, `MON`, `DOW`, `MONTH_NAMES`, `hexA`. Pure; imports nothing.
+- **data.js** - `RAW`, `DAILY`, `SESSIONS`, `SOURCES`, `SOURCE_LABEL`, `sourceLabel`, `modelTotals`, `ALL_MODELS`, `EARLIEST`, `LATEST`, `ALL_SPAN_DAYS`, `monthsInData`. Imports: `parseDate` from format. (Loads `RAW` from `#usage-data`.)
+- **palette.js** - `PALETTES`, `OTHER_COLOR`, `MODEL_COLOR`, `SOURCE_COLOR`, `PALETTE`, `SLATE`, `TOKEN_COLORS`, `setPalette`, `sourceColor`, `systemTheme`. Imports: `hexA` from format; `ALL_MODELS` from data. **`setPalette` is the only place the `let` bindings are reassigned.**
+- **state.js** - `state`, `charts`. Imports: `ALL_MODELS`, `SOURCES` from data; `systemTheme` from palette.
+- **params.js** - `shortToFull`, `readParams`, `writeParams`, `rangeToParam`. Imports: `state`; `ALL_MODELS`, `SOURCES` from data; `shortModel` from format.
+- **compute.js** - `tokensOf`, `dayBreakdowns`, `activeWindow`, `inRangeDays`, `derive`, `deriveBySource`, `rolling`. Imports: `DAILY`, `SOURCES`, `EARLIEST`, `LATEST` from data; `state`; `parseDate` from format.
+- **charts.js** - `cssVar`, `readThemeColors`, `dualScales`, `sizeChartInner`, `autoScrollRight`, `liveRetheme`, `applyChartTheme`, `mount` (+ Chart.js global defaults setup). Imports: `charts` from state; `MODEL_COLOR`, `TOKEN_COLORS`, `SOURCE_COLOR`, `PALETTE`, `SLATE` from palette; format helpers. Uses global `Chart` (CDN).
+- **render.js** - all `render*`, `heat*`, `wireHeat`, `mergeChats`, `aggregateProjects`, `nameCell`, `chatRows`, `latestDayWithHours`, `openHourly`, `dualLabel`, `renderAll`. Imports from compute, data, format, palette, charts, state, params as needed.
+- **controls.js** - `buildSourceChips`, `buildChips`, `skinChips`, `setSeg`, `buildMonthSelect`, `syncRangeControls`, `applyTheme`, `switchTheme`, `wireControls` (attaches theme-toggle + reset listeners). Imports from state, data, palette, compute, render, charts, params.
+- **app.js** - entry point. Imports init/build/render fns; runs the `INIT` sequence and `initHourly`. The only file referenced by `dashboard.html`.
 
 ---
 
@@ -73,15 +73,15 @@ git commit -m "refactor: extract dashboard CSS into css/styles.css"
 
 ## Task 2: Move the JS IIFE into a single external module `js/app.js`
 
-This makes the JS a module without splitting it yet — the safe pivot point.
+This makes the JS a module without splitting it yet - the safe pivot point.
 
 **Files:**
 - Create: `js/app.js`
 - Modify: `dashboard.html` (lines 435–1599, the big `<script>…</script>`)
 
-- [ ] **Step 1: Create `js/app.js`.** Copy the entire body **inside** the IIFE (everything between `(() => {` on line 436 and the closing `})();` at the end) into `js/app.js`. **Drop the IIFE wrapper** — module scope already isolates these bindings. The file therefore starts at the old line `let RAW = {};` and ends with the `initHourly` IIFE call. Do not change any logic.
+- [ ] **Step 1: Create `js/app.js`.** Copy the entire body **inside** the IIFE (everything between `(() => {` on line 436 and the closing `})();` at the end) into `js/app.js`. **Drop the IIFE wrapper** - module scope already isolates these bindings. The file therefore starts at the old line `let RAW = {};` and ends with the `initHourly` IIFE call. Do not change any logic.
 
-- [ ] **Step 2: Confirm the data read still works.** The first lines load injected data from the DOM, e.g. `RAW = JSON.parse(document.getElementById("usage-data").textContent)`. Modules are deferred, so the DOM is ready — no change needed. Leave it as-is.
+- [ ] **Step 2: Confirm the data read still works.** The first lines load injected data from the DOM, e.g. `RAW = JSON.parse(document.getElementById("usage-data").textContent)`. Modules are deferred, so the DOM is ready - no change needed. Leave it as-is.
 
 - [ ] **Step 3: Replace the inline script in `dashboard.html`.** Delete lines 435–1599 (the whole application `<script>…</script>`, **not** the `<script id="usage-data">` data block on 431–433 and **not** the head theme-flash script) and replace with:
 
@@ -167,7 +167,7 @@ import { hexA } from "./format.js";
 import { ALL_MODELS } from "./data.js";
 ```
 
-Move verbatim, prefixed with `export`: `PALETTES`, `OTHER_COLOR`, the mutable bindings `MODEL_COLOR` (object), `SOURCE_COLOR` (`let`), `PALETTE`/`SLATE`/`TOKEN_COLORS` (`let`), `setPalette`, `sourceColor`, and `systemTheme`. **Confirm `setPalette` is the only function that reassigns `PALETTE`/`SLATE`/`TOKEN_COLORS`/`SOURCE_COLOR`/`MODEL_COLOR` contents** — if any consumer reassigns them, stop and flag it (the design forbids this).
+Move verbatim, prefixed with `export`: `PALETTES`, `OTHER_COLOR`, the mutable bindings `MODEL_COLOR` (object), `SOURCE_COLOR` (`let`), `PALETTE`/`SLATE`/`TOKEN_COLORS` (`let`), `setPalette`, `sourceColor`, and `systemTheme`. **Confirm `setPalette` is the only function that reassigns `PALETTE`/`SLATE`/`TOKEN_COLORS`/`SOURCE_COLOR`/`MODEL_COLOR` contents** - if any consumer reassigns them, stop and flag it (the design forbids this).
 
 - [ ] **Step 2: Add imports to `app.js`.**
 
@@ -201,7 +201,7 @@ import { ALL_MODELS, SOURCES } from "./data.js";
 import { systemTheme } from "./palette.js";
 ```
 
-Move verbatim, prefixed with `export`: the `state` object literal and the `charts` registry (`const charts = {};`). These are mutated by reference everywhere — exporting the objects is sufficient.
+Move verbatim, prefixed with `export`: the `state` object literal and the `charts` registry (`const charts = {};`). These are mutated by reference everywhere - exporting the objects is sufficient.
 
 - [ ] **Step 2: Add imports to `app.js`.**
 
@@ -305,7 +305,7 @@ import { charts } from "./state.js";
 import { MODEL_COLOR, TOKEN_COLORS, SOURCE_COLOR, PALETTE, SLATE } from "./palette.js";
 ```
 
-Move verbatim, prefixed with `export`: `cssVar`, `readThemeColors`, `dualScales`, `sizeChartInner`, `autoScrollRight`, `liveRetheme`, `applyChartTheme`, `mount`, plus any Chart.js global-defaults setup statements (e.g. `Chart.defaults...`). `Chart` is the global from the CDN `<script>` — leave it as a free global (do not import it).
+Move verbatim, prefixed with `export`: `cssVar`, `readThemeColors`, `dualScales`, `sizeChartInner`, `autoScrollRight`, `liveRetheme`, `applyChartTheme`, `mount`, plus any Chart.js global-defaults setup statements (e.g. `Chart.defaults...`). `Chart` is the global from the CDN `<script>` - leave it as a free global (do not import it).
 
 - [ ] **Step 2: Add imports to `app.js`.**
 
@@ -332,7 +332,7 @@ git commit -m "refactor: extract Chart.js infrastructure into js/charts.js"
 - Create: `js/render.js`
 - Modify: `js/app.js`
 
-- [ ] **Step 1: Create `js/render.js`.** Add imports for every name the renderers reference — assemble them from the modules already created:
+- [ ] **Step 1: Create `js/render.js`.** Add imports for every name the renderers reference - assemble them from the modules already created:
 
 ```js
 import { DAILY, SESSIONS, SOURCES, SOURCE_LABEL, sourceLabel, ALL_MODELS, LATEST } from "./data.js";
@@ -343,7 +343,7 @@ import { tokensOf, dayBreakdowns, inRangeDays, derive, deriveBySource, rolling }
 import { mount, dualScales, sizeChartInner, autoScrollRight } from "./charts.js";
 ```
 
-Move verbatim, prefixed with `export` (or unexported if only used within render — but export the ones `controls.js`/`app.js` call): `dualLabel`, `renderMeta`, `renderKPIs`, `renderDaily`, `renderDonut`, `renderTokens`, `renderModelTime`, `renderDOW`, `heatDayDetail`, `heatTipHTML`, `wireHeat`, `renderHeat`, `renderTable`, `renderSource`, `mergeChats`, `aggregateProjects`, `renderProjects`, `nameCell`, `chatRows`, `renderProjectsTable`, `latestDayWithHours`, `renderHourly`, `openHourly`, `renderAll`. At minimum export those called from outside render: `renderMeta`, `renderAll`, `renderHourly`, `latestDayWithHours`, `wireHeat`, `openHourly` (verify against `app.js`/`controls.js` usage and export any others referenced there).
+Move verbatim, prefixed with `export` (or unexported if only used within render - but export the ones `controls.js`/`app.js` call): `dualLabel`, `renderMeta`, `renderKPIs`, `renderDaily`, `renderDonut`, `renderTokens`, `renderModelTime`, `renderDOW`, `heatDayDetail`, `heatTipHTML`, `wireHeat`, `renderHeat`, `renderTable`, `renderSource`, `mergeChats`, `aggregateProjects`, `renderProjects`, `nameCell`, `chatRows`, `renderProjectsTable`, `latestDayWithHours`, `renderHourly`, `openHourly`, `renderAll`. At minimum export those called from outside render: `renderMeta`, `renderAll`, `renderHourly`, `latestDayWithHours`, `wireHeat`, `openHourly` (verify against `app.js`/`controls.js` usage and export any others referenced there).
 
 - [ ] **Step 2: Reconcile imports.** After moving, scan `render.js` for any still-undefined identifier and add the matching import. Then add to `app.js` an import line pulling whatever `app.js`'s remaining init code calls (e.g. `import { renderMeta, renderAll, renderHourly, latestDayWithHours } from "./render.js";`). Delete the moved declarations from `app.js`.
 
@@ -376,7 +376,7 @@ import { renderAll, renderMeta } from "./render.js";
 import { writeParams } from "./params.js";
 ```
 
-Move verbatim, prefixed with `export`: `buildSourceChips`, `buildChips`, `skinChips`, `setSeg`, `buildMonthSelect`, `syncRangeControls`, `applyTheme`, `switchTheme`. Wrap the two standalone listener attachments (the `theme-toggle` click handler and the `btn-reset` click handler, currently bare statements in the IIFE) into an exported `function wireControls() { … }` containing both `addEventListener` calls verbatim. Also move any other bare `addEventListener` wiring for chips/segments/month-select into `wireControls` (or keep them inside their build functions if that's where they already live — do not relocate listeners that are already inside a build function).
+Move verbatim, prefixed with `export`: `buildSourceChips`, `buildChips`, `skinChips`, `setSeg`, `buildMonthSelect`, `syncRangeControls`, `applyTheme`, `switchTheme`. Wrap the two standalone listener attachments (the `theme-toggle` click handler and the `btn-reset` click handler, currently bare statements in the IIFE) into an exported `function wireControls() { … }` containing both `addEventListener` calls verbatim. Also move any other bare `addEventListener` wiring for chips/segments/month-select into `wireControls` (or keep them inside their build functions if that's where they already live - do not relocate listeners that are already inside a build function).
 
 - [ ] **Step 2: Add imports + call to `app.js`.**
 
@@ -384,7 +384,7 @@ Move verbatim, prefixed with `export`: `buildSourceChips`, `buildChips`, `skinCh
 import { buildSourceChips, buildChips, skinChips, setSeg, buildMonthSelect, syncRangeControls, applyTheme, switchTheme, wireControls } from "./controls.js";
 ```
 
-Delete the moved declarations from `app.js`. Ensure `wireControls()` is invoked in the init sequence at the same point the original inline listeners were attached (after the elements exist — anywhere in the INIT body is fine since the DOM is ready).
+Delete the moved declarations from `app.js`. Ensure `wireControls()` is invoked in the init sequence at the same point the original inline listeners were attached (after the elements exist - anywhere in the INIT body is fine since the DOM is ready).
 
 - [ ] **Step 3: Verify (serve + visual).** Reload. Confirm: model chips toggle, source chips toggle, metric/range segments switch, month dropdown changes range, theme toggle works, **reset button** restores defaults (range=all, all models/sources, default sort) and re-renders. Console clean.
 
@@ -404,16 +404,16 @@ git commit -m "refactor: extract controls + listener wiring into js/controls.js"
 
 - [ ] **Step 1: Confirm `app.js` is now just imports + init.** It should contain only: the import lines from Tasks 3–11, the `INIT` sequence (`readParams()`, `applyTheme(state.theme)`, `setPalette(state.theme)`, `readThemeColors()`, `buildMonthSelect()`, the default-range heuristic, `syncRangeControls()`, `renderMeta()`, `buildSourceChips()`, `buildChips()`, `wireControls()`, `renderAll()`), and the `initHourly` IIFE. Remove any now-unused imports (anything imported but not referenced in `app.js`).
 
-- [ ] **Step 2: Full regression — run the spec's verification checklist.** With `python3 -m http.server 8000`, open `http://localhost:8000/dashboard.html` and walk every item in the spec's "Verification (manual visual check)" section:
+- [ ] **Step 2: Full regression - run the spec's verification checklist.** With `python3 -m http.server 8000`, open `http://localhost:8000/dashboard.html` and walk every item in the spec's "Verification (manual visual check)" section:
   - Console: zero errors; all canvases mount.
   - Every card renders (KPIs, daily, donut, tokens, model-time, DOW, heatmap, table, source, projects, hourly).
   - Range filter (all/7/30/90/month), model chips, source chips, metric toggle all update views.
   - Theme toggle recolors live (no rebuild flash); reset restores defaults.
   - URL params round-trip (reload preserves view; shared URL works).
   - Heatmap hover tooltip positions and shows correct numbers.
-  - Open the **pre-split** `dashboard.html` from git for a side-by-side parity check. Find the commit just before Task 1 (`git log --oneline | grep -n "modularize dashboard into ES modules"` points at the spec commit; the commit immediately after it — or simply the last commit whose `dashboard.html` still contains the inline `<script>` app — is the pre-split monolith). Example: `git show <that-sha>:dashboard.html > /tmp/old-dashboard.html`, serve/open, confirm visual parity.
+  - Open the **pre-split** `dashboard.html` from git for a side-by-side parity check. Find the commit just before Task 1 (`git log --oneline | grep -n "modularize dashboard into ES modules"` points at the spec commit; the commit immediately after it - or simply the last commit whose `dashboard.html` still contains the inline `<script>` app - is the pre-split monolith). Example: `git show <that-sha>:dashboard.html > /tmp/old-dashboard.html`, serve/open, confirm visual parity.
 
-- [ ] **Step 3: Confirm the data pipeline is untouched.** Run `render.mjs` against the existing snapshot inputs the way `cc-update` does (or at minimum re-read `render.mjs` and confirm its regex still targets the unchanged `<script id="usage-data">` block in `dashboard.html`). The new `css/` and `js/` files must not be referenced by `render.mjs`. No code change expected here — this is a verification step.
+- [ ] **Step 3: Confirm the data pipeline is untouched.** Run `render.mjs` against the existing snapshot inputs the way `cc-update` does (or at minimum re-read `render.mjs` and confirm its regex still targets the unchanged `<script id="usage-data">` block in `dashboard.html`). The new `css/` and `js/` files must not be referenced by `render.mjs`. No code change expected here - this is a verification step.
 
 - [ ] **Step 4: Commit.**
 
@@ -427,5 +427,5 @@ git commit -m "refactor: finalize js/app.js as the module entry point"
 ## Final notes
 
 - **Deployment:** ensure the static host for cc.pulkitxm.com serves `css/` and `js/` alongside `dashboard.html` (it already serves the repo; this is automatic for a directory-served static site). No data-pipeline change.
-- **Local dev going forward:** open via `python3 -m http.server` (or any static server), not `file://` — ES modules don't load over `file://`.
+- **Local dev going forward:** open via `python3 -m http.server` (or any static server), not `file://` - ES modules don't load over `file://`.
 - **If a regression appears:** the pre-split `dashboard.html` is in git history (the commit just before Task 1) as the reference.

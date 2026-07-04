@@ -16,7 +16,7 @@ export const SESSIONS = Array.isArray(RAW.sessions) ? RAW.sessions : [];
 // "Claude Code" tool. render.mjs ships per-source {label,tool} in sourceMeta
 // and the first-load filter set in defaultSources (the Claude Code tool only).
 // v1 rows had a flat modelBreakdowns[] (treated as a single "cli" source);
-// pre-multitool data files have no sourceMeta/defaultSources — fall back to the
+// pre-multitool data files have no sourceMeta/defaultSources - fall back to the
 // original Code/Cowork labels and an all-sources default view.
 const LEGACY_LABEL = { cli: "Code", cowork: "Cowork" };
 const SRC_META = RAW.sourceMeta || {};
@@ -56,7 +56,7 @@ export const ALL_MODELS = Object.keys(modelTotals).sort(
 
 // First-load / Reset model filter: only models used by the default (Claude Code)
 // sources, so non-Claude models (e.g. gpt-5.5 from Codex/OpenCode) aren't checked
-// by default — they'd otherwise sit selected but invisible since their sources
+// by default - they'd otherwise sit selected but invisible since their sources
 // are off by default. Same cost-ranked order as ALL_MODELS; falls back to all
 // models if (legacy data) nothing matches.
 const _defModels = new Set();

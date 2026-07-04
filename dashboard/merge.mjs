@@ -1,4 +1,4 @@
-// merge.mjs — pure helpers for combining ccusage's per-agent output into the
+// merge.mjs - pure helpers for combining ccusage's per-agent output into the
 // dashboard's per-source model.
 //
 // ccusage 2.x exposes one subcommand per coding agent (claude, opencode, codex,
@@ -41,7 +41,7 @@ export function normalizeAgentDaily(row) {
     breakdowns = row.modelBreakdowns.map((b) => breakdown(b.modelName, b, b.cost));
   } else if (row.models && typeof row.models === "object") {
     // codex: per-model token objects + a single row-level cost (costUSD). Split
-    // the cost by token share — exact for a single-model day, proportional else.
+    // the cost by token share - exact for a single-model day, proportional else.
     const entries = Object.entries(row.models);
     const rowCost = +row.totalCost || +row.costUSD || 0;
     const totalTok = entries.reduce((a, [, m]) => a + tokensOfModelObj(m), 0) || 1;
@@ -52,7 +52,7 @@ export function normalizeAgentDaily(row) {
     // opencode: only row-level tokens + a flat modelsUsed list (no per-model
     // split at all). Attribute the row to its model(s): exact for the common
     // single-model day, equal-split otherwise.
-    // ponytail: equal split across models on multi-model days — ccusage's
+    // ponytail: equal split across models on multi-model days - ccusage's
     // opencode daily exposes no per-model breakdown; upgrade if it ever does.
     const names = row.modelsUsed;
     const n = names.length;

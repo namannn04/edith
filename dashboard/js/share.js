@@ -136,7 +136,7 @@ export function drawShareCard(opts = {}) {
   ctx.font = `19px ${t.mono}`;
   ctx.fillText(rangeLabel(), PAD, 128);
 
-  // hero numbers — big value on top, caption beneath (cost can be blurred)
+  // hero numbers - big value on top, caption beneath (cost can be blurred)
   ctx.font = `700 84px ${t.mono}`;
   const drawCost = () => {
     ctx.fillStyle = t.gold;
@@ -155,7 +155,7 @@ export function drawShareCard(opts = {}) {
   ctx.fillStyle = t.line;
   ctx.fillRect(PAD, 296, W - PAD * 2, 1);
 
-  // metric grid — focused on work produced (auto-flex, centered)
+  // metric grid - focused on work produced (auto-flex, centered)
   const cells = [
     {
       label: "INPUT / OUTPUT",
@@ -163,7 +163,7 @@ export function drawShareCard(opts = {}) {
     },
     { label: "SESSIONS", value: String(work.sessions) },
     { label: "PROJECTS", value: String(work.projects) },
-    { label: "TOP MODEL", value: s.topModel ? shortModel(s.topModel) : "—" },
+    { label: "TOP MODEL", value: s.topModel ? shortModel(s.topModel) : "-" },
   ];
   drawFlexGrid(ctx, t, cells, { PAD, W, blurCost, blurred });
 
@@ -220,8 +220,8 @@ function openCardModal() {
 // The calendar card is HTML/CSS (grid + a rich stats panel), not a <canvas>, so we
 // can't export it like the charts. Instead we rasterize the live DOM: clone the
 // card, inline the page styles + active theme variables, wrap it in an SVG
-// <foreignObject>, and paint that onto a canvas. This captures the entire box —
-// calendar grid, headline, model/source bars, sparkline — and stays correct as
+// <foreignObject>, and paint that onto a canvas. This captures the entire box -
+// calendar grid, headline, model/source bars, sparkline - and stays correct as
 // the panel evolves, with no external dependency.
 export async function downloadHeatmap() {
   const card =
@@ -239,7 +239,7 @@ export async function downloadHeatmap() {
     clone.querySelectorAll(".heat-wrap").forEach((el) => {
       el.style.overflow = "visible";
     }); // include scrolled-off weeks
-    // A live <select> renders unreliably inside foreignObject — replace it with a
+    // A live <select> renders unreliably inside foreignObject - replace it with a
     // static chip showing its current value.
     const liveSel = document.getElementById("heat-metric");
     const cloneSel = clone.querySelector("#heat-metric");
@@ -266,7 +266,7 @@ export async function downloadHeatmap() {
     clone.style.width = W + "px"; // relayout so header/legend span the full width
     // Measure from the furthest descendant's bottom edge, not scrollHeight: the
     // stats column can overflow its flex box (visible overflow), and those pixels
-    // — the DAILY sparkline — don't count toward scrollHeight, so it would crop.
+    // - the DAILY sparkline - don't count toward scrollHeight, so it would crop.
     const cloneTop = clone.getBoundingClientRect().top;
     let maxBottom = clone.getBoundingClientRect().bottom;
     clone.querySelectorAll("*").forEach((el) => {
@@ -274,7 +274,7 @@ export async function downloadHeatmap() {
       if (b > maxBottom) maxBottom = b;
     });
     const H = Math.ceil(maxBottom - cloneTop);
-    // TEMP DEBUG — capture before clone is removed
+    // TEMP DEBUG - capture before clone is removed
     const _sp = clone.querySelector(".hs-spark");
     const _dbgSparkBottom = _sp
       ? Math.round(_sp.getBoundingClientRect().bottom - cloneTop)
@@ -408,7 +408,7 @@ export function wireShareButtons() {
   });
 
   // The activity calendar is an HTML/CSS heatmap (no <canvas>), so the loop above
-  // skips it. Give it its own ⤓, placed inline beside the metric dropdown — the
+  // skips it. Give it its own ⤓, placed inline beside the metric dropdown - the
   // top-right corner where .chart-dl normally sits is taken by that dropdown.
   const metricSel = document.getElementById("heat-metric");
   if (metricSel && document.getElementById("heat")) {

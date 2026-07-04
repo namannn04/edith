@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * render.mjs — merge per-source ccusage output into data/usage.json and inline it
+ * render.mjs - merge per-source ccusage output into data/usage.json and inline it
  * into dashboard.html (overwriting the <script id="usage-data"> block).
  *
  * Usage:
@@ -8,17 +8,17 @@
  *
  * The manifest is an array, one entry per ccusage agent stream:
  *   [{ source, daily, session, configDirs }]
- *     source     — source id (cli, cowork, opencode, codex, …)
- *     daily      — file with raw stdout of `ccusage <agent> daily   --json`
- *     session    — file with raw stdout of `ccusage <agent> session --json`
- *     configDirs — comma-separated CLAUDE_CONFIG_DIR list, set ONLY for the
+ *     source     - source id (cli, cowork, opencode, codex, …)
+ *     daily      - file with raw stdout of `ccusage <agent> daily   --json`
+ *     session    - file with raw stdout of `ccusage <agent> session --json`
+ *     configDirs - comma-separated CLAUDE_CONFIG_DIR list, set ONLY for the
  *                  Claude Code sources whose raw transcripts feed the drilldown
  *                  (empty for opencode/codex/etc.).
  * cli + cowork roll up under the "Claude Code" tool (see merge.mjs SOURCE_META);
  * every other ccusage agent is its own tool. normalizeAgentDaily() in merge.mjs
  * absorbs each agent's schema differences (codex uses costUSD + models{}).
  *
- * Schema (superset of v2 — all v2 fields preserved):
+ * Schema (superset of v2 - all v2 fields preserved):
  *   { schemaVersion, generatedAt, sources:["cli","cowork","opencode",…],
  *     sourceMeta:{ cli:{label,tool}, … }, defaultSources:[…Claude Code sources],
  *     totals:{...combined..., bySource:{ <source>:{cost,tokens} }},
@@ -45,7 +45,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 if (args.length < 1) {
   console.error("usage: node render.mjs <manifest.json>");
-  console.error("  manifest = [{ source, daily, session, configDirs }] — one entry per ccusage agent stream");
+  console.error("  manifest = [{ source, daily, session, configDirs }] - one entry per ccusage agent stream");
   process.exit(1);
 }
 
@@ -117,9 +117,9 @@ for (const d of daily) {
   }
 }
 
-// sessions (tagged by source) — used for the footer count; kept lightweight.
+// sessions (tagged by source) - used for the footer count; kept lightweight.
 // ccusage 2.x returns { sessions:[{ sessionId, lastActivity, … }] }; older
-// output used { session:[{ period, metadata.lastActivity }] } — accept both.
+// output used { session:[{ period, metadata.lastActivity }] } - accept both.
 const mapSessions = (obj, src) =>
   (obj.sessions || obj.session || []).map((s) => ({
     id: s.sessionId || s.period,
@@ -226,7 +226,7 @@ function walkJsonl(dir) {
   let entries;
   try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   // Sort by name so the walk order (and therefore dedup attribution at the
-  // `seen` check below) is stable across runtimes — readdirSync order differs
+  // `seen` check below) is stable across runtimes - readdirSync order differs
   // between node and bun, which would otherwise shuffle per-chat token sums.
   entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   for (const e of entries) {
@@ -356,7 +356,7 @@ function buildDrilldown(prices) {
   const titleBySession = new Map();     // sessionId -> aiTitle
   const firstTextBySession = new Map(); // sessionId -> first user prompt snippet
   // date -> Map<model, {input,output,cw,cr,cost,tokens}> for cloud (background) sessions
-  // only — used downstream to split the cli source into local + Claude Code Cloud.
+  // only - used downstream to split the cli source into local + Claude Code Cloud.
   const cloudByDateModel = new Map();
   const getDay = (date) => {
     let d = byDate.get(date);
@@ -544,7 +544,7 @@ if (Object.values(configDirsFor).some((a) => a.length)) {
     // Re-partition each day/model: cc-cloud gets the transcript-derived cloud
     // usage (capped at the cli amount), cli keeps the remainder. cli + cc-cloud
     // therefore equals the original cli exactly, so the Claude Code grand total
-    // is unchanged — only the local/cloud split point is approximate (the cap
+    // is unchanged - only the local/cloud split point is approximate (the cap
     // keeps cli ≥ 0 and the total exact).
     // ponytail: capped derived-price split; exact only if ccusage ever exposes
     // per-session daily breakdowns.
@@ -603,7 +603,7 @@ const payload = {
   generatedAt: new Date().toISOString(),
   sources, totals, daily, sessions,
   // per-source label + tool grouping, and the dashboard's first-load filter
-  // (the Claude Code tool only — falls back to all sources if none qualify).
+  // (the Claude Code tool only - falls back to all sources if none qualify).
   sourceMeta: Object.fromEntries(sources.map((s) => [s, metaFor(s)])),
   defaultSources: claudeCodeSources(sources).length ? claudeCodeSources(sources) : sources,
 };
@@ -612,7 +612,7 @@ const payload = {
 mkdirSync(resolve(here, "data"), { recursive: true });
 writeFileSync(resolve(here, "data", "usage.json"), JSON.stringify(payload, null, 2) + "\n");
 
-// 2. inline into dashboard.html (regex-match the data block — contract)
+// 2. inline into dashboard.html (regex-match the data block - contract)
 const htmlPath = resolve(here, "dashboard.html");
 const tmpl = readFileSync(htmlPath, "utf8");
 const safe = JSON.stringify(payload).replace(/<\/script>/g, "<\\/script>");

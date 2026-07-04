@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# cc-update — refresh the Claude Code usage dashboard.
+# cc-update - refresh the Claude Code usage dashboard.
 #
 #   1. pull the latest usage from ccusage  (CLI + Cowork, daily + session, JSON)
 #   2. build dashboard.html from the modular sources (css/ + js/ via build.mjs)
@@ -52,8 +52,8 @@ else
 fi
 
 # Claude Code has two sources, each a comma-separated CLAUDE_CONFIG_DIR list:
-#   cli    — the normal Claude Code CLI logs in ~/.claude
-#   cowork — Cowork (local-agent mode) runs Claude Code under the hood and writes
+#   cli    - the normal Claude Code CLI logs in ~/.claude
+#   cowork - Cowork (local-agent mode) runs Claude Code under the hood and writes
 #            the same JSONL nested under the desktop app; point ccusage at each.
 # NB: we call `ccusage claude …`, NOT plain `ccusage daily`. ccusage 2.x sums
 # EVERY detected agent by default, which would silently fold opencode/codex spend
@@ -62,7 +62,7 @@ CLI_CFG="$HOME/.claude"
 COWORK_ROOT="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
 COWORK_CFG="$(find "$COWORK_ROOT" -type d -path '*/.claude' 2>/dev/null | paste -sd, -)"
 
-# Claude Code cli/cowork × daily/session — the core sources, collected
+# Claude Code cli/cowork × daily/session - the core sources, collected
 # concurrently (a single shared install means no per-call link race). The
 # `wait $pid || exit` loop fails fast (set -e misses backgrounded failures).
 CLAUDE_CONFIG_DIR="$CLI_CFG" $RUN claude daily   --json > "$TMP/daily.cli.json"   & p_dc=$!
@@ -77,18 +77,18 @@ for pid in $p_dc $p_sc $p_dw $p_sw; do
   wait "$pid" || { echo "✗ ccusage (claude) collection failed" >&2; exit 1; }
 done
 
-# Every other agent ccusage knows about (Cursor isn't one — it keeps no local
+# Every other agent ccusage knows about (Cursor isn't one - it keeps no local
 # cost data). Probe each agent's daily SERIALLY with --offline, keep the ones
 # with rows, and fetch their sessions. Why serial + offline (not the old parallel
 # fan-out): 14 concurrent `ccusage` processes intermittently race its shared
-# pricing cache and emit an empty `{"daily":[]}` — silently dropping an agent that
+# pricing cache and emit an empty `{"daily":[]}` - silently dropping an agent that
 # actually has data (reproduced with codex/opencode on ccusage 20.x). Serial costs
 # ~a few seconds but is deterministic; --offline uses ccusage's bundled pricing so
 # a flaky network fetch can't blank an agent either. A genuinely empty agent is
 # still just skipped, never fatal.
 OTHER_AGENTS="codex opencode amp droid codebuff hermes pi goose kilo copilot gemini kimi qwen openclaw"
 INCLUDED=""
-# NB: process.stdout.write, not console.log — bun colorizes console.log numbers
+# NB: process.stdout.write, not console.log - bun colorizes console.log numbers
 # (wraps them in ANSI codes) even when piped, which silently breaks the numeric
 # `[ "$rows" -gt 0 ]` test below and would skip every agent.
 agent_rows(){ bun -e "process.stdout.write(String((require('$TMP/daily.$1.json').daily||[]).length))" 2>/dev/null || echo 0; }
@@ -134,7 +134,7 @@ if [ -n "$CLOUD_RAW" ]; then
 fi
 _phase cloud "$(F="$TMP/cloud-sessions.json" bun -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.env.F,"utf8")).length+" sessions")' 2>/dev/null || echo "0 sessions")"
 
-# Format the hand-edited sources (js/, css/, build.mjs — see biome.json) before
+# Format the hand-edited sources (js/, css/, build.mjs - see biome.json) before
 # bundling, so style drift never shows up as noise in the commit diff.
 format_out=$(biome format --write . 2>&1) || { echo "$format_out" >&2; exit 1; }
 _phase format "$(printf '%s' "$format_out" | grep -oE 'Fixed [0-9]+ files?' || echo "no changes")"
@@ -165,7 +165,7 @@ fi
 # change that lands in dashboard.html is committed together with its source).
 git add data/usage.json dashboard.html dashboard.template.html build.mjs css js biome.json
 if git diff --cached --quiet; then
-  printf '✓ %s total · no changes — already up to date\n' "$(_total)"
+  printf '✓ %s total · no changes - already up to date\n' "$(_total)"
   exit 0
 fi
 git commit -q -m "usage: snapshot $(date '+%Y-%m-%d %H:%M')"

@@ -12,22 +12,22 @@
 
 ## File Structure
 
-- **Create `js/cycles.js`** — pure date helpers: `cycleStart(date, day)`, `cycleEnd(start, day)`, `cyclesFromBounds(earliest, latest, day)`. No DOM, no `state`. Imports only `ymd`, `MON` from `format.js`.
-- **Create `tests/cycles.test.js`** — `bun test` coverage for the three helpers (rollover, year boundary, short-month clamping).
-- **Modify `js/state.js`** — add `DEFAULT_BILLING_DAY = 26` export and `billingDay` field; document the new `cycle` range mode.
-- **Modify `js/data.js`** — add `cyclesInData(day)` (thin wrapper over `cyclesFromBounds` using `EARLIEST`/`LATEST`).
-- **Modify `js/compute.js`** — add the `cycle` case to `activeWindow()`.
-- **Modify `js/params.js`** — read/write `range=cy:<start>` and `cycleDay=<n>`.
-- **Modify `dashboard.template.html`** — add the `Cycle` + `Billing day` control group next to `Month`.
-- **Modify `js/controls.js`** — `buildCycleSelect()`, wire the two new controls, extend `syncRangeControls()`.
-- **Modify `js/app.js`** — call `buildCycleSelect()` during init.
+- **Create `js/cycles.js`** - pure date helpers: `cycleStart(date, day)`, `cycleEnd(start, day)`, `cyclesFromBounds(earliest, latest, day)`. No DOM, no `state`. Imports only `ymd`, `MON` from `format.js`.
+- **Create `tests/cycles.test.js`** - `bun test` coverage for the three helpers (rollover, year boundary, short-month clamping).
+- **Modify `js/state.js`** - add `DEFAULT_BILLING_DAY = 26` export and `billingDay` field; document the new `cycle` range mode.
+- **Modify `js/data.js`** - add `cyclesInData(day)` (thin wrapper over `cyclesFromBounds` using `EARLIEST`/`LATEST`).
+- **Modify `js/compute.js`** - add the `cycle` case to `activeWindow()`.
+- **Modify `js/params.js`** - read/write `range=cy:<start>` and `cycleDay=<n>`.
+- **Modify `dashboard.template.html`** - add the `Cycle` + `Billing day` control group next to `Month`.
+- **Modify `js/controls.js`** - `buildCycleSelect()`, wire the two new controls, extend `syncRangeControls()`.
+- **Modify `js/app.js`** - call `buildCycleSelect()` during init.
 - **Rebuild** `dashboard.html` via `bun build.mjs`.
 
 All commands below are run from the repo root: `/Users/pulkit/scripts/ccusage-dashboard/usage-repo`.
 
 ---
 
-### Task 1: Pure cycle date module (`js/cycles.js`) — TDD
+### Task 1: Pure cycle date module (`js/cycles.js`) - TDD
 
 **Files:**
 - Create: `tests/cycles.test.js`
@@ -80,7 +80,7 @@ test("cyclesFromBounds: labels show both years when a cycle spans New Year", () 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `bun test tests/cycles.test.js`
-Expected: FAIL — `Cannot find module "../js/cycles.js"` (module not created yet).
+Expected: FAIL - `Cannot find module "../js/cycles.js"` (module not created yet).
 
 - [ ] **Step 3: Implement `js/cycles.js`**
 
@@ -138,7 +138,7 @@ import { ymd, MON } from "./format.js";
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `bun test tests/cycles.test.js`
-Expected: PASS — all 6 tests green.
+Expected: PASS - all 6 tests green.
 
 - [ ] **Step 5: Commit**
 
@@ -181,7 +181,7 @@ with:
 - [ ] **Step 2: Verify the module still parses**
 
 Run: `bun build.mjs`
-Expected: prints `built dashboard.html — self-contained (… KB)` with no bundle errors. (We rebuild here only to confirm the edit didn't break the bundle; the UI isn't wired yet.)
+Expected: prints `built dashboard.html - self-contained (… KB)` with no bundle errors. (We rebuild here only to confirm the edit didn't break the bundle; the UI isn't wired yet.)
 
 - [ ] **Step 3: Commit**
 
@@ -243,7 +243,7 @@ Note: `inRangeDays()` and `derive()` already route every non-`all` mode through 
 - [ ] **Step 3: Verify the bundle builds**
 
 Run: `bun build.mjs`
-Expected: prints `built dashboard.html — self-contained (… KB)`, no errors.
+Expected: prints `built dashboard.html - self-contained (… KB)`, no errors.
 
 - [ ] **Step 4: Commit**
 
@@ -304,7 +304,7 @@ In `writeParams()`, just before the `theme` line, add:
 - [ ] **Step 5: Verify the bundle builds**
 
 Run: `bun build.mjs`
-Expected: prints `built dashboard.html — self-contained (… KB)`, no errors.
+Expected: prints `built dashboard.html - self-contained (… KB)`, no errors.
 
 - [ ] **Step 6: Commit**
 
@@ -315,7 +315,7 @@ git commit -m "feat: URL sync for cycle range + cycleDay"
 
 ---
 
-### Task 5: Controls — Cycle dropdown + Billing-day input
+### Task 5: Controls - Cycle dropdown + Billing-day input
 
 **Files:**
 - Modify: `dashboard.template.html`
@@ -360,7 +360,7 @@ Immediately after the existing `buildMonthSelect()` function, add:
 ```js
   export function buildCycleSelect() {
     const sel = document.getElementById("cycle-select");
-    sel.innerHTML = `<option value="">— pick cycle —</option>` +
+    sel.innerHTML = `<option value="">- pick cycle -</option>` +
       cyclesInData(state.billingDay).map(c => `<option value="${c.start}">${c.label}</option>`).join("");
   }
 ```
@@ -373,7 +373,7 @@ In `syncRangeControls()`, after the existing `date-to` line, add:
     document.getElementById("cycle-select").value = r.mode === "cycle" ? r.cycle : "";
     document.getElementById("billing-day").value  = String(state.billingDay);
 ```
-(The first line above already exists — add the two new lines after it.)
+(The first line above already exists - add the two new lines after it.)
 
 - [ ] **Step 4: Wire the two new controls in `wireControls()`**
 
@@ -415,7 +415,7 @@ and, in the `if (HAS_DATA) { … }` init block, add `buildCycleSelect();` right 
 - [ ] **Step 6: Rebuild the dashboard**
 
 Run: `bun build.mjs`
-Expected: prints `built dashboard.html — self-contained (… KB)`, no errors.
+Expected: prints `built dashboard.html - self-contained (… KB)`, no errors.
 
 - [ ] **Step 7: Verify the controls are present in the built artifact**
 
@@ -444,6 +444,6 @@ git commit -m "feat: Cycle dropdown + editable billing day in controls"
 
 ## Notes for the executor
 
-- `dashboard.html` is a **generated artifact** — never hand-edit it; only `bun build.mjs` regenerates it. It may already show as modified in `git status` from a data refresh (`data/usage.json` too); the build preserves the inlined `<script id="usage-data">` data block, so rebuilding is safe. Commit `dashboard.html` only in Task 5 (after the final rebuild); leave `data/usage.json` untouched/uncommitted.
-- KPIs are intentionally untouched (per spec non-goals) — do not add a "cycle to date" KPI.
+- `dashboard.html` is a **generated artifact** - never hand-edit it; only `bun build.mjs` regenerates it. It may already show as modified in `git status` from a data refresh (`data/usage.json` too); the build preserves the inlined `<script id="usage-data">` data block, so rebuilding is safe. Commit `dashboard.html` only in Task 5 (after the final rebuild); leave `data/usage.json` untouched/uncommitted.
+- KPIs are intentionally untouched (per spec non-goals) - do not add a "cycle to date" KPI.
 - All work happens on the `feat/billing-cycle-filter` branch created during brainstorming.

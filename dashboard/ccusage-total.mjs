@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 /**
- * ccusage-total — Claude Code usage by model: today + all-time.
+ * ccusage-total - Claude Code usage by model: today + all-time.
  *
  * Pulls usage from `ccusage` (via bunx) and aggregates the per-model
- * breakdowns into two tables — today's usage and the entire history —
+ * breakdowns into two tables - today's usage and the entire history -
  * each sorted by cost with every model's share of spend.
  *
- * Built for Bun — run with:
+ * Built for Bun - run with:
  *   bun ccusage-total.mjs                 # tables: today + all-time
  *   bun ccusage-total.mjs --today         # tables: today only
  *   bun ccusage-total.mjs --day-wise      # tables: one per day
@@ -16,7 +16,7 @@
  * Tables are driven by `ccusage` and stay deliberately simple. The JSON is
  * richer: it joins ccusage's per-day/per-model totals with data parsed from
  * the raw Claude Code transcripts (~/.claude/projects) to add, per day, the
- * list of chats (sessions) — name, project, git branch, message counts, and
+ * list of chats (sessions) - name, project, git branch, message counts, and
  * a per-model token/cost breakdown. Per-chat cost uses per-model unit prices
  * derived at runtime from ccusage's own session data, so they match ccusage.
  */
@@ -26,8 +26,8 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 // Usage comes from two sources, both logged as Claude Code JSONL transcripts:
-//   cli    — the normal CLI logs in ~/.claude
-//   cowork — Cowork (local-agent mode) runs Claude Code under the hood but logs
+//   cli    - the normal CLI logs in ~/.claude
+//   cowork - Cowork (local-agent mode) runs Claude Code under the hood but logs
 //            into nested .claude dirs under the desktop app. We discover every
 //            such dir so both the ccusage CLI totals and the transcript walk
 //            include Cowork usage.
@@ -762,9 +762,9 @@ if (dayWise) {
     };
     console.log(JSON.stringify(payload, null, 2));
   } else if (allDays.length === 0) {
-    console.log("\nClaude Code — Day-wise Usage\n\n  (no usage recorded)\n");
+    console.log("\nClaude Code - Day-wise Usage\n\n  (no usage recorded)\n");
   } else {
-    console.log(`\nClaude Code — Day-wise Usage by Model (${dayRange})`);
+    console.log(`\nClaude Code - Day-wise Usage by Model (${dayRange})`);
     for (const d of allDays) {
       printSection(`${d.period}`, rowsFromItems([d]));
     }
@@ -787,10 +787,10 @@ if (dayWise) {
   console.log(JSON.stringify(payload, null, 2));
 } else {
   printTodayBySource(
-    `Claude Code — Today's Usage by Model (${today})`,
+    `Claude Code - Today's Usage by Model (${today})`,
     todayRowsBySource()
   );
   if (!todayOnly) {
-    printSection(`Claude Code — All-Time Usage by Model (${range})`, allRows);
+    printSection(`Claude Code - All-Time Usage by Model (${range})`, allRows);
   }
 }

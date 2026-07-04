@@ -22,7 +22,7 @@ export const fmtPct = (n) => (n * 100).toFixed(1) + "%";
 // active time in a chat/project: "2h 15m", "45m", "30s", em dash for none.
 export const fmtDur = (ms) => {
   ms = +ms || 0;
-  if (ms <= 0) return "—";
+  if (ms <= 0) return "-";
   const s = Math.round(ms / 1000);
   if (s < 60) return s + "s";
   const m = Math.round(s / 60);
@@ -57,7 +57,7 @@ export const MON = [
 ];
 // "YYYY-MM-DD" -> "Jun 1" (year omitted; data is recent). Empty -> em dash.
 export const fmtDate = (s) => {
-  if (!s) return "—";
+  if (!s) return "-";
   const [, m, d] = String(s).split("-").map(Number);
   return `${MON[m - 1]} ${d}`;
 };

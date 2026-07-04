@@ -7,7 +7,7 @@ import SwiftUI
 /// so the same component carries any number of future tabs.
 ///
 /// The pill is ONE persistent view moved to the measured frame of the selected
-/// chip — never inserted/removed — which is what makes the slide reliable
+/// chip - never inserted/removed - which is what makes the slide reliable
 /// (matchedGeometryEffect across if-branches animates removal but snaps
 /// insertion).
 struct TabBar: View {

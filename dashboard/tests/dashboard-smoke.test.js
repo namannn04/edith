@@ -1,6 +1,6 @@
 // End-to-end smoke test: drive the REAL data/usage.json through the dashboard's
-// data + compute modules (with a stubbed DOM) to confirm the multi-tool wiring —
-// source/tool grouping and the Claude-Code-only default filter — actually holds.
+// data + compute modules (with a stubbed DOM) to confirm the multi-tool wiring -
+// source/tool grouping and the Claude-Code-only default filter - actually holds.
 import { test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 
@@ -13,7 +13,7 @@ const { state } = await import("../js/state.js");
 const compute = await import("../js/compute.js");
 
 const sumCost = (rows) => rows.reduce((a, r) => a + r.cost, 0);
-// The Claude Code tool's sources, whatever they are in the current data — cli,
+// The Claude Code tool's sources, whatever they are in the current data - cli,
 // cowork, and (when the split runs) cc-cloud. Asserting against this rather than a
 // hard-coded list keeps the test correct whether or not the cloud split fired.
 const ccSources = data.SOURCES.filter((s) => data.SOURCE_TOOL[s] === "Claude Code");

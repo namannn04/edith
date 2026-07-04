@@ -50,7 +50,7 @@ import {
 } from "./charts.js";
 
 // Recolor EXISTING chart instances from current CSS vars and update without
-// animation — used on theme toggle so charts don't rebuild/recompute.
+// animation - used on theme toggle so charts don't rebuild/recompute.
 export function liveRetheme() {
   readThemeColors();
   Object.values(charts).forEach((ch) => {
@@ -102,7 +102,7 @@ export function renderMeta() {
         hour: "numeric",
         minute: "2-digit",
       })
-    : "—";
+    : "-";
   const srcStr = SOURCES.map(sourceLabel).join(" + ");
   document.getElementById("meta-row").innerHTML =
     `Updated <b>${genStr}</b>` +
@@ -141,11 +141,11 @@ function renderKPIs() {
   // busiest day = most TOKENS (ignore zero-filled days)
   const active = rows.filter((r) => r.tokens > 0);
   const activeDays = active.length || 1;
-  let big = active[0] || { date: "—", cost: 0, tokens: 0 };
+  let big = active[0] || { date: "-", cost: 0, tokens: 0 };
   active.forEach((r) => {
     if (r.tokens > big.tokens) big = r;
   });
-  // month to date — based on the latest month present in full data
+  // month to date - based on the latest month present in full data
   const ym = ymd(LATEST).slice(0, 7);
   let mtdCost = 0,
     mtdTok = 0;
@@ -173,8 +173,8 @@ function renderKPIs() {
     },
     {
       l: "Busiest day",
-      v: big.date === "—" ? "—" : big.date.slice(5),
-      s: big.date === "—" ? "" : `${fmtTok(big.tokens)} · ${fmtUSD(big.cost)}`,
+      v: big.date === "-" ? "-" : big.date.slice(5),
+      s: big.date === "-" ? "" : `${fmtTok(big.tokens)} · ${fmtUSD(big.cost)}`,
     },
     {
       l: "Daily average",
@@ -193,7 +193,7 @@ function renderKPIs() {
     },
     {
       l: "Top model",
-      v: shortModel(topModel) || "—",
+      v: shortModel(topModel) || "-",
       s: `${fmtUSD(mcost[topModel] || 0)} of spend`,
     },
   ];
@@ -699,7 +699,7 @@ function heatTipHTML(key, det) {
       ${projHTML ? `<div class="ht-sec"><div class="ht-lbl">Projects</div>${projHTML}</div>` : ""}`;
 }
 
-// Activity-calendar metric: "tokens" (default) or "cost". Transient UI state —
+// Activity-calendar metric: "tokens" (default) or "cost". Transient UI state -
 // intentionally NOT synced to the URL (unlike the top filters).
 let heatMetric = "tokens";
 export function setHeatMetric(m) {
@@ -733,7 +733,7 @@ function wireHeat() {
     _heatTip.style.top = y + "px";
   };
   heat.addEventListener("mouseover", (e) => {
-    // Dateless cells (week-padding / future days) carry no tooltip — hide any
+    // Dateless cells (week-padding / future days) carry no tooltip - hide any
     // open tip instead of leaving the previous day's tip stuck to the cursor.
     const cell = e.target.closest(".cell");
     if (!cell || !cell.dataset.date) {
@@ -759,7 +759,7 @@ function renderHeat() {
   const isCost = heatMetric === "cost";
   const metricOf = (det) => (isCost ? det.cost : det.tokens);
   document.getElementById("t-heat").textContent =
-    "Activity calendar — " + (isCost ? "cost" : "tokens");
+    "Activity calendar - " + (isCost ? "cost" : "tokens");
   // Follow the active range filter (clamped to data bounds), like the table/charts.
   // 'all' still spans the full history. Day values respect the source/model filters.
   const detail = {},
@@ -782,7 +782,7 @@ function renderHeat() {
   const level = (v) => (v <= 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4)));
   // Fixed light→orange ramp (identical in both themes). Level 0 is the empty/
   // zero level (subtle background, no text). The per-level TEXT color is chosen
-  // for contrast against each cell's OWN background — NOT the page theme — so
+  // for contrast against each cell's OWN background - NOT the page theme - so
   // the in-cell token numbers stay legible in dark mode too. Index 4 must have
   // a real (non-transparent) background or the busiest cell goes invisible.
   const SCALE = ["var(--grid)", "#f6d9bf", "#f0b384", "#e2884f", "#c75e36"];
@@ -927,7 +927,7 @@ function renderHeat() {
     const headCol = `
         <div class="hs-head">
           <div class="hs-period">${periodLabel}</div>
-          <div class="hs-kpi">${activeDays ? fmtBig(totalVal) : "—"}</div>
+          <div class="hs-kpi">${activeDays ? fmtBig(totalVal) : "-"}</div>
           <div class="hs-sub">${isCost ? "total cost" : "total tokens"}</div>
           ${
             activeDays
@@ -1132,7 +1132,7 @@ const HAS_HOURS = DAILY.some((d) => Array.isArray(d.hours));
 const PROJ_TOPN = 15;
 const CHATS_PER_GROUP = 20; // cap chats shown per group; rest → "+N more"
 
-// Inline Lucide icons (v1.17.0, ISC) — folder=project, branch=worktree, msg=chat.
+// Inline Lucide icons (v1.17.0, ISC) - folder=project, branch=worktree, msg=chat.
 const ICONS = {
   "folder-git-2":
     '<path d="M18 19a5 5 0 0 1-5-5v8"/><path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5"/><circle cx="13" cy="12" r="2"/><circle cx="20" cy="19" r="2"/>',
@@ -1222,7 +1222,7 @@ function aggregateProjects() {
     for (const c of arr) for (const d of c._days || []) s.add(d);
     return s.size;
   };
-  // Keep only chats whose source is selected (chats carry a `source` tag — cli /
+  // Keep only chats whose source is selected (chats carry a `source` tag - cli /
   // cc-cloud / cowork). Legacy data without the tag stays visible. Project and
   // worktree totals/shares/days are recomputed from the VISIBLE chats so the
   // whole drilldown is consistent with the source filter (e.g. picking only
@@ -1604,7 +1604,7 @@ export function renderHourly(dateKey) {
   const costs = Array.from({ length: 24 }, (_, h) =>
     hours ? +hours[h].cost || 0 : 0,
   );
-  document.getElementById("t-hourly").textContent = "Hourly — " + dateKey;
+  document.getElementById("t-hourly").textContent = "Hourly - " + dateKey;
   mount("c-hourly", {
     data: {
       labels,
@@ -1652,7 +1652,7 @@ export function renderHourly(dateKey) {
   });
 }
 
-// ============ HOURLY — ALL TIME (aggregate across every recorded day) ============
+// ============ HOURLY - ALL TIME (aggregate across every recorded day) ============
 // Hour rollups are not split by source/model in the data, so like the
 // single-day hourly card this ignores the source/model/range filters and is
 // rendered once at init.

@@ -77,7 +77,7 @@ export function rangeToParam() {
   if (r.mode === "month") return "m:" + r.month;
   if (r.mode === "cycle") {
     // The current cycle (containing the latest data day, for the active billing
-    // day) is the implicit default, so a clean URL already means it — omit it.
+    // day) is the implicit default, so a clean URL already means it - omit it.
     // Past cycles persist explicitly so they survive reload / sharing.
     if (LATEST && r.cycle === ymd(cycleStart(LATEST, state.billingDay)))
       return "";

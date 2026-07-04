@@ -103,7 +103,7 @@ final class UsageStore: ObservableObject {
     // MARK: - Limits
 
     /// When the poller will actually fire next (timer schedule, pushed out by
-    /// any 429 backoff). Read at render time — the card re-renders after every
+    /// any 429 backoff). Read at render time - the card re-renders after every
     /// refresh, which is exactly when this changes.
     var nextLimitsRefresh: Date? {
         guard let fire = timer?.fireDate else { return nil }
@@ -111,13 +111,13 @@ final class UsageStore: ObservableObject {
         return fire
     }
 
-    /// `force` skips the 429 backoff gate — used by the manual reload button.
+    /// `force` skips the 429 backoff gate - used by the manual reload button.
     func refreshLimits(force: Bool = false) async {
         if !force, let gate = retryNotBefore, gate > Date() { return }
         guard !refreshingLimits else { return }
         refreshingLimits = true
         await fetchLimitsOnce()
-        // The fetch often finishes in ~200ms — hold the spinner briefly so the
+        // The fetch often finishes in ~200ms - hold the spinner briefly so the
         // reload visibly reacts instead of appearing to do nothing.
         try? await Task.sleep(nanoseconds: 400_000_000)
         refreshingLimits = false
@@ -132,14 +132,14 @@ final class UsageStore: ObservableObject {
             let usage = try await Self.fetchUsage(token: token)
             apply(usage)
         } catch FetchError.unauthorized {
-            cachedToken = nil // token rotated (claude /login etc.) — re-read once
+            cachedToken = nil // token rotated (claude /login etc.) - re-read once
             if let fresh = currentToken(), let usage = try? await Self.fetchUsage(token: fresh) {
                 apply(usage)
             } else {
-                limitsError = "Token expired — run claude to re-login"
+                limitsError = "Token expired - run claude to re-login"
             }
         } catch FetchError.rateLimited(let after) {
-            // ponytail: flat backoff, no exponential ladder — endpoint 429s are rare
+            // ponytail: flat backoff, no exponential ladder - endpoint 429s are rare
             retryNotBefore = Date().addingTimeInterval(after ?? 1800)
         } catch {
             limitsError = "Offline"
@@ -283,12 +283,12 @@ final class UsageStore: ObservableObject {
 
         let parsed: UsageFile
         do {
-            // ~700 KB file — decode off the main actor.
+            // ~700 KB file - decode off the main actor.
             parsed = try await Task.detached(priority: .utility) {
                 try JSONDecoder().decode(UsageFile.self, from: Data(contentsOf: url))
             }.value
         } catch {
-            statsError = "usage.json missing — hit reload"
+            statsError = "usage.json missing - hit reload"
             return
         }
 

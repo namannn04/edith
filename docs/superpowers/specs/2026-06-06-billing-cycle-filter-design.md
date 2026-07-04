@@ -1,4 +1,4 @@
-# Billing-cycle filter — design
+# Billing-cycle filter - design
 
 **Date:** 2026-06-06
 **Status:** Approved
@@ -43,11 +43,11 @@ For a billing day `D`:
 
 In the controls bar, a new `Cycle` control group placed next to `Month`:
 
-- **`Cycle` dropdown** (`#cycle-select`) — first option `— pick cycle —`, then
+- **`Cycle` dropdown** (`#cycle-select`) - first option `- pick cycle -`, then
   every cycle that overlaps the data range, newest first, labeled like
   `26 May – 25 Jun`. Selecting one sets the range to that cycle; selecting the
   blank option reverts to `All`.
-- **`Billing day` number field** (`#billing-day`) — `min=1 max=31`, default
+- **`Billing day` number field** (`#billing-day`) - `min=1 max=31`, default
   `26`. Editing it rebuilds the cycle dropdown immediately.
 
 Picking a cycle clears the `Month` select, the custom date inputs, and the
@@ -64,7 +64,7 @@ segment buttons (same mutual-exclusion behavior the `Month` picker already has).
 ## Behavior details
 
 - **Default view:** on load, when the URL carries no explicit `range`, the
-  dashboard selects the **current billing cycle** — the cycle containing the
+  dashboard selects the **current billing cycle** - the cycle containing the
   latest data day (`cycleStart(LATEST, billingDay)`). This replaces the prior
   "default to the latest month when the span is large" heuristic. The default is
   not written to the URL (so the URL stays clean); a reload re-derives it.
@@ -90,16 +90,16 @@ segment buttons (same mutual-exclusion behavior the `Month` picker already has).
 
 ## Controls wiring (`js/controls.js`)
 
-- `buildCycleSelect()` — populates `#cycle-select` from
+- `buildCycleSelect()` - populates `#cycle-select` from
   `cyclesInData(state.billingDay)`.
 - `#cycle-select` `change` → set range to the chosen cycle (or `all` if blank),
   `syncRangeControls()`, `renderAll()`, `writeParams()`.
 - `#billing-day` `change` → update `state.billingDay`, `buildCycleSelect()`,
   reset range to `all` if it was a cycle, `renderAll()`, `writeParams()`.
-- `syncRangeControls()` — set `#cycle-select` value when mode is `cycle`
+- `syncRangeControls()` - set `#cycle-select` value when mode is `cycle`
   (blank otherwise); always reflect `state.billingDay` in `#billing-day`.
 - Reset button reverts the range to `All` (clearing any cycle selection) but
-  **leaves `state.billingDay` as set** — it's a preference, not a filter.
+  **leaves `state.billingDay` as set** - it's a preference, not a filter.
 
 ## Files touched
 

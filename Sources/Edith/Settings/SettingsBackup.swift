@@ -9,7 +9,7 @@ enum AppData {
         return dir
     }()
 
-    /// iCloud Drive folder — files here sync natively, no entitlements needed
+    /// iCloud Drive folder - files here sync natively, no entitlements needed
     /// (CloudKit proper requires a provisioned app, which an ad-hoc build isn't).
     static let cloudDir = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/Edith")
@@ -22,7 +22,7 @@ enum AppData {
 }
 
 /// Mirrors the app's settings (UserDefaults) into Application Support/Edith/
-/// settings.json and — when the iCloud toggle is on — into iCloud Drive.
+/// settings.json and - when the iCloud toggle is on - into iCloud Drive.
 /// Sync model: last writer wins. A newer iCloud copy is imported at launch;
 /// afterwards every settings change re-exports, debounced and content-compared
 /// so unchanged snapshots never touch mtimes.
@@ -125,7 +125,7 @@ final class SettingsBackup: ObservableObject {
         guard let data = try? Data(contentsOf: cloudFile),
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            // dataless iCloud placeholder — kick off the download for next launch
+            // dataless iCloud placeholder - kick off the download for next launch
             try? fm.startDownloadingUbiquitousItem(at: cloudFile)
             return
         }

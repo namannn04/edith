@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# build.sh — build Edith.app from the Swift package.
+# build.sh - build Edith.app from the Swift package.
 #
 #   ./build.sh            # build into dist/Edith.app and launch it
 #   ./build.sh --install  # also copy to /Applications and launch from there

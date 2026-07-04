@@ -449,7 +449,7 @@ h1 em {
 
 /* ---- Calendar heatmap ---- */
 /* padding on all sides so a cell's hover outline (outline-offset ~3px) isn't
-     clipped by this scroll container — overflow-x:auto also clips the y-axis. */
+     clipped by this scroll container - overflow-x:auto also clips the y-axis. */
 .heat-wrap {
   overflow-x: auto;
   padding: 4px;

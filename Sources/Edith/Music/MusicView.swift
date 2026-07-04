@@ -37,7 +37,7 @@ struct MusicView: View {
     private var nowPlayingBar: some View {
         VStack(spacing: 10) {
             if player.current != nil {
-                // Ticks only while the panel is visible — zero cost when closed.
+                // Ticks only while the panel is visible - zero cost when closed.
                 TimelineView(.periodic(from: .now, by: 0.5)) { _ in
                     HStack(spacing: 10) {
                         Text(timeLabel(player.elapsed))

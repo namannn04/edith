@@ -1,4 +1,4 @@
-# Download / Share — design
+# Download / Share - design
 
 **Date:** 2026-06-06
 **Status:** Approved
@@ -34,7 +34,7 @@ the charts use: `derive()` from `js/compute.js` (zero-filled, range/model/source
 filtered). Row shape:
 `{date, cost, input, output, cacheCreate, cacheRead, tokens, byModel:{model:{cost,tokens}}}`.
 
-## Component 1 — `statsSummary(rows)` (pure)
+## Component 1 - `statsSummary(rows)` (pure)
 
 New pure module `js/stats.js` (no DOM, no app-state; imports nothing from the
 DOM layer) exporting `statsSummary(rows)`. Given `derive()` rows it returns:
@@ -54,7 +54,7 @@ DOM layer) exporting `statsSummary(rows)`. Given `derive()` rows it returns:
 
 Pure and unit-tested with `bun test` (`tests/stats.test.js`).
 
-## Component 2 — `js/share.js` (DOM / canvas)
+## Component 2 - `js/share.js` (DOM / canvas)
 
 New module `js/share.js`. Imports: `statsSummary` (stats.js), `derive` +
 `activeWindow` (compute.js), `charts` (state.js), format helpers (format.js), and
@@ -77,11 +77,11 @@ Returns the card subtitle string:
   - Title `Claude Code · Usage` + subtitle `rangeLabel()`.
   - Two hero figures: **total cost** (`fmtUSD`, gold) and **total tokens** (`fmtTok`),
     each as a big value with a small uppercase caption beneath.
-  - A thin hairline divider, then an **aligned stat grid — 4 columns × 2 rows**, each
+  - A thin hairline divider, then an **aligned stat grid - 4 columns × 2 rows**, each
     cell an uppercase muted label on top with its value beneath (left-aligned on fixed
     column x-positions, so values line up rather than scattering):
     `INPUT / OUTPUT / CACHE / CACHE HIT` then
-    `AVG / DAY / ACTIVE / TOP MODEL / PEAK` (`—` when `topModel`/`peakDay` are null).
+    `AVG / DAY / ACTIVE / TOP MODEL / PEAK` (`-` when `topModel`/`peakDay` are null).
   - No footer/branding link (GitHub Pages was removed).
 - Exports via `canvas.toBlob` → object URL → a synthetic `<a download>` click →
   `URL.revokeObjectURL`. Filename: `cc-usage_<from>_<to>.png` (or
@@ -110,7 +110,7 @@ Called once from `app.js` init (only when there is data):
 - `dashboard.template.html`: add `<button class="btn-reset" id="btn-share">⤓ Card</button>`
   immediately after the existing `#btn-reset` button (reuses the reset button's
   styling for a consistent, clean look).
-- `css/styles.css`: add a `.chart-dl` style — a small, subtle icon button placed
+- `css/styles.css`: add a `.chart-dl` style - a small, subtle icon button placed
   at the top-right of `.card-head` (the card-head becomes a positioning context;
   card title/note are unaffected). Hover-emphasized, low-key by default.
 
@@ -122,7 +122,7 @@ Called once from `app.js` init (only when there is data):
 
 ## Testing
 
-- **Unit (`bun test tests/stats.test.js`):** `statsSummary` over synthetic rows —
+- **Unit (`bun test tests/stats.test.js`):** `statsSummary` over synthetic rows -
   totals, `cacheRate` (incl. zero-denominator), `topModel` selection, `activeDays`,
   `dailyAvg`, `peakDay`, and the all-zero/empty case (`topModel`/`peakDay` null,
   no divide-by-zero).

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Owns the per-tab stores and their lifecycles. A disabled tab's store is
-/// never created — no timers, no network, no audio session, no caches — and
+/// never created - no timers, no network, no audio session, no caches - and
 /// disabling a live tab tears its store down and frees those resources.
 /// Future tabs: add a flag + store pair here and a case in RootView.
 @MainActor

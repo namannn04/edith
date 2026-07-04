@@ -1,4 +1,4 @@
-// Tiny transient toast — a single reused element, bottom-center, auto-dismiss.
+// Tiny transient toast - a single reused element, bottom-center, auto-dismiss.
 let _el = null,
   _timer = 0;
 export function toast(msg, ms = 1600) {

@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-05-31 — Light / dark theme
+## 2026-05-31 - Light / dark theme
 
 Added a theme toggle (top-right). Defaults to the OS `prefers-color-scheme`,
 switches instantly, and persists via the `?theme=` URL param (no localStorage,
@@ -9,10 +9,10 @@ before first paint to avoid a flash. Reset reverts to the OS preference.
 
 Theme-aware throughout: CSS variables drive the page, and Chart.js colors
 (grid, ticks, donut borders) plus the categorical palette are recomputed on
-switch — the dark slate is lightened so CLI/source/token bars stay legible on a
+switch - the dark slate is lightened so CLI/source/token bars stay legible on a
 dark background.
 
-## 2026-05-31 — Cowork source + opt-in push (schema v2)
+## 2026-05-31 - Cowork source + opt-in push (schema v2)
 
 Include Cowork usage and split spend by source.
 
@@ -22,7 +22,7 @@ Cowork (local-agent mode) runs Claude Code under the hood but logs into nested
 `cc-update` now discovers every such dir and runs `ccusage` per source via
 `CLAUDE_CONFIG_DIR`. On this machine that surfaced ~$133 (≈20%) of previously
 invisible spend. The `cc-usage` producer (`ccusage-total.mjs`) was updated the
-same way — it points its `ccusage` calls and transcript walk at the Cowork dirs.
+same way - it points its `ccusage` calls and transcript walk at the Cowork dirs.
 
 ### Schema v2 (source split)
 `data/usage.json` is now `schemaVersion: 2`:
@@ -41,19 +41,19 @@ treats old flat `modelBreakdowns` as a single `cli` source.
 `./cc-update --push`. The launchd schedule passes `--push` so the daily run still
 publishes.
 
-## 2026-05-30 — Initial dashboard
+## 2026-05-30 - Initial dashboard
 
 Built the usage dashboard and update pipeline from scratch.
 
 ### Pipeline
 - **`cc-update`** (bash): runs `ccusage daily --json` + `ccusage session --json`,
-  calls `render.mjs`, then commits and pushes to GitHub. Idempotent — skips the
+  calls `render.mjs`, then commits and pushes to GitHub. Idempotent - skips the
   commit when nothing changed. Defaults to `bunx ccusage@latest`
   (override with `CCUSAGE_CMD`).
 - **`render.mjs`** (node): assembles `data/usage.json` (`schemaVersion: 1`,
   `generatedAt`, `totals`, `daily`, `sessions`) and inlines it into the
   `<script id="usage-data">` block of `dashboard.html`. The dashboard reads the
-  inlined JSON — no `fetch` — so it works opened directly or in a sandbox.
+  inlined JSON - no `fetch` - so it works opened directly or in a sandbox.
 - **`com.pulkit.ccusage-dashboard.plist`**: launchd schedule, daily at 10:00.
 
 ### Data scope (why no per-project charts)
@@ -64,21 +64,21 @@ therefore dropped rather than faked. Everything is by date / model / token type.
 
 ### Dashboard (`dashboard.html`)
 Light-mode, self-contained, Chart.js 4.5 (CDN-allowlisted), system fonts only
-(editorial serif + monospace numerals — no web fonts, since the artifact sandbox
+(editorial serif + monospace numerals - no web fonts, since the artifact sandbox
 blocks font CDNs).
 
 Visualizations and the insight each surfaces:
-- **KPIs** — spend, avg/day + peak, tokens, cache hit rate, top model, and a
+- **KPIs** - spend, avg/day + peak, tokens, cache hit rate, top model, and a
   month-end **projection** (MTD × days-in-month / days-elapsed).
-- **Daily spend + burn rate** — bars with 7-day & 30-day rolling averages, so a
+- **Daily spend + burn rate** - bars with 7-day & 30-day rolling averages, so a
   spending trend is visible against day-to-day noise.
-- **Token mix by day** — where tokens go (input vs output vs cache write/read).
-- **Share by model** donut + **model split over time** — which model drives cost.
-- **Cache efficiency** — `cache-read / (cache-read + input)` per day: is prompt
+- **Token mix by day** - where tokens go (input vs output vs cache write/read).
+- **Share by model** donut + **model split over time** - which model drives cost.
+- **Cache efficiency** - `cache-read / (cache-read + input)` per day: is prompt
   caching actually paying off.
-- **By day of week** — average spend per weekday (weekend bars distinguished).
-- **Activity calendar** — GitHub-style heatmap of daily intensity.
-- **Models table** — sortable, reflects current filters.
+- **By day of week** - average spend per weekday (weekend bars distinguished).
+- **Activity calendar** - GitHub-style heatmap of daily intensity.
+- **Models table** - sortable, reflects current filters.
 
 ### Interaction
 - Filters are in-memory and re-derived from the inlined data on every load (no
