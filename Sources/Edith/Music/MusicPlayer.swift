@@ -139,6 +139,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
             return
         }
         player = p
+        p.isMeteringEnabled = true
         p.delegate = self
         p.volume = 0
         p.prepareToPlay()
@@ -193,6 +194,15 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     func progressNow() -> Double {
         guard let p = player, p.duration > 0 else { return 0 }
         return p.currentTime / p.duration
+    }
+
+    /// 0...1 live output level for the visualizer bars; 0 when paused or
+    /// stopped. Polled from TimelineViews that only tick while a player
+    /// surface is visible - updateMeters() is cheap.
+    func meterLevel() -> Double {
+        guard isPlaying, let p = player else { return 0 }
+        p.updateMeters()
+        return MeterMath.level(fromPower: p.averagePower(forChannel: 0))
     }
 
     var elapsed: TimeInterval { player?.currentTime ?? 0 }
