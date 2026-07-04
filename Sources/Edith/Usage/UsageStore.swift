@@ -55,6 +55,7 @@ final class UsageStore: ObservableObject {
     private var retryNotBefore: Date? // 429 backoff gate
     private var usageMtime: Date?
     private var timer: Timer?
+    private var wakeObserver: NSObjectProtocol?
     private var process: Process?
 
     init() {
@@ -68,7 +69,7 @@ final class UsageStore: ObservableObject {
 
         // Timers don't fire during sleep; refresh immediately on wake so the
         // panel is never a whole cycle stale after the lid opens.
-        NSWorkspace.shared.notificationCenter.addObserver(
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
@@ -81,6 +82,22 @@ final class UsageStore: ObservableObject {
             await refreshLimits()
             await loadStats()
         }
+    }
+
+    /// Tab disabled → stop everything and drop the parsed data.
+    func shutdown() {
+        timer?.invalidate()
+        timer = nil
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
+        process?.terminate()
+        daily = []
+        stats = []
+        calendarDays = []
+        log = ""
+        usageMtime = nil
     }
 
     // MARK: - Limits
@@ -386,6 +403,7 @@ final class UsageStore: ObservableObject {
         let p = Process()
         p.executableURL = Repo.ccUpdate
         p.currentDirectoryURL = Repo.root
+        p.qualityOfService = .utility // keep the panel snappy while it runs
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = pipe

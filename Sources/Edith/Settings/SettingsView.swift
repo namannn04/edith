@@ -14,13 +14,27 @@ func themeColor(_ name: String) -> Color {
 }
 
 struct SettingsView: View {
+    @EnvironmentObject private var services: AppServices
     @AppStorage("presenterMode") private var presenter = false
     @AppStorage("theme") private var themeName = "blue"
+    @AppStorage("tabUsageEnabled") private var usageEnabled = true
+    @AppStorage("tabMusicEnabled") private var musicEnabled = true
 
     private var theme: Color { themeColor(themeName) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
+                eyebrow("TABS")
+                tabToggle("Agent Usage", subtitle: "limit polling, usage stats", isOn: $usageEnabled)
+                tabToggle("Music", subtitle: "player, media keys", isOn: $musicEnabled)
+            }
+            .card()
+            // Toggling a tab creates or tears down its whole module — timers,
+            // network, audio, caches — so an off tab costs nothing.
+            .onChange(of: usageEnabled) { services.sync() }
+            .onChange(of: musicEnabled) { services.sync() }
+
             VStack(alignment: .leading, spacing: 12) {
                 eyebrow("GENERAL")
                 HStack {
@@ -72,12 +86,34 @@ struct SettingsView: View {
             .card()
         }
     }
+
+    private func tabToggle(_ title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13))
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .tint(theme)
+        }
+    }
 }
 
 /// Click → "Press shortcut…" → next chord with ⌘/⌥/⌃ becomes the global
 /// toggle. Esc cancels. The hotkey is suspended while recording so re-picking
 /// the current combo doesn't toggle the panel mid-recording.
 struct ShortcutRecorder: View {
+    /// Read by the app-level Esc monitor so Esc cancels recording instead of
+    /// closing the panel while a capture is in progress.
+    static var isRecording = false
+
     @State private var recording = false
     @State private var monitor: Any?
     @State private var label = HotKey.label
@@ -100,6 +136,7 @@ struct ShortcutRecorder: View {
 
     private func start() {
         recording = true
+        Self.isRecording = true
         HotKey.unregister()
         // The panel is a non-activating panel: without forcing key status the
         // keystrokes keep going to the previously active app and the local
@@ -115,6 +152,7 @@ struct ShortcutRecorder: View {
 
     private func stop() {
         recording = false
+        Self.isRecording = false
         if let monitor {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil

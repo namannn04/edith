@@ -18,9 +18,8 @@ enum Repo {
 
 @main
 struct EdithApp: App {
-    // Plain lets, not @StateObject: App.body must not re-evaluate on store changes.
-    private let usage = UsageStore()
-    private let music = MusicPlayer()
+    // Plain let, not @StateObject: App.body must not re-evaluate on store changes.
+    private let services = AppServices()
 
     init() {
         // Close when focus leaves the panel (click elsewhere / switch app).
@@ -67,13 +66,26 @@ struct EdithApp: App {
             }
         }
         HotKey.register() // ⌥⌘E toggles the panel from anywhere
+
+        // Esc closes the panel. onExitCommand alone needs SwiftUI focus inside
+        // the panel, which a non-activating panel rarely has — catch the key
+        // directly. The shortcut recorder gets first claim on Esc to cancel.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if event.keyCode == 53, !ShortcutRecorder.isRecording,
+               NSApp.windows.contains(where: {
+                   $0.className.contains("MenuBarExtraWindow") && $0.isVisible
+               }) {
+                dismissPanel()
+                return nil
+            }
+            return event
+        }
     }
 
     var body: some Scene {
         MenuBarExtra("Edith", systemImage: "eyeglasses") {
             RootView()
-                .environmentObject(usage)
-                .environmentObject(music)
+                .environmentObject(services)
                 .preferredColorScheme(.dark)
         }
         .menuBarExtraStyle(.window)
@@ -234,9 +246,20 @@ func eyebrow(_ text: String) -> some View {
 }
 
 struct RootView: View {
+    @EnvironmentObject private var services: AppServices
     @AppStorage("tab") private var tab = "usage"
     @AppStorage("theme") private var themeName = "blue"
+    @AppStorage("tabUsageEnabled") private var usageEnabled = true
+    @AppStorage("tabMusicEnabled") private var musicEnabled = true
     @State private var showSettings = false
+
+    // Future tabs: append here (id, title) + a store in AppServices.
+    private var enabledTabs: [(id: String, title: String)] {
+        var tabs: [(String, String)] = []
+        if usageEnabled { tabs.append(("usage", "Agent Usage")) }
+        if musicEnabled { tabs.append(("music", "Music")) }
+        return tabs
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -249,7 +272,7 @@ struct RootView: View {
                     .tracking(3)
                     .foregroundStyle(.secondary)
                 Spacer()
-                if tab == "music", !showSettings {
+                if tab == "music", musicEnabled, !showSettings {
                     Button {
                         NSWorkspace.shared.open(Repo.musicDir)
                         dismissPanel()
@@ -284,26 +307,44 @@ struct RootView: View {
             if showSettings {
                 SettingsView()
             } else {
-                Picker("", selection: $tab) {
-                    Text("Agent Usage").tag("usage")
-                    Text("Music").tag("music")
+                if enabledTabs.count > 1 {
+                    Picker("", selection: $tab) {
+                        ForEach(enabledTabs, id: \.id) { entry in
+                            Text(entry.title).tag(entry.id)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .controlSize(.large)
+                    // match the track's corners to the capsule-shaped selection knob
+                    .clipShape(Capsule())
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .controlSize(.large)
-                // match the track's corners to the capsule-shaped selection knob
-                .clipShape(Capsule())
-                if tab == "usage" {
-                    UsageView()
-                } else {
-                    MusicView()
+                if tab == "usage", let store = services.usage {
+                    UsageView().environmentObject(store)
+                } else if tab == "music", let player = services.music {
+                    MusicView().environmentObject(player)
+                } else if enabledTabs.isEmpty {
+                    Text("All tabs are off — enable one in Settings (⚙)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 28)
                 }
             }
         }
+        .onAppear { pinTab() }
+        .onChange(of: usageEnabled) { pinTab() }
+        .onChange(of: musicEnabled) { pinTab() }
         .padding(14)
         .frame(width: 480)
         // Darken the system material — pure vibrancy washes out over light screens.
         .background(Color.black.opacity(0.55).ignoresSafeArea())
         .onExitCommand { dismissPanel() } // Esc closes the panel
+    }
+
+    /// Keep the selection on a live tab when tabs get toggled in Settings.
+    private func pinTab() {
+        if !enabledTabs.contains(where: { $0.id == tab }), let first = enabledTabs.first {
+            tab = first.id
+        }
     }
 }

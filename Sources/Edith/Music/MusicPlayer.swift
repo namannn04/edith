@@ -176,6 +176,19 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
         updateNowPlaying()
     }
 
+    /// Tab disabled → stop audio, release caches, unhook the media keys.
+    func shutdown() {
+        stop()
+        tracks = []
+        artworkCache.removeAll()
+        durationCache.removeAll()
+        let center = MPRemoteCommandCenter.shared()
+        [center.playCommand, center.pauseCommand, center.togglePlayPauseCommand,
+         center.nextTrackCommand, center.previousTrackCommand]
+            .forEach { $0.removeTarget(nil) }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
     /// 0…1 for the progress bar; polled by a TimelineView that only ticks while visible.
     func progressNow() -> Double {
         guard let p = player, p.duration > 0 else { return 0 }
