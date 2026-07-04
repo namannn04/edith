@@ -44,18 +44,18 @@ final class LimitsStatusItem {
     ) {
         out.append(NSAttributedString(string: label + " ", attributes: [
             .font: NSFont.systemFont(ofSize: 9, weight: .bold),
-            .foregroundColor: NSColor.secondaryLabelColor,
+            .foregroundColor: fixedColor ?? NSColor.secondaryLabelColor,
             .baselineOffset: 1.5,
         ]))
         let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         guard let window else {
             out.append(NSAttributedString(string: "\u{2013}", attributes: [
-                .font: numberFont, .foregroundColor: NSColor.tertiaryLabelColor,
+                .font: numberFont, .foregroundColor: fixedColor ?? NSColor.tertiaryLabelColor,
             ]))
             return
         }
         out.append(NSAttributedString(string: "\(Int(window.percent.rounded()))", attributes: [
-            .font: numberFont, .foregroundColor: color(for: window, kind: kind),
+            .font: numberFont, .foregroundColor: fixedColor ?? color(for: window, kind: kind),
         ]))
     }
 
@@ -74,6 +74,16 @@ final class LimitsStatusItem {
         case .green: return .systemGreen
         case .orange: return .systemOrange
         case .red: return .systemRed
+        }
+    }
+
+    /// "white" / "black" -> that color for every part of the widget;
+    /// "auto" (default) -> gray labels + risk-tinted numbers.
+    private var fixedColor: NSColor? {
+        switch UserDefaults.standard.string(forKey: "menuBarColorMode") {
+        case "white": return .white
+        case "black": return .black
+        default: return nil
         }
     }
 

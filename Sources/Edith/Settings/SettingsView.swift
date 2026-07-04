@@ -34,6 +34,24 @@ struct SettingsView: View {
     @AppStorage("lastMusicBackupAt") private var lastMusicBackupAt = 0.0
     @ObservedObject private var backupService = SettingsBackup.shared
     @State private var musicSize = ""
+    @AppStorage("limitsInMenuBar") private var limitsInMenuBar = true
+    @AppStorage("menuBarColorMode") private var menuBarColorMode = "auto"
+    @AppStorage("smartColor") private var smartColor = true
+    @AppStorage("warnPercent") private var warnPercent = 60
+    @AppStorage("critPercent") private var critPercent = 85
+    @AppStorage("pacingMargin") private var pacingMargin = 10.0
+    @AppStorage("notifyMaster") private var notifyMaster = false
+    @AppStorage("notifyTrackSession") private var notifyTrackSession = true
+    @AppStorage("notifyTrackWeekly") private var notifyTrackWeekly = true
+    @AppStorage("notifyRecovery") private var notifyRecovery = true
+    @AppStorage("notifyPacingWarning") private var notifyPacingWarning = true
+    @AppStorage("notifyPacingHot") private var notifyPacingHot = true
+    @AppStorage("notifyReminderSession") private var reminderSession = false
+    @AppStorage("notifyReminderSessionOffsetMin") private var reminderSessionOffset = 30
+    @AppStorage("notifyReminderWeekly") private var reminderWeekly = false
+    @AppStorage("notifyReminderWeeklyOffsetMin") private var reminderWeeklyOffset = 120
+    @AppStorage("notifyTokenExpired") private var notifyTokenExpired = true
+    @State private var notifDenied = false
 
     private var theme: Color { themeColor(themeName) }
 
@@ -97,6 +115,112 @@ struct SettingsView: View {
                 }
             }
             .card()
+
+            VStack(alignment: .leading, spacing: 12) {
+                eyebrow("LIMITS")
+                toggleRow("Show in menu bar",
+                          subtitle: "Session + weekly percentages next to the clock",
+                          isOn: $limitsInMenuBar)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Menu bar color").font(.system(size: 13))
+                        Text("Auto tints the numbers by risk")
+                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Picker("", selection: $menuBarColorMode) {
+                        Text("Auto").tag("auto")
+                        Text("White").tag("white")
+                        Text("Black").tag("black")
+                    }
+                    .labelsHidden().pickerStyle(.menu).fixedSize()
+                }
+                toggleRow("Smart color",
+                          subtitle: "Time-aware risk drives colors and alerts",
+                          isOn: $smartColor)
+                HStack {
+                    Text("Warning / critical").font(.system(size: 13))
+                    Spacer()
+                    Stepper("\(warnPercent)%", value: $warnPercent, in: 10...critPercent - 5, step: 5)
+                        .font(.system(size: 12)).fixedSize()
+                    Stepper("\(critPercent)%", value: $critPercent, in: warnPercent + 5...100, step: 5)
+                        .font(.system(size: 12)).fixedSize()
+                }
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Pacing margin").font(.system(size: 13))
+                        Text("How far ahead of even pace counts as drifting")
+                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Stepper("±\(Int(pacingMargin))pp", value: $pacingMargin, in: 5...25, step: 5)
+                        .font(.system(size: 12)).fixedSize()
+                }
+            }
+            .card()
+            .onChange(of: limitsInMenuBar) { services.usage?.syncStatusItem() }
+            .onChange(of: menuBarColorMode) { services.usage?.refreshMenuBarItem() }
+            .onChange(of: smartColor) { services.usage?.refreshMenuBarItem() }
+            .onChange(of: warnPercent) { services.usage?.refreshMenuBarItem() }
+            .onChange(of: critPercent) { services.usage?.refreshMenuBarItem() }
+            .onChange(of: pacingMargin) { services.usage?.refreshMenuBarItem() }
+
+            VStack(alignment: .leading, spacing: 12) {
+                eyebrow("NOTIFICATIONS")
+                toggleRow("Enable notifications",
+                          subtitle: notifDenied
+                            ? "Denied in System Settings > Notifications > Edith"
+                            : "Alerts for limit levels, pacing, resets",
+                          isOn: $notifyMaster)
+                Group {
+                    toggleRow("Session (5h) alerts", isOn: $notifyTrackSession)
+                    toggleRow("Weekly alerts", isOn: $notifyTrackWeekly)
+                    toggleRow("Recovery (back to green)", isOn: $notifyRecovery)
+                    toggleRow("Pacing: drifting fast", isOn: $notifyPacingWarning)
+                    toggleRow("Pacing: burning hot", isOn: $notifyPacingHot)
+                    toggleRow("Token expired", isOn: $notifyTokenExpired)
+                    HStack {
+                        toggleRow("Remind before session reset", isOn: $reminderSession)
+                        Picker("", selection: $reminderSessionOffset) {
+                            Text("5 min").tag(5); Text("15 min").tag(15)
+                            Text("30 min").tag(30); Text("1 h").tag(60)
+                        }
+                        .labelsHidden().pickerStyle(.menu).fixedSize()
+                        .disabled(!reminderSession)
+                    }
+                    HStack {
+                        toggleRow("Remind before weekly reset", isOn: $reminderWeekly)
+                        Picker("", selection: $reminderWeeklyOffset) {
+                            Text("1 h").tag(60); Text("2 h").tag(120)
+                            Text("6 h").tag(360); Text("12 h").tag(720)
+                        }
+                        .labelsHidden().pickerStyle(.menu).fixedSize()
+                        .disabled(!reminderWeekly)
+                    }
+                    Button("Send test notification") {
+                        services.usage?.notifier.sendTest()
+                    }
+                    .buttonStyle(HoverButtonStyle())
+                    .font(.system(size: 12))
+                    .foregroundStyle(theme)
+                }
+                .disabled(!notifyMaster)
+                .opacity(notifyMaster ? 1 : 0.45)
+            }
+            .card()
+            .onChange(of: notifyMaster) {
+                if notifyMaster {
+                    services.usage?.notifier.requestPermission()
+                    Task {
+                        // brief delay so the permission dialog result lands first
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        notifDenied = await services.usage?.notifier.authorizationStatus() == .denied
+                    }
+                }
+            }
+            .task {
+                notifDenied = await services.usage?.notifier.authorizationStatus() == .denied
+            }
 
             VStack(alignment: .leading, spacing: 12) {
                 eyebrow("THEME")
@@ -354,6 +478,20 @@ struct SettingsView: View {
         case "music": $musicEnabled
         case "system": $systemEnabled
         default: .constant(false)
+        }
+    }
+
+    private func toggleRow(_ title: String, subtitle: String? = nil, isOn: Binding<Bool>) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 13))
+                if let subtitle {
+                    Text(subtitle).font(.system(size: 10)).foregroundStyle(.tertiary)
+                }
+            }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden().toggleStyle(.switch).controlSize(.small).tint(theme)
         }
     }
 }
