@@ -48,15 +48,24 @@ struct MusicView: View {
                     }
                     .font(.system(size: 10))
                     .monospacedDigit()
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                 }
             }
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
+                if let track = player.current {
+                    ArtworkThumb(track: track, player: player, size: 40)
+                }
                 Text(player.current?.title ?? "Not playing")
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
+                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
                     .foregroundStyle(player.current == nil ? .secondary : .primary)
                     .presenterBlur(presenter && player.current != nil)
+                if player.current != nil {
+                    TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+                        VisualizerBars(level: player.meterLevel(), color: theme.opacity(0.9))
+                    }
+                }
                 Spacer()
                 Button { player.previous() } label: {
                     Image(systemName: "backward.fill")
@@ -83,6 +92,14 @@ struct MusicView: View {
             .font(.system(size: 13))
         }
         .card()
+        .background {
+            if let track = player.current {
+                AmbientGlow(track: track, player: player)
+                    .clipShape(RoundedRectangle(cornerRadius: 12)) // matches card()'s shape
+                    .animation(.easeInOut(duration: 0.6), value: track.id)
+            }
+        }
+        .animation(.easeInOut(duration: 0.6), value: player.current)
     }
 
     /// Drag-to-seek progress capsule; while dragging it previews the grab point

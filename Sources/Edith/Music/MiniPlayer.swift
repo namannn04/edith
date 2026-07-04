@@ -11,26 +11,30 @@ struct MiniPlayer: View {
     var body: some View {
         if let track = player.current {
             HStack(spacing: 12) {
-                Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme)
-                Text(track.title)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                    .presenterBlur(presenter)
+                ArtworkThumb(track: track, player: player, size: 38)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(track.title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .presenterBlur(presenter)
+                    // Ticks only while the pane is visible.
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        Text("\(timeLabel(player.elapsed)) / \(timeLabel(player.trackDuration))")
+                            .font(.system(size: 10))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Spacer(minLength: 8)
-                // Ticks only while the panel is visible.
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text("\(timeLabel(player.elapsed)) / \(timeLabel(player.trackDuration))")
-                        .font(.system(size: 10))
-                        .monospacedDigit()
-                        .foregroundStyle(.tertiary)
+                TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+                    VisualizerBars(level: player.meterLevel(), color: theme.opacity(0.9))
                 }
                 Button {
                     player.playPause()
                 } label: {
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 14))
+                        .font(.system(size: 15))
                         .foregroundStyle(theme)
                 }
                 .buttonStyle(HoverButtonStyle())
@@ -39,8 +43,9 @@ struct MiniPlayer: View {
                     .tint(theme)
                     .frame(width: 60)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.6), value: track.id)
         }
     }
 

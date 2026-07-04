@@ -29,7 +29,7 @@ final class MiniPanel {
         lastFrameChange = Date()
     }
 
-    private let height: CGFloat = 54
+    private let height: CGFloat = 64
     private let gap: CGFloat = 10
 
     func sync() {
@@ -179,6 +179,12 @@ struct MiniPlayerDetached: View {
 
     var body: some View {
         MiniPlayer(player: player, theme: themeColor(themeName))
+            .background {
+                if let track = player.current {
+                    AmbientGlow(track: track, player: player)
+                        .animation(.easeInOut(duration: 0.6), value: track.id)
+                }
+            }
             .background(DetachedBackground())
     }
 }
