@@ -18,15 +18,31 @@ struct CalendarView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     dateNavigation
-                    if store.events.isEmpty {
-                        Text("No events on \(dateLabel)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 28)
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 10) {
+                    // The calendar (when open) and the events share this one
+                    // ScrollView - the panel's window doesn't grow to fit
+                    // content placed outside it, so anything that can push
+                    // the layout taller has to live inside the scrollable
+                    // area rather than above it.
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if showDatePicker {
+                                DatePicker(
+                                    "", selection: $store.selectedDate,
+                                    displayedComponents: .date
+                                )
+                                .datePickerStyle(.graphical)
+                                .labelsHidden()
+                                .onChange(of: store.selectedDate) {
+                                    withAnimation(.easeOut(duration: 0.15)) { showDatePicker = false }
+                                }
+                            }
+                            if store.events.isEmpty {
+                                Text("No events on \(dateLabel)")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 28)
+                                    .frame(maxWidth: .infinity)
+                            } else {
                                 ForEach(store.events, id: \.eventIdentifier) { event in
                                     row(for: event)
                                 }
@@ -40,33 +56,20 @@ struct CalendarView: View {
     }
 
     private var dateNavigation: some View {
-        // MenuBarExtra's panel is a non-activating NSPanel - SwiftUI's
-        // .popover fails to anchor/show inside it, so the picker expands
-        // inline instead of in a popover.
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
-                chevronButton("chevron.left", help: "Previous day") { shiftDate(by: -1) }
+        HStack(spacing: 4) {
+            chevronButton("chevron.left", help: "Previous day") { shiftDate(by: -1) }
 
-                Button {
-                    withAnimation(.easeOut(duration: 0.15)) { showDatePicker.toggle() }
-                } label: {
-                    Text(dateLabel)
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(minWidth: 92)
-                }
-                .buttonStyle(HoverButtonStyle())
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { showDatePicker.toggle() }
+            } label: {
+                Text(dateLabel)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(minWidth: 92)
+            }
+            .buttonStyle(HoverButtonStyle())
 
-                chevronButton("chevron.right", help: "Next day") { shiftDate(by: 1) }
-                Spacer()
-            }
-            if showDatePicker {
-                DatePicker("", selection: $store.selectedDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .onChange(of: store.selectedDate) {
-                        withAnimation(.easeOut(duration: 0.15)) { showDatePicker = false }
-                    }
-            }
+            chevronButton("chevron.right", help: "Next day") { shiftDate(by: 1) }
+            Spacer()
         }
     }
 
