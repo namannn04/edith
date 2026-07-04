@@ -16,7 +16,10 @@ struct UsageView: View {
             }
             usageCard
         }
-        .task { await store.loadStats() } // panel open → pick up fresh snapshots
+        .task {
+            await store.loadStats() // panel open → pick up fresh snapshots
+            await store.loadLimitHistory()
+        }
     }
 
     // MARK: - Limits
@@ -57,6 +60,10 @@ struct UsageView: View {
             HStack(spacing: 12) {
                 ring("SESSION", window: store.session)
                 ring("WEEK", window: store.week)
+            }
+            if !store.limitPoints.isEmpty {
+                LimitsChartView(points: store.limitPoints, theme: theme)
+                    .padding(.top, 2)
             }
             if let err = store.limitsError {
                 Text(err)
