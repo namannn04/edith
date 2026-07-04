@@ -23,6 +23,7 @@ import {
   buildChips,
 } from "./controls.js";
 import { wireShareButtons } from "./share.js";
+import { initLimitsCard } from "./limitsChart.js";
 
 // ---------- empty state ----------
 // No data yet: show the placeholder and skip all rendering. This file is an ES
@@ -80,3 +81,6 @@ if (HAS_DATA) {
   })();
   renderHourlyAll();
 }
+
+// Limits card is independent of the usage payload and the global range filter.
+initLimitsCard();

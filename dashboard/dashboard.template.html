@@ -236,6 +236,22 @@
         </div>
       </div>
 
+      <div class="card col-12" id="limits-card">
+        <div class="card-head">
+          <div class="card-title">Rate limits - session &amp; weekly</div>
+          <div style="display:flex;align-items:center;gap:10px;flex:0 0 auto">
+            <span class="card-note" style="max-width:none">% of window used · dashes = thresholds · verticals = resets</span>
+            <div class="seg" id="seg-limits">
+              <button data-lr="24h" aria-pressed="true">24h</button>
+              <button data-lr="7d">7d</button>
+              <button data-lr="30d">30d</button>
+              <button data-lr="all">All</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="c-limits"></canvas></div>
+      </div>
+
     </div>
 
     <footer>
