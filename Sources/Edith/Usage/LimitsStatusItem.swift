@@ -5,11 +5,12 @@ import AppKit
 /// from the "limitsInMenuBar" setting.
 @MainActor
 final class LimitsStatusItem {
-    /// This item's own status window. clickStatusItem()/centerPanelUnderIcon()
-    /// exclude it when hunting for the MenuBarExtra's window. nonisolated(unsafe)
-    /// because those are plain non-isolated globals (App.swift has no isolation
-    /// annotations); everything actually runs on the main thread.
-    nonisolated(unsafe) static private(set) var window: NSWindow?
+    /// This item's own button. The App.swift lookups exclude ITS window when
+    /// hunting for the MenuBarExtra's window - resolved at lookup time, never
+    /// captured, because the button has no window until the bar installs it.
+    /// nonisolated(unsafe): the lookups are plain non-isolated globals; all of
+    /// this runs on the main thread.
+    nonisolated(unsafe) static private(set) weak var button: NSStatusBarButton?
 
     private let item: NSStatusItem
 
@@ -17,13 +18,13 @@ final class LimitsStatusItem {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
         item.button?.action = #selector(clicked)
-        Self.window = item.button?.window
+        Self.button = item.button
         showUnavailable()
     }
 
     func remove() {
         NSStatusBar.system.removeStatusItem(item)
-        Self.window = nil
+        Self.button = nil
     }
 
     @objc private func clicked() { togglePanel() }

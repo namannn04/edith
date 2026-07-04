@@ -191,7 +191,7 @@ enum HotKey {
 /// (clickStatusItem, centerPanelUnderIcon), which all run on main in practice.
 private func menuBarExtraStatusWindow() -> NSWindow? {
     NSApp.windows.first {
-        $0.className.contains("StatusBarWindow") && $0 !== LimitsStatusItem.window
+        $0.className.contains("StatusBarWindow") && $0 !== LimitsStatusItem.button?.window
     }
 }
 
@@ -201,7 +201,8 @@ private func menuBarExtraStatusWindow() -> NSWindow? {
 /// state - the icon stays lit and the next toggle gets eaten resetting it.
 func clickStatusItem() {
     if let statusWindow = menuBarExtraStatusWindow(),
-       let button = firstButton(in: statusWindow.contentView) {
+       let button = firstButton(in: statusWindow.contentView),
+       button !== LimitsStatusItem.button {
         button.performClick(nil)
     }
 }
