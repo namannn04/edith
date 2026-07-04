@@ -363,7 +363,13 @@ struct RootView: View {
                         .padding(.vertical, 28)
                 }
             }
+            // Playing but not on the Music tab → compact bar rises from below.
+            if showSettings || tab != "music", let player = services.music {
+                MiniPlayer(player: player, theme: themeColor(themeName))
+            }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: tab)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showSettings)
         .onAppear { pinTab() }
         .onChange(of: usageEnabled) { pinTab() }
         .onChange(of: musicEnabled) { pinTab() }
