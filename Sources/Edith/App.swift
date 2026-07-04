@@ -3,7 +3,7 @@ import SwiftUI
 
 // Repo layout the app leans on: dashboard/ holds the usage dashboard + data
 // pipeline, local/ the gitignored personal files. Overridable without a
-// rebuild via `defaults write com.pulkit.control-center repoPath /new/path`.
+// rebuild via `defaults write com.pulkit.edith repoPath /new/path`.
 enum Repo {
     static let root: URL = {
         let override = UserDefaults.standard.string(forKey: "repoPath")
@@ -47,10 +47,31 @@ enum Logo {
         ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
 }
 
+/// One-time defaults carry-over from the pre-rename bundle id. macOS 26's
+/// menu bar manager block-listed com.pulkit.control-center outright (its
+/// status items never show, and the app then self-terminates as windowless);
+/// the block is keyed to the bundle id and survives reboots, so a fresh id
+/// was the only fix. NSStatusItem visibility keys stay behind - they ARE the
+/// poisoned state that triggered the rename.
+@MainActor
+private func migratedServices() -> AppServices {
+    let d = UserDefaults.standard
+    if !d.bool(forKey: "migratedFromControlCenter"),
+       let old = d.persistentDomain(forName: "com.pulkit.control-center") {
+        for (key, value) in old where !key.hasPrefix("NSStatusItem") {
+            if d.object(forKey: key) == nil { d.set(value, forKey: key) }
+        }
+        d.set(true, forKey: "migratedFromControlCenter")
+    }
+    return AppServices()
+}
+
 @main
 struct EdithApp: App {
-    // Plain let, not @StateObject: App.body must not re-evaluate on store changes.
-    private let services = AppServices()
+    // Plain let, not @StateObject: App.body must not re-evaluate on store
+    // changes. migratedServices() imports the old bundle id's settings FIRST -
+    // this property initializer is the earliest defaults reader in the app.
+    private let services = migratedServices()
 
     init() {
         // Heal poisoned status-item visibility state. Auto-assigned autosave

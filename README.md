@@ -69,8 +69,9 @@ full Xcode install.
   `dashboard/dashboard.html` are gitignored; the template's data block is
   empty. Refresh locally with `dashboard/cc-update`.
 - The app finds everything relative to this repo. If the repo moves:
-  `defaults write com.pulkit.control-center repoPath /new/path`
-  (bundle id predates the Edith name so saved preferences carry over).
+  `defaults write com.pulkit.edith repoPath /new/path`
+  (settings from the old com.pulkit.control-center id are imported once on
+  first launch; macOS 26's menu bar manager had block-listed that id).
 
 ## Notes
 
