@@ -108,6 +108,7 @@ final class UsageStore: ObservableObject {
         limitPoints = []
         statusItem?.remove()
         statusItem = nil
+        notifier.cancelReminders()
     }
 
     /// Reconcile the menu bar numbers item with the "limitsInMenuBar" setting.
@@ -172,6 +173,7 @@ final class UsageStore: ObservableObject {
         } catch FetchError.rateLimited(let after) {
             // ponytail: flat backoff, no exponential ladder - endpoint 429s are rare
             retryNotBefore = Date().addingTimeInterval(after ?? 1800)
+            statusItem?.showUnavailable()
         } catch {
             limitsError = "Offline"
             statusItem?.showUnavailable()

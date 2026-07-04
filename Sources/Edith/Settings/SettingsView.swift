@@ -259,6 +259,8 @@ struct SettingsView: View {
                         try? await Task.sleep(nanoseconds: 500_000_000)
                         notifDenied = await services.usage?.notifier.authorizationStatus() == .denied
                     }
+                } else {
+                    services.usage?.notifier.cancelReminders()
                 }
             }
             .task {

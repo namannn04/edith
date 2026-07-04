@@ -20,7 +20,7 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
         let settings = NotifySettings.fromDefaults()
         guard settings.master else {
             // Master off: drop pending reminders so re-enabling can't fire stale ones.
-            center.removePendingNotificationRequests(withIdentifiers: ["reminder_session", "reminder_weekly"])
+            cancelReminders()
             return
         }
         var state = loadState()
@@ -30,6 +30,13 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
         if state != before { save(state) }
         for alert in alerts { send(alert) }
         scheduleReminders(session: session, week: week, settings: settings)
+    }
+
+    /// Drop scheduled reset reminders - used when the Usage tab shuts down or
+    /// the master toggle flips off, so a pending reminder can't fire for a
+    /// feature that's no longer on.
+    func cancelReminders() {
+        center.removePendingNotificationRequests(withIdentifiers: ["reminder_session", "reminder_weekly"])
     }
 
     func notifyTokenExpired() {

@@ -71,7 +71,7 @@ import Testing
         // Threshold-green (30%) but way ahead of pace: 30% at 4% elapsed of the week.
         let week = LimitWindow(percent: 30, resetsAt: now.addingTimeInterval(6.7 * 86400))
         let alerts = decide(nil, week, settings: settings, state: &state)
-        #expect(alerts.contains { $0.id == "pacing_weekly_hot" && $0.title == "Burning hot" })
+        #expect(alerts.contains { $0.id == "pacing_weekly_hot" && $0.title == "Weekly: burning hot" })
         #expect(state.weeklyPacing == .hot)
         // still hot -> silent
         #expect(decide(nil, week, settings: settings, state: &state).isEmpty)

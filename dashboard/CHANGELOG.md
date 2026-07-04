@@ -14,7 +14,7 @@ of the dashboard, no fetch required.
 
 ### Dashboard
 - New **Limits** card: session (5h) and weekly usage lines, colored by the
-  same threshold rules as the app, with vertical markers at each reset.
+  default warn/critical thresholds (60% / 85%), with vertical markers at each reset.
 - Range picker (24h / 7d / 30d / all), consistent with the rest of the
   filters.
 

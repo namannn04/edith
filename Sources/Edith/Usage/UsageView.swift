@@ -64,6 +64,11 @@ struct UsageView: View {
             if !store.limitPoints.isEmpty {
                 LimitsChartView(points: store.limitPoints, theme: theme)
                     .padding(.top, 2)
+            } else {
+                Text("Collecting limits history - chart appears after a few polls")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
             if let err = store.limitsError {
                 Text(err)

@@ -116,14 +116,15 @@ enum LimitNotifierLogic {
     ) -> [LimitAlert] {
         guard zone != last else { return [] }
         last = zone
+        let prefix = surface == .session ? "Session" : "Weekly"
         // Only entry into a loud zone notifies; recovery is silent by design.
         switch zone {
         case .hot where settings.pacingHot:
             return [LimitAlert(id: "pacing_\(surface.rawValue)_hot",
-                               title: "Burning hot", body: "Way ahead of pace, pump the brakes")]
+                               title: "\(prefix): burning hot", body: "Way ahead of pace, pump the brakes")]
         case .warning where settings.pacingWarning:
             return [LimitAlert(id: "pacing_\(surface.rawValue)_warning",
-                               title: "Drifting fast", body: "A touch faster than ideal, keep an eye")]
+                               title: "\(prefix): drifting fast", body: "A touch faster than ideal, keep an eye")]
         default:
             return []
         }
