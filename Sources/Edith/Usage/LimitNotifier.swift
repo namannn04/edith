@@ -23,6 +23,7 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
             cancelReminders()
             return
         }
+        ensureAuthorization()
         var state = loadState()
         let before = state
         let alerts = LimitNotifierLogic.decide(
@@ -30,6 +31,22 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
         if state != before { save(state) }
         for alert in alerts { send(alert) }
         scheduleReminders(session: session, week: week, settings: settings)
+    }
+
+    /// Master is on but the OS was never asked (fresh install, or the app's
+    /// bundle id changed and permission reset with it): ask once per run.
+    /// Without this, every send silently no-ops against .notDetermined until
+    /// the user happens to flip the toggle.
+    private var authRequested = false
+    private func ensureAuthorization() {
+        guard !authRequested else { return }
+        authRequested = true
+        Task { @MainActor [weak self] in
+            guard let self,
+                  await self.center.notificationSettings().authorizationStatus == .notDetermined
+            else { return }
+            self.requestPermission()
+        }
     }
 
     /// Drop scheduled reset reminders - used when the Usage tab shuts down or
