@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 enum AppData {
@@ -53,6 +54,23 @@ final class SettingsBackup: ObservableObject {
         }
         if UserDefaults.standard.bool(forKey: "musicBackup") {
             backupMusic() // rsync no-ops fast when nothing changed
+        }
+        // Flush a pending debounced export on quit - otherwise a setting
+        // changed moments before termination misses the mirror, and a stale
+        // iCloud copy can resurrect the old value on the next launch.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                SettingsBackup.shared.debounceFlush()
+            }
+        }
+    }
+
+    func debounceFlush() {
+        if debounce?.isValid == true {
+            debounce?.invalidate()
+            export()
         }
     }
 

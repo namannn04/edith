@@ -94,10 +94,19 @@ struct EdithApp: App {
                 guard let panel = note.object as? NSWindow,
                       panel.className.contains("MenuBarExtraWindow") else { return }
                 centerPanelUnderIcon(panel)
+                MiniPanel.shared.sync() // keep the detached pane glued below
                 DispatchQueue.main.async { [weak panel] in
                     if let panel, panel.isVisible { centerPanelUnderIcon(panel) }
+                    MiniPanel.shared.sync()
                 }
             }
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: nil, queue: .main
+        ) { note in
+            guard let window = note.object as? NSWindow,
+                  window.className.contains("MenuBarExtraWindow") else { return }
+            Task { @MainActor in MiniPanel.shared.sync() }
         }
         HotKey.register() // ⌥⌘E toggles the panel from anywhere
         SettingsBackup.shared.start() // settings mirror + optional iCloud sync
@@ -363,14 +372,28 @@ struct RootView: View {
                         .padding(.vertical, 28)
                 }
             }
-            // Playing but not on the Music tab → compact bar rises from below.
-            if showSettings || tab != "music", let player = services.music {
-                MiniPlayer(player: player, theme: themeColor(themeName))
-            }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: tab)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showSettings)
-        .onAppear { pinTab() }
+        .onAppear {
+            pinTab()
+            MiniPanel.shared.services = services
+            MiniPanel.shared.tab = tab
+            MiniPanel.shared.showSettings = showSettings
+            MiniPanel.shared.sync()
+        }
+        .onChange(of: tab) {
+            MiniPanel.shared.tab = tab
+            MiniPanel.shared.expectResize()
+            MiniPanel.shared.sync()
+            settleMiniPanel()
+        }
+        .onChange(of: showSettings) {
+            MiniPanel.shared.showSettings = showSettings
+            MiniPanel.shared.expectResize()
+            MiniPanel.shared.sync()
+            settleMiniPanel()
+        }
         .onChange(of: usageEnabled) { pinTab() }
         .onChange(of: musicEnabled) { pinTab() }
         .padding(14)
@@ -378,6 +401,14 @@ struct RootView: View {
         // Solidify the system material - pure vibrancy washes out over busy screens.
         .background(PanelBackground())
         .onExitCommand { dismissPanel() } // Esc closes the panel
+    }
+
+    /// The panel resizes with a 0.35s spring on tab/settings switches; re-pin
+    /// the detached pane once the animation has settled on the final frame.
+    private func settleMiniPanel() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            MiniPanel.shared.sync()
+        }
     }
 
     /// Keep the selection on a live tab when tabs get toggled in Settings.

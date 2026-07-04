@@ -39,8 +39,8 @@ struct MiniPlayer: View {
                     .tint(theme)
                     .frame(width: 60)
             }
-            .card()
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
