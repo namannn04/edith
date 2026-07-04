@@ -343,16 +343,9 @@ struct RootView: View {
                 SettingsView()
             } else {
                 if enabledTabs.count > 1 {
-                    Picker("", selection: $tab) {
-                        ForEach(enabledTabs, id: \.id) { entry in
-                            Text(entry.title).tag(entry.id)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .controlSize(.large)
-                    // match the track's corners to the capsule-shaped selection knob
-                    .clipShape(Capsule())
+                    // Custom bar: the AppKit segmented control always paints its
+                    // selection in the system accent, ignoring our theme.
+                    TabBar(tabs: enabledTabs, selection: $tab, theme: themeColor(themeName))
                 }
                 if tab == "usage", let store = services.usage {
                     UsageView().environmentObject(store)

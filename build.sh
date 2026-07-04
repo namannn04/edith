@@ -10,16 +10,15 @@ cd "$(dirname "$0")"
 
 swift build -c release
 
-# Icon: regenerate only when missing (make-icon.swift draws it locally).
-if [ ! -f AppIcon.icns ]; then
-  swift make-icon.swift AppIcon.png
+# Icon: regenerate from the artwork only when missing or stale.
+if [ ! -f AppIcon.icns ] || [ Assets/appicon.png -nt AppIcon.icns ]; then
   rm -rf AppIcon.iconset && mkdir AppIcon.iconset
   for s in 16 32 128 256 512; do
-    sips -z $s $s AppIcon.png --out "AppIcon.iconset/icon_${s}x${s}.png" >/dev/null
-    sips -z $((s*2)) $((s*2)) AppIcon.png --out "AppIcon.iconset/icon_${s}x${s}@2x.png" >/dev/null
+    sips -z $s $s Assets/appicon.png --out "AppIcon.iconset/icon_${s}x${s}.png" >/dev/null
+    sips -z $((s*2)) $((s*2)) Assets/appicon.png --out "AppIcon.iconset/icon_${s}x${s}@2x.png" >/dev/null
   done
   iconutil -c icns AppIcon.iconset -o AppIcon.icns
-  rm -rf AppIcon.iconset AppIcon.png
+  rm -rf AppIcon.iconset
 fi
 
 APP="dist/Edith.app"

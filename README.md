@@ -1,4 +1,4 @@
-# Edith
+# <img src="Assets/appicon.png" width="30" align="top" alt=""> Edith
 
 Native SwiftUI menu bar app for the Mac (the eyeglasses icon next to the
 system controls) — a personal control center. Dark, minimal, built to run
@@ -32,7 +32,7 @@ system controls) — a personal control center. Dark, minimal, built to run
 | Path | What it is |
 |---|---|
 | `Package.swift`, `Sources/Edith/` | The app — plain SwiftUI executable, no Xcode project. |
-| `build.sh`, `Info.plist`, `make-icon.swift`, `AppIcon.icns` | Build script, bundle bits, locally-generated icon. |
+| `build.sh`, `Info.plist`, `Assets/`, `AppIcon.icns` | Build script, bundle bits, icon + logo artwork. |
 | `dashboard/` | The self-contained usage dashboard + data pipeline (`cc-update` → `data/usage.json` → `dashboard.html`). See `dashboard/README.md`. |
 | `local/` | Gitignored personal files: `local/music/`, `local/extras/`. |
 | `docs/` | Design notes and specs. |
