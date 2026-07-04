@@ -58,6 +58,9 @@ final class UsageStore: ObservableObject {
     private var wakeObserver: NSObjectProtocol?
     private var process: Process?
     let notifier = LimitNotifier()
+    private var history = LimitsHistory()
+    @Published private(set) var limitPoints: [LimitPoint] = []
+    private var historyMtime: Date?
 
     init() {
         // 5-min limit poll; generous tolerance lets macOS coalesce wakeups.
@@ -99,6 +102,7 @@ final class UsageStore: ObservableObject {
         calendarDays = []
         log = ""
         usageMtime = nil
+        limitPoints = []
     }
 
     // MARK: - Limits
@@ -155,6 +159,7 @@ final class UsageStore: ObservableObject {
         limitsUpdatedAt = Date()
         retryNotBefore = nil
         notifier.evaluate(session: session, week: week)
+        history.append(session: session, week: week)
     }
 
     private struct OAuthUsage: Decodable {
@@ -375,6 +380,20 @@ final class UsageStore: ObservableObject {
             day = cal.date(byAdding: .day, value: 1, to: day)!
         }
         calendarDays = points
+    }
+
+    /// Last-24h limit curve for the panel chart; mtime-gated like loadStats.
+    func loadLimitHistory() async {
+        let url = LimitsHistory.url
+        let mtime = (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]) as? Date
+        if let mtime, mtime == historyMtime { return }
+        historyMtime = mtime
+        let since = Date().addingTimeInterval(-24 * 3600)
+        let points = await Task.detached(priority: .utility) {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [LimitPoint]() }
+            return LimitsHistory.parse(text, since: since)
+        }.value
+        limitPoints = points
     }
 
     // MARK: - Open dashboard with current filters
