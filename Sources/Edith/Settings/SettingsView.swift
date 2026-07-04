@@ -20,6 +20,7 @@ struct SettingsView: View {
     @AppStorage("presenterMode") private var presenter = false
     @AppStorage("theme") private var themeName = "accent"
     @AppStorage("lastPaletteTheme") private var lastPaletteTheme = "blue"
+    @AppStorage("appearance") private var appearance = "system"
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
     @AppStorage("icloudBackup") private var icloudBackup = false
@@ -61,6 +62,20 @@ struct SettingsView: View {
                         .font(.system(size: 13))
                     Spacer()
                     ShortcutRecorder()
+                }
+                HStack {
+                    Text("Appearance")
+                        .font(.system(size: 13))
+                    Spacer()
+                    Picker("", selection: $appearance) {
+                        Text("System").tag("system")
+                        Text("Light").tag("light")
+                        Text("Dark").tag("dark")
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .onChange(of: appearance) { applyAppearance(appearance) }
                 }
             }
             .card()
@@ -158,6 +173,25 @@ struct SettingsView: View {
                 if musicBackup { SettingsBackup.shared.backupMusic() }
             }
             .onAppear { computeMusicSize() }
+
+            HStack(spacing: 4) {
+                Text("Made with ❤️ by")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                Button("Pulkit") {
+                    NSWorkspace.shared.open(URL(string: "https://pulkit.page")!)
+                    dismissPanel()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(theme)
+                .onHover { over in
+                    over ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                }
+                .help("pulkit.page")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 2)
         }
     }
 

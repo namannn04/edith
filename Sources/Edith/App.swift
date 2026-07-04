@@ -16,30 +16,35 @@ enum Repo {
     static var musicDir: URL { root.appendingPathComponent("local/music") }
 }
 
-/// The Edith mark (Assets/logo.png, bundled as Logo.png by build.sh).
-/// Template images so the menu bar and theme tinting both work.
+/// preferredColorScheme is a no-op inside MenuBarExtra windows; setting the
+/// AppKit appearance app-wide is what actually flips the panel.
+func applyAppearance(_ value: String) {
+    // NSApplication.shared, not NSApp: this runs from App.init, before NSApp is set
+    let app = NSApplication.shared
+    switch value {
+    case "light": app.appearance = NSAppearance(named: .aqua)
+    case "dark": app.appearance = NSAppearance(named: .darkAqua)
+    default: app.appearance = nil // follow the system
+    }
+}
+
+/// The Edith mark: the glasses tile (margin-trimmed MenuBar.png bundled by
+/// build.sh), used colored everywhere — menu bar, header, dock.
 enum Logo {
-    private static func load() -> NSImage? {
-        guard let url = Bundle.main.url(forResource: "Logo", withExtension: "png") else { return nil }
-        return NSImage(contentsOf: url)
+    private static func loadTile() -> NSImage? {
+        Bundle.main.url(forResource: "MenuBar", withExtension: "png")
+            .flatMap { NSImage(contentsOf: $0) }
     }
 
-    /// Menu bar: the colored glasses tile. Not a template — it keeps its own
-    /// colors instead of adapting to the bar, by explicit choice.
     static let menuBar: NSImage = {
-        let url = Bundle.main.url(forResource: "MenuBar", withExtension: "png")
-        let image = url.flatMap { NSImage(contentsOf: $0) }
+        let image = loadTile()
             ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
-        image.size = NSSize(width: 18, height: 18)
+        image.size = NSSize(width: 20, height: 20)
         return image
     }()
 
-    /// Panel header: template so SwiftUI can tint it with the theme color.
-    static let header: NSImage = {
-        let image = load() ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
-        image.isTemplate = true
-        return image
-    }()
+    static let header: NSImage = loadTile()
+        ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
 }
 
 @main
@@ -96,6 +101,7 @@ struct EdithApp: App {
         }
         HotKey.register() // ⌥⌘E toggles the panel from anywhere
         SettingsBackup.shared.start() // settings mirror + optional iCloud sync
+        applyAppearance(UserDefaults.standard.string(forKey: "appearance") ?? "system")
 
         // Esc closes the panel. onExitCommand alone needs SwiftUI focus inside
         // the panel, which a non-activating panel rarely has — catch the key
@@ -117,7 +123,6 @@ struct EdithApp: App {
         MenuBarExtra {
             RootView()
                 .environmentObject(services)
-                .preferredColorScheme(.dark)
         } label: {
             Image(nsImage: Logo.menuBar)
         }
@@ -231,10 +236,10 @@ struct HoverButton: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(4)
-            .background(.white.opacity(hovering ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 6))
+            .background(.primary.opacity(hovering ? 0.07 : 0), in: RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(.white.opacity(hovering ? 0.16 : 0), lineWidth: 0.5)
+                    .strokeBorder(.primary.opacity(hovering ? 0.18 : 0), lineWidth: 0.5)
             )
             .shadow(color: .black.opacity(hovering ? 0.35 : 0), radius: 4, y: 1)
             .onHover { over in
@@ -268,7 +273,7 @@ extension View {
     func card() -> some View {
         padding(13)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
+            .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -300,10 +305,8 @@ struct RootView: View {
             HStack(spacing: 10) {
                 Image(nsImage: Logo.header)
                     .resizable()
-                    .renderingMode(.template)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 17, height: 17)
-                    .foregroundStyle(themeColor(themeName))
+                    .frame(width: 19, height: 19)
                 Text(showSettings ? "EDITH · SETTINGS" : "EDITH")
                     .font(.system(size: 12, weight: .semibold))
                     .tracking(3)
@@ -366,8 +369,8 @@ struct RootView: View {
         .onChange(of: musicEnabled) { pinTab() }
         .padding(14)
         .frame(width: 480)
-        // Darken the system material — pure vibrancy washes out over light screens.
-        .background(Color.black.opacity(0.55).ignoresSafeArea())
+        // Solidify the system material — pure vibrancy washes out over busy screens.
+        .background(PanelBackground())
         .onExitCommand { dismissPanel() } // Esc closes the panel
     }
 
@@ -378,3 +381,14 @@ struct RootView: View {
         }
     }
 }
+
+/// Backing layer behind the vibrancy material, per resolved color scheme.
+private struct PanelBackground: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        (scheme == .dark ? Color.black.opacity(0.55) : Color.white.opacity(0.45))
+            .ignoresSafeArea()
+    }
+}
+

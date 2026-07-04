@@ -58,7 +58,8 @@ script and ad-hoc signed.
 
 ## Notes
 
-- Dark-mode UI only; panel centers under the menu bar icon.
+- Appearance: system / light / dark (settings dropdown); panel centers under
+  the menu bar icon.
 - Runs 24/7 as a login item: timers pause during sleep, a wake observer
   refreshes immediately, no polling beyond the 5-minute limits call, stats
   re-parse only when `usage.json`'s mtime changes, per-second countdowns tick

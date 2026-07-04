@@ -38,7 +38,7 @@ struct TabBar: View {
                 .onAppear { proxy.scrollTo(selection, anchor: .center) }
             }
         }
-        .background(.white.opacity(0.06), in: Capsule())
+        .background(.primary.opacity(0.06), in: Capsule())
     }
 
     private func row(expand: Bool) -> some View {

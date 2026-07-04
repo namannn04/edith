@@ -36,7 +36,7 @@ final class SettingsBackup: ObservableObject {
     private static let keys = [
         "theme", "tab", "presenterMode", "tabUsageEnabled", "tabMusicEnabled",
         "hotKeyCode", "hotKeyMods", "hotKeyLabel", "musicVolume", "repoPath",
-        "icloudBackup", "musicBackup", "lastPaletteTheme",
+        "icloudBackup", "musicBackup", "lastPaletteTheme", "appearance",
     ]
 
     private var debounce: Timer?

@@ -76,7 +76,7 @@ struct UsageView: View {
         return VStack(spacing: 7) {
             ZStack {
                 Circle()
-                    .stroke(.white.opacity(0.08), lineWidth: 7)
+                    .stroke(.primary.opacity(0.1), lineWidth: 7)
                 Circle()
                     .trim(from: 0, to: min(pct / 100, 1))
                     .stroke(fill, style: StrokeStyle(lineWidth: 7, lineCap: .round))
@@ -194,7 +194,7 @@ struct UsageView: View {
     }
 
     private func cellColor(_ cost: Double, cuts: [Double]) -> Color {
-        if cost <= 0 { return .white.opacity(0.06) }
+        if cost <= 0 { return .primary.opacity(0.08) }
         if cost <= cuts[0] { return theme.opacity(0.25) }
         if cost <= cuts[1] { return theme.opacity(0.45) }
         if cost <= cuts[2] { return theme.opacity(0.7) }

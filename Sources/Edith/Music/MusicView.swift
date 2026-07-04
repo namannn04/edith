@@ -91,7 +91,7 @@ struct MusicView: View {
         GeometryReader { geo in
             let fraction = dragFraction ?? player.progressNow()
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.08))
+                Capsule().fill(.primary.opacity(0.1))
                 Capsule()
                     .fill(theme.opacity(0.85))
                     .frame(width: max(3, geo.size.width * fraction))
@@ -186,7 +186,7 @@ private struct TrackRow: View {
         }
         .buttonStyle(.plain)
         .background(
-            isCurrent ? Color.white.opacity(0.07) : hovering ? Color.white.opacity(0.04) : .clear,
+            isCurrent ? Color.primary.opacity(0.08) : hovering ? Color.primary.opacity(0.05) : .clear,
             in: RoundedRectangle(cornerRadius: 7)
         )
         .onHover { over in
