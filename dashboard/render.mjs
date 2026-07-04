@@ -40,6 +40,7 @@ import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { tokensOf, normalizeAgentDaily, metaFor, claudeCodeSources } from "./merge.mjs";
+import { parseLimitsJSONL, downsampleLimits } from "./limits.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -612,16 +613,32 @@ const payload = {
 mkdirSync(resolve(here, "data"), { recursive: true });
 writeFileSync(resolve(here, "data", "usage.json"), JSON.stringify(payload, null, 2) + "\n");
 
-// 2. inline into dashboard.html (regex-match the data block - contract)
+// 2. inline into dashboard.html (regex-match the data blocks - contract)
 const htmlPath = resolve(here, "dashboard.html");
-const tmpl = readFileSync(htmlPath, "utf8");
+let html = readFileSync(htmlPath, "utf8");
 const safe = JSON.stringify(payload).replace(/<\/script>/g, "<\\/script>");
 const re = /(<script id="usage-data" type="application\/json">)([\s\S]*?)(<\/script>)/;
-if (!re.test(tmpl)) {
+if (!re.test(html)) {
   console.error('ERROR: could not find <script id="usage-data"> block in dashboard.html');
   process.exit(1);
 }
-writeFileSync(htmlPath, tmpl.replace(re, `$1\n${safe}\n$3`));
+html = html.replace(re, `$1\n${safe}\n$3`);
+
+// limits history (written by the Edith app; may not exist yet)
+const limitsPath = resolve(here, "data", "limits-history.jsonl");
+let limitsPayload = { points: [] };
+if (existsSync(limitsPath)) {
+  const rows = parseLimitsJSONL(readFileSync(limitsPath, "utf8"));
+  limitsPayload = { points: downsampleLimits(rows, Date.now()) };
+}
+const reL = /(<script id="limits-data" type="application\/json">)([\s\S]*?)(<\/script>)/;
+if (reL.test(html)) {
+  const safeL = JSON.stringify(limitsPayload).replace(/<\/script>/g, "<\\/script>");
+  html = html.replace(reL, `$1\n${safeL}\n$3`);
+} else {
+  console.error('warning: no <script id="limits-data"> block (rebuild dashboard.html with bun build.mjs)');
+}
+writeFileSync(htmlPath, html);
 
 const bs = sources.map((s) => `${s} $${totals.bySource[s].cost.toFixed(2)}`).join(" · ");
 console.log(`rendered: schema v${payload.schemaVersion} · ${daily.length} days, ${sessions.length} sessions · ${bs} · $${totals.cost.toFixed(2)} total`);

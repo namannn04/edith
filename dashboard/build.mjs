@@ -47,12 +47,16 @@ let html = tmpl
     `<script>\n${js}\n</script>`,
   );
 
-// Preserve the live data block (render.mjs writes real usage data into it).
-const dataRe =
-  /<script id="usage-data" type="application\/json">[\s\S]*?<\/script>/;
+// Preserve the live data blocks (render.mjs writes real data into them).
 if (existsSync(p("dashboard.html"))) {
-  const m = readFileSync(p("dashboard.html"), "utf8").match(dataRe);
-  if (m) html = html.replace(dataRe, m[0]);
+  const prev = readFileSync(p("dashboard.html"), "utf8");
+  for (const id of ["usage-data", "limits-data"]) {
+    const re = new RegExp(
+      `<script id="${id}" type="application\\/json">[\\s\\S]*?<\\/script>`,
+    );
+    const m = prev.match(re);
+    if (m) html = html.replace(re, m[0]);
+  }
 }
 
 writeFileSync(p("dashboard.html"), html);
