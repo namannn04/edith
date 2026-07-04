@@ -125,11 +125,17 @@ struct EdithApp: App {
             ) { note in
                 guard let panel = note.object as? NSWindow,
                       panel.className.contains("MenuBarExtraWindow") else { return }
-                centerPanelUnderIcon(panel)
-                MiniPanel.shared.sync() // keep the detached pane glued below
+                // queue: .main guarantees the main actor; assert it so pinning
+                // stays synchronous (an async hop would defer it and flicker).
+                MainActor.assumeIsolated {
+                    centerPanelUnderIcon(panel)
+                    MiniPanel.shared.sync() // keep the detached pane glued below
+                }
                 DispatchQueue.main.async { [weak panel] in
-                    if let panel, panel.isVisible { centerPanelUnderIcon(panel) }
-                    MiniPanel.shared.sync()
+                    MainActor.assumeIsolated {
+                        if let panel, panel.isVisible { centerPanelUnderIcon(panel) }
+                        MiniPanel.shared.sync()
+                    }
                 }
             }
         }
