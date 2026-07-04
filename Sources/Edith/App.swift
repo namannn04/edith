@@ -24,11 +24,13 @@ enum Logo {
         return NSImage(contentsOf: url)
     }
 
-    /// Menu bar: template → macOS handles light/dark/highlight tinting.
+    /// Menu bar: the colored glasses tile. Not a template — it keeps its own
+    /// colors instead of adapting to the bar, by explicit choice.
     static let menuBar: NSImage = {
-        let image = load() ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
+        let url = Bundle.main.url(forResource: "MenuBar", withExtension: "png")
+        let image = url.flatMap { NSImage(contentsOf: $0) }
+            ?? NSImage(systemSymbolName: "eyeglasses", accessibilityDescription: nil)!
         image.size = NSSize(width: 18, height: 18)
-        image.isTemplate = true
         return image
     }()
 
