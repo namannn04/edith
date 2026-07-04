@@ -4,6 +4,9 @@ struct MusicView: View {
     @EnvironmentObject private var player: MusicPlayer
     @State private var dragFraction: Double?
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("theme") private var themeName = "blue"
+
+    private var theme: Color { themeColor(themeName) }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -57,19 +60,23 @@ struct MusicView: View {
                 Spacer()
                 Button { player.previous() } label: {
                     Image(systemName: "backward.fill")
+                        .foregroundStyle(theme)
                 }
                 .buttonStyle(HoverButtonStyle())
                 Button { player.playPause() } label: {
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 18))
+                        .foregroundStyle(theme)
                 }
                 .buttonStyle(HoverButtonStyle())
                 Button { player.next() } label: {
                     Image(systemName: "forward.fill")
+                        .foregroundStyle(theme)
                 }
                 .buttonStyle(HoverButtonStyle())
                 Slider(value: $player.volume, in: 0...1)
                     .controlSize(.small)
+                    .tint(theme)
                     .frame(width: 74)
             }
             .buttonStyle(.plain)
@@ -86,7 +93,7 @@ struct MusicView: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.08))
                 Capsule()
-                    .fill(Color.accentColor.opacity(0.85))
+                    .fill(theme.opacity(0.85))
                     .frame(width: max(3, geo.size.width * fraction))
             }
             .contentShape(Rectangle().inset(by: -8)) // fat hit target for a 4pt bar
@@ -118,7 +125,9 @@ private struct TrackRow: View {
     @State private var duration: String?
     @State private var hovering = false
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("theme") private var themeName = "blue"
 
+    private var theme: Color { themeColor(themeName) }
     private var isCurrent: Bool { player.current == track }
 
     var body: some View {
@@ -153,7 +162,7 @@ private struct TrackRow: View {
                 Text(track.title)
                     .font(.system(size: 13))
                     .lineLimit(1)
-                    .foregroundStyle(isCurrent ? Color.accentColor : .primary)
+                    .foregroundStyle(isCurrent ? theme : .primary)
                     .presenterBlur(presenter)
 
                 Spacer()
@@ -161,7 +170,7 @@ private struct TrackRow: View {
                 if isCurrent {
                     Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(theme)
                 }
 
                 if let duration {

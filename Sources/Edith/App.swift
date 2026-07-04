@@ -80,23 +80,49 @@ struct EdithApp: App {
     }
 }
 
-/// Global ⌥⌘E hotkey via Carbon — the one API that needs no accessibility
-/// permission. Toggling works by synthesizing a click on our own status item,
-/// so open/close behaves exactly like a real click (centering included).
+/// Global toggle hotkey via Carbon — the one API that needs no accessibility
+/// permission. Default ⌥⌘E; customizable from Settings (stored in defaults).
 enum HotKey {
     private static var ref: EventHotKeyRef?
+    private static var handlerInstalled = false
+
+    static var code: Int {
+        UserDefaults.standard.object(forKey: "hotKeyCode") as? Int ?? kVK_ANSI_E
+    }
+    static var mods: Int {
+        UserDefaults.standard.object(forKey: "hotKeyMods") as? Int ?? (cmdKey | optionKey)
+    }
+    static var label: String {
+        UserDefaults.standard.string(forKey: "hotKeyLabel") ?? "⌥⌘E"
+    }
 
     static func register() {
-        var eventType = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-            DispatchQueue.main.async { togglePanel() }
-            return noErr
-        }, 1, &eventType, nil, nil)
+        if !handlerInstalled {
+            var eventType = EventTypeSpec(
+                eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+            InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+                DispatchQueue.main.async { togglePanel() }
+                return noErr
+            }, 1, &eventType, nil, nil)
+            handlerInstalled = true
+        }
+        unregister()
         let id = EventHotKeyID(signature: OSType(0x4544_4954), id: 1) // 'EDIT'
         RegisterEventHotKey(
-            UInt32(kVK_ANSI_E), UInt32(cmdKey | optionKey), id,
-            GetApplicationEventTarget(), 0, &ref)
+            UInt32(code), UInt32(mods), id, GetApplicationEventTarget(), 0, &ref)
+    }
+
+    static func unregister() {
+        if let ref {
+            UnregisterEventHotKey(ref)
+            Self.ref = nil
+        }
+    }
+
+    static func save(code: Int, mods: Int, label: String) {
+        UserDefaults.standard.set(code, forKey: "hotKeyCode")
+        UserDefaults.standard.set(mods, forKey: "hotKeyMods")
+        UserDefaults.standard.set(label, forKey: "hotKeyLabel")
     }
 }
 
@@ -209,7 +235,8 @@ func eyebrow(_ text: String) -> some View {
 
 struct RootView: View {
     @AppStorage("tab") private var tab = "usage"
-    @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("theme") private var themeName = "blue"
+    @State private var showSettings = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -217,12 +244,12 @@ struct RootView: View {
                 Image(systemName: "eyeglasses")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("EDITH")
+                Text(showSettings ? "EDITH · SETTINGS" : "EDITH")
                     .font(.system(size: 12, weight: .semibold))
                     .tracking(3)
                     .foregroundStyle(.secondary)
                 Spacer()
-                if tab == "music" {
+                if tab == "music", !showSettings {
                     Button {
                         NSWorkspace.shared.open(Repo.musicDir)
                         dismissPanel()
@@ -234,20 +261,15 @@ struct RootView: View {
                     .buttonStyle(HoverButtonStyle())
                     .help("Open music folder in Finder")
                 }
-                Menu {
-                    Toggle("Presenter view", isOn: $presenter)
-                    Divider()
-                    Text("Toggle panel: ⌥⌘E")
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showSettings.toggle() }
                 } label: {
-                    Image(systemName: "gearshape")
+                    Image(systemName: showSettings ? "gearshape.fill" : "gearshape")
                         .font(.system(size: 13))
-                        .foregroundStyle(presenter ? Color.accentColor : Color.secondary)
-                        .hoverButton() // on the label so the padded area stays clickable
+                        .foregroundStyle(showSettings ? themeColor(themeName) : Color.secondary)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("Settings")
+                .buttonStyle(HoverButtonStyle())
+                .help(showSettings ? "Back" : "Settings")
                 Button {
                     NSApp.terminate(nil)
                 } label: {
@@ -259,19 +281,23 @@ struct RootView: View {
                 .keyboardShortcut("q", modifiers: .command)
                 .help("Quit Edith (⌘Q)")
             }
-            Picker("", selection: $tab) {
-                Text("Agent Usage").tag("usage")
-                Text("Music").tag("music")
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.large)
-            // match the track's corners to the capsule-shaped selection knob
-            .clipShape(Capsule())
-            if tab == "usage" {
-                UsageView()
+            if showSettings {
+                SettingsView()
             } else {
-                MusicView()
+                Picker("", selection: $tab) {
+                    Text("Agent Usage").tag("usage")
+                    Text("Music").tag("music")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.large)
+                // match the track's corners to the capsule-shaped selection knob
+                .clipShape(Capsule())
+                if tab == "usage" {
+                    UsageView()
+                } else {
+                    MusicView()
+                }
             }
         }
         .padding(14)

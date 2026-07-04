@@ -4,6 +4,9 @@ struct UsageView: View {
     @EnvironmentObject private var store: UsageStore
     @State private var showLog = false
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("theme") private var themeName = "blue"
+
+    private var theme: Color { themeColor(themeName) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -111,8 +114,9 @@ struct UsageView: View {
         return String(format: "%d:%02d", m, sec)
     }
 
+    // Theme color normally; orange/red stay as genuine warning states.
     private func color(for percent: Double) -> Color {
-        percent >= 90 ? .red : percent >= 70 ? .orange : .green
+        percent >= 90 ? .red : percent >= 70 ? .orange : theme
     }
 
     // MARK: - Activity calendar
@@ -191,10 +195,10 @@ struct UsageView: View {
 
     private func cellColor(_ cost: Double, cuts: [Double]) -> Color {
         if cost <= 0 { return .white.opacity(0.06) }
-        if cost <= cuts[0] { return .accentColor.opacity(0.25) }
-        if cost <= cuts[1] { return .accentColor.opacity(0.45) }
-        if cost <= cuts[2] { return .accentColor.opacity(0.7) }
-        return .accentColor
+        if cost <= cuts[0] { return theme.opacity(0.25) }
+        if cost <= cuts[1] { return theme.opacity(0.45) }
+        if cost <= cuts[2] { return theme.opacity(0.7) }
+        return theme
     }
 
     // MARK: - Usage stats
@@ -226,7 +230,7 @@ struct UsageView: View {
                     withAnimation(.easeOut(duration: 0.15)) { showLog.toggle() }
                 } label: {
                     Image(systemName: "terminal")
-                        .foregroundStyle(showLog ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(showLog ? theme : Color.secondary)
                 }
                 .buttonStyle(HoverButtonStyle())
                 .help("Show cc-update logs")
