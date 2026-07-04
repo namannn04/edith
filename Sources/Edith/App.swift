@@ -185,12 +185,22 @@ enum HotKey {
     }
 }
 
+/// The MenuBarExtra's own status window. With the limits item in the bar
+/// there are two of our StatusBarWindows; exclude the limits one explicitly.
+/// No isolation annotation - matches the surrounding plain globals
+/// (clickStatusItem, centerPanelUnderIcon), which all run on main in practice.
+private func menuBarExtraStatusWindow() -> NSWindow? {
+    NSApp.windows.first {
+        $0.className.contains("StatusBarWindow") && $0 !== LimitsStatusItem.window
+    }
+}
+
 /// Synthesize a click on the status item. This is the ONLY correct way to open
 /// OR close the panel: it toggles through MenuBarExtra's own state machine, so
 /// the icon highlight always matches. Closing the window directly desyncs that
 /// state - the icon stays lit and the next toggle gets eaten resetting it.
 func clickStatusItem() {
-    if let statusWindow = NSApp.windows.first(where: { $0.className.contains("StatusBarWindow") }),
+    if let statusWindow = menuBarExtraStatusWindow(),
        let button = firstButton(in: statusWindow.contentView) {
         button.performClick(nil)
     }
@@ -215,8 +225,7 @@ private func firstButton(in view: NSView?) -> NSButton? {
 /// No-ops when already centered - that's what lets the didMove observer call
 /// this without our own setFrameOrigin re-triggering an endless move loop.
 func centerPanelUnderIcon(_ panel: NSWindow) {
-    guard let icon = NSApp.windows.first(where: { $0.className.contains("StatusBarWindow") })
-    else { return }
+    guard let icon = menuBarExtraStatusWindow() else { return }
     var x = icon.frame.midX - panel.frame.width / 2
     if let screen = icon.screen {
         let visible = screen.visibleFrame

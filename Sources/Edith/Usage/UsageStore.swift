@@ -61,6 +61,7 @@ final class UsageStore: ObservableObject {
     private var history = LimitsHistory()
     @Published private(set) var limitPoints: [LimitPoint] = []
     private var historyMtime: Date?
+    private var statusItem: LimitsStatusItem?
 
     init() {
         // 5-min limit poll; generous tolerance lets macOS coalesce wakeups.
@@ -86,6 +87,8 @@ final class UsageStore: ObservableObject {
             await refreshLimits()
             await loadStats()
         }
+
+        syncStatusItem()
     }
 
     /// Tab disabled → stop everything and drop the parsed data.
@@ -103,6 +106,26 @@ final class UsageStore: ObservableObject {
         log = ""
         usageMtime = nil
         limitPoints = []
+        statusItem?.remove()
+        statusItem = nil
+    }
+
+    /// Reconcile the menu bar numbers item with the "limitsInMenuBar" setting.
+    func syncStatusItem() {
+        let on = UserDefaults.standard.object(forKey: "limitsInMenuBar") as? Bool ?? true
+        if on, statusItem == nil {
+            statusItem = LimitsStatusItem()
+            statusItem?.update(session: session, week: week)
+        }
+        if !on, let item = statusItem {
+            item.remove()
+            statusItem = nil
+        }
+    }
+
+    /// Re-render after settings that affect colors change (thresholds, smart color).
+    func refreshMenuBarItem() {
+        statusItem?.update(session: session, week: week)
     }
 
     // MARK: - Limits
@@ -131,6 +154,7 @@ final class UsageStore: ObservableObject {
     private func fetchLimitsOnce() async {
         guard let token = currentToken() else {
             limitsError = "Claude Code token not found"
+            statusItem?.showUnavailable()
             return
         }
         do {
@@ -143,12 +167,14 @@ final class UsageStore: ObservableObject {
             } else {
                 limitsError = "Token expired - run claude to re-login"
                 notifier.notifyTokenExpired()
+                statusItem?.showUnavailable()
             }
         } catch FetchError.rateLimited(let after) {
             // ponytail: flat backoff, no exponential ladder - endpoint 429s are rare
             retryNotBefore = Date().addingTimeInterval(after ?? 1800)
         } catch {
             limitsError = "Offline"
+            statusItem?.showUnavailable()
         }
     }
 
@@ -160,6 +186,7 @@ final class UsageStore: ObservableObject {
         retryNotBefore = nil
         notifier.evaluate(session: session, week: week)
         history.append(session: session, week: week)
+        statusItem?.update(session: session, week: week)
     }
 
     private struct OAuthUsage: Decodable {
