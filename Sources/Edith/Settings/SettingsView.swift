@@ -53,6 +53,7 @@ struct SettingsView: View {
     @AppStorage("notifyTokenExpired") private var notifyTokenExpired = true
     @State private var notifDenied = false
     @State private var showAllNotifSettings = false
+    @State private var showAllLimitSettings = false
     @State private var testResult: String?
 
     private var theme: Color { themeColor(themeName) }
@@ -140,24 +141,40 @@ struct SettingsView: View {
                 toggleRow("Smart color",
                           subtitle: "Time-aware risk drives colors and alerts",
                           isOn: $smartColor)
-                HStack {
-                    Text("Warning / critical").font(.system(size: 13))
-                    Spacer()
-                    Stepper("\(warnPercent)%", value: $warnPercent, in: 10...critPercent - 5, step: 5)
-                        .font(.system(size: 12)).fixedSize()
-                    Stepper("\(critPercent)%", value: $critPercent, in: warnPercent + 5...100, step: 5)
-                        .font(.system(size: 12)).fixedSize()
-                }
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Pacing margin").font(.system(size: 13))
-                        Text("How far ahead of even pace counts as drifting")
-                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                if showAllLimitSettings {
+                    HStack {
+                        Text("Warning / critical").font(.system(size: 13))
+                        Spacer()
+                        Stepper("\(warnPercent)%", value: $warnPercent, in: 10...critPercent - 5, step: 5)
+                            .font(.system(size: 12)).fixedSize()
+                        Stepper("\(critPercent)%", value: $critPercent, in: warnPercent + 5...100, step: 5)
+                            .font(.system(size: 12)).fixedSize()
                     }
-                    Spacer()
-                    Stepper("±\(Int(pacingMargin))pp", value: $pacingMargin, in: 5...25, step: 5)
-                        .font(.system(size: 12)).fixedSize()
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Pacing margin").font(.system(size: 13))
+                            Text("How far ahead of even pace counts as drifting")
+                                .font(.system(size: 10)).foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Stepper("±\(Int(pacingMargin))pp", value: $pacingMargin, in: 5...25, step: 5)
+                            .font(.system(size: 12)).fixedSize()
+                    }
                 }
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showAllLimitSettings.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showAllLimitSettings ? "View less" : "View more")
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .rotationEffect(.degrees(showAllLimitSettings ? 180 : 0))
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(HoverButtonStyle())
+                .frame(maxWidth: .infinity)
             }
             .card()
             .onChange(of: limitsInMenuBar) { services.usage?.syncStatusItem() }
