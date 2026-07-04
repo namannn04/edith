@@ -27,6 +27,7 @@ struct SettingsView: View {
     @AppStorage("tabUsageEnabled") private var usageEnabled = true
     @AppStorage("tabMusicEnabled") private var musicEnabled = true
     @AppStorage("tabSystemEnabled") private var systemEnabled = true
+    @AppStorage("tabCalendarEnabled") private var calendarEnabled = true
     @AppStorage("tabOrder") private var tabOrderRaw = "usage,music,system"
     @AppStorage("icloudBackup") private var icloudBackup = false
     @AppStorage("lastBackupAt") private var lastBackupAt = 0.0
@@ -80,6 +81,7 @@ struct SettingsView: View {
             .onChange(of: usageEnabled) { services.sync() }
             .onChange(of: musicEnabled) { services.sync() }
             .onChange(of: systemEnabled) { services.sync() }
+            .onChange(of: calendarEnabled) { services.sync() }
 
             VStack(alignment: .leading, spacing: 12) {
                 eyebrow("GENERAL")
@@ -527,6 +529,7 @@ struct SettingsView: View {
         case "usage": $usageEnabled
         case "music": $musicEnabled
         case "system": $systemEnabled
+        case "calendar": $calendarEnabled
         default: .constant(false)
         }
     }
