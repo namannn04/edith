@@ -5,3 +5,6 @@ local/
 # usage data stays local - never pushed
 dashboard/data/
 dashboard/dashboard.html
+
+# design notes stay local - deleted from the remote on purpose
+docs/
