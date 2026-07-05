@@ -38,6 +38,13 @@ struct MiniPlayer: View {
                         .foregroundStyle(theme)
                 }
                 .buttonStyle(HoverButtonStyle())
+                Button { player.isLooping.toggle() } label: {
+                    Image(systemName: "repeat")
+                        .font(.system(size: 12))
+                        .foregroundStyle(player.isLooping ? theme : .secondary)
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help(player.isLooping ? "Looping current song" : "Shuffle next")
                 Slider(value: $player.volume, in: 0...1)
                     .controlSize(.mini)
                     .tint(theme)
