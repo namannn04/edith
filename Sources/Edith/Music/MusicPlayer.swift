@@ -40,6 +40,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private var player: AVAudioPlayer?
     private var artworkCache: [URL: NSImage] = [:]
     private let fade: TimeInterval = 0.35
+    private var saveTimer: Timer?
 
     override init() {
         let saved = UserDefaults.standard.object(forKey: "musicVolume") as? Double
@@ -47,7 +48,13 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
         isLooping = UserDefaults.standard.bool(forKey: "musicLooping") // default off
         super.init()
         rescan()
+        restoreLastPlayback() // reload the last track, paused at its exact offset
         setupRemoteCommands()
+        // Clean pause/stop persist the exact position; this 2s tick is the
+        // safety net for a crash or force-quit that never runs them.
+        saveTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in if self?.isPlaying == true { self?.persistPlayback() } }
+        }
     }
 
     // Media keys / AirPods / the system Now Playing widget drive the player too.
@@ -158,12 +165,14 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
         current = track
         isPlaying = true
         updateNowPlaying()
+        persistPlayback()
     }
 
     private func pause() {
         guard let p = player else { return }
         p.setVolume(0, fadeDuration: fade)
         isPlaying = false
+        persistPlayback() // capture the exact pause point
         DispatchQueue.main.asyncAfter(deadline: .now() + fade) { [weak self] in
             guard let self, !self.isPlaying else { return } // resumed during the fade
             self.player?.pause()
@@ -180,6 +189,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     func stop() {
+        persistPlayback() // remember where we were before dropping the track
         player?.stop()
         player = nil
         current = nil
@@ -223,6 +233,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
         guard let p = player, p.duration > 0 else { return }
         p.currentTime = min(max(fraction, 0), 0.999) * p.duration
         updateNowPlaying()
+        persistPlayback()
     }
 
     private var durationCache: [URL: TimeInterval] = [:]
@@ -270,6 +281,36 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
             }
         }
         return nil
+    }
+
+    // MARK: - Session restore
+
+    /// Save the current track + exact offset (seconds, sub-second kept) so a
+    /// relaunch can resume from the same spot.
+    private func persistPlayback() {
+        guard let current else { return }
+        UserDefaults.standard.set(current.url.lastPathComponent, forKey: "musicLastTrack")
+        UserDefaults.standard.set(elapsed, forKey: "musicLastPosition")
+    }
+
+    /// At launch, reload the last track paused at its saved offset. Never
+    /// autoplays - the user presses play to resume exactly where they left off.
+    private func restoreLastPlayback() {
+        guard current == nil,
+              let name = UserDefaults.standard.string(forKey: "musicLastTrack"),
+              let track = tracks.first(where: { $0.url.lastPathComponent == name })
+        else { return }
+        let position = UserDefaults.standard.double(forKey: "musicLastPosition")
+        guard let p = try? AVAudioPlayer(contentsOf: track.url) else { return }
+        player = p
+        p.isMeteringEnabled = true
+        p.delegate = self
+        p.volume = Float(volume)
+        p.prepareToPlay()
+        if position > 0, position < p.duration { p.currentTime = position } // else start at 0
+        current = track
+        isPlaying = false
+        updateNowPlaying()
     }
 
     // MARK: - AVAudioPlayerDelegate
