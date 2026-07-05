@@ -82,7 +82,9 @@ final class UsageStore: ObservableObject {
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, !self.locked else { return }
+                guard let self else { return }
+                Log.lifecycle.notice("woke from sleep (locked=\(self.locked, privacy: .public))")
+                guard !self.locked else { return }
                 await self.refreshLimits()
                 await self.loadStats()
             }
@@ -95,12 +97,14 @@ final class UsageStore: ObservableObject {
         lockObservers = [
             dnc.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in
+                    Log.lifecycle.notice("screen locked - pausing usage poll")
                     self?.locked = true
                     self?.stopPolling()
                 }
             },
             dnc.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in
+                    Log.lifecycle.notice("screen unlocked - resuming usage poll")
                     self?.locked = false
                     self?.startPolling()
                 }
@@ -140,6 +144,7 @@ final class UsageStore: ObservableObject {
         t.tolerance = 30
         RunLoop.main.add(t, forMode: .common)
         timer = t
+        Log.lifecycle.notice("usage polling started (every 300s)")
         Task { @MainActor in
             await refreshLimits()
             await loadStats()
@@ -148,8 +153,10 @@ final class UsageStore: ObservableObject {
 
     /// Stop polling entirely - nothing fires until startPolling() runs again.
     private func stopPolling() {
+        guard timer != nil else { return }
         timer?.invalidate()
         timer = nil
+        Log.lifecycle.notice("usage polling stopped")
     }
 
     /// Tab disabled → stop everything and drop the parsed data.
@@ -232,22 +239,28 @@ final class UsageStore: ObservableObject {
         do {
             let usage = try await Self.fetchUsage(token: token)
             apply(usage)
+            Log.usage.notice("usage ok: session=\(Int((self.session?.percent ?? 0).rounded()), privacy: .public)% week=\(Int((self.week?.percent ?? 0).rounded()), privacy: .public)%")
         } catch FetchError.unauthorized {
+            Log.usage.error("401 unauthorized - re-reading token and retrying once")
             cachedToken = nil // token rotated (claude /login etc.) - re-read once
             if let fresh = currentToken(), let usage = try? await Self.fetchUsage(token: fresh) {
                 apply(usage)
+                Log.usage.notice("recovered after token re-read")
             } else {
                 limitsError = "Token expired - run claude to re-login"
                 notifier.notifyTokenExpired()
                 keepOrBlankMenuBar()
+                Log.usage.error("still unauthorized after re-read - token expired, keeping last-known numbers")
             }
         } catch FetchError.rateLimited(let after) {
             // ponytail: flat backoff, no exponential ladder - endpoint 429s are rare
             retryNotBefore = Date().addingTimeInterval(after ?? 1800)
             keepOrBlankMenuBar()
+            Log.usage.error("429 rate limited - backing off \(after ?? 1800, privacy: .public)s")
         } catch {
             limitsError = "Offline"
             keepOrBlankMenuBar()
+            Log.usage.error("fetch failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -303,6 +316,7 @@ final class UsageStore: ObservableObject {
         req.timeoutInterval = 15
         let (data, resp) = try await URLSession.shared.data(for: req)
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        if code != 200 { Log.usage.error("GET /oauth/usage -> HTTP \(code, privacy: .public)") }
         switch code {
         case 200: return try JSONDecoder().decode(OAuthUsage.self, from: data)
         case 401, 403: throw FetchError.unauthorized
@@ -318,9 +332,18 @@ final class UsageStore: ObservableObject {
     // legacy credentials file. Cached in memory; cleared on 401.
     private func currentToken() -> String? {
         if let t = cachedToken { return t }
-        let t = Self.tokenFromSecurityCLI() ?? Self.tokenFromCredentialsFile()
-        cachedToken = t
-        return t
+        if let t = Self.tokenFromSecurityCLI() {
+            Log.usage.notice("token read from keychain (security CLI)")
+            cachedToken = t
+            return t
+        }
+        if let t = Self.tokenFromCredentialsFile() {
+            Log.usage.notice("token read from ~/.claude/.credentials.json")
+            cachedToken = t
+            return t
+        }
+        Log.usage.error("no token found - keychain and credentials file both empty")
+        return nil
     }
 
     private nonisolated static func tokenFromSecurityCLI() -> String? {
