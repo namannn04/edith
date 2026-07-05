@@ -61,6 +61,8 @@ final class UsageStore: ObservableObject {
     private var usageMtime: Date?
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
+    private var locked = false
+    private var lockObservers: [NSObjectProtocol] = []
     private var process: Process?
     private var limitsKVO: NSKeyValueObservation?
     private var launchObserver: NSObjectProtocol?
@@ -71,29 +73,39 @@ final class UsageStore: ObservableObject {
     private var statusItem: LimitsStatusItem?
 
     init() {
-        // 5-min limit poll; generous tolerance lets macOS coalesce wakeups.
-        let t = Timer(timeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.refreshLimits() }
-        }
-        t.tolerance = 30
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+        startPolling() // creates the 5-min timer and does the first fetch
 
         // Timers don't fire during sleep; refresh immediately on wake so the
-        // panel is never a whole cycle stale after the lid opens.
+        // panel is never a whole cycle stale after the lid opens - unless we
+        // woke straight to a locked screen, in which case unlock will do it.
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                await self?.refreshLimits()
-                await self?.loadStats()
+                guard let self, !self.locked else { return }
+                await self.refreshLimits()
+                await self.loadStats()
             }
         }
 
-        Task {
-            await refreshLimits()
-            await loadStats()
-        }
+        // Screen lock stops the poll entirely; unlock resumes it and catches
+        // up. This is what keeps Edith genuinely idle while the Mac sits awake
+        // but locked (e.g. with Prevent Sleep on) instead of polling all night.
+        let dnc = DistributedNotificationCenter.default()
+        lockObservers = [
+            dnc.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    self?.locked = true
+                    self?.stopPolling()
+                }
+            },
+            dnc.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    self?.locked = false
+                    self?.startPolling()
+                }
+            },
+        ]
 
         // Status bar work must wait for launch: at first boot this init runs
         // from EdithApp.init, BEFORE NSApp exists. Creating our NSStatusItem
@@ -117,10 +129,34 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    /// Tab disabled → stop everything and drop the parsed data.
-    func shutdown() {
+    /// Start (or resume) the 5-min poll and catch up right away. Idempotent -
+    /// a second call while already polling no-ops. Tolerance lets macOS
+    /// coalesce the wakeups.
+    private func startPolling() {
+        guard timer == nil else { return }
+        let t = Timer(timeInterval: 300, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.refreshLimits() }
+        }
+        t.tolerance = 30
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+        Task { @MainActor in
+            await refreshLimits()
+            await loadStats()
+        }
+    }
+
+    /// Stop polling entirely - nothing fires until startPolling() runs again.
+    private func stopPolling() {
         timer?.invalidate()
         timer = nil
+    }
+
+    /// Tab disabled → stop everything and drop the parsed data.
+    func shutdown() {
+        stopPolling()
+        for obs in lockObservers { DistributedNotificationCenter.default().removeObserver(obs) }
+        lockObservers = []
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil
@@ -190,7 +226,7 @@ final class UsageStore: ObservableObject {
     private func fetchLimitsOnce() async {
         guard let token = currentToken() else {
             limitsError = "Claude Code token not found"
-            statusItem?.showUnavailable()
+            keepOrBlankMenuBar()
             return
         }
         do {
@@ -203,15 +239,26 @@ final class UsageStore: ObservableObject {
             } else {
                 limitsError = "Token expired - run claude to re-login"
                 notifier.notifyTokenExpired()
-                statusItem?.showUnavailable()
+                keepOrBlankMenuBar()
             }
         } catch FetchError.rateLimited(let after) {
             // ponytail: flat backoff, no exponential ladder - endpoint 429s are rare
             retryNotBefore = Date().addingTimeInterval(after ?? 1800)
-            statusItem?.showUnavailable()
+            keepOrBlankMenuBar()
         } catch {
             limitsError = "Offline"
+            keepOrBlankMenuBar()
+        }
+    }
+
+    /// A failed poll must not wipe the menu-bar numbers while the panel still
+    /// shows the last good ones - keep them (re-render also refreshes the
+    /// time-based risk color). Blank to "—" only when we've never had data.
+    private func keepOrBlankMenuBar() {
+        if session == nil, week == nil {
             statusItem?.showUnavailable()
+        } else {
+            statusItem?.update(session: session, week: week)
         }
     }
 
