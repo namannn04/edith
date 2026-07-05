@@ -10,11 +10,12 @@ import Testing
         let w = LimitWindow(percent: 67.3, resetsAt: now.addingTimeInterval(86400))
         let a = LimitsHistory.row(session: s, week: w, now: now)
         let b = LimitsHistory.row(session: s, week: w, now: now.addingTimeInterval(300))
-        #expect(a.key == b.key)                    // same values -> same key, any time
+        #expect(a.key == b.key)
         #expect(a.line.hasSuffix("\n"))
-        let obj = try JSONSerialization.jsonObject(
-            with: Data(a.line.utf8)) as! [String: Any]
-        #expect(obj["s"] as! Double == 42.1)       // rounded to 0.1
+        let obj =
+            try JSONSerialization.jsonObject(
+                with: Data(a.line.utf8)) as! [String: Any]
+        #expect(obj["s"] as! Double == 42.1)
         #expect(obj["w"] as! Double == 67.3)
         #expect(obj["ts"] is String)
         #expect(obj["sr"] is String)
@@ -23,8 +24,6 @@ import Testing
     @Test func rowHandlesNils() throws {
         let a = LimitsHistory.row(session: nil, week: nil, now: now)
         let obj = try JSONSerialization.jsonObject(with: Data(a.line.utf8)) as! [String: Any]
-        // JSONEncoder omits nil optionals - absent keys, not JSON nulls. The JS
-        // parser treats absent and null identically (`typeof o.s === "number"`).
         #expect(obj["s"] == nil)
         #expect(obj["sr"] == nil)
         #expect(obj["ts"] is String)
@@ -35,10 +34,10 @@ import Testing
         let old = iso.string(from: now.addingTimeInterval(-100_000))
         let fresh = iso.string(from: now.addingTimeInterval(-100))
         let text = """
-        {"ts":"\(old)","s":10,"w":20,"sr":null,"wr":null}
-        not json
-        {"ts":"\(fresh)","s":42.1,"w":67.3,"sr":null,"wr":null}
-        """
+            {"ts":"\(old)","s":10,"w":20,"sr":null,"wr":null}
+            not json
+            {"ts":"\(fresh)","s":42.1,"w":67.3,"sr":null,"wr":null}
+            """
         let pts = LimitsHistory.parse(text, since: now.addingTimeInterval(-86400))
         #expect(pts.count == 1)
         #expect(pts[0].s == 42.1)
@@ -56,45 +55,43 @@ import Testing
 
         var h = LimitsHistory(url: url)
         h.append(session: s, week: w, now: now)
-        h.append(session: s, week: w, now: now.addingTimeInterval(300)) // dupe -> skipped
+        h.append(session: s, week: w, now: now.addingTimeInterval(300))
         var text = try String(contentsOf: url, encoding: .utf8)
         #expect(text.split(separator: "\n").count == 1)
 
-        // Fresh instance (app restart) seeds the dedupe key from the last line.
         var h2 = LimitsHistory(url: url)
         h2.append(session: s, week: w, now: now.addingTimeInterval(600))
         text = try String(contentsOf: url, encoding: .utf8)
         #expect(text.split(separator: "\n").count == 1)
 
-        // A torn tail (partial line, no newline) must not swallow the next row.
         let handle = try FileHandle(forWritingTo: url)
         _ = try handle.seekToEnd()
         try handle.write(contentsOf: Data("{\"ts\":\"torn".utf8))
         try handle.close()
         var h3 = LimitsHistory(url: url)
-        h3.append(session: LimitWindow(percent: 50, resetsAt: nil), week: w,
-                  now: now.addingTimeInterval(900))
+        h3.append(
+            session: LimitWindow(percent: 50, resetsAt: nil), week: w,
+            now: now.addingTimeInterval(900))
         let raw = try String(contentsOf: url, encoding: .utf8)
-        #expect(raw.split(separator: "\n").count == 3) // row + torn fragment + healed row
+        #expect(raw.split(separator: "\n").count == 3)
         let pts = LimitsHistory.parse(raw, since: .distantPast)
-        #expect(pts.count == 2) // torn line skipped, both real rows parse
+        #expect(pts.count == 2)
     }
 
     @Test func mergeUnionsSortsAndDedupes() {
         let a = """
-        {"ts":"2026-07-01T10:00:00Z","s":10,"w":5}
-        {"ts":"2026-07-01T12:00:00Z","s":30,"w":6}
-        """
+            {"ts":"2026-07-01T10:00:00Z","s":10,"w":5}
+            {"ts":"2026-07-01T12:00:00Z","s":30,"w":6}
+            """
         let b = """
-        {"ts":"2026-07-01T11:00:00Z","s":20,"w":5}
-        {"ts":"2026-07-01T12:00:00Z","s":30,"w":6}
-        """ // last line identical to a's last → collapses to one
+            {"ts":"2026-07-01T11:00:00Z","s":20,"w":5}
+            {"ts":"2026-07-01T12:00:00Z","s":30,"w":6}
+            """
         let lines = LimitsHistory.merge(a, b).split(separator: "\n").map(String.init)
-        #expect(lines.count == 3) // 4 inputs, 1 exact dup removed
-        #expect(lines[0].contains("10:00:00")) // sorted ascending by ts
+        #expect(lines.count == 3)
+        #expect(lines[0].contains("10:00:00"))
         #expect(lines[1].contains("11:00:00"))
         #expect(lines[2].contains("12:00:00"))
-        // no valid line dropped
         #expect(lines.contains { $0.contains("\"s\":10") })
         #expect(lines.contains { $0.contains("\"s\":20") })
         #expect(lines.contains { $0.contains("\"s\":30") })
