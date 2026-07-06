@@ -18,6 +18,7 @@ struct ComboChart: View {
     let points: [ComboPoint]
     let barColor: Color
     let lineColor: Color
+    var dark = false
     var scroll = false
     var height: CGFloat = 200
     @State private var selected: String?
@@ -65,14 +66,15 @@ struct ComboChart: View {
                 AxisGridLine().foregroundStyle(.primary.opacity(0.06))
                 AxisValueLabel {
                     if let d = value.as(Double.self) {
-                        Text(DashFmt.tokens(d)).font(.system(size: 8)).foregroundStyle(.tertiary)
+                        Text(DashFmt.tokens(d)).font(.system(size: 9)).foregroundStyle(
+                            DashSkin.inkSoft(dark))
                     }
                 }
             }
             AxisMarks(position: .trailing) { value in
                 AxisValueLabel {
                     if let d = value.as(Double.self) {
-                        Text(DashFmt.usd(d / scale)).font(.system(size: 8)).foregroundStyle(
+                        Text(DashFmt.usd(d / scale)).font(.system(size: 9)).foregroundStyle(
                             lineColor)
                     }
                 }
@@ -81,7 +83,7 @@ struct ComboChart: View {
         .chartXAxis {
             AxisMarks(preset: .aligned) { _ in
                 AxisValueLabel(orientation: .verticalReversed)
-                    .font(.system(size: 7)).foregroundStyle(.tertiary)
+                    .font(.system(size: 10.5)).foregroundStyle(DashSkin.ink(dark))
             }
         }
         .chartXSelection(value: $selected)
@@ -126,6 +128,7 @@ struct StackedChart: View {
     let costLine: [ComboPoint]
     let domain: [String]
     let range: [Color]
+    var dark = false
     var scroll = true
     var height: CGFloat = 200
     @State private var selected: String?
@@ -173,7 +176,8 @@ struct StackedChart: View {
                 AxisGridLine().foregroundStyle(.primary.opacity(0.06))
                 AxisValueLabel {
                     if let d = value.as(Double.self) {
-                        Text(DashFmt.tokens(d)).font(.system(size: 8)).foregroundStyle(.tertiary)
+                        Text(DashFmt.tokens(d)).font(.system(size: 9)).foregroundStyle(
+                            DashSkin.inkSoft(dark))
                     }
                 }
             }
@@ -181,7 +185,7 @@ struct StackedChart: View {
         .chartXAxis {
             AxisMarks(preset: .aligned) { _ in
                 AxisValueLabel(orientation: .verticalReversed)
-                    .font(.system(size: 7)).foregroundStyle(.tertiary)
+                    .font(.system(size: 10.5)).foregroundStyle(DashSkin.ink(dark))
             }
         }
         .chartLegend(position: .bottom, alignment: .center, spacing: 6)
@@ -205,9 +209,23 @@ struct DonutSlice: Identifiable {
     let color: Color
 }
 
+func donutSlice(at value: Double, in slices: [DonutSlice]) -> DonutSlice? {
+    var acc = 0.0
+    for s in slices {
+        acc += s.value
+        if value < acc { return s }
+    }
+    return slices.last
+}
+
 struct DonutChart: View {
     let slices: [DonutSlice]
     var height: CGFloat = 220
+    @State private var angle: Double?
+
+    private var selected: DonutSlice? {
+        angle.flatMap { donutSlice(at: $0, in: slices) }
+    }
 
     var body: some View {
         let total = max(slices.reduce(0) { $0 + $1.value }, 1)
@@ -219,7 +237,9 @@ struct DonutChart: View {
             )
             .cornerRadius(2)
             .foregroundStyle(by: .value("Model", s.label))
+            .opacity(selected == nil || selected?.id == s.id ? 1 : 0.3)
         }
+        .chartAngleSelection(value: $angle)
         .chartForegroundStyleScale(
             domain: slices.map(\.label), range: slices.map(\.color)
         )
@@ -227,10 +247,21 @@ struct DonutChart: View {
         .frame(height: height)
         .overlay {
             VStack(spacing: 1) {
-                Text(DashFmt.tokens(total)).font(.system(size: 13, weight: .semibold))
-                Text("tokens").font(.system(size: 8)).foregroundStyle(.tertiary)
+                if let s = selected {
+                    Text(s.label)
+                        .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text(DashFmt.tokens(s.value)).font(.system(size: 13, weight: .semibold))
+                    Text(DashFmt.pct(s.value / total)).font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Text(DashFmt.tokens(total)).font(.system(size: 13, weight: .semibold))
+                    Text("tokens").font(.system(size: 8)).foregroundStyle(.tertiary)
+                }
             }
+            .frame(maxWidth: 110)
             .offset(y: -14)
+            .allowsHitTesting(false)
         }
     }
 }
