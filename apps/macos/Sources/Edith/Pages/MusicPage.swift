@@ -374,7 +374,7 @@ struct PlaybackWave: View {
     private static let weights: [Double] = [0.55, 0.85, 1.0, 0.75, 0.6, 0.9, 0.5]
 
     var body: some View {
-        TimelineView(.animation(paused: !playing)) { context in
+        TimelineView(.animation(minimumInterval: 0.12, paused: !playing)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             HStack(spacing: 2.5) {
                 ForEach(0..<barCount, id: \.self) { i in

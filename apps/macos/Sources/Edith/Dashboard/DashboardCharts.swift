@@ -241,6 +241,7 @@ func donutSlice(at value: Double, in slices: [DonutSlice]) -> DonutSlice? {
 struct DonutChart: View {
     let slices: [DonutSlice]
     var height: CGFloat = 220
+    var blur = false
     @State private var angle: Double?
 
     private var selected: DonutSlice? {
@@ -272,10 +273,12 @@ struct DonutChart: View {
                         .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                         .lineLimit(1)
                     Text(DashFmt.tokens(s.value)).font(.system(size: 13, weight: .semibold))
+                        .presenterBlur(blur)
                     Text(DashFmt.pct(s.value / total)).font(.system(size: 9))
                         .foregroundStyle(.tertiary)
                 } else {
                     Text(DashFmt.tokens(total)).font(.system(size: 13, weight: .semibold))
+                        .presenterBlur(blur)
                     Text("tokens").font(.system(size: 8)).foregroundStyle(.tertiary)
                 }
             }
@@ -364,6 +367,7 @@ struct HeatCard: View {
                     Text(p.name).font(.system(size: 10)).lineLimit(1)
                     Spacer()
                     Text(DashFmt.tokens(p.value)).font(.system(size: 9)).foregroundStyle(.secondary)
+                        .presenterBlur(blur)
                 }
             }
             if detail.projects.count > 4 {

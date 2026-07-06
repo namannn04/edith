@@ -293,8 +293,8 @@ final class DashboardModel: ObservableObject {
     @Published var selectedSources: Set<String> = [] { didSet { persist(); recompute() } }
     @Published var selectedModels: Set<String> = [] { didSet { persist(); recompute() } }
     @Published var billingDay = 26 { didSet { persist(); rebuildCycles(); recompute() } }
-    @Published var sortColumn: TableColumn = .cost { didSet { persist(); recompute() } }
-    @Published var sortAscending = false { didSet { persist(); recompute() } }
+    @Published var sortColumn: TableColumn = .cost { didSet { persist(); resortTotals() } }
+    @Published var sortAscending = false { didSet { persist(); resortTotals() } }
     @Published var heatMetric: DashMetric = .tokens
     @Published var projSortKey: ProjSortKey = .cost { didSet { recompute() } }
     @Published var projSortAscending = false { didSet { recompute() } }
@@ -624,6 +624,10 @@ final class DashboardModel: ObservableObject {
             guard let fd = parseYMD(f), let td = parseYMD(t) else { return (earliest, latest) }
             return (min(fd, td), max(fd, td))
         }
+    }
+
+    private func resortTotals() {
+        modelTotals.sort(by: sortComparator)
     }
 
     private func recompute() {
