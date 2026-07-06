@@ -315,6 +315,7 @@ final class DashboardModel: ObservableObject {
     @Published private(set) var meta = MetaLine()
     @Published private(set) var calendarDays: [DayPoint] = []
     @Published private(set) var heatDetail: [String: HeatDay] = [:]
+    @Published private(set) var chartData = DashChartData()
 
     private(set) var allModels: [String] = []
     private(set) var allSources: [SourceInfo] = []
@@ -717,6 +718,63 @@ final class DashboardModel: ObservableObject {
         buildKPIs(rows: rows, totalCost: totalCost)
         buildMeta(from: fromStr, to: toStr)
         buildCalendar(data: data)
+        rebuildChartData()
+    }
+
+    private func rebuildChartData() {
+        var next = DashChartData()
+        next.daily = series.map {
+            ComboPoint(id: $0.id, label: $0.label, tokens: $0.tokens, cost: $0.cost)
+        }
+        next.dow = dow.map {
+            ComboPoint(id: $0.label, label: $0.label, tokens: $0.tokens, cost: $0.cost)
+        }
+        next.hourly = hourlyAll.map {
+            ComboPoint(
+                id: "\($0.hour)", label: String(format: "%02d", $0.hour), tokens: $0.tokens,
+                cost: $0.cost)
+        }
+        var projectPoints = projects.prefix(15).map {
+            ComboPoint(id: $0.id, label: $0.name, tokens: $0.tokens, cost: $0.cost)
+        }
+        let rest = projects.dropFirst(15)
+        if !rest.isEmpty {
+            projectPoints.append(
+                ComboPoint(
+                    id: "__others", label: "others (\(rest.count))",
+                    tokens: rest.reduce(0) { $0 + $1.tokens },
+                    cost: rest.reduce(0) { $0 + $1.cost }))
+        }
+        next.project = projectPoints
+        next.tokenMix = series.flatMap { d in
+            [
+                StackDatum(id: "\(d.id)-in", x: d.label, series: "input", value: d.input),
+                StackDatum(id: "\(d.id)-out", x: d.label, series: "output", value: d.output),
+                StackDatum(
+                    id: "\(d.id)-cc", x: d.label, series: "cache write", value: d.cacheCreate),
+                StackDatum(id: "\(d.id)-cr", x: d.label, series: "cache read", value: d.cacheRead),
+            ]
+        }
+        next.modelTime = series.flatMap { d in
+            d.byModel.map {
+                StackDatum(
+                    id: "\(d.id)-\($0.key)", x: d.label, series: DashFmt.shortModel($0.key),
+                    value: $0.value)
+            }
+        }
+        next.source = series.flatMap { d in
+            d.bySource.map {
+                StackDatum(
+                    id: "\(d.id)-\($0.key)", x: d.label, series: sourceLabel($0.key),
+                    value: $0.value)
+            }
+        }
+        let costs = calendarDays.map(\.cost).filter { $0 > 0 }.sorted()
+        next.heatCuts =
+            costs.isEmpty
+            ? [0, 0, 0]
+            : [costs[costs.count / 4], costs[costs.count / 2], costs[costs.count * 3 / 4]]
+        chartData = next
     }
 
     private struct ChatAcc {

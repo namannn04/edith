@@ -1,7 +1,7 @@
 import EdithKit
 import SwiftUI
 
-struct NotchShelfPane: View {
+struct NotchShelfRows: View {
     @AppStorage("notchShelfEnabled", store: SharedDefaults.store) private var enabled = false
     @AppStorage("notchShelfOpenOnDrag", store: SharedDefaults.store) private var openOnDrag = true
     @AppStorage("notchShelfOpenOnHover", store: SharedDefaults.store) private var openOnHover = true
@@ -16,14 +16,7 @@ struct NotchShelfPane: View {
     @AppStorage("notchShelfHaptics", store: SharedDefaults.store) private var haptics = true
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Enable notch shelf", isOn: $enabled)
-                    .pointerCursor()
-                Text("Turns the shelf and its drag monitoring on or off.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
+        Group {
             Section {
                 Toggle("Open when dragging near the notch", isOn: $openOnDrag)
                     .pointerCursor()
@@ -79,7 +72,5 @@ struct NotchShelfPane: View {
             .disabled(!enabled)
             .opacity(enabled ? 1 : 0.5)
         }
-        .formStyle(.grouped)
-        .navigationTitle("Notch Shelf")
     }
 }

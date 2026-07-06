@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import EdithKit
 import SwiftUI
 
-struct ClipboardPane: View {
+struct ClipboardRows: View {
     @AppStorage("clipboardEnabled", store: SharedDefaults.store) private var enabled = false
     @AppStorage("clipboardMaxItems", store: SharedDefaults.store) private var maxItems = 200
     @AppStorage("clipboardMaxItemBytes", store: SharedDefaults.store) private var maxItemBytes =
@@ -15,9 +15,6 @@ struct ClipboardPane: View {
         false
     @AppStorage("clipboardCheckInterval", store: SharedDefaults.store) private var checkInterval =
         0.5
-    @AppStorage("clipboardBackup", store: SharedDefaults.store) private var icloudBackup = false
-    @AppStorage("lastClipboardBackupAt", store: SharedDefaults.store) private var lastBackupAt =
-        0.0
     @AppStorage("permAccessibilityGranted", store: SharedDefaults.store)
     private var accessibilityGranted = false
     @AppStorage("clipboardPopupAt", store: SharedDefaults.store) private var popupAt = "cursor"
@@ -39,15 +36,7 @@ struct ClipboardPane: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Enable clipboard history", isOn: $enabled)
-                    .pointerCursor()
-                InfoDot(
-                    "Turns the feature and its background monitoring on. Off means zero cost - nothing watches your clipboard."
-                )
-            }
-
+        Group {
             Section {
                 Picker("", selection: $tab) {
                     Text("General").tag("general")
@@ -85,8 +74,6 @@ struct ClipboardPane: View {
                 Text("Recent")
             }
         }
-        .formStyle(.grouped)
-        .navigationTitle("Clipboard")
         .onAppear {
             reload()
             refreshObserver = IPC.observe(IPC.Name.clipboardChanged) { reload() }
@@ -103,7 +90,9 @@ struct ClipboardPane: View {
     @ViewBuilder private var generalSections: some View {
         Section {
             HStack {
-                LabeledContent("Open") { ClipboardShortcutRecorder() }
+                LabeledContent("Open") {
+                    HotKeyRecorderControl(keyPrefix: "clipboardHotKey", defaultLabel: "⌃⇧C")
+                }
                 InfoDot(
                     "Global shortcut to open and close the history popup. Default: ⌃⇧C.")
             }
@@ -198,17 +187,6 @@ struct ClipboardPane: View {
                 )
             }
         }
-        Section {
-            HStack {
-                Toggle("Back up to iCloud", isOn: $icloudBackup)
-                    .pointerCursor()
-                    .disabled(!AppData.cloudAvailable)
-                InfoDot(
-                    "Keeps text history in iCloud Drive so reinstalls and other Macs can restore it. Backup, not live sync."
-                )
-            }
-            Text(backupSubtitle).font(.caption).foregroundStyle(.secondary)
-        }
     }
 
     @ViewBuilder private var appearanceSections: some View {
@@ -255,16 +233,6 @@ struct ClipboardPane: View {
         }
     }
 
-    private var backupSubtitle: String {
-        if !AppData.cloudAvailable { return "iCloud Drive is not available on this Mac" }
-        if !icloudBackup { return "Items up to 1 MB each - larger copies stay on this Mac only" }
-        if lastBackupAt > 0 {
-            let at = Date(timeIntervalSince1970: lastBackupAt)
-            return "Backed up \(at.formatted(date: .abbreviated, time: .shortened))"
-        }
-        return "Waiting for first backup…"
-    }
-
     private func reload() {
         recentEntries = Array(
             ClipboardRepository.loadEntries().sorted { $0.createdAt > $1.createdAt }.prefix(5))
@@ -280,64 +248,5 @@ struct ClipboardPane: View {
         }
         .font(.caption)
         .foregroundStyle(.secondary)
-    }
-}
-
-private struct ClipboardShortcutRecorder: View {
-    @State private var recording = false
-    @State private var monitor: Any?
-    @State private var label = SharedDefaults.store.string(forKey: "clipboardHotKeyLabel") ?? "⌃⇧C"
-
-    var body: some View {
-        Button {
-            recording ? stop() : start()
-        } label: {
-            Text(recording ? "Press shortcut…" : label)
-                .font(.system(size: 12, weight: .medium))
-                .padding(.vertical, 2)
-                .padding(.horizontal, 6)
-        }
-        .pointerCursor()
-        .onDisappear { if recording { stop() } }
-        .help("Click, then press the new shortcut (Esc cancels)")
-    }
-
-    private func start() {
-        recording = true
-        NSApp.activate(ignoringOtherApps: true)
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            handle(event)
-            return nil
-        }
-    }
-
-    private func stop() {
-        recording = false
-        if let monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
-        label = SharedDefaults.store.string(forKey: "clipboardHotKeyLabel") ?? "⌃⇧C"
-    }
-
-    private func handle(_ event: NSEvent) {
-        if event.keyCode == 53 {
-            stop()
-            return
-        }
-        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        guard flags.contains(.command) || flags.contains(.option) || flags.contains(.control)
-        else { return }
-        var mods = 0
-        var symbols = ""
-        if flags.contains(.control) { mods |= controlKey; symbols += "⌃" }
-        if flags.contains(.option) { mods |= optionKey; symbols += "⌥" }
-        if flags.contains(.shift) { mods |= shiftKey; symbols += "⇧" }
-        if flags.contains(.command) { mods |= cmdKey; symbols += "⌘" }
-        let key = event.charactersIgnoringModifiers?.uppercased() ?? "?"
-        SharedDefaults.store.set(Int(event.keyCode), forKey: "clipboardHotKeyCode")
-        SharedDefaults.store.set(mods, forKey: "clipboardHotKeyMods")
-        SharedDefaults.store.set(symbols + key, forKey: "clipboardHotKeyLabel")
-        stop()
     }
 }

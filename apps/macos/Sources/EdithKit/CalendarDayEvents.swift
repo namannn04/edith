@@ -1,15 +1,15 @@
 import EventKit
 import Foundation
 
-enum CalendarDayEvents {
-    static func sorted(_ events: [EKEvent]) -> [EKEvent] {
+public enum CalendarDayEvents {
+    public static func sorted(_ events: [EKEvent]) -> [EKEvent] {
         events.sorted { a, b in
             if a.isAllDay != b.isAllDay { return a.isAllDay }
             return a.startDate < b.startDate
         }
     }
 
-    static func groupedByDay(
+    public static func groupedByDay(
         _ events: [EKEvent], calendar: Calendar = .current
     ) -> [(day: Date, events: [EKEvent])] {
         let byDay = Dictionary(grouping: sorted(events)) {
@@ -19,20 +19,20 @@ enum CalendarDayEvents {
     }
 }
 
-enum MeetingLink {
+public enum MeetingLink {
     private static let hosts = [
         "zoom.us", "meet.google.com", "teams.microsoft.com", "teams.live.com",
         "webex.com", "whereby.com", "meet.jit.si", "chime.aws",
         "gotomeeting.com", "bluejeans.com", "8x8.vc",
     ]
 
-    static func url(for event: EKEvent) -> URL? {
+    public static func url(for event: EKEvent) -> URL? {
         if let url = event.url, isMeeting(url) { return url }
         let text = [event.location, event.notes].compactMap { $0 }.joined(separator: "\n")
         return find(in: text)
     }
 
-    static func find(in text: String) -> URL? {
+    public static func find(in text: String) -> URL? {
         guard !text.isEmpty,
             let detector = try? NSDataDetector(
                 types: NSTextCheckingResult.CheckingType.link.rawValue)

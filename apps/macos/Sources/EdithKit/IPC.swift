@@ -27,11 +27,17 @@ public enum IPC {
         public static let clipboardChanged = Notification.Name("com.pulkit.edith.clipboardChanged")
         public static let presenterAutoActiveChanged = Notification.Name(
             "com.pulkit.edith.presenterAutoActiveChanged")
+        public static let musicCommand = Notification.Name("com.pulkit.edith.musicCommand")
+        public static let musicState = Notification.Name("com.pulkit.edith.musicState")
+        public static let requestMusicState = Notification.Name(
+            "com.pulkit.edith.requestMusicState")
+        public static let requestKeyboardClean = Notification.Name(
+            "com.pulkit.edith.requestKeyboardClean")
     }
 
-    public static func post(_ name: Notification.Name) {
+    public static func post(_ name: Notification.Name, userInfo: [String: Any]? = nil) {
         DistributedNotificationCenter.default().postNotificationName(
-            name, object: nil, userInfo: nil, deliverImmediately: true)
+            name, object: nil, userInfo: userInfo, deliverImmediately: true)
     }
 
     public static func observe(_ name: Notification.Name, using block: @escaping () -> Void)
@@ -40,6 +46,14 @@ public enum IPC {
         DistributedNotificationCenter.default().addObserver(
             forName: name, object: nil, queue: .main
         ) { _ in block() }
+    }
+
+    public static func observe(
+        _ name: Notification.Name, info block: @escaping ([AnyHashable: Any]) -> Void
+    ) -> NSObjectProtocol {
+        DistributedNotificationCenter.default().addObserver(
+            forName: name, object: nil, queue: .main
+        ) { note in block(note.userInfo ?? [:]) }
     }
 
     public static func stopObserving(_ token: NSObjectProtocol) {

@@ -110,6 +110,7 @@ struct EdithApp: App {
         _ = IPC.observe(IPC.Name.settingsChanged) {
             HotKey.register()
             ClipboardHotKey.register()
+            SettingsBackup.shared.scheduleExport()
             SettingsBackup.shared.scheduleClipboardBackup()
             FocusDimHotKey.register()
             PresenterHotKey.register()
@@ -123,6 +124,9 @@ struct EdithApp: App {
         }
         _ = IPC.observe(IPC.Name.presenterAutoActiveChanged) {
             services.usage?.refreshMenuBarItem()
+        }
+        _ = IPC.observe(IPC.Name.requestKeyboardClean) {
+            services.system?.beginCleaning()
         }
         _ = IPC.observe(IPC.Name.requestTestNotification) {
             Task { _ = await services.usage?.notifier.sendTest() }
@@ -416,8 +420,6 @@ struct RootView: View {
         "usage,music,system"
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         "dashboard"
-    @AppStorage("settingsSection", store: SharedDefaults.store) private var settingsSection =
-        "general"
     @StateObject private var permissions = PermissionsModel.shared
     @StateObject private var presenterState = PresenterState.shared
     @State private var showDeveloper = false
@@ -494,7 +496,7 @@ struct RootView: View {
                 .buttonStyle(HoverButtonStyle())
                 .help("Focus dim (\(FocusDimHotKey.label))")
                 Button {
-                    mainWindowSection = "settings"
+                    mainWindowSection = "permissions"
                     MainApp.openDashboard()
                     dismissPanel()
                 } label: {
@@ -513,8 +515,7 @@ struct RootView: View {
                     if NSApp.currentEvent?.modifierFlags.contains(.option) == true {
                         showDeveloper.toggle()
                     } else {
-                        mainWindowSection = "settings"
-                        settingsSection = "general"
+                        mainWindowSection = "general"
                         MainApp.openDashboard()
                         dismissPanel()
                     }
@@ -565,6 +566,7 @@ struct RootView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: tab)
+        .tint(themeColor(themeName))
         .onAppear {
             pinTab()
             permissions.refresh()
