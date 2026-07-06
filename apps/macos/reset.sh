@@ -21,6 +21,7 @@ if [ "${1:-}" != "-y" ]; then
   for id in "${BUNDLE_IDS[@]}"; do
     echo "  ~/Library/Preferences/$id.plist"
     echo "  ~/Library/Caches/$id"
+    echo "  ~/Library/HTTPStorages/$id"
     echo "  ~/Library/Saved Application State/$id.savedState"
   done
   echo "iCloud backup (~/Library/Mobile Documents/com~apple~CloudDocs/Edith) is kept."
@@ -37,6 +38,7 @@ for id in "${BUNDLE_IDS[@]}"; do
   defaults delete "$id" 2>/dev/null || true
   rm -f "$HOME/Library/Preferences/$id.plist"
   rm -rf "$HOME/Library/Caches/$id"
+  rm -rf "$HOME/Library/HTTPStorages/$id"
   rm -rf "$HOME/Library/Saved Application State/$id.savedState"
 done
 
