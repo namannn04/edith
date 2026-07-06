@@ -367,8 +367,12 @@ struct DashboardView: View {
         }
         if !model.projects.isEmpty {
             SkinCard(title: "By project", dark: dark) {
-                ComboChart(
-                    points: projectPoints, barColor: acc, lineColor: gold, dark: dark, height: 280)
+                VStack(alignment: .leading, spacing: 12) {
+                    ComboChart(
+                        points: projectPoints, barColor: acc, lineColor: gold, dark: dark,
+                        height: 280)
+                    ProjectDrilldownView(model: model, dark: dark)
+                }
             }
         }
         SkinCard(title: "Hourly — all time", dark: dark) {
@@ -453,9 +457,19 @@ struct DashboardView: View {
         }
     }
     private var projectPoints: [ComboPoint] {
-        model.projects.prefix(15).map {
+        let rows = model.projects
+        var points = rows.prefix(15).map {
             ComboPoint(id: $0.id, label: $0.name, tokens: $0.tokens, cost: $0.cost)
         }
+        let rest = rows.dropFirst(15)
+        if !rest.isEmpty {
+            points.append(
+                ComboPoint(
+                    id: "__others", label: "others (\(rest.count))",
+                    tokens: rest.reduce(0) { $0 + $1.tokens },
+                    cost: rest.reduce(0) { $0 + $1.cost }))
+        }
+        return points
     }
     private var tokenMixBars: [StackDatum] {
         model.series.flatMap { d in

@@ -600,8 +600,8 @@ final class UsageStore: ObservableObject {
                 if proc.terminationStatus != 0 {
                     self.log += "\n✖ refresh exited with status \(proc.terminationStatus)"
                 }
-                await self.loadStats()
                 SettingsBackup.shared.syncUsage()
+                await self.loadStats()
                 NotificationCenter.default.post(name: .usageDataChanged, object: nil)
             }
         }

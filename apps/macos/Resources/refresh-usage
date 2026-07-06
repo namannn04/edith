@@ -42,6 +42,9 @@ label_for() {
 }
 
 NORM='
+def dropSynthetic:
+  map(select(.modelName != "<synthetic>"
+    or (.inputTokens + .outputTokens + .cacheCreationTokens + .cacheReadTokens + .cost) > 0));
 def normDay:
   if (.modelBreakdowns | type) == "array" then
     { period: .date, breakdowns: [ .modelBreakdowns[] | {
@@ -106,7 +109,7 @@ add_source() {
   local n
   n=$(jq '.daily | length' "$daily" 2>/dev/null || echo 0)
   if [ "${n:-0}" = "0" ] || [ -z "$n" ]; then return 1; fi
-  jq -c "$NORM"' { source: $src, label: $label, norm: [ .daily[] | normDay ] }' \
+  jq -c "$NORM"' { source: $src, label: $label, norm: [ .daily[] | normDay | .breakdowns |= dropSynthetic ] }' \
     --arg src "$src" --arg label "$(label_for "$src")" "$daily" >>"$TMP/manifest.jsonl"
   jq -c '{ source: $src, sessions: [ (.sessions // [])[] | { id: (.sessionId // ""), source: $src } ] }' \
     --arg src "$src" "$session" >>"$TMP/sessions.jsonl"
@@ -174,30 +177,85 @@ mv "$TMP/usage.json" "$OUT"
 
 PROJECTS_DIR="$HOME/.claude/projects"
 if [ -d "$PROJECTS_DIR" ] && [ -s "$TMP/cli.daily.json" ]; then
-  jq -c '
-    reduce (.daily[]) as $d ({};
-      reduce ($d.modelBreakdowns[]) as $m (.;
-        ((($m.inputTokens // 0) + ($m.outputTokens // 0) + ($m.cacheCreationTokens // 0) + ($m.cacheReadTokens // 0))) as $t
-        | .[$d.date][$m.modelName] = (if $t > 0 then ($m.cost // 0) / $t else 0 end)))
-  ' "$TMP/cli.daily.json" >"$TMP/rates.json"
+  [ -s "$TMP/cowork.daily.json" ] || echo '{"daily":[]}' >"$TMP/cowork.daily.json"
+  jq -c -s '
+    (.[1].daily + .[0].daily) as $days
+    | reduce ($days[]) as $d ({};
+        reduce ($d.modelBreakdowns[]) as $m (.;
+          ((($m.inputTokens // 0) + ($m.outputTokens // 0) + ($m.cacheCreationTokens // 0) + ($m.cacheReadTokens // 0))) as $t
+          | .[$d.date][$m.modelName] = (if $t > 0 then ($m.cost // 0) / $t else 0 end)))
+  ' "$TMP/cli.daily.json" "$TMP/cowork.daily.json" >"$TMP/rates.json"
 
   Z=$(date +%z)
   OFF=$((10#${Z:1:2} * 3600 + 10#${Z:3:2} * 60))
   [ "${Z:0:1}" = "-" ] && OFF=$((-OFF))
 
+  echo "[]" >"$TMP/cloud.json"
+  CLOUD_RAW="$(perl -e 'alarm 20; exec @ARGV' claude agents --json --all 2>/dev/null || true)"
+  if [ -n "$CLOUD_RAW" ]; then
+    printf '%s' "$CLOUD_RAW" \
+      | jq -c '[.[] | select(.kind == "background" and .sessionId) | .sessionId] | unique' \
+        >"$TMP/cloud.json" 2>/dev/null || echo "[]" >"$TMP/cloud.json"
+  fi
+
+  WALK='
+    def usertext:
+      (.message.content // "") as $c
+      | (if ($c | type) == "string" then $c
+         elif ($c | type) == "array" then
+           ([ $c[] | select(type == "object" and .type == "text" and (.text | type == "string")) | .text ] | .[0] // "")
+         else "" end)
+      | gsub("^\\s+"; "") | gsub("\\s+$"; "");
+    def wtof:
+      (.cwd // "") as $c
+      | (["/.claude/worktrees/", "/.cursor/worktrees/"] | map(select(. as $m | $c | contains($m))) | .[0]) as $m
+      | if $m == null then null
+        else ($c | split($m)[1] // "" | split("/") | map(select(. != "")) | .[0]) end;
+    if .type == "ai-title" and ((.aiTitle // "") != "") and ((.sessionId // "") != "") then
+      {t: "title", sid: .sessionId, title: (.aiTitle | tostring | gsub("^\\s+"; "") | gsub("\\s+$"; ""))}
+    elif .type == "user" and ((.sessionId // "") != "") then
+      usertext as $x
+      | if $x != "" and ($x | startswith("<") | not)
+        then {t: "text", sid: .sessionId, tms: (.timestamp // ""), text: $x[0:80]}
+        else empty end
+    elif .type == "assistant" and (.message.usage != null) then
+      (.message.id // .requestId // "") as $id
+      | if $id == "" then empty else
+        (.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $ep
+        | ($ep + $off) as $loc
+        | (.message.usage) as $u
+        | ($u.input_tokens // 0) as $inp | ($u.output_tokens // 0) as $out
+        | ($u.cache_creation_input_tokens // 0) as $cc | ($u.cache_read_input_tokens // 0) as $cr
+        | { t: "rec", id: $id, date: ($loc | strftime("%Y-%m-%d")), hour: (($loc / 3600 | floor) % 24),
+            ts: ($ep * 1000), model: (.message.model // "unknown"), cwd: (.cwd // ""), wt: wtof,
+            sid: (.sessionId // ""), src: $src,
+            inp: $inp, out: $out, cc: $cc, cr: $cr, tok: ($inp + $out + $cc + $cr) }
+        end
+    else empty end
+  '
+
+  : >"$TMP/walk.jsonl"
+  walk_dir() {
+    [ -d "$1" ] || return 0
+    find "$1" -name '*.jsonl' -print0 2>/dev/null | xargs -0 cat 2>/dev/null \
+      | jq -c --argjson off "$OFF" --arg src "$2" "$WALK" >>"$TMP/walk.jsonl" 2>/dev/null || true
+  }
   NFILES=$(find "$PROJECTS_DIR" -name '*.jsonl' 2>/dev/null | wc -l | tr -d ' ')
   printf '  · walking %s transcript files…\n' "$NFILES"
-  find "$PROJECTS_DIR" -name '*.jsonl' -print0 2>/dev/null | xargs -0 cat 2>/dev/null | jq -c --argjson off "$OFF" '
-    select(.type == "assistant" and (.message.usage != null)) |
-    (.message.id // .requestId // "") as $id | select($id != "") |
-    (.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 + $off) as $loc |
-    (.message.usage) as $u |
-    ($u.input_tokens // 0) as $inp | ($u.output_tokens // 0) as $out |
-    ($u.cache_creation_input_tokens // 0) as $cc | ($u.cache_read_input_tokens // 0) as $cr |
-    { id: $id, date: ($loc | strftime("%Y-%m-%d")), hour: (($loc / 3600 | floor) % 24),
-      model: (.message.model // "unknown"), cwd: (.cwd // ""), sid: (.sessionId // ""),
-      inp: $inp, out: $out, cc: $cc, cr: $cr, tok: ($inp + $out + $cc + $cr) }
-  ' >"$TMP/records.jsonl" 2>/dev/null || true
+  walk_dir "$PROJECTS_DIR" cli
+  if [ -n "${COWORK_CFG:-}" ]; then
+    (
+      IFS=','
+      for c in $COWORK_CFG; do walk_dir "$c/projects" cowork; done
+    )
+  fi
+  jq -c 'select(.t == "rec") | del(.t)' "$TMP/walk.jsonl" >"$TMP/records.jsonl"
+  jq -s '
+    [ .[] | select(.t != "rec") ]
+    | (map(select(.t == "text")) | group_by(.sid) | map(sort_by(.tms)[0] | {key: .sid, value: .text}) | from_entries) as $tx
+    | (map(select(.t == "title")) | group_by(.sid) | map({key: .[0].sid, value: .[-1].title}) | from_entries) as $ai
+    | $tx + $ai
+  ' "$TMP/walk.jsonl" >"$TMP/titles.json"
   _phase "walk" "$(wc -l <"$TMP/records.jsonl" | tr -d ' ') messages"
 
   jq -s --slurpfile r "$TMP/rates.json" \
@@ -206,23 +264,79 @@ if [ -d "$PROJECTS_DIR" ] && [ -s "$TMP/cli.daily.json" ]; then
 
   : >"$TMP/cwdmap.jsonl"
   jq -r '[.[].cwd] | unique | .[] | select(. != "")' "$TMP/recs.json" | while IFS= read -r cwd; do
-    root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)
-    name=$(basename "${root:-$cwd}")
+    name=""
+    case "$cwd" in
+      */local-agent-mode-sessions/*) name="Cowork" ;;
+    esac
+    if [ -z "$name" ] && [ -d "$cwd" ]; then
+      common=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+      if [ -n "$common" ]; then
+        case "$common" in
+          */.git) name=$(basename "${common%/.git}") ;;
+          *)
+            top=$(git -C "$cwd" rev-parse --path-format=absolute --show-toplevel 2>/dev/null || true)
+            [ -n "$top" ] && name=$(basename "$top")
+            ;;
+        esac
+      fi
+    fi
+    if [ -z "$name" ]; then
+      for m in "/.claude/worktrees/" "/.cursor/worktrees/"; do
+        case "$cwd" in
+          *"$m"*)
+            name=$(basename "${cwd%%"$m"*}")
+            break
+            ;;
+        esac
+      done
+    fi
+    [ -n "$name" ] || name=$(basename "$cwd")
     jq -cn --arg c "$cwd" --arg n "$name" '{cwd: $c, name: $n}' >>"$TMP/cwdmap.jsonl"
   done
   _phase "projects" "$(wc -l <"$TMP/cwdmap.jsonl" | tr -d ' ') repos"
 
   jq \
     --slurpfile usage "$OUT" \
+    --slurpfile titles "$TMP/titles.json" \
+    --slurpfile cloud "$TMP/cloud.json" \
     --slurpfile nm <(jq -s 'map({(.cwd): .name}) | add // {}' "$TMP/cwdmap.jsonl") '
-    . as $R | $usage[0] as $usage | ($nm[0] // {}) as $NAME |
+    . as $R | $usage[0] as $usage | ($nm[0] // {}) as $NAME | ($titles[0] // {}) as $T |
+    (($cloud[0] // []) | map({(.): true}) | add // {}) as $CS |
+    def chatsort: sort_by([-.tokens, .id]);
     ( $R | group_by(.date) | map({
         key: .[0].date,
         hours: ( group_by(.hour) | map({hour: .[0].hour, tokens: (map(.tok) | add), cost: (map(.cost) | add)}) ),
         projects: ( map(. + {p: ($NAME[.cwd] // "unknown")}) | group_by(.p)
-          | map({projectName: .[0].p, tokens: (map(.tok) | add), cost: (map(.cost) | add),
-                 chats: (map(.sid) | unique | map({id: .})), worktrees: []})
-          | sort_by(-.tokens) )
+          | map(
+              ( group_by(.sid) | map(
+                  ( group_by(.wt // "") | map({
+                      wt: (.[0].wt // ""),
+                      tokens: (map(.tok) | add), cost: (map(.cost) | add),
+                      firstTs: (map(.ts) | min), lastTs: (map(.ts) | max)
+                    }) ) as $frags
+                  | ($frags | max_by(.tokens)) as $win
+                  | { wt: $win.wt,
+                      chat: {
+                        id: .[0].sid,
+                        title: ($T[.[0].sid]
+                          // (if .[0].sid != "" then "Chat " + (.[0].sid[0:8]) else "Untitled chat" end)),
+                        tokens: ($frags | map(.tokens) | add),
+                        cost: ($frags | map(.cost) | add),
+                        firstTs: ($frags | map(.firstTs) | min),
+                        lastTs: ($frags | map(.lastTs) | max),
+                        source: (if $CS[.[0].sid] then "cc-cloud" else .[0].src end)
+                      } }
+                ) ) as $chats
+              | { projectName: .[0].p,
+                  tokens: (map(.tok) | add), cost: (map(.cost) | add),
+                  chats: ([ $chats[] | select(.wt == "") | .chat ] | chatsort),
+                  worktrees: ([ $chats[] | select(.wt != "") ] | group_by(.wt) | map({
+                      name: .[0].wt,
+                      tokens: (map(.chat.tokens) | add), cost: (map(.chat.cost) | add),
+                      chats: (map(.chat) | chatsort)
+                    }) | sort_by([-.tokens, .name])) }
+            )
+          | sort_by([-.tokens, .projectName]) )
       }) | map({(.key): {hours: .hours, projects: .projects}}) | add // {} ) as $BY |
     $usage | .schemaVersion = 4 | .daily = [ .daily[] |
       ($BY[.period]) as $b |
@@ -234,18 +348,11 @@ if [ -d "$PROJECTS_DIR" ] && [ -s "$TMP/cli.daily.json" ]; then
   ' "$TMP/recs.json" >"$TMP/merged.json" && mv "$TMP/merged.json" "$OUT"
   _phase "merge" "hours + projects merged"
 
-  echo "[]" >"$TMP/cloud.json"
-  CLOUD_RAW="$(perl -e 'alarm 20; exec @ARGV' claude agents --json --all 2>/dev/null || true)"
-  if [ -n "$CLOUD_RAW" ]; then
-    printf '%s' "$CLOUD_RAW" \
-      | jq -c '[.[] | select(.kind == "background" and .sessionId) | .sessionId] | unique' \
-        >"$TMP/cloud.json" 2>/dev/null || echo "[]" >"$TMP/cloud.json"
-  fi
   NCLOUD=$(jq 'length' "$TMP/cloud.json" 2>/dev/null || echo 0)
   if [ "${NCLOUD:-0}" -gt 0 ]; then
     jq --slurpfile cloud "$TMP/cloud.json" '
       ($cloud[0] // [] | map({(.): true}) | add // {}) as $CS |
-      [ .[] | select($CS[.sid]) ]
+      [ .[] | select($CS[.sid]) | select(.model != "<synthetic>" or .tok > 0) ]
       | group_by(.date + "|" + .model)
       | map({ date: .[0].date, model: .[0].model,
               inputTokens: (map(.inp) | add), outputTokens: (map(.out) | add),

@@ -105,6 +105,8 @@ struct DashUsage: Decodable {
         let tokens: Double?
         let cost: Double?
         let source: String?
+        let firstTs: Double?
+        let lastTs: Double?
     }
     struct Hour: Decodable {
         let tokens: Double?
@@ -169,6 +171,65 @@ struct ProjectAgg: Identifiable {
     var share = 0.0
 }
 
+enum ProjSortKey: String, CaseIterable {
+    case name, tokens, cost, share, days, dur, lastActive
+}
+
+protocol ProjSortable {
+    var sortName: String { get }
+    var tokens: Double { get }
+    var cost: Double { get }
+    var share: Double { get }
+    var days: Int { get }
+    var dur: Double { get }
+    var lastActive: String { get }
+}
+
+struct ProjChat: Identifiable, ProjSortable {
+    let id: String
+    let title: String
+    let tokens: Double
+    let cost: Double
+    var share = 0.0
+    let daySet: Set<String>
+    let dur: Double
+    let lastActive: String
+    let source: String
+    var days: Int { daySet.count }
+    var sortName: String { title }
+}
+
+struct ProjWorktree: Identifiable, ProjSortable {
+    let id: String
+    let name: String
+    let tokens: Double
+    let cost: Double
+    var share = 0.0
+    let days: Int
+    let dur: Double
+    let lastActive: String
+    var chats: [ProjChat]
+    var sortName: String { name }
+}
+
+struct ProjTreeRow: Identifiable, ProjSortable {
+    let id: String
+    let name: String
+    let tokens: Double
+    let cost: Double
+    var share = 0.0
+    let days: Int
+    let dur: Double
+    let lastActive: String
+    var chats: [ProjChat]
+    var worktrees: [ProjWorktree]
+    var sortName: String { name }
+    var nestedCount: Int {
+        chats.count + worktrees.count + worktrees.reduce(0) { $0 + $1.chats.count }
+    }
+    var expandable: Bool { !chats.isEmpty || !worktrees.isEmpty }
+}
+
 struct KPI: Identifiable {
     let id = UUID()
     let label: String
@@ -231,6 +292,10 @@ final class DashboardModel: ObservableObject {
     @Published var sortColumn: TableColumn = .cost { didSet { persist(); recompute() } }
     @Published var sortAscending = false { didSet { persist(); recompute() } }
     @Published var heatMetric: DashMetric = .tokens
+    @Published var projSortKey: ProjSortKey = .cost { didSet { recompute() } }
+    @Published var projSortAscending = false { didSet { recompute() } }
+    @Published var projListOpen = false
+    @Published var projExpanded: Set<String> = []
 
     private var loading = false
 
@@ -241,6 +306,7 @@ final class DashboardModel: ObservableObject {
     @Published private(set) var dow: [DOWDatum] = []
     @Published private(set) var hourlyAll: [HourDatum] = []
     @Published private(set) var projects: [ProjectAgg] = []
+    @Published private(set) var projectTree: [ProjTreeRow] = []
     @Published private(set) var meta = MetaLine()
     @Published private(set) var calendarDays: [DayPoint] = []
     @Published private(set) var heatDetail: [String: HeatDay] = [:]
@@ -294,7 +360,7 @@ final class DashboardModel: ObservableObject {
         ingest(parsed)
     }
 
-    private func ingest(_ parsed: DashUsage) {
+    func ingest(_ parsed: DashUsage) {
         data = parsed
         let srcIds = (parsed.sources ?? []).filter { id in
             parsed.daily.contains { ($0.bySource?[id]?.isEmpty == false) }
@@ -406,6 +472,10 @@ final class DashboardModel: ObservableObject {
         selectedModels = Set(defaultModels)
         sortColumn = .cost
         sortAscending = false
+        projSortKey = .cost
+        projSortAscending = false
+        projExpanded = []
+        projListOpen = false
     }
 
     private func parseYMD(_ s: String) -> Date? { Self.ymd.date(from: s) }
@@ -533,7 +603,7 @@ final class DashboardModel: ObservableObject {
         var dowCost = [Double](repeating: 0, count: 7)
         var hourTok = [Double](repeating: 0, count: 24)
         var hourCost = [Double](repeating: 0, count: 24)
-        var projAgg: [String: (tokens: Double, cost: Double)] = [:]
+        var projAgg: [String: ProjAccum] = [:]
 
         var cursor = win.from
         while cursor <= win.to {
@@ -570,9 +640,8 @@ final class DashboardModel: ObservableObject {
                 }
                 for p in day.projects ?? [] {
                     let name = p.projectName ?? "unknown"
-                    var a = projAgg[name] ?? (0, 0)
-                    a.tokens += p.tokens ?? 0
-                    a.cost += p.cost ?? 0
+                    var a = projAgg[name] ?? ProjAccum()
+                    a.absorb(p, period: key)
                     projAgg[name] = a
                 }
             }
@@ -600,19 +669,177 @@ final class DashboardModel: ObservableObject {
             HourDatum(id: $0, hour: $0, tokens: hourTok[$0], cost: hourCost[$0])
         }
 
-        let projTotalCost = projAgg.values.reduce(0) { $0 + $1.cost }
-        projects =
-            projAgg
-            .map {
-                ProjectAgg(
-                    id: $0.key, name: $0.key, tokens: $0.value.tokens, cost: $0.value.cost,
-                    share: projTotalCost > 0 ? $0.value.cost / projTotalCost : 0)
-            }
-            .sorted { $0.tokens > $1.tokens }
+        projectTree = buildProjectTree(projAgg)
+        projects = projectTree.map {
+            ProjectAgg(id: $0.id, name: $0.name, tokens: $0.tokens, cost: $0.cost, share: $0.share)
+        }
+        .sorted { $0.tokens > $1.tokens }
 
         buildKPIs(rows: rows, totalCost: totalCost)
         buildMeta(from: fromStr, to: toStr)
         buildCalendar(data: data)
+    }
+
+    private struct ChatAcc {
+        var title = ""
+        var tokens = 0.0
+        var cost = 0.0
+        var source = ""
+        var lastActive = ""
+        var firstTs = 0.0
+        var lastTs = 0.0
+        var days = Set<String>()
+
+        mutating func merge(_ c: DashUsage.Chat, period: String) {
+            tokens += c.tokens ?? 0
+            cost += c.cost ?? 0
+            if let s = c.source, !s.isEmpty { source = s }
+            if let t = c.title, !t.isEmpty { title = t }
+            if period > lastActive { lastActive = period }
+            if let f = c.firstTs, f > 0, firstTs == 0 || f < firstTs { firstTs = f }
+            if let l = c.lastTs, l > lastTs { lastTs = l }
+            if (c.tokens ?? 0) > 0 || (c.cost ?? 0) > 0 { days.insert(period) }
+        }
+
+        var dur: Double { firstTs > 0 && lastTs > firstTs ? lastTs - firstTs : 0 }
+    }
+
+    private struct ProjAccum {
+        var main: [String: ChatAcc] = [:]
+        var wts: [String: [String: ChatAcc]] = [:]
+        var fallbackTokens = 0.0
+        var fallbackCost = 0.0
+        var fallbackDays = Set<String>()
+
+        mutating func absorb(_ p: DashUsage.Project, period: String) {
+            let mainChats = p.chats ?? []
+            let worktrees = p.worktrees ?? []
+            let tokened = { (c: DashUsage.Chat) in (c.tokens ?? 0) > 0 || (c.cost ?? 0) > 0 }
+            let hasTokenedChat =
+                mainChats.contains(where: tokened)
+                || worktrees.contains { ($0.chats ?? []).contains(where: tokened) }
+            if !hasTokenedChat, (p.tokens ?? 0) > 0 || (p.cost ?? 0) > 0 {
+                fallbackTokens += p.tokens ?? 0
+                fallbackCost += p.cost ?? 0
+                fallbackDays.insert(period)
+            }
+            for c in mainChats {
+                main[c.id ?? "", default: ChatAcc()].merge(c, period: period)
+            }
+            for wt in worktrees {
+                for c in wt.chats ?? [] {
+                    wts[wt.name ?? "", default: [:]][c.id ?? "", default: ChatAcc()]
+                        .merge(c, period: period)
+                }
+            }
+        }
+    }
+
+    private func buildProjectTree(_ agg: [String: ProjAccum]) -> [ProjTreeRow] {
+        let visible = { (c: ChatAcc) in c.source.isEmpty || self.selectedSources.contains(c.source)
+        }
+        func chatRow(_ id: String, _ a: ChatAcc) -> ProjChat {
+            let title =
+                a.title.isEmpty
+                ? (id.isEmpty ? "Untitled chat" : "Chat \(String(id.prefix(8)))") : a.title
+            return ProjChat(
+                id: id, title: title, tokens: a.tokens, cost: a.cost, daySet: a.days,
+                dur: a.dur, lastActive: a.lastActive, source: a.source)
+        }
+        func chatRows(_ map: [String: ChatAcc]) -> [ProjChat] {
+            map.filter { visible($0.value) }.map { chatRow($0.key, $0.value) }.sorted {
+                ($0.tokens, $1.id) > ($1.tokens, $0.id)
+            }
+        }
+        func daysOf(_ chats: [ProjChat]) -> Set<String> {
+            chats.reduce(into: Set<String>()) { $0.formUnion($1.daySet) }
+        }
+
+        var rows: [ProjTreeRow] = []
+        for (name, a) in agg {
+            let mainChats = chatRows(a.main)
+            let worktrees: [ProjWorktree] = a.wts.compactMap { wtName, chatsAcc in
+                let chats = chatRows(chatsAcc)
+                guard !chats.isEmpty else { return nil }
+                return ProjWorktree(
+                    id: "wt:\(name)::\(wtName)", name: wtName,
+                    tokens: chats.reduce(0) { $0 + $1.tokens },
+                    cost: chats.reduce(0) { $0 + $1.cost },
+                    days: daysOf(chats).count,
+                    dur: chats.reduce(0) { $0 + $1.dur },
+                    lastActive: chats.map(\.lastActive).max() ?? "",
+                    chats: chats)
+            }
+            .sorted { ($0.tokens, $1.name) > ($1.tokens, $0.name) }
+            guard !mainChats.isEmpty || !worktrees.isEmpty || a.fallbackTokens > 0 else {
+                continue
+            }
+            let allDays = daysOf(mainChats + worktrees.flatMap(\.chats)).union(a.fallbackDays)
+            let lastActive =
+                (mainChats.map(\.lastActive) + worktrees.map(\.lastActive)
+                + a.fallbackDays.sorted()).max() ?? ""
+            rows.append(
+                ProjTreeRow(
+                    id: "proj:\(name)", name: name,
+                    tokens: mainChats.reduce(0) { $0 + $1.tokens }
+                        + worktrees.reduce(0) { $0 + $1.tokens } + a.fallbackTokens,
+                    cost: mainChats.reduce(0) { $0 + $1.cost }
+                        + worktrees.reduce(0) { $0 + $1.cost } + a.fallbackCost,
+                    days: allDays.count,
+                    dur: mainChats.reduce(0) { $0 + $1.dur } + worktrees.reduce(0) { $0 + $1.dur },
+                    lastActive: lastActive,
+                    chats: mainChats, worktrees: worktrees))
+        }
+
+        let totalCost = rows.reduce(0) { $0 + $1.cost }
+        if totalCost > 0 {
+            rows = rows.map { row in
+                var r = row
+                r.share = row.cost / totalCost
+                r.chats = row.chats.map {
+                    var c = $0; c.share = c.cost / totalCost; return c
+                }
+                r.worktrees = row.worktrees.map { wt in
+                    var w = wt
+                    w.share = wt.cost / totalCost
+                    w.chats = wt.chats.map {
+                        var c = $0; c.share = c.cost / totalCost; return c
+                    }
+                    return w
+                }
+                return r
+            }
+        }
+        return sortTree(rows)
+    }
+
+    func projLess(_ a: some ProjSortable, _ b: some ProjSortable) -> Bool {
+        let asc = projSortAscending
+        func cmp<T: Comparable>(_ x: T, _ y: T) -> Bool { asc ? x < y : x > y }
+        switch projSortKey {
+        case .name: return cmp(a.sortName, b.sortName)
+        case .tokens: return cmp(a.tokens, b.tokens)
+        case .cost: return cmp(a.cost, b.cost)
+        case .share: return cmp(a.share, b.share)
+        case .days: return cmp(a.days, b.days)
+        case .dur: return cmp(a.dur, b.dur)
+        case .lastActive: return cmp(a.lastActive, b.lastActive)
+        }
+    }
+
+    private func sortTree(_ rows: [ProjTreeRow]) -> [ProjTreeRow] {
+        rows.map { row in
+            var r = row
+            r.chats = row.chats.sorted(by: projLess)
+            r.worktrees = row.worktrees.map { wt in
+                var w = wt
+                w.chats = wt.chats.sorted(by: projLess)
+                return w
+            }
+            .sorted(by: projLess)
+            return r
+        }
+        .sorted(by: projLess)
     }
 
     private func sortComparator(_ a: ModelTotal, _ b: ModelTotal) -> Bool {
@@ -780,6 +1007,7 @@ enum DashFmt {
     }
     static func tokensFull(_ v: Double) -> String {
         let f = NumberFormatter()
+        f.locale = Locale(identifier: "en_US")
         f.numberStyle = .decimal
         f.maximumFractionDigits = 0
         return f.string(from: NSNumber(value: v)) ?? "\(Int(v))"
@@ -789,7 +1017,35 @@ enum DashFmt {
         return String(format: "$%.2f", v)
     }
     static func usdFull(_ v: Double) -> String { String(format: "$%.2f", v) }
+    static func usdLong(_ v: Double) -> String {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "en_US")
+        f.numberStyle = .decimal
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return "$" + (f.string(from: NSNumber(value: v)) ?? String(format: "%.2f", v))
+    }
     static func pct(_ v: Double) -> String { String(format: "%.1f%%", v * 100) }
+    static func duration(_ ms: Double) -> String {
+        guard ms > 0 else { return "—" }
+        let s = Int((ms / 1000).rounded())
+        if s < 60 { return "\(s)s" }
+        let m = Int((Double(s) / 60).rounded())
+        if m < 60 { return "\(m)m" }
+        let h = m / 60
+        let rem = m % 60
+        return rem > 0 ? "\(h)h \(rem)m" : "\(h)h"
+    }
+    static func dateShort(_ ymd: String) -> String {
+        let parts = ymd.split(separator: "-")
+        guard parts.count == 3, let m = Int(parts[1]), let d = Int(parts[2]), (1...12).contains(m)
+        else { return "—" }
+        let mon = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ]
+        return "\(mon[m - 1]) \(d)"
+    }
     static func shortModel(_ m: String) -> String {
         var s = m
         if s.hasPrefix("claude-") { s.removeFirst("claude-".count) }

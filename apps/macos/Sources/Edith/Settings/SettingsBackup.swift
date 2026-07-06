@@ -215,20 +215,20 @@ final class SettingsBackup: ObservableObject {
         let fm = FileManager.default
         try? fm.createDirectory(
             at: cloudUsage.deletingLastPathComponent(), withIntermediateDirectories: true)
-        guard let localData = try? Data(contentsOf: localUsage) else {
-            if fm.fileExists(atPath: cloudUsage.path) {
-                if let cloud = try? Data(contentsOf: cloudUsage) {
-                    try? fm.createDirectory(
-                        at: localUsage.deletingLastPathComponent(),
-                        withIntermediateDirectories: true)
-                    try? cloud.write(to: localUsage)
-                } else {
-                    try? fm.startDownloadingUbiquitousItem(at: cloudUsage)
-                }
+        let localData = try? Data(contentsOf: localUsage)
+        var cloudData: Data?
+        if fm.fileExists(atPath: cloudUsage.path) {
+            cloudData = try? Data(contentsOf: cloudUsage)
+            if cloudData == nil {
+                try? fm.startDownloadingUbiquitousItem(at: cloudUsage)
+                return
             }
-            return
         }
-        if (try? Data(contentsOf: cloudUsage)) != localData { try? localData.write(to: cloudUsage) }
+        guard let merged = UsageHistory.merge(local: localData, cloud: cloudData) else { return }
+        try? fm.createDirectory(
+            at: localUsage.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if (try? Data(contentsOf: localUsage)) != merged { try? merged.write(to: localUsage) }
+        if (try? Data(contentsOf: cloudUsage)) != merged { try? merged.write(to: cloudUsage) }
     }
 
     private func importFromCloudIfNewer() {
