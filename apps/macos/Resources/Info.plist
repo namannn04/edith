@@ -20,6 +20,8 @@
 	<string>9</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Edith shows your upcoming calendar events in the app.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

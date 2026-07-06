@@ -21,6 +21,8 @@ cd "$(dirname "$0")"
 
 SIGN_IDENTITY="${EDITH_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
   | awk -F'"' '/Edith Dev/{print $2; exit}')}"
+SIGN_IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
+  | awk -F'"' '/Apple Development/{print $2; exit}')}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 INSTALL=0 NO_OPEN=0 PR="" BRANCH=""
 while [ $# -gt 0 ]; do

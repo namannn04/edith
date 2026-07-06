@@ -277,7 +277,7 @@ final class SettingsBackup: ObservableObject {
         }
     }
 
-    private func scheduleExport() {
+    func scheduleExport() {
         debounce?.invalidate()
         debounce = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
             Task { @MainActor in SettingsBackup.shared.export() }

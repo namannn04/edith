@@ -21,45 +21,45 @@ struct DashboardView: View {
     private var blurMoney: Bool { presenterState.active && presenterBlurMoney }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                masthead
-                    .padding(.horizontal, 24).padding(.top, 22)
-                if showLog {
-                    logView.padding(.horizontal, 24)
-                }
-                if model.loaded {
-                    kpiGrid.padding(.horizontal, 24)
-                    Section {
-                        VStack(spacing: 16) {
+        VStack(spacing: 0) {
+            if model.loaded {
+                controlsBar
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    masthead
+                        .padding(.horizontal, 24).padding(.top, 18)
+                    if showLog {
+                        logView.padding(.horizontal, 24)
+                    }
+                    if model.loaded {
+                        kpiGrid.padding(.horizontal, 24)
+                        LazyVStack(spacing: 16) {
                             SkinCard(title: "Activity", dark: dark) {
                                 ActivityHeatmap(
-                                    days: model.calendarDays, model: model, dark: dark,
-                                    blur: blurMoney)
+                                    days: model.calendarDays, cuts: model.chartData.heatCuts,
+                                    model: model, dark: dark, blur: blurMoney)
                             }
                             LimitsCardView(theme: acc, dark: dark)
                             charts
                         }
                         .padding(.horizontal, 24).padding(.bottom, 28)
-                    } header: {
-                        controlsBar
-                    }
-                } else if !model.loadAttempted {
-                    ProgressView("Loading usage data…")
-                        .controlSize(.small)
+                    } else if !model.loadAttempted {
+                        ProgressView("Loading usage data…")
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity, minHeight: 240)
+                    } else {
+                        ContentUnavailableView(
+                            "No usage data yet", systemImage: "chart.bar",
+                            description: Text("Hit reload to run the bundled collector.")
+                        )
                         .frame(maxWidth: .infinity, minHeight: 240)
-                } else {
-                    ContentUnavailableView(
-                        "No usage data yet", systemImage: "chart.bar",
-                        description: Text("Hit reload to run the bundled collector.")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 240)
+                    }
                 }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
         .background(background)
-        .frame(minWidth: 760, minHeight: 600)
         .navigationTitle("Dashboard")
         .task {
             await model.load()
@@ -245,7 +245,7 @@ struct DashboardView: View {
             }
             .foregroundStyle(DashSkin.inkSoft(dark))
         }
-        .padding(.horizontal, 24).padding(.vertical, 12)
+        .padding(.horizontal, 24).padding(.top, 6).padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DashSkin.paper(dark))
         .overlay(alignment: .bottom) {
@@ -365,31 +365,31 @@ struct DashboardView: View {
     @ViewBuilder private var charts: some View {
         SkinCard(title: "Daily usage", dark: dark) {
             ComboChart(
-                points: dailyPoints, barColor: acc, lineColor: gold, dark: dark, scroll: true,
-                blur: blurMoney)
+                points: model.chartData.daily, barColor: acc, lineColor: gold, dark: dark,
+                scroll: true, blur: blurMoney)
         }
         SkinCard(title: "Token mix by day", dark: dark) {
             StackedChart(
-                bars: tokenMixBars, costLine: dailyPoints,
+                bars: model.chartData.tokenMix, costLine: model.chartData.daily,
                 domain: tokenMixDomain, range: tokenMixRange, dark: dark, blur: blurMoney)
         }
         SkinCard(title: "Model usage over time", dark: dark) {
             StackedChart(
-                bars: modelTimeBars, costLine: dailyPoints,
+                bars: model.chartData.modelTime, costLine: model.chartData.daily,
                 domain: modelDomain, range: modelRange, dark: dark, blur: blurMoney)
         }
         if model.allSources.count > 1 {
             SkinCard(title: "Usage by source over time", dark: dark) {
                 StackedChart(
-                    bars: sourceBars, costLine: dailyPoints,
+                    bars: model.chartData.source, costLine: model.chartData.daily,
                     domain: sourceDomain, range: sourceRange, dark: dark, blur: blurMoney)
             }
         }
         HStack(alignment: .top, spacing: 16) {
             SkinCard(title: "By day of week", dark: dark) {
                 ComboChart(
-                    points: dowPoints, barColor: acc, lineColor: gold, dark: dark, height: 200,
-                    blur: blurMoney)
+                    points: model.chartData.dow, barColor: acc, lineColor: gold, dark: dark,
+                    height: 200, blur: blurMoney)
             }
             SkinCard(title: "Share by model", dark: dark) {
                 DonutChart(slices: donutSlices)
@@ -399,16 +399,16 @@ struct DashboardView: View {
             SkinCard(title: "By project", dark: dark) {
                 VStack(alignment: .leading, spacing: 12) {
                     ComboChart(
-                        points: projectPoints, barColor: acc, lineColor: gold, dark: dark,
-                        height: 280, blur: blurMoney)
+                        points: model.chartData.project, barColor: acc, lineColor: gold,
+                        dark: dark, height: 280, blur: blurMoney)
                     ProjectDrilldownView(model: model, dark: dark, blur: blurMoney)
                 }
             }
         }
         SkinCard(title: "Hourly — all time", dark: dark) {
             ComboChart(
-                points: hourlyPoints, barColor: acc, lineColor: gold, dark: dark, height: 200,
-                blur: blurMoney)
+                points: model.chartData.hourly, barColor: acc, lineColor: gold, dark: dark,
+                height: 200, blur: blurMoney)
         }
         SkinCard(title: "Models", dark: dark) { modelsTable }
     }
@@ -473,49 +473,6 @@ struct DashboardView: View {
         .pointerCursor()
     }
 
-    private var dailyPoints: [ComboPoint] {
-        model.series.map {
-            ComboPoint(id: $0.id, label: $0.label, tokens: $0.tokens, cost: $0.cost)
-        }
-    }
-    private var dowPoints: [ComboPoint] {
-        model.dow.map {
-            ComboPoint(id: $0.label, label: $0.label, tokens: $0.tokens, cost: $0.cost)
-        }
-    }
-    private var hourlyPoints: [ComboPoint] {
-        model.hourlyAll.map {
-            ComboPoint(
-                id: "\($0.hour)", label: String(format: "%02d", $0.hour), tokens: $0.tokens,
-                cost: $0.cost)
-        }
-    }
-    private var projectPoints: [ComboPoint] {
-        let rows = model.projects
-        var points = rows.prefix(15).map {
-            ComboPoint(id: $0.id, label: $0.name, tokens: $0.tokens, cost: $0.cost)
-        }
-        let rest = rows.dropFirst(15)
-        if !rest.isEmpty {
-            points.append(
-                ComboPoint(
-                    id: "__others", label: "others (\(rest.count))",
-                    tokens: rest.reduce(0) { $0 + $1.tokens },
-                    cost: rest.reduce(0) { $0 + $1.cost }))
-        }
-        return points
-    }
-    private var tokenMixBars: [StackDatum] {
-        model.series.flatMap { d in
-            [
-                StackDatum(id: "\(d.id)-in", x: d.label, series: "input", value: d.input),
-                StackDatum(id: "\(d.id)-out", x: d.label, series: "output", value: d.output),
-                StackDatum(
-                    id: "\(d.id)-cc", x: d.label, series: "cache write", value: d.cacheCreate),
-                StackDatum(id: "\(d.id)-cr", x: d.label, series: "cache read", value: d.cacheRead),
-            ]
-        }
-    }
     private var tokenMixDomain: [String] { ["input", "output", "cache write", "cache read"] }
     private var tokenMixRange: [Color] {
         [
@@ -523,26 +480,8 @@ struct DashboardView: View {
             DashPalette.cacheCreateColor, DashPalette.cacheReadColor,
         ]
     }
-    private var modelTimeBars: [StackDatum] {
-        model.series.flatMap { d in
-            d.byModel.map {
-                StackDatum(
-                    id: "\(d.id)-\($0.key)", x: d.label, series: DashFmt.shortModel($0.key),
-                    value: $0.value)
-            }
-        }
-    }
     private var modelDomain: [String] { model.allModels.map(DashFmt.shortModel) }
     private var modelRange: [Color] { model.allModels.map { model.modelColor($0, dark: dark) } }
-    private var sourceBars: [StackDatum] {
-        model.series.flatMap { d in
-            d.bySource.map {
-                StackDatum(
-                    id: "\(d.id)-\($0.key)", x: d.label, series: model.sourceLabel($0.key),
-                    value: $0.value)
-            }
-        }
-    }
     private var sourceDomain: [String] { model.allSources.map(\.label) }
     private var sourceRange: [Color] {
         model.allSources.map { model.sourceColor($0.id, dark: dark) }
@@ -558,6 +497,7 @@ struct DashboardView: View {
 
 struct ActivityHeatmap: View {
     let days: [DayPoint]
+    let cuts: [Double]
     let model: DashboardModel
     let dark: Bool
     var blur = false
@@ -567,50 +507,75 @@ struct ActivityHeatmap: View {
         let weeks = stride(from: 0, to: days.count, by: 7).map {
             Array(days[$0..<min($0 + 7, days.count)])
         }
-        let costs = days.map(\.cost).filter { $0 > 0 }.sorted()
-        let cuts =
-            costs.isEmpty
-            ? [0.0, 0, 0]
-            : [costs[costs.count / 4], costs[costs.count / 2], costs[costs.count * 3 / 4]]
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 3) {
-                ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
-                    VStack(spacing: 3) {
-                        ForEach(week) { day in
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(cellColor(day.cost, cuts: cuts))
-                                .frame(width: 14, height: 14)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .strokeBorder(
-                                            DashSkin.ink(dark).opacity(
-                                                hoveredDay == day.id ? 0.5 : 0),
-                                            lineWidth: 1)
-                                )
-                                .onHover { inside in
-                                    if inside {
-                                        hoveredDay = model.heatDetail[day.id] != nil ? day.id : nil
-                                    } else if hoveredDay == day.id {
-                                        hoveredDay = nil
+        return HStack(alignment: .top, spacing: 4) {
+            VStack(spacing: 3) {
+                ForEach(Array(["M", "", "W", "", "F", "", "S"].enumerated()), id: \.offset) {
+                    _, label in
+                    Text(label)
+                        .font(.system(size: 9))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                        .frame(width: 12, height: 14)
+                }
+            }
+            .padding(.top, 15)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 3) {
+                    ForEach(Array(weeks.enumerated()), id: \.offset) { index, week in
+                        VStack(spacing: 3) {
+                            Text(monthLabel(for: weeks, at: index))
+                                .font(.system(size: 9))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                                .frame(height: 12)
+                            ForEach(week) { day in
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(cellColor(day.cost, cuts: cuts))
+                                    .frame(width: 14, height: 14)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .strokeBorder(
+                                                DashSkin.ink(dark).opacity(
+                                                    hoveredDay == day.id ? 0.5 : 0),
+                                                lineWidth: 1)
+                                    )
+                                    .onHover { inside in
+                                        if inside {
+                                            hoveredDay =
+                                                model.heatDetail[day.id] != nil ? day.id : nil
+                                        } else if hoveredDay == day.id {
+                                            hoveredDay = nil
+                                        }
                                     }
-                                }
-                                .popover(
-                                    isPresented: Binding(
-                                        get: { hoveredDay == day.id },
-                                        set: { if !$0 { hoveredDay = nil } }),
-                                    arrowEdge: .trailing
-                                ) {
-                                    if let detail = model.heatDetail[day.id] {
-                                        HeatCard(
-                                            detail: detail, model: model, dark: dark, blur: blur)
+                                    .popover(
+                                        isPresented: Binding(
+                                            get: { hoveredDay == day.id },
+                                            set: { if !$0 { hoveredDay = nil } }),
+                                        arrowEdge: .trailing
+                                    ) {
+                                        if let detail = model.heatDetail[day.id] {
+                                            HeatCard(
+                                                detail: detail, model: model, dark: dark,
+                                                blur: blur)
+                                        }
                                     }
-                                }
+                            }
                         }
                     }
                 }
             }
+            .defaultScrollAnchor(weeks.count > 18 ? .trailing : .leading)
         }
-        .frame(height: 122)
+        .frame(height: 137)
+    }
+
+    private func monthLabel(for weeks: [[DayPoint]], at index: Int) -> String {
+        guard let first = weeks[index].first?.date else { return "" }
+        let month = Calendar.current.component(.month, from: first)
+        if index > 0, let prev = weeks[index - 1].first?.date,
+            Calendar.current.component(.month, from: prev) == month
+        {
+            return ""
+        }
+        return first.formatted(.dateTime.month(.abbreviated))
     }
 
     private func cellColor(_ cost: Double, cuts: [Double]) -> Color {

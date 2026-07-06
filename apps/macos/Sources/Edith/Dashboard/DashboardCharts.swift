@@ -130,6 +130,17 @@ struct StackDatum: Identifiable {
     let value: Double
 }
 
+struct DashChartData {
+    var daily: [ComboPoint] = []
+    var dow: [ComboPoint] = []
+    var hourly: [ComboPoint] = []
+    var project: [ComboPoint] = []
+    var tokenMix: [StackDatum] = []
+    var modelTime: [StackDatum] = []
+    var source: [StackDatum] = []
+    var heatCuts: [Double] = [0, 0, 0]
+}
+
 struct StackedChart: View {
     let bars: [StackDatum]
     let costLine: [ComboPoint]

@@ -1,11 +1,10 @@
 import AppKit
-import EdithKit
 import EventKit
 
 @MainActor
-final class CalendarStore: ObservableObject, FeatureModule {
-    @Published private(set) var events: [EKEvent] = []
-    @Published private(set) var authStatus: EKAuthorizationStatus
+public final class CalendarStore: ObservableObject, FeatureModule {
+    @Published public private(set) var events: [EKEvent] = []
+    @Published public private(set) var authStatus: EKAuthorizationStatus
 
     private var daysLoaded = 14
     private static let maxDays = 120
@@ -14,7 +13,7 @@ final class CalendarStore: ObservableObject, FeatureModule {
     private var changeObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
 
-    init() {
+    public init() {
         authStatus = EKEventStore.authorizationStatus(for: .event)
         if authStatus == .fullAccess { refresh() }
         changeObserver = NotificationCenter.default.addObserver(
@@ -29,14 +28,14 @@ final class CalendarStore: ObservableObject, FeatureModule {
         }
     }
 
-    func shutdown() {
+    public func shutdown() {
         if let changeObserver { NotificationCenter.default.removeObserver(changeObserver) }
         if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
         changeObserver = nil
         wakeObserver = nil
     }
 
-    func requestAccess() {
+    public func requestAccess() {
         Task { @MainActor in
             _ = try? await store.requestFullAccessToEvents()
             refreshAuthStatus()
@@ -44,14 +43,14 @@ final class CalendarStore: ObservableObject, FeatureModule {
         openCalendarSettings()
     }
 
-    func refreshAuthStatus() {
+    public func refreshAuthStatus() {
         let status = EKEventStore.authorizationStatus(for: .event)
         guard status != authStatus else { return }
         authStatus = status
         if status == .fullAccess { refresh() }
     }
 
-    func refresh() {
+    public func refresh() {
         guard authStatus == .fullAccess else { return }
         let start = Calendar.current.startOfDay(for: Date())
         let end = Calendar.current.date(byAdding: .day, value: daysLoaded, to: start)!
@@ -60,13 +59,13 @@ final class CalendarStore: ObservableObject, FeatureModule {
         events = CalendarDayEvents.sorted(store.events(matching: predicate))
     }
 
-    func loadMore() {
+    public func loadMore() {
         guard daysLoaded < Self.maxDays else { return }
         daysLoaded = min(daysLoaded + 14, Self.maxDays)
         refresh()
     }
 
-    func openCalendarSettings() {
+    public func openCalendarSettings() {
         NSWorkspace.shared.open(
             URL(
                 string:

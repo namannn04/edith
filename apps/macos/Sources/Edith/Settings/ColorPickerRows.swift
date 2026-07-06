@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import EdithKit
 import SwiftUI
 
-struct DevToolsPane: View {
+struct ColorPickerRows: View {
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =
         false
     @AppStorage("colorPickerCopyFormat", store: SharedDefaults.store) private var copyFormat:
@@ -14,21 +14,12 @@ struct DevToolsPane: View {
     @State private var history: [ColorSwatch] = ColorHistoryStore.load()
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Color picker", isOn: $colorPickerEnabled)
-                    .pointerCursor()
-                Text(
-                    "Summons the system loupe from a hotkey or the panel, then copies the sampled color to your clipboard."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                Text("Color Picker")
-            }
-
+        Group {
             Section {
                 HStack {
-                    LabeledContent("Pick hotkey") { ColorPickerShortcutRecorder() }
+                    LabeledContent("Pick hotkey") {
+                        HotKeyRecorderControl(keyPrefix: "colorPickerHotKey", defaultLabel: "⌃⌥⌘C")
+                    }
                     InfoDot("Summons the magnifier from anywhere.")
                 }
                 Picker("Copy format", selection: $copyFormat) {
@@ -64,72 +55,9 @@ struct DevToolsPane: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .navigationTitle("Dev Tools")
         .onAppear { history = ColorHistoryStore.load() }
     }
 }
-
-private struct ColorPickerShortcutRecorder: View {
-    @State private var recording = false
-    @State private var monitor: Any?
-    @State private var label =
-        SharedDefaults.store.string(forKey: "colorPickerHotKeyLabel") ?? "⌃⌥⌘C"
-
-    var body: some View {
-        Button {
-            recording ? stop() : start()
-        } label: {
-            Text(recording ? "Press shortcut…" : label)
-                .font(.system(size: 12, weight: .medium))
-                .padding(.vertical, 2)
-                .padding(.horizontal, 6)
-        }
-        .pointerCursor()
-        .onDisappear { if recording { stop() } }
-        .help("Click, then press the new shortcut (Esc cancels)")
-    }
-
-    private func start() {
-        recording = true
-        NSApp.activate(ignoringOtherApps: true)
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            handle(event)
-            return nil
-        }
-    }
-
-    private func stop() {
-        recording = false
-        if let monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
-        label = SharedDefaults.store.string(forKey: "colorPickerHotKeyLabel") ?? "⌃⌥⌘C"
-    }
-
-    private func handle(_ event: NSEvent) {
-        if event.keyCode == 53 {
-            stop()
-            return
-        }
-        let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        guard flags.contains(.command) || flags.contains(.option) || flags.contains(.control)
-        else { return }
-        var mods = 0
-        var symbols = ""
-        if flags.contains(.control) { mods |= controlKey; symbols += "⌃" }
-        if flags.contains(.option) { mods |= optionKey; symbols += "⌥" }
-        if flags.contains(.shift) { mods |= shiftKey; symbols += "⇧" }
-        if flags.contains(.command) { mods |= cmdKey; symbols += "⌘" }
-        let key = event.charactersIgnoringModifiers?.uppercased() ?? "?"
-        SharedDefaults.store.set(Int(event.keyCode), forKey: "colorPickerHotKeyCode")
-        SharedDefaults.store.set(mods, forKey: "colorPickerHotKeyMods")
-        SharedDefaults.store.set(symbols + key, forKey: "colorPickerHotKeyLabel")
-        stop()
-    }
-}
-
 private struct ColorSwatchGrid: View {
     let history: [ColorSwatch]
     let defaultFormat: ColorCopyFormat

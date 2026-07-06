@@ -2,55 +2,46 @@ import AppKit
 import EdithKit
 import SwiftUI
 
-enum MainSection: String, Identifiable {
-    case dashboard, settings
-    var id: String { rawValue }
-}
+enum MainDestination: String, CaseIterable, Identifiable {
+    case dashboard, music, calendar
+    case extensions, usage, shortcuts, general, permissions, icloud
 
-enum SettingsDestination: String, CaseIterable, Identifiable {
-    case usage, music, calendar, system, notchShelf, devTools, clipboard, focusDim, presenter,
-        general, permissions, backup
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .usage: return "Usage"
+        case .dashboard: return "Dashboard"
         case .music: return "Music"
         case .calendar: return "Calendar"
-        case .system: return "System"
-        case .notchShelf: return "Notch Shelf"
-        case .devTools: return "Dev Tools"
-        case .clipboard: return "Clipboard"
-        case .focusDim: return "Focus Dim"
-        case .presenter: return "Presenter"
+        case .extensions: return "Extensions"
+        case .usage: return "Usage"
+        case .shortcuts: return "Shortcuts"
         case .general: return "General"
         case .permissions: return "Permissions"
-        case .backup: return "Backup"
+        case .icloud: return "iCloud"
         }
     }
 
     var icon: String {
         switch self {
-        case .usage: return "gauge.with.dots.needle.67percent"
+        case .dashboard: return "chart.bar.fill"
         case .music: return "music.note"
         case .calendar: return "calendar"
-        case .system: return "switch.2"
-        case .notchShelf: return "tray.and.arrow.down"
-        case .devTools: return "wrench.and.screwdriver"
-        case .clipboard: return "doc.on.clipboard"
-        case .focusDim: return "circle.lefthalf.filled"
-        case .presenter: return "theatermasks.fill"
+        case .extensions: return "puzzlepiece.extension"
+        case .usage: return "gauge.with.dots.needle.67percent"
+        case .shortcuts: return "command"
         case .general: return "gearshape"
         case .permissions: return "checkmark.shield"
-        case .backup: return "icloud"
+        case .icloud: return "icloud"
         }
     }
 
-    static let modules: [SettingsDestination] = [
-        .usage, .music, .calendar, .system, .notchShelf, .devTools, .clipboard, .focusDim,
-        .presenter,
+    static let home: [MainDestination] = [.dashboard, .music, .calendar]
+    static let app: [MainDestination] = [
+        .extensions, .usage, .shortcuts, .general, .permissions, .icloud,
     ]
-    static let app: [SettingsDestination] = [.general, .permissions, .backup]
+
+    var usesPaperBackground: Bool { Self.home.contains(self) }
 }
 
 enum Brand {
@@ -73,6 +64,7 @@ enum Brand {
 
 struct TitlebarChrome: View {
     let height: CGFloat
+    let width: CGFloat
     @AppStorage("mainSidebarOpen", store: SharedDefaults.store) private var sidebarOpen = true
 
     var body: some View {
@@ -89,7 +81,7 @@ struct TitlebarChrome: View {
             .help("Toggle sidebar (⌘B)")
             .keyboardShortcut("b", modifiers: .command)
 
-            if sidebarOpen {
+            if sidebarOpen, width >= 130 {
                 HStack(alignment: .center, spacing: 7) {
                     if let icon = Brand.icon {
                         Image(nsImage: icon)
@@ -99,35 +91,75 @@ struct TitlebarChrome: View {
                     }
                     Text("Edith")
                         .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
         }
-        .frame(width: 200, height: height, alignment: .leading)
+        .frame(width: width, height: height, alignment: .leading)
+        .clipped()
+    }
+}
+
+private struct SidebarNavRow: View {
+    let item: MainDestination
+    let selected: Bool
+    let theme: Color
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 13))
+                    .frame(width: 20)
+                Text(item.title)
+                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+        .background(
+            selected
+                ? AnyShapeStyle(theme)
+                : hovering ? AnyShapeStyle(.primary.opacity(0.06)) : AnyShapeStyle(.clear),
+            in: RoundedRectangle(cornerRadius: 7)
+        )
+        .onHover { hovering = $0 }
+        .pointerCursor()
     }
 }
 
 struct MainWindowView: View {
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
-        "dashboard"
-    @AppStorage("settingsSection", store: SharedDefaults.store) private var settingsSectionRaw =
-        SettingsDestination.general.rawValue
+        MainDestination.dashboard.rawValue
     @AppStorage("mainSidebarOpen", store: SharedDefaults.store) private var sidebarOpen = true
     @AppStorage("mainSidebarWidth", store: SharedDefaults.store) private var sidebarWidth = 230.0
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+    @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
+    @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
+    @ObservedObject private var musicRemote = MusicRemote.shared
     @State private var dragBaseWidth: Double?
     @State private var permissionsNeedAttention = PermissionsStatus.current
     @Environment(\.colorScheme) private var scheme
 
-    private var mainSelection: Binding<MainSection?> {
-        Binding(
-            get: { mainWindowSection == "settings" ? .settings : .dashboard },
-            set: { mainWindowSection = $0 == .settings ? "settings" : "dashboard" })
+    private var theme: Color { themeColor(themeName) }
+
+    private static let minSidebarWidth = 180.0
+    private static let maxSidebarWidth = 320.0
+
+    private var clampedSidebarWidth: Double {
+        min(Self.maxSidebarWidth, max(Self.minSidebarWidth, sidebarWidth))
     }
 
-    private var settingsSelection: Binding<SettingsDestination?> {
-        Binding(
-            get: { SettingsDestination(rawValue: settingsSectionRaw) },
-            set: { settingsSectionRaw = $0?.rawValue ?? SettingsDestination.general.rawValue })
+    private var destination: MainDestination {
+        MainDestination(rawValue: mainWindowSection) ?? .dashboard
     }
 
     var body: some View {
@@ -136,7 +168,7 @@ struct MainWindowView: View {
             HStack(spacing: 0) {
                 if sidebarOpen {
                     sidebar(bandHeight)
-                        .frame(width: sidebarWidth)
+                        .frame(width: clampedSidebarWidth)
                 }
                 detailColumn(bandHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -144,6 +176,7 @@ struct MainWindowView: View {
             .ignoresSafeArea()
             .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
         }
+        .onAppear { MusicRemote.shared.start() }
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
             IPC.post(IPC.Name.requestPermissionsRefresh)
             permissionsNeedAttention = PermissionsStatus.current
@@ -152,7 +185,9 @@ struct MainWindowView: View {
 
     private func chromeOverlay(_ bandHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
-            TitlebarChrome(height: min(bandHeight, 52))
+            TitlebarChrome(
+                height: min(bandHeight, 52),
+                width: sidebarOpen ? max(clampedSidebarWidth - 94, 60) : 200)
             Spacer(minLength: 0)
         }
         .padding(.leading, 94)
@@ -168,11 +203,17 @@ struct MainWindowView: View {
     private func detailColumn(_ bandHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
             band(
-                mainWindowSection == "settings"
-                    ? Color(nsColor: .windowBackgroundColor) : DashSkin.paper(scheme == .dark),
+                destination.usesPaperBackground
+                    ? DashSkin.paper(scheme == .dark) : Color(nsColor: .windowBackgroundColor),
                 height: bandHeight)
             detail
+                .tint(theme)
         }
+    }
+
+    private var footerVisible: Bool {
+        systemEnabled || permissionsNeedAttention
+            || (destination != .music && musicRemote.current != nil)
     }
 
     private func sidebar(_ bandHeight: CGFloat) -> some View {
@@ -180,50 +221,117 @@ struct MainWindowView: View {
             band(Color(nsColor: .windowBackgroundColor), height: bandHeight)
             VStack(spacing: 0) {
                 sidebarList
-                Divider()
-                sidebarFooter
+                if footerVisible {
+                    Divider()
+                    sidebarFooter
+                }
+                Text("Made with ♥ by Pulkit")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 8)
             }
             .background(Color(nsColor: .windowBackgroundColor))
         }
         .overlay(alignment: .trailing) { sidebarEdge }
     }
 
-    @ViewBuilder
     private var sidebarList: some View {
-        if mainWindowSection == "settings" {
-            List(selection: settingsSelection) {
-                Section("Extensions") {
-                    ForEach(SettingsDestination.modules) { destination in
-                        sidebarRow(destination.title, icon: destination.icon)
-                            .tag(destination)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(MainDestination.home) { item in
+                    SidebarNavRow(
+                        item: item, selected: destination == item, theme: theme
+                    ) {
+                        mainWindowSection = item.rawValue
                     }
                 }
-                Section("App") {
-                    ForEach(SettingsDestination.app) { destination in
-                        sidebarRow(destination.title, icon: destination.icon)
-                            .tag(destination)
+                Text("App")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 14)
+                    .padding(.bottom, 4)
+                ForEach(MainDestination.app) { item in
+                    SidebarNavRow(
+                        item: item, selected: destination == item, theme: theme
+                    ) {
+                        mainWindowSection = item.rawValue
                     }
                 }
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private var sidebarFooter: some View {
+        VStack(spacing: 8) {
+            if systemEnabled {
+                quickActions
+            }
+            if destination != .music {
+                SidebarMiniPlayer(width: clampedSidebarWidth)
+            }
+            if permissionsNeedAttention {
+                permissionsPill
+            }
+        }
+        .padding(10)
+    }
+
+    @ViewBuilder
+    private var quickActions: some View {
+        let tiles = [
+            quickActionTile(
+                icon: "keyboard", title: "Clean keys", active: false,
+                help: "Lock the keyboard so you can wipe it"
+            ) {
+                IPC.post(IPC.Name.requestKeyboardClean)
+            },
+            quickActionTile(
+                icon: preventSleep ? "moon.zzz.fill" : "moon.zzz", title: "Keep awake",
+                active: preventSleep,
+                help: "Keep this Mac from sleeping until turned off"
+            ) {
+                preventSleep.toggle()
+            },
+        ]
+        if clampedSidebarWidth < 220 {
+            VStack(spacing: 8) {
+                tiles[0]; tiles[1]
+            }
         } else {
-            List(selection: mainSelection) {
-                Section("Home") {
-                    sidebarRow("Dashboard", icon: "chart.bar.fill")
-                        .tag(MainSection.dashboard)
-                }
+            HStack(spacing: 8) {
+                tiles[0]; tiles[1]
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
         }
     }
 
-    private func sidebarRow(_ title: String, icon: String) -> some View {
-        Label(title, systemImage: icon)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private func quickActionTile(
+        icon: String, title: String, active: Bool, help: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+            .background(
+                active ? AnyShapeStyle(theme) : AnyShapeStyle(.primary.opacity(0.05)),
+                in: RoundedRectangle(cornerRadius: 9)
+            )
             .contentShape(Rectangle())
-            .pointerCursor()
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .help(help)
     }
 
     private var sidebarEdge: some View {
@@ -244,37 +352,20 @@ struct MainWindowView: View {
                     .gesture(
                         DragGesture(coordinateSpace: .global)
                             .onChanged { value in
-                                let base = dragBaseWidth ?? sidebarWidth
+                                let base = dragBaseWidth ?? clampedSidebarWidth
                                 dragBaseWidth = base
-                                sidebarWidth = min(320, max(180, base + value.translation.width))
+                                sidebarWidth = min(
+                                    Self.maxSidebarWidth,
+                                    max(Self.minSidebarWidth, base + value.translation.width))
                             }
                             .onEnded { _ in dragBaseWidth = nil }
                     )
             }
     }
 
-    private var sidebarFooter: some View {
-        VStack(spacing: 6) {
-            if mainWindowSection != "settings", permissionsNeedAttention {
-                permissionsPill
-            }
-            if mainWindowSection == "settings" {
-                sidebarFooterButton(title: "Back to Dashboard", icon: "chevron.left") {
-                    mainWindowSection = "dashboard"
-                }
-            } else {
-                sidebarFooterButton(title: "Settings", icon: "gearshape") {
-                    mainWindowSection = "settings"
-                }
-            }
-        }
-        .padding(10)
-    }
-
     private var permissionsPill: some View {
         Button {
-            settingsSectionRaw = SettingsDestination.permissions.rawValue
-            mainWindowSection = "settings"
+            mainWindowSection = MainDestination.permissions.rawValue
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -291,41 +382,18 @@ struct MainWindowView: View {
         .pointerCursor()
     }
 
-    private func sidebarFooterButton(
-        title: String, icon: String, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .buttonStyle(HoverButtonStyle())
-    }
-
     @ViewBuilder
     private var detail: some View {
-        if mainWindowSection == "settings" {
-            settingsDetail
-        } else {
-            DashboardView()
-        }
-    }
-
-    @ViewBuilder
-    private var settingsDetail: some View {
-        switch settingsSelection.wrappedValue ?? .general {
+        switch destination {
+        case .dashboard: DashboardView()
+        case .music: MusicPage()
+        case .calendar: CalendarPage()
+        case .extensions: ExtensionsPane()
         case .usage: UsagePane()
-        case .music: MusicPane()
-        case .calendar: CalendarPane()
-        case .system: SystemPane()
-        case .notchShelf: NotchShelfPane()
-        case .devTools: DevToolsPane()
-        case .clipboard: ClipboardPane()
-        case .focusDim: FocusDimPane()
-        case .presenter: PresenterPane()
+        case .shortcuts: ShortcutsPane()
         case .general: GeneralPane()
         case .permissions: MainPermissionsPane()
-        case .backup: BackupPane()
+        case .icloud: ICloudPane()
         }
     }
 }

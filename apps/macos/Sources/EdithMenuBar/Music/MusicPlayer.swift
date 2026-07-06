@@ -3,22 +3,6 @@ import AppKit
 import EdithKit
 import MediaPlayer
 
-struct Track: Identifiable, Equatable {
-    let url: URL
-    var id: URL { url }
-    var title: String {
-        url.deletingPathExtension().lastPathComponent
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: "_", with: " ")
-            .capitalized
-    }
-    var hue: Double {
-        var h: UInt64 = 5381
-        for b in url.lastPathComponent.utf8 { h = (h &* 33) &+ UInt64(b) }
-        return Double(h % 360) / 360
-    }
-}
-
 @MainActor
 final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, FeatureModule {
     @Published private(set) var tracks: [Track] = []
@@ -28,17 +12,22 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         didSet {
             player?.setVolume(Float(volume), fadeDuration: 0.1)
             UserDefaults.standard.set(volume, forKey: "musicVolume")
+            broadcastState()
         }
     }
     @Published var isLooping: Bool {
-        didSet { UserDefaults.standard.set(isLooping, forKey: "musicLooping") }
+        didSet {
+            UserDefaults.standard.set(isLooping, forKey: "musicLooping")
+            broadcastState()
+        }
     }
 
     private var player: AVAudioPlayer?
-    private var artworkCache: [URL: NSImage] = [:]
     private let fade: TimeInterval = 0.35
     private var saveTimer: Timer?
     private var folderChangedObserver: NSObjectProtocol?
+    private var commandObserver: NSObjectProtocol?
+    private var stateRequestObserver: NSObjectProtocol?
 
     override init() {
         let saved = UserDefaults.standard.object(forKey: "musicVolume") as? Double
@@ -53,6 +42,50 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
         }
+        commandObserver = IPC.observe(
+            IPC.Name.musicCommand,
+            info: { [weak self] info in
+                MainActor.assumeIsolated { self?.handleCommand(info) }
+            })
+        stateRequestObserver = IPC.observe(IPC.Name.requestMusicState) { [weak self] in
+            MainActor.assumeIsolated { self?.broadcastState() }
+        }
+        broadcastState()
+    }
+
+    private func handleCommand(_ info: [AnyHashable: Any]) {
+        switch info["action"] as? String {
+        case "playPause": playPause()
+        case "next": next()
+        case "previous": previous()
+        case "toggle":
+            if let file = info["track"] as? String,
+                let track = tracks.first(where: { $0.url.lastPathComponent == file })
+            {
+                toggle(track)
+            }
+        case "seek":
+            if let fraction = info["value"] as? Double { seek(to: fraction) }
+        case "volume":
+            if let value = info["value"] as? Double { volume = min(max(value, 0), 1) }
+        case "loop":
+            if let value = info["value"] as? Bool { isLooping = value }
+        default: break
+        }
+    }
+
+    private func broadcastState() {
+        IPC.post(
+            IPC.Name.musicState,
+            userInfo: [
+                "track": current?.url.lastPathComponent ?? "",
+                "isPlaying": isPlaying,
+                "elapsed": elapsed,
+                "duration": trackDuration,
+                "volume": volume,
+                "looping": isLooping,
+                "at": Date().timeIntervalSince1970,
+            ])
     }
 
     private func startSaveTimer() {
@@ -107,19 +140,8 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         center.playbackState = isPlaying ? .playing : .paused
     }
 
-    private static let playableExtensions: Set<String> =
-        ["mp3", "m4a", "m4b", "aac", "wav", "aiff", "flac", "mp4", "mov", "webm"]
-
     func rescan() {
-        let files =
-            (try? FileManager.default.contentsOfDirectory(
-                at: Repo.musicDir, includingPropertiesForKeys: nil
-            )) ?? []
-        tracks =
-            files
-            .filter { Self.playableExtensions.contains($0.pathExtension.lowercased()) }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map(Track.init)
+        tracks = TrackMeta.scanMusicFolder()
         if let current, !tracks.contains(current) {
             stop()
         }
@@ -174,6 +196,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         startSaveTimer()
         updateNowPlaying()
         persistPlayback()
+        broadcastState()
     }
 
     private func pause() {
@@ -187,6 +210,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
             self.player?.pause()
         }
         updateNowPlaying()
+        broadcastState()
     }
 
     private func resume() {
@@ -196,6 +220,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         isPlaying = true
         startSaveTimer()
         updateNowPlaying()
+        broadcastState()
     }
 
     func stop() {
@@ -206,13 +231,12 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         current = nil
         isPlaying = false
         updateNowPlaying()
+        broadcastState()
     }
 
     func shutdown() {
         stop()
         tracks = []
-        artworkCache.removeAll()
-        durationCache.removeAll()
         let center = MPRemoteCommandCenter.shared()
         [
             center.playCommand, center.pauseCommand, center.togglePlayPauseCommand,
@@ -223,6 +247,14 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         if let folderChangedObserver {
             NotificationCenter.default.removeObserver(folderChangedObserver)
             self.folderChangedObserver = nil
+        }
+        if let commandObserver {
+            IPC.stopObserving(commandObserver)
+            self.commandObserver = nil
+        }
+        if let stateRequestObserver {
+            IPC.stopObserving(stateRequestObserver)
+            self.stateRequestObserver = nil
         }
     }
 
@@ -245,53 +277,15 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         p.currentTime = min(max(fraction, 0), 0.999) * p.duration
         updateNowPlaying()
         persistPlayback()
+        broadcastState()
     }
 
-    private var durationCache: [URL: TimeInterval] = [:]
-
     func durationLabel(for track: Track) async -> String? {
-        let seconds: TimeInterval
-        if let hit = durationCache[track.url] {
-            seconds = hit
-        } else {
-            let asset = AVURLAsset(url: track.url)
-            guard let time = try? await asset.load(.duration) else { return nil }
-            seconds = time.seconds
-            durationCache[track.url] = seconds
-        }
-        guard seconds.isFinite, seconds > 0 else { return nil }
-        let total = Int(seconds)
-        return total >= 3600
-            ? String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
-            : String(format: "%d:%02d", total / 60, total % 60)
+        await TrackMeta.durationLabel(for: track)
     }
 
     func artwork(for track: Track) async -> NSImage? {
-        if let hit = artworkCache[track.url] { return hit }
-        let asset = AVURLAsset(url: track.url)
-        if let metadata = try? await asset.load(.metadata) {
-            for item in metadata where item.commonKey == .commonKeyArtwork {
-                if let data = try? await item.load(.dataValue), let image = NSImage(data: data) {
-                    artworkCache[track.url] = image
-                    return image
-                }
-            }
-        }
-        if let videoTracks = try? await asset.loadTracks(withMediaType: .video),
-            !videoTracks.isEmpty
-        {
-            let generator = AVAssetImageGenerator(asset: asset)
-            generator.appliesPreferredTrackTransform = true
-            generator.maximumSize = CGSize(width: 120, height: 120)
-            let seconds = (try? await asset.load(.duration))?.seconds ?? 0
-            let at = CMTime(seconds: max(1, seconds * 0.2), preferredTimescale: 600)
-            if let cg = try? await generator.image(at: at).image {
-                let image = NSImage(cgImage: cg, size: .zero)
-                artworkCache[track.url] = image
-                return image
-            }
-        }
-        return nil
+        await TrackMeta.artwork(for: track)
     }
 
     private func persistPlayback() {

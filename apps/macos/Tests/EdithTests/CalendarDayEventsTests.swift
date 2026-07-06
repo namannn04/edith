@@ -1,6 +1,6 @@
 import Testing
 import EventKit
-@testable import EdithMenuBar
+@testable import EdithKit
 
 @Suite struct CalendarDayEventsTests {
     private static let scratchStore = EKEventStore()
