@@ -47,6 +47,7 @@ final class UsageStore: ObservableObject {
 
     @Published private(set) var updating = false
     @Published private(set) var log = ""
+    @Published private(set) var diagnostics = ""
 
     private var defaultSources: [String] = []
     private var daily: [DailyRow] = []
@@ -57,6 +58,7 @@ final class UsageStore: ObservableObject {
     private var usageMtime: Date?
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
+    private var sleepObserver: NSObjectProtocol?
     private var locked = false
     private var lockObservers: [NSObjectProtocol] = []
     private var process: Process?
@@ -71,15 +73,28 @@ final class UsageStore: ObservableObject {
     init() {
         startPolling()
 
+        sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                Log.lifecycle.notice("going to sleep - pausing usage poll")
+                self?.diag("going to sleep - pausing usage poll")
+                self?.stopPolling()
+            }
+        }
+
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                Log.lifecycle.notice("woke from sleep (locked=\(self.locked, privacy: .public))")
+                let msg = "woke from sleep (locked=\(self.locked))"
+                Log.lifecycle.notice("\(msg, privacy: .public)")
+                self.diag(msg)
                 guard !self.locked else { return }
-                await self.refreshLimits()
-                await self.loadStats()
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !self.locked else { return }
+                self.startPolling()
             }
         }
 
@@ -89,6 +104,7 @@ final class UsageStore: ObservableObject {
                 [weak self] _ in
                 Task { @MainActor in
                     Log.lifecycle.notice("screen locked - pausing usage poll")
+                    self?.diag("screen locked - pausing usage poll")
                     self?.locked = true
                     self?.stopPolling()
                 }
@@ -97,6 +113,7 @@ final class UsageStore: ObservableObject {
             { [weak self] _ in
                 Task { @MainActor in
                     Log.lifecycle.notice("screen unlocked - resuming usage poll")
+                    self?.diag("screen unlocked - resuming usage poll")
                     self?.locked = false
                     self?.startPolling()
                 }
@@ -148,11 +165,16 @@ final class UsageStore: ObservableObject {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil
         }
+        if let sleepObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver)
+            self.sleepObserver = nil
+        }
         process?.terminate()
         daily = []
         stats = []
         calendarDays = []
         log = ""
+        diagnostics = ""
         usageMtime = nil
         limitPoints = []
         statusItem?.remove()
@@ -201,38 +223,75 @@ final class UsageStore: ObservableObject {
     private func fetchLimitsOnce() async {
         guard let token = currentToken() else {
             limitsError = "Claude Code token not found"
+            diag("token not found (keychain + credentials file both empty)")
             keepOrBlankMenuBar()
             return
         }
         do {
             let usage = try await Self.fetchUsage(token: token)
             apply(usage)
-            Log.usage.notice(
-                "usage ok: session=\(Int((self.session?.percent ?? 0).rounded()), privacy: .public)% week=\(Int((self.week?.percent ?? 0).rounded()), privacy: .public)%"
-            )
+            let msg =
+                "usage ok: session=\(Int((session?.percent ?? 0).rounded()))% week=\(Int((week?.percent ?? 0).rounded()))%"
+            Log.usage.notice("\(msg, privacy: .public)")
+            diag(msg)
+            return
         } catch FetchError.unauthorized {
+            diag("401 unauthorized - re-reading token and retrying once")
             Log.usage.error("401 unauthorized - re-reading token and retrying once")
             cachedToken = nil
-            if let fresh = currentToken(), let usage = try? await Self.fetchUsage(token: fresh) {
-                apply(usage)
-                Log.usage.notice("recovered after token re-read")
-            } else {
-                limitsError = "Token expired - run claude to re-login"
-                notifier.notifyTokenExpired()
-                keepOrBlankMenuBar()
-                Log.usage.error(
-                    "still unauthorized after re-read - token expired, keeping last-known numbers")
-            }
-        } catch FetchError.rateLimited(let after) {
-            retryNotBefore = Date().addingTimeInterval(after ?? 1800)
-            keepOrBlankMenuBar()
-            Log.usage.error("429 rate limited - backing off \(after ?? 1800, privacy: .public)s")
         } catch {
-            limitsError = "Offline"
+            report(error)
+            return
+        }
+
+        guard let fresh = currentToken() else {
+            limitsError = "Claude Code token not found"
+            diag("token re-read failed - keychain + credentials file both empty")
             keepOrBlankMenuBar()
-            Log.usage.error("fetch failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        do {
+            let usage = try await Self.fetchUsage(token: fresh)
+            apply(usage)
+            Log.usage.notice("recovered after token re-read")
+            diag("recovered after token re-read")
+        } catch {
+            report(error)
         }
     }
+
+    private func report(_ error: Error) {
+        let msg: String
+        switch error {
+        case FetchError.unauthorized:
+            limitsError = "Token expired - run claude to re-login"
+            notifier.notifyTokenExpired()
+            msg = "still unauthorized after re-read - token expired, keeping last-known numbers"
+        case FetchError.rateLimited(let after):
+            retryNotBefore = Date().addingTimeInterval(after ?? 1800)
+            limitsError =
+                "Rate limited by Claude - retrying at \(retryNotBefore!.formatted(date: .omitted, time: .shortened))"
+            msg = "429 rate limited - backing off \(Int(after ?? 1800))s"
+        default:
+            limitsError = "Offline"
+            msg = "fetch failed: \(error.localizedDescription)"
+        }
+        Log.usage.error("\(msg, privacy: .public)")
+        diag(msg)
+        keepOrBlankMenuBar()
+    }
+
+    private func diag(_ message: String) {
+        diagnostics += "\(Self.diagTimeFormatter.string(from: Date()))  \(message)\n"
+        if diagnostics.count > 20_000 { diagnostics = String(diagnostics.suffix(16_000)) }
+    }
+
+    static let diagTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
 
     private func keepOrBlankMenuBar() {
         if session == nil, week == nil {
@@ -398,6 +457,7 @@ final class UsageStore: ObservableObject {
             }.value
         } catch {
             statsError = "usage.json missing - hit reload"
+            diag("usage.json decode failed: \(error.localizedDescription)")
             return
         }
 

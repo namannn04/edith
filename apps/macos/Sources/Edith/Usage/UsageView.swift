@@ -3,6 +3,7 @@ import SwiftUI
 struct UsageView: View {
     @EnvironmentObject private var store: UsageStore
     @State private var showLog = false
+    @State private var showDiagnostics = false
     @AppStorage("presenterMode") private var presenter = false
     @AppStorage("theme") private var themeName = "accent"
 
@@ -36,6 +37,15 @@ struct UsageView: View {
                         .monospacedDigit()
                         .foregroundStyle(.tertiary)
                 }
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showDiagnostics.toggle() }
+                } label: {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 11))
+                        .foregroundStyle(showDiagnostics ? theme : Color.secondary)
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help("Show diagnostic log")
                 Button {
                     Task { await store.refreshLimits(force: true) }
                 } label: {
@@ -74,6 +84,9 @@ struct UsageView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .frame(maxWidth: .infinity, alignment: .center)
+            }
+            if showDiagnostics {
+                TerminalLogView(log: store.diagnostics, theme: theme, height: 130)
             }
         }
         .card()
