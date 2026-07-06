@@ -392,7 +392,7 @@ struct DashboardView: View {
                     height: 200, blur: blurMoney)
             }
             SkinCard(title: "Share by model", dark: dark) {
-                DonutChart(slices: donutSlices)
+                DonutChart(slices: donutSlices, blur: blurMoney)
             }
         }
         if !model.projects.isEmpty {
