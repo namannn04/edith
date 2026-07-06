@@ -8,7 +8,7 @@ enum MainSection: String, Identifiable {
 }
 
 enum SettingsDestination: String, CaseIterable, Identifiable {
-    case usage, music, calendar, system, presenter, general, permissions, backup
+    case usage, music, calendar, system, focusDim, presenter, general, permissions, backup
     var id: String { rawValue }
 
     var title: String {
@@ -17,6 +17,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable {
         case .music: return "Music"
         case .calendar: return "Calendar"
         case .system: return "System"
+        case .focusDim: return "Focus Dim"
         case .presenter: return "Presenter"
         case .general: return "General"
         case .permissions: return "Permissions"
@@ -30,6 +31,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable {
         case .music: return "music.note"
         case .calendar: return "calendar"
         case .system: return "switch.2"
+        case .focusDim: return "circle.lefthalf.filled"
         case .presenter: return "theatermasks.fill"
         case .general: return "gearshape"
         case .permissions: return "checkmark.shield"
@@ -37,7 +39,9 @@ enum SettingsDestination: String, CaseIterable, Identifiable {
         }
     }
 
-    static let modules: [SettingsDestination] = [.usage, .music, .calendar, .system, .presenter]
+    static let modules: [SettingsDestination] = [
+        .usage, .music, .calendar, .system, .focusDim, .presenter,
+    ]
     static let app: [SettingsDestination] = [.general, .permissions, .backup]
 }
 
@@ -306,6 +310,7 @@ struct MainWindowView: View {
         case .music: MusicPane()
         case .calendar: CalendarPane()
         case .system: SystemPane()
+        case .focusDim: FocusDimPane()
         case .presenter: PresenterPane()
         case .general: GeneralPane()
         case .permissions: MainPermissionsPane()
