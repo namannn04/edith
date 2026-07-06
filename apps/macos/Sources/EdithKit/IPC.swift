@@ -24,6 +24,7 @@ public enum IPC {
             "com.pulkit.edith.grantScreenRecording")
         public static let requestTestNotification = Notification.Name(
             "com.pulkit.edith.requestTestNotification")
+        public static let clipboardChanged = Notification.Name("com.pulkit.edith.clipboardChanged")
         public static let presenterAutoActiveChanged = Notification.Name(
             "com.pulkit.edith.presenterAutoActiveChanged")
     }
