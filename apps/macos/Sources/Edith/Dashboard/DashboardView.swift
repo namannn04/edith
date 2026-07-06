@@ -26,15 +26,15 @@ struct DashboardView: View {
                 if model.loaded {
                     kpiGrid.padding(.horizontal, 24)
                     Section {
-                        VStack(spacing: 16) {
-                            SkinCard(title: "Activity", dark: dark) {
-                                ActivityHeatmap(
-                                    days: model.calendarDays, model: model, dark: dark)
-                            }
-                            LimitsCardView(theme: acc, dark: dark)
-                            charts
+                        SkinCard(title: "Activity", dark: dark) {
+                            ActivityHeatmap(
+                                days: model.calendarDays, model: model, dark: dark)
                         }
-                        .padding(.horizontal, 24).padding(.bottom, 28)
+                        .padding(.horizontal, 24)
+                        LimitsCardView(theme: acc, dark: dark)
+                            .padding(.horizontal, 24)
+                        charts
+                        Color.clear.frame(height: 12)
                     } header: {
                         controlsBar
                     }
@@ -339,22 +339,26 @@ struct DashboardView: View {
             ComboChart(
                 points: dailyPoints, barColor: acc, lineColor: gold, dark: dark, scroll: true)
         }
+        .padding(.horizontal, 24)
         SkinCard(title: "Token mix by day", dark: dark) {
             StackedChart(
                 bars: tokenMixBars, costLine: dailyPoints,
                 domain: tokenMixDomain, range: tokenMixRange, dark: dark)
         }
+        .padding(.horizontal, 24)
         SkinCard(title: "Model usage over time", dark: dark) {
             StackedChart(
                 bars: modelTimeBars, costLine: dailyPoints,
                 domain: modelDomain, range: modelRange, dark: dark)
         }
+        .padding(.horizontal, 24)
         if model.allSources.count > 1 {
             SkinCard(title: "Usage by source over time", dark: dark) {
                 StackedChart(
                     bars: sourceBars, costLine: dailyPoints,
                     domain: sourceDomain, range: sourceRange, dark: dark)
             }
+            .padding(.horizontal, 24)
         }
         HStack(alignment: .top, spacing: 16) {
             SkinCard(title: "By day of week", dark: dark) {
@@ -365,6 +369,7 @@ struct DashboardView: View {
                 DonutChart(slices: donutSlices)
             }
         }
+        .padding(.horizontal, 24)
         if !model.projects.isEmpty {
             SkinCard(title: "By project", dark: dark) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -374,12 +379,15 @@ struct DashboardView: View {
                     ProjectDrilldownView(model: model, dark: dark)
                 }
             }
+            .padding(.horizontal, 24)
         }
         SkinCard(title: "Hourly — all time", dark: dark) {
             ComboChart(
                 points: hourlyPoints, barColor: acc, lineColor: gold, dark: dark, height: 200)
         }
+        .padding(.horizontal, 24)
         SkinCard(title: "Models", dark: dark) { modelsTable }
+            .padding(.horizontal, 24)
     }
 
     private var modelsTable: some View {

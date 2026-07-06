@@ -9,7 +9,7 @@ struct ProjectDrilldownView: View {
     private static let numWidths: [CGFloat] = [95, 85, 55, 72, 70, 60]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             toggleButton
             if model.projListOpen {
                 headerRow
@@ -131,12 +131,12 @@ struct ProjectDrilldownView: View {
         .padding(.vertical, 4)
     }
 
-    private func treeRow(
+    @ViewBuilder private func treeRow(
         depth: Int, expandable: Bool, open: Bool, icon: String, badge: Int,
         label: String, values: some ProjSortable, chatId: String?, tint: Color,
         expandKey: String?
     ) -> some View {
-        HStack(spacing: 8) {
+        let row = HStack(spacing: 8) {
             nameCell(
                 depth: depth, expandable: expandable, open: open, icon: icon, badge: badge,
                 label: label, chatId: chatId)
@@ -149,21 +149,23 @@ struct ProjectDrilldownView: View {
         }
         .foregroundStyle(tint)
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard let expandKey, expandable else { return }
-            withAnimation(.easeOut(duration: 0.12)) {
-                if model.projExpanded.contains(expandKey) {
-                    model.projExpanded.remove(expandKey)
-                } else {
-                    model.projExpanded.insert(expandKey)
-                }
-            }
-        }
-        .contextMenu {
-            if let chatId, !chatId.isEmpty {
+        if let chatId, !chatId.isEmpty {
+            row.contextMenu {
                 Button("Copy chat ID") { copyToPasteboard(chatId) }
             }
+        } else {
+            row
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard let expandKey, expandable else { return }
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        if model.projExpanded.contains(expandKey) {
+                            model.projExpanded.remove(expandKey)
+                        } else {
+                            model.projExpanded.insert(expandKey)
+                        }
+                    }
+                }
         }
     }
 
@@ -204,7 +206,6 @@ struct ProjectDrilldownView: View {
                 img
             }
             .buttonStyle(.plain)
-            .help("Click to copy chat id")
         } else {
             img
         }

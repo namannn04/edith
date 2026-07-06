@@ -1005,12 +1005,23 @@ enum DashFmt {
         if v >= 1000 { return String(format: "%.1fk", v / 1000) }
         return String(format: "%.0f", v)
     }
-    static func tokensFull(_ v: Double) -> String {
+    private static let tokensFullFmt: NumberFormatter = {
         let f = NumberFormatter()
         f.locale = Locale(identifier: "en_US")
         f.numberStyle = .decimal
         f.maximumFractionDigits = 0
-        return f.string(from: NSNumber(value: v)) ?? "\(Int(v))"
+        return f
+    }()
+    private static let usdLongFmt: NumberFormatter = {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "en_US")
+        f.numberStyle = .decimal
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f
+    }()
+    static func tokensFull(_ v: Double) -> String {
+        tokensFullFmt.string(from: NSNumber(value: v)) ?? "\(Int(v))"
     }
     static func usd(_ v: Double) -> String {
         if v >= 1000 { return String(format: "$%.1fk", v / 1000) }
@@ -1018,12 +1029,7 @@ enum DashFmt {
     }
     static func usdFull(_ v: Double) -> String { String(format: "$%.2f", v) }
     static func usdLong(_ v: Double) -> String {
-        let f = NumberFormatter()
-        f.locale = Locale(identifier: "en_US")
-        f.numberStyle = .decimal
-        f.minimumFractionDigits = 2
-        f.maximumFractionDigits = 2
-        return "$" + (f.string(from: NSNumber(value: v)) ?? String(format: "%.2f", v))
+        "$" + (usdLongFmt.string(from: NSNumber(value: v)) ?? String(format: "%.2f", v))
     }
     static func pct(_ v: Double) -> String { String(format: "%.1f%%", v * 100) }
     static func duration(_ ms: Double) -> String {
