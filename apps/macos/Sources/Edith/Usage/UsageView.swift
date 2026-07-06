@@ -5,9 +5,11 @@ struct UsageView: View {
     @State private var showLog = false
     @State private var showDiagnostics = false
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("presenterBlurMoney") private var presenterBlurMoney = true
     @AppStorage("theme") private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
+    private var blurMoney: Bool { presenter && presenterBlurMoney }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -158,7 +160,7 @@ struct UsageView: View {
                     .font(.system(size: 11))
                     .monospacedDigit()
                     .foregroundStyle(.tertiary)
-                    .presenterBlur(presenter)
+                    .presenterBlur(blurMoney)
             }
             HStack(alignment: .top, spacing: 4) {
                 VStack(spacing: 4) {
@@ -184,7 +186,7 @@ struct UsageView: View {
                                         .fill(cellColor(day.cost, cuts: cuts))
                                         .frame(width: 17, height: 17)
                                         .help(
-                                            presenter
+                                            blurMoney
                                                 ? day.date.formatted(.dateTime.day().month())
                                                 : "\(day.date.formatted(.dateTime.day().month())) - $\(String(format: "%.2f", day.cost))"
                                         )
@@ -286,12 +288,12 @@ struct UsageView: View {
                             Spacer()
                             Text(stat.tokens.compactTokens)
                                 .monospacedDigit()
-                                .presenterBlur(presenter)
+                                .presenterBlur(blurMoney)
                             Text(String(format: "$%.2f", stat.cost))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
                                 .frame(width: 84, alignment: .trailing)
-                                .presenterBlur(presenter)
+                                .presenterBlur(blurMoney)
                         }
                         .font(.system(size: 13))
                     }

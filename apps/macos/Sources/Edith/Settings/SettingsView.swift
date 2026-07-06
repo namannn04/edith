@@ -15,6 +15,9 @@ func themeColor(_ name: String) -> Color {
 struct SettingsView: View {
     @EnvironmentObject private var services: AppServices
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("presenterBlurMusic") private var presenterBlurMusic = true
+    @AppStorage("presenterBlurMoney") private var presenterBlurMoney = true
+    @State private var showPresenterDetail = false
     @AppStorage("theme") private var themeName = "accent"
     @AppStorage("lastPaletteTheme") private var lastPaletteTheme = "blue"
     @AppStorage("appearance") private var appearance = "system"
@@ -87,16 +90,40 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 eyebrow("GENERAL")
-                HStack {
-                    Text("Presenter view")
-                        .font(.system(size: 13))
-                    Spacer()
-                    Toggle("", isOn: $presenter)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .tint(theme)
-                        .pointerCursor()
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Button {
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                showPresenterDetail.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .rotationEffect(.degrees(showPresenterDetail ? 90 : 0))
+                                Text("Presenter view")
+                                    .font(.system(size: 13))
+                            }
+                        }
+                        .buttonStyle(HoverButtonStyle())
+                        Spacer()
+                        Toggle("", isOn: $presenter)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(theme)
+                            .pointerCursor()
+                    }
+                    if showPresenterDetail {
+                        Group {
+                            toggleRow("Music", isOn: $presenterBlurMusic)
+                            toggleRow("Money metrics", isOn: $presenterBlurMoney)
+                        }
+                        .padding(.leading, 16)
+                        .disabled(!presenter)
+                        .opacity(presenter ? 1 : 0.45)
+                    }
                 }
                 HStack {
                     Text("Toggle shortcut")

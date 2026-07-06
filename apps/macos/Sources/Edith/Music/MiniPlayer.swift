@@ -4,6 +4,7 @@ struct MiniPlayer: View {
     @ObservedObject var player: MusicPlayer
     let theme: Color
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("presenterBlurMusic") private var presenterBlurMusic = true
 
     var body: some View {
         if let track = player.current {
@@ -14,7 +15,7 @@ struct MiniPlayer: View {
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
                         .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                        .presenterBlur(presenter)
+                        .presenterBlur(presenter && presenterBlurMusic)
                     TimelineView(.periodic(from: .now, by: 1)) { _ in
                         Text("\(timeLabel(player.elapsed)) / \(timeLabel(player.trackDuration))")
                             .font(.system(size: 10))

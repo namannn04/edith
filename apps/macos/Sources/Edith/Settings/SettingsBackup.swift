@@ -32,7 +32,8 @@ final class SettingsBackup: ObservableObject {
     @Published private(set) var musicBackupRunning = false
 
     private static let keys = [
-        "theme", "tab", "presenterMode", "tabUsageEnabled", "tabMusicEnabled",
+        "theme", "tab", "presenterMode", "presenterBlurMusic", "presenterBlurMoney",
+        "tabUsageEnabled", "tabMusicEnabled",
         "hotKeyCode", "hotKeyMods", "hotKeyLabel", "musicVolume", "repoPath",
         "icloudBackup", "musicBackup", "lastPaletteTheme", "appearance",
         "tabSystemEnabled", "preventSleep", "tabOrder",

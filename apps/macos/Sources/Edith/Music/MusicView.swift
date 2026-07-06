@@ -5,9 +5,11 @@ struct MusicView: View {
     @ObservedObject private var mini = MiniPanel.shared
     @State private var dragFraction: Double?
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("presenterBlurMusic") private var presenterBlurMusic = true
     @AppStorage("theme") private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
+    private var blurMusic: Bool { presenter && presenterBlurMusic }
 
     private var scrubberRow: some View {
         HStack(spacing: 10) {
@@ -64,7 +66,7 @@ struct MusicView: View {
                     .lineLimit(1)
                     .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
                     .foregroundStyle(player.current == nil ? .secondary : .primary)
-                    .presenterBlur(presenter && player.current != nil)
+                    .presenterBlur(blurMusic && player.current != nil)
                 if player.current != nil {
                     if player.isPlaying, mini.panelOpen {
                         TimelineView(.periodic(from: .now, by: 0.2)) { _ in
@@ -165,6 +167,7 @@ private struct TrackRow: View {
     @State private var duration: String?
     @State private var hovering = false
     @AppStorage("presenterMode") private var presenter = false
+    @AppStorage("presenterBlurMusic") private var presenterBlurMusic = true
     @AppStorage("theme") private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
@@ -202,7 +205,7 @@ private struct TrackRow: View {
                     .font(.system(size: 13))
                     .lineLimit(1)
                     .foregroundStyle(isCurrent ? theme : .primary)
-                    .presenterBlur(presenter)
+                    .presenterBlur(presenter && presenterBlurMusic)
 
                 Spacer()
 
