@@ -8,8 +8,8 @@ enum MainSection: String, Identifiable {
 }
 
 enum SettingsDestination: String, CaseIterable, Identifiable {
-    case usage, music, calendar, system, devTools, clipboard, focusDim, presenter, general,
-        permissions, backup
+    case usage, music, calendar, system, notchShelf, devTools, clipboard, focusDim, presenter,
+        general, permissions, backup
     var id: String { rawValue }
 
     var title: String {
@@ -18,6 +18,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable {
         case .music: return "Music"
         case .calendar: return "Calendar"
         case .system: return "System"
+        case .notchShelf: return "Notch Shelf"
         case .devTools: return "Dev Tools"
         case .clipboard: return "Clipboard"
         case .focusDim: return "Focus Dim"
@@ -34,6 +35,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable {
         case .music: return "music.note"
         case .calendar: return "calendar"
         case .system: return "switch.2"
+        case .notchShelf: return "tray.and.arrow.down"
         case .devTools: return "wrench.and.screwdriver"
         case .clipboard: return "doc.on.clipboard"
         case .focusDim: return "circle.lefthalf.filled"
@@ -45,7 +47,8 @@ enum SettingsDestination: String, CaseIterable, Identifiable {
     }
 
     static let modules: [SettingsDestination] = [
-        .usage, .music, .calendar, .system, .devTools, .clipboard, .focusDim, .presenter,
+        .usage, .music, .calendar, .system, .notchShelf, .devTools, .clipboard, .focusDim,
+        .presenter,
     ]
     static let app: [SettingsDestination] = [.general, .permissions, .backup]
 }
@@ -315,6 +318,7 @@ struct MainWindowView: View {
         case .music: MusicPane()
         case .calendar: CalendarPane()
         case .system: SystemPane()
+        case .notchShelf: NotchShelfPane()
         case .devTools: DevToolsPane()
         case .clipboard: ClipboardPane()
         case .focusDim: FocusDimPane()
