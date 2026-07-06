@@ -5,7 +5,8 @@
 #   ./build.sh                # build into dist/Edith.app and launch it
 #   ./build.sh --install      # also copy to /Applications and launch from there
 #   ./build.sh --pr 42        # resolve PR #42's branch via gh, build it from the
-#                             # worktree it is checked out in, and install
+#                             # worktree it is checked out in (created if
+#                             # missing), and install
 #   ./build.sh --branch name  # same, for a branch named directly
 #
 set -euo pipefail
@@ -33,9 +34,13 @@ if [ -n "$BRANCH" ]; then
     ROOT="$(git worktree list --porcelain \
       | awk -v b="branch refs/heads/$BRANCH" '/^worktree /{w=substr($0,10)} $0==b{print w; exit}')"
     if [ -z "$ROOT" ]; then
-      echo "branch $BRANCH is not checked out in any worktree" >&2
-      echo "check it out first, e.g.: git worktree add ../edith-$BRANCH $BRANCH" >&2
-      exit 1
+      git fetch origin "$BRANCH" >/dev/null 2>&1 || true
+      git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null \
+        || git branch --track "$BRANCH" "origin/$BRANCH"
+      MAIN="$(git worktree list --porcelain | head -1 | cut -c10-)"
+      ROOT="$MAIN/../edith-${BRANCH//\//-}"
+      echo "creating worktree $ROOT for $BRANCH"
+      git worktree add "$ROOT" "$BRANCH"
     fi
     echo "building from $ROOT"
     exec "$ROOT/apps/macos/build.sh" --install
