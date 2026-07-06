@@ -101,18 +101,21 @@ struct EdithApp: App {
             Task { @MainActor in MiniPanel.shared.sync() }
         }
         HotKey.register()
+        FocusDimHotKey.register()
         PresenterHotKey.register()
         SettingsBackup.shared.start()
         applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
         let services = services
         _ = IPC.observe(IPC.Name.settingsChanged) {
             HotKey.register()
+            FocusDimHotKey.register()
             PresenterHotKey.register()
             applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
             services.sync()
             services.usage?.refreshMenuBarItem()
             services.system?.syncPreventSleep()
             services.usage?.notifier.clearStateIfMasterOff()
+            services.focusDim?.applySettings()
         }
         _ = IPC.observe(IPC.Name.presenterAutoActiveChanged) {
             services.usage?.refreshMenuBarItem()
@@ -234,6 +237,30 @@ enum HotKey {
     }
 }
 
+enum FocusDimHotKey {
+    static var code: Int {
+        SharedDefaults.store.object(forKey: "focusDimHotKeyCode") as? Int ?? kVK_ANSI_F
+    }
+    static var mods: Int {
+        SharedDefaults.store.object(forKey: "focusDimHotKeyMods") as? Int ?? (cmdKey | optionKey)
+    }
+    static var label: String {
+        SharedDefaults.store.string(forKey: "focusDimHotKeyLabel") ?? "⌥⌘F"
+    }
+
+    static func register() {
+        GlobalHotKey.set(id: GlobalHotKey.ID.focusDim, keyCode: code, modifiers: mods) {
+            toggleFocusDim()
+        }
+    }
+}
+
+func toggleFocusDim() {
+    let enabled = !SharedDefaults.store.bool(forKey: "focusDimEnabled")
+    SharedDefaults.store.set(enabled, forKey: "focusDimEnabled")
+    IPC.post(IPC.Name.settingsChanged)
+}
+
 enum PresenterHotKey {
     static var code: Int {
         SharedDefaults.store.object(forKey: "presenterHotKeyCode") as? Int ?? kVK_ANSI_P
@@ -351,6 +378,7 @@ struct RootView: View {
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
         true
+    @AppStorage("focusDimEnabled", store: SharedDefaults.store) private var focusDimEnabled = false
     @AppStorage("tabOrder", store: SharedDefaults.store) private var tabOrderRaw =
         "usage,music,system"
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
@@ -402,6 +430,15 @@ struct RootView: View {
                     .buttonStyle(HoverButtonStyle())
                     .help("Open music folder in Finder")
                 }
+                Button {
+                    toggleFocusDim()
+                } label: {
+                    Image(systemName: focusDimEnabled ? "circle.lefthalf.filled" : "circle.dashed")
+                        .font(.system(size: 13))
+                        .foregroundStyle(focusDimEnabled ? .primary : .secondary)
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help("Focus dim (\(FocusDimHotKey.label))")
                 Button {
                     mainWindowSection = "settings"
                     MainApp.openDashboard()
