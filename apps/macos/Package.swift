@@ -12,6 +12,7 @@ let package = Package(
         .executableTarget(
             name: "Edith",
             dependencies: ["EdithKit"],
+            resources: [.copy("Resources/appicon.png")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
@@ -21,7 +22,7 @@ let package = Package(
         ),
         .testTarget(
             name: "EdithTests",
-            dependencies: ["Edith", "EdithKit"],
+            dependencies: ["Edith", "EdithKit", "EdithMenuBar"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
