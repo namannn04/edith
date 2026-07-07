@@ -378,8 +378,10 @@ func centerPanelUnderIcon(_ panel: NSWindow) {
         let visible = screen.visibleFrame
         x = min(max(x, visible.minX + 8), visible.maxX - panel.frame.width - 8)
     }
-    guard abs(panel.frame.origin.x - x) > 0.5 else { return }
-    panel.setFrameOrigin(NSPoint(x: x, y: panel.frame.origin.y))
+    let y = icon.frame.minY - panel.frame.height
+    guard abs(panel.frame.origin.x - x) > 0.5 || abs(panel.frame.origin.y - y) > 0.5
+    else { return }
+    panel.setFrameOrigin(NSPoint(x: x, y: y))
 }
 
 private var lastPanelDismiss = Date.distantPast
