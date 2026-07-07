@@ -517,8 +517,11 @@ private struct MeetingsCard: View {
     @StateObject private var store = CalendarStore()
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
+    @AppStorage("presenterBlurCalendar", store: SharedDefaults.store)
+    private var presenterBlurCalendar = true
 
     private var theme: Color { themeColor(themeName) }
+    private var blurCalendar: Bool { presenterState.active && presenterBlurCalendar }
 
     private var todayEvents: [EKEvent] {
         store.events.filter { Calendar.current.isDateInToday($0.startDate) }
@@ -564,7 +567,7 @@ private struct MeetingsCard: View {
                 .font(.system(size: 12.5))
                 .lineLimit(1)
                 .foregroundStyle(DashSkin.ink(dark))
-                .presenterBlur(presenterState.active)
+                .presenterBlur(blurCalendar)
             Spacer(minLength: 6)
             if let url = MeetingLink.url(for: event) {
                 Button {

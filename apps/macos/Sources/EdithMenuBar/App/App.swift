@@ -579,20 +579,23 @@ struct RootView: View {
             if enabledTabs.count > 1 {
                 TabBar(tabs: enabledTabs, selection: $tab, theme: themeColor(themeName))
             }
-            if tab == "usage", let store = services.usage {
-                UsageView().environmentObject(store)
-            } else if tab == "music", let player = services.music {
-                MusicView().environmentObject(player)
-            } else if tab == "system", let system = services.system {
-                SystemView().environmentObject(system)
-            } else if tab == "calendar", let calendar = services.calendar {
-                CalendarView().environmentObject(calendar)
-            } else if enabledTabs.isEmpty {
-                Text("All tabs are off - enable one in Edith's settings (⚙)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 28)
+            ScrollView(showsIndicators: false) {
+                if tab == "usage", let store = services.usage {
+                    UsageView().environmentObject(store)
+                } else if tab == "music", let player = services.music {
+                    MusicView().environmentObject(player)
+                } else if tab == "system", let system = services.system {
+                    SystemView().environmentObject(system)
+                } else if tab == "calendar", let calendar = services.calendar {
+                    CalendarView().environmentObject(calendar)
+                } else if enabledTabs.isEmpty {
+                    Text("All tabs are off - enable one in Edith's settings (⚙)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 28)
+                }
             }
+            .frame(maxHeight: contentHeightCap)
             if showDeveloper {
                 DeveloperPanel()
             }
@@ -641,6 +644,11 @@ struct RootView: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var contentHeightCap: CGFloat {
+        let screen = menuBarExtraStatusWindow()?.screen ?? NSScreen.main
+        return max(320, (screen?.visibleFrame.height ?? 800) - 140)
     }
 
     private func settleMiniPanel() {
