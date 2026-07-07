@@ -472,6 +472,7 @@ private struct QuickActionsCard: View {
                     sub: "Blur sensitive values on screen", active: presenterMode
                 ) {
                     presenterMode.toggle()
+                    if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

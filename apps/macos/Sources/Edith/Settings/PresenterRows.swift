@@ -27,6 +27,9 @@ struct PresenterRows: View {
                 HStack {
                     Toggle("Manual presenter mode", isOn: $presenterMode)
                         .pointerCursor()
+                        .onChange(of: presenterMode) {
+                            if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
+                        }
                     InfoDot(
                         "Blurs sensitive numbers and track names everywhere in Edith until you turn it back off."
                     )

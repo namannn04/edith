@@ -36,19 +36,51 @@ private func migratedServices() -> AppServices {
     return AppServices()
 }
 
+final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        ProcessInfo.processInfo.disableAutomaticTermination("Edith lives in the menu bar")
+    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            var out = "screens:\n"
+            for s in NSScreen.screens {
+                out += "  frame=\(s.frame) visible=\(s.visibleFrame)\n"
+            }
+            out += "status windows:\n"
+            for w in NSApp.windows {
+                let cls = w.className
+                if cls.contains("StatusBar") || cls.contains("MenuBarExtra") || cls.contains("Status")
+                {
+                    out +=
+                        "  \(cls) frame=\(w.frame) visible=\(w.isVisible) onActive=\(w.isOnActiveSpace)\n"
+                }
+            }
+            try? out.write(
+                toFile: "/tmp/edith_statusframe.txt", atomically: true, encoding: .utf8)
+        }
+    }
+}
+
 @main
 struct EdithApp: App {
+    @NSApplicationDelegateAdaptor(MenuBarAppDelegate.self) private var appDelegate
     private let services = migratedServices()
 
     init() {
         _ = ProcessUptime.launchedAt
 
-        for key in [
+        let statusItemVisibilityKeys = [
             "NSStatusItem VisibleCC Item-0", "NSStatusItem VisibleCC Item-1",
             "NSStatusItem VisibleCC limits",
-        ] {
-            UserDefaults.standard.set(true, forKey: key)
+        ]
+        func forceStatusItemsVisible() {
+            for key in statusItemVisibilityKeys {
+                UserDefaults.standard.set(true, forKey: key)
+            }
         }
+        forceStatusItemsVisible()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: forceStatusItemsVisible)
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
@@ -136,6 +168,9 @@ struct EdithApp: App {
                 showPanel()
             }
         }
+        _ = IPC.observe(IPC.Name.presenterPauseAuto) {
+            services.presenter?.pauseUntilShareEnds()
+        }
         _ = IPC.observe(IPC.Name.requestTestNotification) {
             Task { _ = await services.usage?.notifier.sendTest() }
         }
@@ -156,7 +191,7 @@ struct EdithApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: .constant(true)) {
             RootView()
                 .environmentObject(services)
         } label: {
@@ -321,7 +356,9 @@ enum PresenterHotKey {
     static func register() {
         GlobalHotKey.set(id: GlobalHotKey.ID.presenterToggle, keyCode: code, modifiers: mods) {
             let d = SharedDefaults.store
-            d.set(!d.bool(forKey: "presenterMode"), forKey: "presenterMode")
+            let enabled = !d.bool(forKey: "presenterMode")
+            d.set(enabled, forKey: "presenterMode")
+            if !enabled { IPC.post(IPC.Name.presenterPauseAuto) }
             IPC.post(IPC.Name.settingsChanged)
         }
     }
@@ -378,10 +415,8 @@ func centerPanelUnderIcon(_ panel: NSWindow) {
         let visible = screen.visibleFrame
         x = min(max(x, visible.minX + 8), visible.maxX - panel.frame.width - 8)
     }
-    let y = icon.frame.minY - panel.frame.height
-    guard abs(panel.frame.origin.x - x) > 0.5 || abs(panel.frame.origin.y - y) > 0.5
-    else { return }
-    panel.setFrameOrigin(NSPoint(x: x, y: y))
+    guard abs(panel.frame.origin.x - x) > 0.5 else { return }
+    panel.setFrameOrigin(NSPoint(x: x, y: panel.frame.origin.y))
 }
 
 private var lastPanelDismiss = Date.distantPast
@@ -445,6 +480,7 @@ struct RootView: View {
     @StateObject private var permissions = PermissionsModel.shared
     @StateObject private var presenterState = PresenterState.shared
     @State private var showDeveloper = false
+    @State private var tabContentHeight: CGFloat = 0
 
     private var enabledTabs: [(id: String, title: String)] {
         orderedTabIDs(tabOrderRaw).compactMap { id in
@@ -580,22 +616,30 @@ struct RootView: View {
                 TabBar(tabs: enabledTabs, selection: $tab, theme: themeColor(themeName))
             }
             ScrollView(showsIndicators: false) {
-                if tab == "usage", let store = services.usage {
-                    UsageView().environmentObject(store)
-                } else if tab == "music", let player = services.music {
-                    MusicView().environmentObject(player)
-                } else if tab == "system", let system = services.system {
-                    SystemView().environmentObject(system)
-                } else if tab == "calendar", let calendar = services.calendar {
-                    CalendarView().environmentObject(calendar)
-                } else if enabledTabs.isEmpty {
-                    Text("All tabs are off - enable one in Edith's settings (⚙)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 28)
+                Group {
+                    if tab == "usage", let store = services.usage {
+                        UsageView().environmentObject(store)
+                    } else if tab == "music", let player = services.music {
+                        MusicView().environmentObject(player)
+                    } else if tab == "system", let system = services.system {
+                        SystemView().environmentObject(system)
+                    } else if tab == "calendar", let calendar = services.calendar {
+                        CalendarView().environmentObject(calendar)
+                    } else if enabledTabs.isEmpty {
+                        Text("All tabs are off - enable one in Edith's settings (⚙)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 28)
+                    }
                 }
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: TabContentHeightKey.self, value: geo.size.height)
+                    })
             }
-            .frame(maxHeight: contentHeightCap)
+            .onPreferenceChange(TabContentHeightKey.self) { tabContentHeight = $0 }
+            .frame(height: min(max(tabContentHeight, 1), contentHeightCap))
             if showDeveloper {
                 DeveloperPanel()
             }
@@ -644,6 +688,13 @@ struct RootView: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private struct TabContentHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
     }
 
     private var contentHeightCap: CGFloat {

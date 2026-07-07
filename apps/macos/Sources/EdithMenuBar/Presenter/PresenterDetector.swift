@@ -40,6 +40,8 @@ final class PresenterDetector: FeatureModule {
 
     init() {
         paused = SharedDefaults.store.bool(forKey: "presenterAutoPaused")
+        publishedActive = SharedDefaults.store.bool(forKey: "presenterAutoActive")
+        publishedReason = SharedDefaults.store.string(forKey: "presenterAutoReason")
         gateApps = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
             .intersection(Self.watchedBundleIDs)
 
