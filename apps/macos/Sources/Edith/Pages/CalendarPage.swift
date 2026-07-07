@@ -6,11 +6,14 @@ import SwiftUI
 struct CalendarPage: View {
     @StateObject private var store = CalendarStore()
     @StateObject private var presenterState = PresenterState.shared
+    @AppStorage("presenterBlurCalendar", store: SharedDefaults.store)
+    private var presenterBlurCalendar = true
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @Environment(\.colorScheme) private var scheme
 
     private var dark: Bool { scheme == .dark }
     private var theme: Color { themeColor(themeName) }
+    private var blurCalendar: Bool { presenterState.active && presenterBlurCalendar }
 
     private var groupedDays: [(day: Date, events: [EKEvent])] {
         CalendarDayEvents.groupedByDay(store.events)
@@ -113,7 +116,7 @@ struct CalendarPage: View {
                 Text(event.title ?? "Untitled")
                     .font(.system(size: 13.5))
                     .lineLimit(1)
-                    .presenterBlur(presenterState.active)
+                    .presenterBlur(blurCalendar)
                 if let location = event.location, !location.isEmpty,
                     !location.hasPrefix("http")
                 {

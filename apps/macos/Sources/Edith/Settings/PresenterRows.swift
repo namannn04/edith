@@ -9,6 +9,8 @@ struct PresenterRows: View {
         true
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
         true
+    @AppStorage("presenterBlurCalendar", store: SharedDefaults.store)
+    private var presenterBlurCalendar = true
     @AppStorage("presenterAutoEnabled", store: SharedDefaults.store) private var autoEnabled = false
     @AppStorage("presenterHideMenuBarNumbers", store: SharedDefaults.store)
     private var hideMenuBarNumbers = false
@@ -33,6 +35,9 @@ struct PresenterRows: View {
                     .pointerCursor()
                     .disabled(!presenterMode && !autoEnabled)
                 Toggle("Blur cost and usage figures", isOn: $presenterBlurMoney)
+                    .pointerCursor()
+                    .disabled(!presenterMode && !autoEnabled)
+                Toggle("Blur calendar events", isOn: $presenterBlurCalendar)
                     .pointerCursor()
                     .disabled(!presenterMode && !autoEnabled)
             } header: {
