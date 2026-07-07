@@ -152,7 +152,7 @@ private struct HomeHeader: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = context.date
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -171,10 +171,12 @@ private struct HomeHeader: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(clockString(now))
-                        .font(DashSkin.serif(40))
-                        .foregroundStyle(DashSkin.ink(dark))
-                        .monospacedDigit()
+                    TimelineView(.periodic(from: .now, by: 1)) { tick in
+                        Text(clockString(tick.date))
+                            .font(DashSkin.serif(40))
+                            .foregroundStyle(DashSkin.ink(dark))
+                            .monospacedDigit()
+                    }
                     Text(
                         "\(Calendar.current.component(.hour, from: now) < 12 ? "AM" : "PM")"
                             + " · \(TimeZone.current.abbreviation() ?? "local")"
@@ -200,7 +202,7 @@ private struct WorldClocksCard: View {
 
     var body: some View {
         SkinCard(title: "World clocks", note: "hover a clock to remove", dark: dark) {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            TimelineView(.periodic(from: .now, by: 60)) { context in
                 HStack(alignment: .top, spacing: 26) {
                     ClockTile(
                         date: context.date, zone: TimeZone.current, label: "Local", dark: dark,
@@ -318,7 +320,7 @@ private struct ClockTile: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            ClockFace(date: date, zone: zone, dark: dark)
+            ClockFace(zone: zone, dark: dark)
                 .frame(width: 96, height: 96)
                 .overlay(alignment: .topTrailing) {
                     if hovering, let onRemove {
@@ -356,11 +358,16 @@ private struct ClockTile: View {
 }
 
 private struct ClockFace: View {
-    let date: Date
     let zone: TimeZone
     let dark: Bool
 
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            face(context.date)
+        }
+    }
+
+    private func face(_ date: Date) -> some View {
         Canvas { ctx, size in
             var cal = Calendar(identifier: .gregorian)
             cal.timeZone = zone
@@ -776,7 +783,7 @@ private struct LimitsSummaryCard: View {
     }
 
     private func reload() {
-        latest = DashLimits.loadAll().last
+        latest = DashLimits.loadLatest()
     }
 
     private func barColor(_ value: Double) -> Color {
