@@ -72,6 +72,64 @@ struct HomePage: View {
     }
 }
 
+enum HomeMath {
+    static let maxZones = 2
+
+    static let zoneSuggestions = [
+        "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Tokyo", "Asia/Singapore",
+        "Australia/Sydney", "America/Chicago", "America/Sao_Paulo", "Asia/Dubai",
+    ]
+
+    static func salutation(hour: Int) -> String {
+        switch hour {
+        case 5..<12: return "Good morning"
+        case 12..<17: return "Good afternoon"
+        case 17..<22: return "Good evening"
+        default: return "Up late"
+        }
+    }
+
+    static func clockLabel(hour24: Int, minute: Int, second: Int) -> String {
+        let h = hour24 % 12 == 0 ? 12 : hour24 % 12
+        return String(format: "%d:%02d:%02d", h, minute, second)
+    }
+
+    static func cityName(_ id: String) -> String {
+        (id.split(separator: "/").last.map(String.init) ?? id)
+            .replacingOccurrences(of: "_", with: " ")
+    }
+
+    static func offsetLabel(seconds: Int) -> String {
+        if seconds == 0 { return "same time" }
+        let hours = Double(seconds) / 3600
+        return hours == hours.rounded()
+            ? String(format: "%+.0fh", hours) : String(format: "%+.1fh", hours)
+    }
+
+    static func topModels(days: [HeatDay?], limit: Int = 3) -> [NamedValue] {
+        var totals: [String: Double] = [:]
+        for day in days {
+            for entry in day?.models ?? [] {
+                totals[entry.name, default: 0] += entry.value
+            }
+        }
+        return totals.sorted { $0.value > $1.value }.prefix(limit).map {
+            NamedValue(id: $0.key, name: $0.key, value: $0.value)
+        }
+    }
+
+    static func zoneMatches(query: String, taken: Set<String>) -> [String] {
+        if query.isEmpty {
+            return zoneSuggestions.filter { !taken.contains($0) }
+        }
+        let needle = query.replacingOccurrences(of: " ", with: "_")
+        return Set(TimeZone.knownTimeZoneIdentifiers).union(zoneSuggestions)
+            .sorted()
+            .filter { !taken.contains($0) && $0.localizedCaseInsensitiveContains(needle) }
+            .prefix(14).map { $0 }
+    }
+}
+
 private struct HomeHeader: View {
     let dark: Bool
 
@@ -83,20 +141,14 @@ private struct HomeHeader: View {
 
     private func clockString(_ now: Date) -> String {
         let cal = Calendar.current
-        let h24 = cal.component(.hour, from: now)
-        let h = h24 % 12 == 0 ? 12 : h24 % 12
-        return String(
-            format: "%d:%02d:%02d", h, cal.component(.minute, from: now),
-            cal.component(.second, from: now))
+        return HomeMath.clockLabel(
+            hour24: cal.component(.hour, from: now),
+            minute: cal.component(.minute, from: now),
+            second: cal.component(.second, from: now))
     }
 
     private func salutation(_ date: Date) -> String {
-        switch Calendar.current.component(.hour, from: date) {
-        case 5..<12: return "Good morning"
-        case 12..<17: return "Good afternoon"
-        case 17..<22: return "Good evening"
-        default: return "Up late"
-        }
+        HomeMath.salutation(hour: Calendar.current.component(.hour, from: date))
     }
 
     var body: some View {
@@ -156,12 +208,12 @@ private struct WorldClocksCard: View {
                     ForEach(zoneIDs, id: \.self) { id in
                         ClockTile(
                             date: context.date, zone: TimeZone(identifier: id)!,
-                            label: cityName(id), dark: dark
+                            label: HomeMath.cityName(id), dark: dark
                         ) {
                             remove(id)
                         }
                     }
-                    if zoneIDs.count < Self.maxZones {
+                    if zoneIDs.count < HomeMath.maxZones {
                         addButton
                     }
                 }
@@ -170,19 +222,12 @@ private struct WorldClocksCard: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func cityName(_ id: String) -> String {
-        (id.split(separator: "/").last.map(String.init) ?? id)
-            .replacingOccurrences(of: "_", with: " ")
-    }
-
     private func remove(_ id: String) {
         zonesRaw = zoneIDs.filter { $0 != id }.joined(separator: ",")
     }
 
-    private static let maxZones = 2
-
     private func add(_ id: String) {
-        guard zoneIDs.count < Self.maxZones, !zoneIDs.contains(id),
+        guard zoneIDs.count < HomeMath.maxZones, !zoneIDs.contains(id),
             TimeZone(identifier: id) != nil
         else { return }
         zonesRaw = (zoneIDs + [id]).joined(separator: ",")
@@ -190,20 +235,9 @@ private struct WorldClocksCard: View {
         query = ""
     }
 
-    private static let suggestions = [
-        "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Tokyo", "Asia/Singapore",
-        "Australia/Sydney", "America/Chicago", "America/Sao_Paulo", "Asia/Dubai",
-    ]
-
     private var matches: [String] {
-        let taken = Set(zoneIDs + [TimeZone.current.identifier])
-        if query.isEmpty {
-            return Self.suggestions.filter { !taken.contains($0) }
-        }
-        let needle = query.replacingOccurrences(of: " ", with: "_")
-        return TimeZone.knownTimeZoneIdentifiers
-            .filter { !taken.contains($0) && $0.localizedCaseInsensitiveContains(needle) }
-            .prefix(14).map { $0 }
+        HomeMath.zoneMatches(
+            query: query, taken: Set(zoneIDs + [TimeZone.current.identifier]))
     }
 
     private var addButton: some View {
@@ -241,7 +275,7 @@ private struct WorldClocksCard: View {
                                 add(id)
                             } label: {
                                 HStack {
-                                    Text(cityName(id)).font(.system(size: 12.5))
+                                    Text(HomeMath.cityName(id)).font(.system(size: 12.5))
                                     Spacer()
                                     Text(id.split(separator: "/").first.map(String.init) ?? "")
                                         .font(.system(size: 10.5))
@@ -278,13 +312,8 @@ private struct ClockTile: View {
     @State private var hovering = false
 
     private var offsetLabel: String {
-        let seconds = zone.secondsFromGMT(for: date) - TimeZone.current.secondsFromGMT(for: date)
-        if seconds == 0 { return "same time" }
-        let hours = Double(seconds) / 3600
-        let value =
-            hours == hours.rounded()
-            ? String(format: "%+.0fh", hours) : String(format: "%+.1fh", hours)
-        return value
+        HomeMath.offsetLabel(
+            seconds: zone.secondsFromGMT(for: date) - TimeZone.current.secondsFromGMT(for: date))
     }
 
     var body: some View {
@@ -624,15 +653,7 @@ private struct UsageSummaryCard: View {
     }
 
     private var weekModels: [NamedValue] {
-        var totals: [String: Double] = [:]
-        for offset in 0..<7 {
-            for entry in day(offset)?.models ?? [] {
-                totals[entry.name, default: 0] += entry.value
-            }
-        }
-        return totals.sorted { $0.value > $1.value }.prefix(3).map {
-            NamedValue(id: $0.key, name: $0.key, value: $0.value)
-        }
+        HomeMath.topModels(days: (0..<7).map(day))
     }
 
     var body: some View {
