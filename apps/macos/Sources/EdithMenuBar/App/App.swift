@@ -82,12 +82,16 @@ struct EdithApp: App {
                     panel.className.contains("MenuBarExtraWindow")
                 else { return }
                 MainActor.assumeIsolated {
+                    fitPanelHeight(panel)
                     centerPanelUnderIcon(panel)
                     MiniPanel.shared.sync()
                 }
                 DispatchQueue.main.async { [weak panel] in
                     MainActor.assumeIsolated {
-                        if let panel, panel.isVisible { centerPanelUnderIcon(panel) }
+                        if let panel, panel.isVisible {
+                            fitPanelHeight(panel)
+                            centerPanelUnderIcon(panel)
+                        }
                         MiniPanel.shared.sync()
                     }
                 }
@@ -377,6 +381,27 @@ private func firstButton(in view: NSView?) -> NSButton? {
     return nil
 }
 
+func fitPanelHeight(_ panel: NSWindow) {
+    guard let content = panel.contentView else { return }
+    let target = content.fittingSize.height
+    guard target > 1, abs(panel.frame.height - target) > 0.5 else { return }
+    let top = panel.frame.maxY
+    var frame = panel.frame
+    frame.size.height = target
+    frame.origin.y = top - target
+    panel.setFrame(frame, display: true)
+}
+
+func fitVisiblePanel() {
+    guard
+        let panel = NSApp.windows.first(where: {
+            $0.className.contains("MenuBarExtraWindow") && $0.isVisible
+        })
+    else { return }
+    fitPanelHeight(panel)
+    centerPanelUnderIcon(panel)
+}
+
 func centerPanelUnderIcon(_ panel: NSWindow) {
     guard let icon = menuBarExtraStatusWindow() else { return }
     var x = icon.frame.midX - panel.frame.width / 2
@@ -648,8 +673,11 @@ struct RootView: View {
     }
 
     private func settleMiniPanel() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            MiniPanel.shared.sync()
+        for delay in [0.0, 0.45] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                fitVisiblePanel()
+                MiniPanel.shared.sync()
+            }
         }
     }
 
