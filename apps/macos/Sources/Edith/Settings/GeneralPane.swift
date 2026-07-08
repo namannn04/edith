@@ -3,6 +3,47 @@ import Carbon.HIToolbox
 import EdithKit
 import SwiftUI
 
+struct SettingsPane: View {
+    enum Tab: String, CaseIterable {
+        case general, usage, icloud
+        var label: String {
+            switch self {
+            case .general: return "General"
+            case .usage: return "Usage"
+            case .icloud: return "iCloud"
+            }
+        }
+    }
+
+    @State private var tab = Tab.general
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $tab) {
+                ForEach(Tab.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .pointerCursor()
+            .frame(maxWidth: 320)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+            Group {
+                switch tab {
+                case .general: GeneralPane()
+                case .usage: UsagePane()
+                case .icloud: ICloudPane()
+                }
+            }
+            .scrollContentBackground(.hidden)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .navigationTitle("Settings")
+    }
+}
+
 struct GeneralPane: View {
     @AppStorage("appearance", store: SharedDefaults.store) private var appearance = "system"
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
@@ -58,6 +99,8 @@ struct GeneralPane: View {
             } header: {
                 Text("Window")
             }
+
+            PanelTabsSection()
         }
         .formStyle(.grouped)
         .navigationTitle("General")

@@ -64,8 +64,6 @@ struct ExtensionsPane: View {
                 subtitle: "System loupe on a hotkey, sampled color to your clipboard.",
                 enabled: $colorPickerEnabled)
             if expanded.contains("colorPicker") { ColorPickerRows() }
-
-            PanelTabsSection()
         }
         .formStyle(.grouped)
         .navigationTitle("Extensions")
@@ -170,7 +168,7 @@ func movedTabOrder(_ order: [String], from: Int, by delta: Int) -> [String] {
     return next
 }
 
-private struct PanelTabsSection: View {
+struct PanelTabsSection: View {
     @AppStorage("tabOrder", store: SharedDefaults.store) private var tabOrderRaw =
         "usage,music,system"
     @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true

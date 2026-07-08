@@ -41,6 +41,7 @@ struct ColorPickerRows: View {
                 }
                 HStack {
                     Stepper("History size: \(historySize)", value: $historySize, in: 1...100)
+                        .pointerCursor()
                     InfoDot("How many past colors to keep.")
                 }
             }

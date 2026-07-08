@@ -14,8 +14,10 @@ struct MusicView: View {
 
     private var scrubberRow: some View {
         HStack(spacing: 10) {
-            Text(timeLabel(player.elapsed))
-                .frame(width: 40, alignment: .leading)
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                Text(timeLabel(player.elapsed))
+                    .frame(width: 40, alignment: .leading)
+            }
             scrubber
             Text(timeLabel(player.trackDuration))
                 .frame(width: 40, alignment: .trailing)
@@ -52,11 +54,7 @@ struct MusicView: View {
     private var nowPlayingBar: some View {
         VStack(spacing: 10) {
             if player.current != nil {
-                if player.isPlaying {
-                    TimelineView(.periodic(from: .now, by: 0.5)) { _ in scrubberRow }
-                } else {
-                    scrubberRow
-                }
+                scrubberRow
             }
             HStack(spacing: 12) {
                 if let track = player.current {
@@ -131,12 +129,26 @@ struct MusicView: View {
 
     private var scrubber: some View {
         GeometryReader { geo in
-            let fraction = dragFraction ?? player.progressNow()
+            let knob: CGFloat = 12
             ZStack(alignment: .leading) {
                 Capsule().fill(.primary.opacity(0.1))
-                Capsule()
-                    .fill(theme.opacity(0.85))
-                    .frame(width: max(3, geo.size.width * fraction))
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let fraction = dragFraction ?? player.progressNow()
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(theme.opacity(0.85))
+                            .frame(width: max(3, geo.size.width * fraction))
+                        Circle()
+                            .fill(theme)
+                            .frame(width: knob, height: knob)
+                            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                            .offset(
+                                x: min(
+                                    max(geo.size.width * fraction - knob / 2, 0),
+                                    geo.size.width - knob))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .contentShape(Rectangle().inset(by: -8))
             .gesture(

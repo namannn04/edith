@@ -2,10 +2,12 @@ import Testing
 @testable import Edith
 
 @Suite struct MainDestinationTests {
-    @Test func sidebarSectionsPartitionAllDestinations() {
+    @Test func sidebarSectionsAreDisjointAndCoverAllDestinations() {
         let listed = MainDestination.homeItems + MainDestination.appItems
-        #expect(Set(listed) == Set(MainDestination.allCases))
-        #expect(listed.count == MainDestination.allCases.count)
+        #expect(Set(listed).count == listed.count)
+        let settingsSubDestinations: Set<MainDestination> = [.general, .usage, .icloud]
+        #expect(Set(listed).isDisjoint(with: settingsSubDestinations))
+        #expect(Set(listed).union(settingsSubDestinations) == Set(MainDestination.allCases))
     }
 
     @Test func rawValuesRoundTrip() {

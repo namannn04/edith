@@ -66,12 +66,30 @@ final class MusicRemote: ObservableObject {
     func playPause() { send("playPause") }
     func next() { send("next") }
     func previous() { send("previous") }
-    func seek(to fraction: Double) { send("seek", ["value": fraction]) }
+    func seek(to fraction: Double) {
+        let clamped = min(max(fraction, 0), 1)
+        if duration > 0 {
+            elapsedBase = clamped * duration
+            elapsedTimestamp = Date().timeIntervalSince1970
+            objectWillChange.send()
+        }
+        send("seek", ["value": clamped])
+    }
     func setVolume(_ value: Double) {
         volume = value
         send("volume", ["value": value])
     }
     func toggleLoop() { send("loop", ["value": !looping]) }
+
+    func nudgeSeek(_ seconds: TimeInterval) {
+        guard duration > 0 else { return }
+        let target = min(max(elapsed + seconds, 0), duration)
+        seek(to: target / duration)
+    }
+
+    func nudgeVolume(_ delta: Double) {
+        setVolume(min(max(volume + delta, 0), 1))
+    }
 }
 
 struct MusicPage: View {
@@ -105,9 +123,6 @@ struct MusicPage: View {
                     .padding(.bottom, 12)
             }
             trackList
-            nowPlayingBar
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
         }
         .background(DashSkin.paper(dark).ignoresSafeArea(edges: .vertical))
         .navigationTitle("Music")
@@ -201,99 +216,6 @@ struct MusicPage: View {
         }
     }
 
-    private var nowPlayingBar: some View {
-        VStack(spacing: 10) {
-            if remote.current != nil {
-                if remote.isPlaying {
-                    TimelineView(.periodic(from: .now, by: 0.5)) { _ in scrubberRow }
-                } else {
-                    scrubberRow
-                }
-            }
-            HStack(spacing: 12) {
-                if let track = remote.current {
-                    PageArtworkThumb(track: track, size: 40)
-                }
-                Text(remote.current?.title ?? "Not playing")
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                    .foregroundStyle(remote.current == nil ? .secondary : .primary)
-                    .presenterBlur(blurMusic && remote.current != nil)
-                if remote.current != nil {
-                    PlaybackWave(playing: remote.isPlaying, color: theme.opacity(0.9))
-                }
-                Spacer()
-                Button {
-                    remote.previous()
-                } label: {
-                    Image(systemName: "backward.fill")
-                        .foregroundStyle(theme)
-                }
-                .buttonStyle(HoverButtonStyle())
-                Button {
-                    remote.playPause()
-                } label: {
-                    Image(systemName: remote.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(theme)
-                }
-                .buttonStyle(HoverButtonStyle())
-                Button {
-                    remote.next()
-                } label: {
-                    Image(systemName: "forward.fill")
-                        .foregroundStyle(theme)
-                }
-                .buttonStyle(HoverButtonStyle())
-                Button {
-                    remote.toggleLoop()
-                } label: {
-                    Image(systemName: "repeat")
-                        .font(.system(size: 13))
-                        .foregroundStyle(remote.looping ? theme : .secondary)
-                }
-                .buttonStyle(HoverButtonStyle())
-                .help(remote.looping ? "Looping current song" : "Shuffle next")
-                Slider(
-                    value: Binding(
-                        get: { remote.volume },
-                        set: { remote.setVolume($0) }),
-                    in: 0...1
-                )
-                .controlSize(.small)
-                .tint(theme)
-                .frame(width: 74)
-                .pointerCursor()
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 13))
-        }
-        .padding(12)
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12).strokeBorder(DashSkin.line(dark), lineWidth: 1)
-        )
-        .background {
-            if let track = remote.current {
-                PageAmbientGlow(track: track)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-        }
-    }
-
-    private var scrubberRow: some View {
-        HStack(spacing: 10) {
-            Text(TrackMeta.timeLabel(remote.elapsed))
-                .frame(width: 44, alignment: .leading)
-            SeekBar(theme: theme)
-            Text(TrackMeta.timeLabel(remote.duration))
-                .frame(width: 44, alignment: .trailing)
-        }
-        .font(.system(size: 10))
-        .monospacedDigit()
-        .foregroundStyle(.secondary)
-    }
-
 }
 
 struct SeekBar: View {
@@ -304,12 +226,26 @@ struct SeekBar: View {
 
     var body: some View {
         GeometryReader { geo in
-            let fraction = dragFraction ?? remote.progress
+            let knob = max(11, height + 7)
             ZStack(alignment: .leading) {
                 Capsule().fill(.primary.opacity(0.1))
-                Capsule()
-                    .fill(theme.opacity(0.85))
-                    .frame(width: max(height, geo.size.width * fraction))
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    let fraction = dragFraction ?? remote.progress
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(theme.opacity(0.85))
+                            .frame(width: max(height, geo.size.width * fraction))
+                        Circle()
+                            .fill(theme)
+                            .frame(width: knob, height: knob)
+                            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                            .offset(
+                                x: min(
+                                    max(geo.size.width * fraction - knob / 2, 0),
+                                    geo.size.width - knob))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .contentShape(Rectangle().inset(by: -8))
             .gesture(
@@ -406,90 +342,160 @@ struct PlaybackWave: View {
     }
 }
 
-struct SidebarMiniPlayer: View {
+struct MusicFooter: View {
     @ObservedObject private var remote = MusicRemote.shared
-    let width: Double
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.home.rawValue
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
     @StateObject private var presenterState = PresenterState.shared
+    @Environment(\.colorScheme) private var scheme
 
     private var theme: Color { themeColor(themeName) }
+    private var blur: Bool { presenterState.active && presenterBlurMusic }
 
-    private var progressRows: some View {
-        VStack(spacing: 4) {
-            SeekBar(theme: theme, height: 3)
-            HStack {
-                Text(TrackMeta.timeLabel(remote.elapsed))
-                Spacer()
-                Text(TrackMeta.timeLabel(remote.duration))
+    var body: some View {
+        Group {
+            if let track = remote.current {
+                playing(track)
+            } else {
+                idle
             }
-            .font(.system(size: 9))
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
+        }
+        .frame(height: 64)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor))
+                .frame(height: 1)
         }
     }
 
-    var body: some View {
-        if let track = remote.current {
-            VStack(spacing: 7) {
-                HStack(spacing: 6) {
-                    Text(track.title)
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-                        .presenterBlur(presenterState.active && presenterBlurMusic)
-                    Spacer(minLength: 4)
-                    PlaybackWave(
-                        playing: remote.isPlaying, color: theme.opacity(0.9), maxHeight: 12)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { mainWindowSection = MainDestination.music.rawValue }
-                .pointerCursor()
-                if remote.isPlaying {
-                    TimelineView(.periodic(from: .now, by: 1)) { _ in progressRows }
-                } else {
-                    progressRows
-                }
-                HStack(spacing: 10) {
-                    Button {
-                        remote.playPause()
-                    } label: {
-                        Image(systemName: remote.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme)
-                    }
-                    .buttonStyle(HoverButtonStyle())
-                    Button {
-                        remote.next()
-                    } label: {
-                        Image(systemName: "forward.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(theme)
-                    }
-                    .buttonStyle(HoverButtonStyle())
-                    Spacer(minLength: 4)
-                    if width >= 210 {
-                        Image(systemName: "speaker.wave.1")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
-                        Slider(
-                            value: Binding(
-                                get: { remote.volume },
-                                set: { remote.setVolume($0) }),
-                            in: 0...1
-                        )
-                        .controlSize(.mini)
-                        .tint(theme)
-                        .frame(maxWidth: 90)
-                        .pointerCursor()
-                    }
+    private func playing(_ track: Track) -> some View {
+        HStack(spacing: 14) {
+            trackInfo(track)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            transport
+            scrubber
+                .frame(maxWidth: 420)
+            rightControls
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.horizontal, 22)
+    }
+
+    private func trackInfo(_ track: Track) -> some View {
+        HStack(spacing: 11) {
+            PageArtworkThumb(track: track, size: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .presenterBlur(blur)
+                Text(remote.isPlaying ? "Now playing" : "Paused")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+            PlaybackWave(playing: remote.isPlaying, color: theme.opacity(0.9), maxHeight: 13)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { mainWindowSection = MainDestination.music.rawValue }
+        .pointerCursor()
+        .help("Open Music")
+    }
+
+    private var transport: some View {
+        HStack(spacing: 8) {
+            Button {
+                remote.previous()
+            } label: {
+                Image(systemName: "backward.fill").font(.system(size: 13)).foregroundStyle(theme)
+            }
+            .buttonStyle(HoverButtonStyle())
+            Button {
+                remote.playPause()
+            } label: {
+                ZStack {
+                    Circle().fill(theme).frame(width: 36, height: 36)
+                    Image(systemName: remote.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
                 }
             }
-            .padding(9)
-            .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 9))
+            .buttonStyle(.plain)
+            .pointerCursor()
+            Button {
+                remote.next()
+            } label: {
+                Image(systemName: "forward.fill").font(.system(size: 13)).foregroundStyle(theme)
+            }
+            .buttonStyle(HoverButtonStyle())
         }
+    }
+
+    private var scrubber: some View {
+        HStack(spacing: 10) {
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                Text(TrackMeta.timeLabel(remote.elapsed))
+                    .frame(width: 42, alignment: .trailing)
+            }
+            SeekBar(theme: theme, height: 4)
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                Text("-" + TrackMeta.timeLabel(max(remote.duration - remote.elapsed, 0)))
+                    .frame(width: 46, alignment: .leading)
+            }
+        }
+        .font(.system(size: 10.5))
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+    }
+
+    private var rightControls: some View {
+        HStack(spacing: 10) {
+            Button {
+                remote.toggleLoop()
+            } label: {
+                Image(systemName: "repeat")
+                    .font(.system(size: 13))
+                    .foregroundStyle(remote.looping ? theme : .secondary)
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help(remote.looping ? "Looping current song" : "Shuffle next")
+            Image(systemName: "speaker.wave.1")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Slider(
+                value: Binding(get: { remote.volume }, set: { remote.setVolume($0) }),
+                in: 0...1
+            )
+            .controlSize(.mini)
+            .tint(theme)
+            .frame(width: 88)
+            .pointerCursor()
+        }
+    }
+
+    private var idle: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "music.note")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+            Text("Nothing playing")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button {
+                mainWindowSection = MainDestination.music.rawValue
+            } label: {
+                Text("Browse music")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(theme)
+            }
+            .buttonStyle(HoverButtonStyle())
+        }
+        .padding(.horizontal, 22)
     }
 }
 
@@ -521,36 +527,5 @@ private struct PageArtworkThumb: View {
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.22))
         .task(id: track.id) { artwork = await TrackMeta.artwork(for: track) }
-    }
-}
-
-private struct PageAmbientGlow: View {
-    let track: Track
-    @Environment(\.colorScheme) private var scheme
-    @State private var artwork: NSImage?
-
-    var body: some View {
-        GeometryReader { geo in
-            Group {
-                if let artwork {
-                    Image(nsImage: artwork)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geo.size.width, height: geo.size.height)
-                } else {
-                    LinearGradient(
-                        colors: [
-                            Color(hue: track.hue, saturation: 0.5, brightness: 0.5),
-                            Color(hue: track.hue, saturation: 0.65, brightness: 0.25),
-                        ],
-                        startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
-            }
-            .blur(radius: 50)
-            .overlay((scheme == .dark ? Color.black : Color.white).opacity(0.45))
-            .clipped()
-        }
-        .task(id: track.id) { artwork = await TrackMeta.artwork(for: track) }
-        .allowsHitTesting(false)
     }
 }

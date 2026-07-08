@@ -17,6 +17,7 @@ public struct InfoDot: View {
                 .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
+        .pointerCursor()
         .popover(isPresented: $showing, arrowEdge: .trailing) {
             Text(text)
                 .font(.system(size: 12))

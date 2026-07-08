@@ -46,6 +46,7 @@ struct ClipboardRows: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .pointerCursor()
             }
 
             Group {

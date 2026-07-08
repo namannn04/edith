@@ -4,7 +4,7 @@ import SwiftUI
 
 enum MainDestination: String, CaseIterable, Identifiable {
     case home, dashboard, music, calendar
-    case extensions, usage, shortcuts, general, permissions, icloud
+    case extensions, usage, shortcuts, general, settings, permissions, icloud, about
 
     var id: String { rawValue }
 
@@ -18,8 +18,10 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .usage: return "Usage"
         case .shortcuts: return "Shortcuts"
         case .general: return "General"
+        case .settings: return "Settings"
         case .permissions: return "Permissions"
         case .icloud: return "iCloud"
+        case .about: return "About"
         }
     }
 
@@ -32,15 +34,17 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .extensions: return "puzzlepiece.extension"
         case .usage: return "gauge.with.dots.needle.67percent"
         case .shortcuts: return "command"
-        case .general: return "gearshape"
+        case .general: return "slider.horizontal.3"
+        case .settings: return "gearshape"
         case .permissions: return "checkmark.shield"
         case .icloud: return "icloud"
+        case .about: return "info.circle"
         }
     }
 
     static let homeItems: [MainDestination] = [.home, .dashboard, .music, .calendar]
     static let appItems: [MainDestination] = [
-        .extensions, .usage, .shortcuts, .general, .permissions, .icloud,
+        .settings, .extensions, .permissions, .shortcuts, .about,
     ]
 
     var usesPaperBackground: Bool { Self.homeItems.contains(self) }
@@ -110,29 +114,31 @@ private struct SidebarNavRow: View {
     let action: () -> Void
     @State private var hovering = false
 
+    private var rowBackground: AnyShapeStyle {
+        if selected { return AnyShapeStyle(.primary.opacity(0.09)) }
+        if hovering { return AnyShapeStyle(.primary.opacity(0.05)) }
+        return AnyShapeStyle(.clear)
+    }
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 11) {
                 Image(systemName: item.icon)
-                    .font(.system(size: 13))
-                    .frame(width: 20)
+                    .font(.system(size: 14, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? AnyShapeStyle(theme) : AnyShapeStyle(.secondary))
+                    .frame(width: 22)
                 Text(item.title)
-                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                    .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
-        .background(
-            selected
-                ? AnyShapeStyle(theme)
-                : hovering ? AnyShapeStyle(.primary.opacity(0.06)) : AnyShapeStyle(.clear),
-            in: RoundedRectangle(cornerRadius: 7)
-        )
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onHover { hovering = $0 }
         .pointerCursor()
     }
@@ -144,11 +150,13 @@ struct MainWindowView: View {
     @AppStorage("mainSidebarOpen", store: SharedDefaults.store) private var sidebarOpen = true
     @AppStorage("mainSidebarWidth", store: SharedDefaults.store) private var sidebarWidth = 230.0
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
-    @ObservedObject private var musicRemote = MusicRemote.shared
+    @AppStorage("creditHidden", store: SharedDefaults.store) private var creditHidden = false
     @State private var dragBaseWidth: Double?
+    @State private var musicKeyMonitor: Any?
     @State private var permissionsNeedAttention = PermissionsStatus.current
     @Environment(\.colorScheme) private var scheme
 
@@ -168,27 +176,89 @@ struct MainWindowView: View {
     var body: some View {
         GeometryReader { geo in
             let bandHeight = max(geo.safeAreaInsets.top, 28)
-            HStack(spacing: 0) {
-                if sidebarOpen {
-                    sidebar(bandHeight)
-                        .frame(width: clampedSidebarWidth)
+            VStack(spacing: 0) {
+                mainArea(bandHeight)
+                if musicFooterVisible {
+                    MusicFooter()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                detailColumn(bandHeight)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .ignoresSafeArea()
             .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
+            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: musicFooterVisible)
         }
         .onAppear {
             MusicRemote.shared.start()
             refreshPermissionsPill()
+            installMusicKeys()
         }
+        .onDisappear { removeMusicKeys() }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: NSApplication.didBecomeActiveNotification)
         ) { _ in
             refreshPermissionsPill()
         }
+    }
+
+    private func installMusicKeys() {
+        guard musicKeyMonitor == nil else { return }
+        musicKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let code = event.keyCode
+            let mods = event.modifierFlags
+            let handled = MainActor.assumeIsolated {
+                let remote = MusicRemote.shared
+                return MusicKeyCommand.handle(
+                    keyCode: code, modifiers: mods, active: remote.current != nil,
+                    .init(
+                        playPause: { remote.playPause() },
+                        seekBy: { remote.nudgeSeek($0) },
+                        volumeBy: { remote.nudgeVolume($0) }))
+            }
+            return handled ? nil : event
+        }
+    }
+
+    private func removeMusicKeys() {
+        if let monitor = musicKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            musicKeyMonitor = nil
+        }
+    }
+
+    private var musicFooterVisible: Bool {
+        musicEnabled
+    }
+
+    private var detailShadow: Color {
+        scheme == .dark ? .black.opacity(0.55) : .black.opacity(0.16)
+    }
+
+    private var detailCorner: CGFloat { sidebarOpen ? 12 : 0 }
+
+    private func mainArea(_ bandHeight: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            sidebar(bandHeight)
+                .frame(width: clampedSidebarWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            detailColumn(bandHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: detailCorner, bottomLeadingRadius: detailCorner,
+                        style: .continuous)
+                )
+                .padding(.leading, sidebarOpen ? clampedSidebarWidth : 0)
+                .shadow(color: detailShadow, radius: 18, x: -6, y: 0)
+
+            sidebarEdge
+                .frame(maxHeight: .infinity)
+                .offset(x: sidebarOpen ? clampedSidebarWidth : 0)
+                .opacity(sidebarOpen ? 1 : 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.34, dampingFraction: 0.88), value: sidebarOpen)
     }
 
     private func refreshPermissionsPill() {
@@ -229,7 +299,6 @@ struct MainWindowView: View {
 
     private var footerVisible: Bool {
         systemEnabled || permissionsNeedAttention
-            || (destination != .music && musicRemote.current != nil)
     }
 
     private func sidebar(_ bandHeight: CGFloat) -> some View {
@@ -250,7 +319,6 @@ struct MainWindowView: View {
             }
             .background(Color(nsColor: .windowBackgroundColor))
         }
-        .overlay(alignment: .trailing) { sidebarEdge }
     }
 
     private var sidebarList: some View {
@@ -287,9 +355,6 @@ struct MainWindowView: View {
         VStack(spacing: 8) {
             if systemEnabled {
                 quickActions
-            }
-            if destination != .music {
-                SidebarMiniPlayer(width: clampedSidebarWidth)
             }
             if permissionsNeedAttention {
                 permissionsPill
@@ -409,21 +474,37 @@ struct MainWindowView: View {
         .help("Open the Edith panel from the menu bar")
     }
 
+    @ViewBuilder
     private var credit: some View {
-        HStack(spacing: 3) {
-            Text("Made with ♥ by")
-                .foregroundStyle(.tertiary)
-            Button("Pulkit") {
-                NSWorkspace.shared.open(URL(string: "https://pulkit.page")!)
+        if !creditHidden {
+            HStack(spacing: 3) {
+                Spacer(minLength: 0)
+                Text("Made with ♥ by")
+                    .foregroundStyle(.tertiary)
+                Button("Pulkit") {
+                    NSWorkspace.shared.open(URL(string: "https://pulkit.page")!)
+                }
+                .buttonStyle(.plain)
+                .fontWeight(.semibold)
+                .foregroundStyle(theme)
+                .pointerCursor()
+                .help("pulkit.page")
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) { creditHidden = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 16, height: 16)
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help("Hide this")
             }
-            .buttonStyle(.plain)
-            .fontWeight(.semibold)
-            .foregroundStyle(theme)
-            .pointerCursor()
-            .help("pulkit.page")
+            .font(.system(size: 10))
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
         }
-        .font(.system(size: 10))
-        .frame(maxWidth: .infinity)
     }
 
     private var permissionsPill: some View {
@@ -456,8 +537,10 @@ struct MainWindowView: View {
         case .usage: UsagePane()
         case .shortcuts: ShortcutsPane()
         case .general: GeneralPane()
+        case .settings: SettingsPane()
         case .permissions: MainPermissionsPane()
         case .icloud: ICloudPane()
+        case .about: AboutPane()
         }
     }
 }
