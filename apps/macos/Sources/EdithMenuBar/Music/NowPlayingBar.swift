@@ -33,13 +33,7 @@ struct NowPlayingBar: View {
                         }
                     }
                     Spacer(minLength: 8)
-                    if player.isPlaying {
-                        TimelineView(.periodic(from: tick, by: 0.2)) { _ in
-                            VisualizerBars(level: player.meterLevel(), color: theme.opacity(0.9))
-                        }
-                    } else {
-                        VisualizerBars(level: 0, color: theme.opacity(0.9))
-                    }
+                    PlaybackWave(playing: player.isPlaying, color: theme.opacity(0.9))
                     Button {
                         player.previous()
                     } label: {

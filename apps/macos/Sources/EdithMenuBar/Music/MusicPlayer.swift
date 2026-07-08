@@ -264,12 +264,6 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         return p.currentTime / p.duration
     }
 
-    func meterLevel() -> Double {
-        guard isPlaying, let p = player else { return 0 }
-        p.updateMeters()
-        return MeterMath.level(fromPower: p.averagePower(forChannel: 0))
-    }
-
     var elapsed: TimeInterval { player?.currentTime ?? 0 }
     var trackDuration: TimeInterval { player?.duration ?? 0 }
 

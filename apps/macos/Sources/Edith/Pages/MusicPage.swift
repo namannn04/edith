@@ -312,36 +312,6 @@ private struct MusicPageRow: View {
     }
 }
 
-struct PlaybackWave: View {
-    let playing: Bool
-    let color: Color
-    var barCount = 5
-    var maxHeight: CGFloat = 18
-
-    private static let weights: [Double] = [0.55, 0.85, 1.0, 0.75, 0.6, 0.9, 0.5]
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 0.12, paused: !playing)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 2.5) {
-                ForEach(0..<barCount, id: \.self) { i in
-                    Capsule()
-                        .fill(color)
-                        .frame(width: 3, height: height(i, t))
-                }
-            }
-            .frame(height: maxHeight, alignment: .center)
-        }
-    }
-
-    private func height(_ i: Int, _ t: Double) -> CGFloat {
-        guard playing else { return maxHeight * 0.15 }
-        let phase = sin(t * (1.8 + Double(i) * 0.37) + Double(i) * 1.7)
-        let level = 0.3 + 0.7 * abs(phase)
-        return maxHeight * CGFloat(max(0.15, level * Self.weights[i % Self.weights.count]))
-    }
-}
-
 struct MusicFooter: View {
     @ObservedObject private var remote = MusicRemote.shared
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
@@ -397,6 +367,7 @@ struct MusicFooter: View {
                 Text(remote.isPlaying ? "Now playing" : "Paused")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
+                    .frame(width: 78, alignment: .leading)
             }
             PlaybackWave(playing: remote.isPlaying, color: theme.opacity(0.9), maxHeight: 13)
         }

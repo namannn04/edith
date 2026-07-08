@@ -6,7 +6,6 @@ import Testing
         let player = MusicPlayer()
         defer { player.shutdown() }
         #expect(!player.isPlaying)
-        #expect(player.meterLevel() == 0)
         #expect(player.progressNow() == 0)
         #expect(player.elapsed == 0)
         #expect(player.trackDuration == 0)

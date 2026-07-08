@@ -2,39 +2,6 @@ import AppKit
 import EdithKit
 import SwiftUI
 
-enum MeterMath {
-    static func level(fromPower dB: Float) -> Double {
-        guard dB.isFinite else { return 0 }
-        return Double(min(max((dB + 50) / 50, 0), 1))
-    }
-}
-
-struct VisualizerBars: View {
-    let level: Double
-    let color: Color
-    var barCount: Int = 5
-
-    private static let weights: [Double] = [0.55, 0.85, 1.0, 0.75, 0.6, 0.9, 0.5]
-    private let maxHeight: CGFloat = 18
-
-    var body: some View {
-        HStack(spacing: 2.5) {
-            ForEach(0..<barCount, id: \.self) { i in
-                Capsule()
-                    .fill(color)
-                    .frame(width: 3, height: height(i))
-            }
-        }
-        .frame(height: maxHeight, alignment: .center)
-        .animation(.easeOut(duration: 0.25), value: level)
-    }
-
-    private func height(_ i: Int) -> CGFloat {
-        let weight = Self.weights[i % Self.weights.count]
-        return maxHeight * CGFloat(max(0.15, level * weight))
-    }
-}
-
 struct ArtworkThumb: View {
     let track: Track
     @ObservedObject var player: MusicPlayer
