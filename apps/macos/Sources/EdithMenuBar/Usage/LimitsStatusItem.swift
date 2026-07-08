@@ -111,7 +111,7 @@ final class LimitsStatusItem {
                 utilization: window.percent, resetsAt: window.resetsAt,
                 windowDuration: kind.duration,
                 pacingMargin: d.object(forKey: "pacingMargin") as? Double ?? 10)
-            return color(forRisk: risk)
+            return Self.color(forRisk: risk, low: lowColor, mid: midColor, high: highColor)
         }
         switch UsageLevel.from(pct: window.percent, thresholds: .fromDefaults(d)) {
         case .green: return lowColor
@@ -149,12 +149,15 @@ final class LimitsStatusItem {
     private var midColor: NSColor { anchor("menuBarMidColorHex", .systemOrange) }
     private var highColor: NSColor { anchor("menuBarHighColorHex", .systemRed) }
 
-    private func color(forRisk risk: Double) -> NSColor {
+    static func color(
+        forRisk risk: Double, low: NSColor = .systemGreen, mid: NSColor = .systemOrange,
+        high: NSColor = .systemRed
+    ) -> NSColor {
         let r = max(0, min(1, risk))
-        if r <= 0.30 { return lowColor }
-        if r >= 0.85 { return highColor }
-        if r <= 0.55 { return Self.interpolateHSB(lowColor, midColor, t: (r - 0.30) / 0.25) }
-        return Self.interpolateHSB(midColor, highColor, t: (r - 0.55) / 0.30)
+        if r <= 0.30 { return low }
+        if r >= 0.85 { return high }
+        if r <= 0.55 { return interpolateHSB(low, mid, t: (r - 0.30) / 0.25) }
+        return interpolateHSB(mid, high, t: (r - 0.55) / 0.30)
     }
 
     static func nsColor(hex: String?) -> NSColor? {
