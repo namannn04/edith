@@ -39,7 +39,7 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
         p.setContentSize(NSSize(width: Self.width, height: height))
         p.setFrameOrigin(
             ClipboardPopupPosition.current.origin(
-                size: p.frame.size, statusItemFrame: menuBarExtraStatusWindow()?.frame))
+                size: p.frame.size, statusItemFrame: PanelController.shared?.statusItemFrame))
         p.orderFrontRegardless()
         p.makeKey()
     }

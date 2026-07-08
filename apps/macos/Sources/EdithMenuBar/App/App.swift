@@ -22,7 +22,7 @@ enum Logo {
 }
 
 @MainActor
-private func migratedServices() -> AppServices {
+func migratedServices() -> AppServices {
     let d = UserDefaults.standard
     if !d.bool(forKey: "migratedFromControlCenter"),
         let old = d.persistentDomain(forName: "com.pulkit.control-center")
@@ -40,13 +40,16 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         ProcessInfo.processInfo.disableAutomaticTermination("Edith lives in the menu bar")
     }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        PanelController.shared = PanelController(services: AppState.services)
+    }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
 @main
 struct EdithApp: App {
     @NSApplicationDelegateAdaptor(MenuBarAppDelegate.self) private var appDelegate
-    private let services = migratedServices()
+    private let services = AppState.services
 
     init() {
         _ = ProcessUptime.launchedAt
@@ -55,56 +58,6 @@ struct EdithApp: App {
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { _ in
             dismissPanel()
-        }
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification, object: nil, queue: .main
-        ) { note in
-            guard let panel = note.object as? NSWindow,
-                panel.className.contains("MenuBarExtraWindow")
-            else { return }
-            DispatchQueue.main.async { [weak panel] in
-                if let panel, panel.isVisible, !NSColorPanel.shared.isVisible {
-                    dismissPanel()
-                }
-            }
-        }
-        let names: [Notification.Name] = [
-            NSWindow.didBecomeKeyNotification,
-            NSWindow.didResizeNotification,
-            NSWindow.didMoveNotification,
-            NSWindow.didChangeOcclusionStateNotification,
-        ]
-        for name in names {
-            NotificationCenter.default.addObserver(
-                forName: name, object: nil, queue: .main
-            ) { note in
-                guard let panel = note.object as? NSWindow,
-                    panel.className.contains("MenuBarExtraWindow")
-                else { return }
-                MainActor.assumeIsolated {
-                    fitPanelHeight(panel)
-                    centerPanelUnderIcon(panel)
-                    MiniPanel.shared.sync()
-                }
-                DispatchQueue.main.async { [weak panel] in
-                    MainActor.assumeIsolated {
-                        if let panel, panel.isVisible {
-                            fitPanelHeight(panel)
-                            centerPanelUnderIcon(panel)
-                        }
-                        MiniPanel.shared.sync()
-                    }
-                }
-            }
-        }
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification, object: nil, queue: .main
-        ) { note in
-            guard let window = note.object as? NSWindow,
-                window.className.contains("MenuBarExtraWindow")
-            else { return }
-            lastPanelDismiss = Date()
-            Task { @MainActor in MiniPanel.shared.sync() }
         }
         HotKey.register()
         ClipboardHotKey.register()
@@ -137,9 +90,7 @@ struct EdithApp: App {
             services.system?.beginCleaning()
         }
         _ = IPC.observe(IPC.Name.openPanel) {
-            if Date().timeIntervalSince(lastPanelDismiss) > 0.5 {
-                showPanel()
-            }
+            showPanel()
         }
         _ = IPC.observe(IPC.Name.presenterPauseAuto) {
             services.presenter?.pauseUntilShareEnds()
@@ -152,9 +103,7 @@ struct EdithApp: App {
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53, !NSColorPanel.shared.isVisible,
-                NSApp.windows.contains(where: {
-                    $0.className.contains("MenuBarExtraWindow") && $0.isVisible
-                })
+                PanelController.shared?.isOpen == true
             {
                 dismissPanel()
                 return nil
@@ -164,13 +113,9 @@ struct EdithApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra(isInserted: .constant(true)) {
-            RootView()
-                .environmentObject(services)
-        } label: {
-            Image(nsImage: Logo.menuBar)
+        Settings {
+            EmptyView()
         }
-        .menuBarExtraStyle(.window)
     }
 }
 
@@ -341,89 +286,19 @@ enum PresenterHotKey {
     }
 }
 
-func menuBarExtraStatusWindow() -> NSWindow? {
-    NSApp.windows.first {
-        guard $0.className.contains("StatusBarWindow"),
-            let button = firstButton(in: $0.contentView)
-        else { return false }
-        return button.image != nil && button !== LimitsStatusItem.button
-    }
-}
-
-func clickStatusItem() {
-    if let statusWindow = menuBarExtraStatusWindow(),
-        let button = firstButton(in: statusWindow.contentView),
-        button !== LimitsStatusItem.button
-    {
-        button.performClick(nil)
-    }
-}
-
 func togglePanel() {
-    clickStatusItem()
+    MainActor.assumeIsolated { PanelController.shared?.toggle() }
 }
 
 func showPanel() {
-    guard
-        !NSApp.windows.contains(where: {
-            $0.className.contains("MenuBarExtraWindow") && $0.isVisible
-        })
-    else { return }
-    clickStatusItem()
+    MainActor.assumeIsolated { PanelController.shared?.open() }
 }
-
-private func firstButton(in view: NSView?) -> NSButton? {
-    guard let view else { return nil }
-    if let button = view as? NSButton { return button }
-    for sub in view.subviews {
-        if let found = firstButton(in: sub) { return found }
-    }
-    return nil
-}
-
-func fitPanelHeight(_ panel: NSWindow) {
-    guard let content = panel.contentView else { return }
-    let target = content.fittingSize.height
-    guard target > 1, abs(panel.frame.height - target) > 0.5 else { return }
-    let top = panel.frame.maxY
-    var frame = panel.frame
-    frame.size.height = target
-    frame.origin.y = top - target
-    panel.setFrame(frame, display: true)
-}
-
-func fitVisiblePanel() {
-    guard
-        let panel = NSApp.windows.first(where: {
-            $0.className.contains("MenuBarExtraWindow") && $0.isVisible
-        })
-    else { return }
-    fitPanelHeight(panel)
-    centerPanelUnderIcon(panel)
-}
-
-func centerPanelUnderIcon(_ panel: NSWindow) {
-    guard let icon = menuBarExtraStatusWindow() else { return }
-    var x = icon.frame.midX - panel.frame.width / 2
-    if let screen = icon.screen {
-        let visible = screen.visibleFrame
-        x = min(max(x, visible.minX + 8), visible.maxX - panel.frame.width - 8)
-    }
-    guard abs(panel.frame.origin.x - x) > 0.5 else { return }
-    panel.setFrameOrigin(NSPoint(x: x, y: panel.frame.origin.y))
-}
-
-private var lastPanelDismiss = Date.distantPast
 
 func dismissPanel() {
-    if NSColorPanel.shared.isVisible { NSColorPanel.shared.close() }
-    guard
-        NSApp.windows.contains(where: {
-            $0.className.contains("MenuBarExtraWindow") && $0.isVisible
-        })
-    else { return }
-    lastPanelDismiss = Date()
-    clickStatusItem()
+    MainActor.assumeIsolated {
+        if NSColorPanel.shared.isVisible { NSColorPanel.shared.close() }
+        PanelController.shared?.close()
+    }
 }
 
 struct TabInfo {
@@ -608,6 +483,11 @@ struct RootView: View {
             if enabledTabs.count > 1 {
                 TabBar(tabs: enabledTabs, selection: $tab, theme: themeColor(themeName))
             }
+            if tab != "music", let player = services.music, player.current != nil {
+                MiniPlayer(player: player, theme: themeColor(themeName))
+                    .frame(height: 46)
+                    .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            }
             if tab == "usage", let store = services.usage {
                 UsageView().environmentObject(store)
             } else if tab == "music", let player = services.music {
@@ -631,16 +511,9 @@ struct RootView: View {
         .onAppear {
             pinTab()
             permissions.refresh()
-            MiniPanel.shared.services = services
-            MiniPanel.shared.tab = tab
-            MiniPanel.shared.sync()
         }
         .onChange(of: tab) {
             UserDefaults.standard.set(tab, forKey: "tab")
-            MiniPanel.shared.tab = tab
-            MiniPanel.shared.expectResize()
-            MiniPanel.shared.sync()
-            settleMiniPanel()
         }
         .onChange(of: usageEnabled) { pinTab() }
         .onChange(of: musicEnabled) { pinTab() }
@@ -670,15 +543,6 @@ struct RootView: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func settleMiniPanel() {
-        for delay in [0.0, 0.45] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                fitVisiblePanel()
-                MiniPanel.shared.sync()
-            }
-        }
     }
 
     private func pinTab() {

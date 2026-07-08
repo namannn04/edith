@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MusicView: View {
     @EnvironmentObject private var player: MusicPlayer
-    @ObservedObject private var mini = MiniPanel.shared
     @State private var dragFraction: Double?
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
@@ -53,7 +52,7 @@ struct MusicView: View {
     private var nowPlayingBar: some View {
         VStack(spacing: 10) {
             if player.current != nil {
-                if mini.panelOpen, player.isPlaying {
+                if player.isPlaying {
                     TimelineView(.periodic(from: .now, by: 0.5)) { _ in scrubberRow }
                 } else {
                     scrubberRow
@@ -70,7 +69,7 @@ struct MusicView: View {
                     .foregroundStyle(player.current == nil ? .secondary : .primary)
                     .presenterBlur(blurMusic && player.current != nil)
                 if player.current != nil {
-                    if player.isPlaying, mini.panelOpen {
+                    if player.isPlaying {
                         TimelineView(.periodic(from: .now, by: 0.2)) { _ in
                             VisualizerBars(level: player.meterLevel(), color: theme.opacity(0.9))
                         }
