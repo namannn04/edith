@@ -1,3 +1,4 @@
+import AppKit
 import EdithKit
 import SwiftUI
 
@@ -6,6 +7,14 @@ struct UsagePane: View {
     @AppStorage("limitsInMenuBar", store: SharedDefaults.store) private var limitsInMenuBar = true
     @AppStorage("menuBarColorMode", store: SharedDefaults.store) private var menuBarColorMode =
         "auto"
+    @AppStorage("menuBarSubColorHex", store: SharedDefaults.store) private var subColorHex =
+        "8E8E93"
+    @AppStorage("menuBarLowColorHex", store: SharedDefaults.store) private var lowColorHex =
+        "34C759"
+    @AppStorage("menuBarMidColorHex", store: SharedDefaults.store) private var midColorHex =
+        "FF9500"
+    @AppStorage("menuBarHighColorHex", store: SharedDefaults.store) private var highColorHex =
+        "FF3B30"
     @AppStorage("smartColor", store: SharedDefaults.store) private var smartColor = true
     @AppStorage("warnPercent", store: SharedDefaults.store) private var warnPercent = 60
     @AppStorage("critPercent", store: SharedDefaults.store) private var critPercent = 85
@@ -45,8 +54,20 @@ struct UsagePane: View {
                     Text("Auto").tag("auto")
                     Text("White").tag("white")
                     Text("Black").tag("black")
+                    Text("Custom").tag("custom")
                 }
                 .pointerCursor()
+                if menuBarColorMode == "custom" {
+                    ColorPicker(
+                        "Text color (5h / 7d)", selection: hexBinding($subColorHex),
+                        supportsOpacity: false)
+                    ColorPicker(
+                        "Low risk", selection: hexBinding($lowColorHex), supportsOpacity: false)
+                    ColorPicker(
+                        "Medium risk", selection: hexBinding($midColorHex), supportsOpacity: false)
+                    ColorPicker(
+                        "High risk", selection: hexBinding($highColorHex), supportsOpacity: false)
+                }
                 HStack {
                     Toggle("Smart color", isOn: $smartColor)
                         .pointerCursor()
@@ -158,5 +179,21 @@ struct UsagePane: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Usage")
+    }
+
+    private func hexBinding(_ hex: Binding<String>) -> Binding<Color> {
+        Binding(
+            get: { DashPalette.color(hex.wrappedValue) },
+            set: { hex.wrappedValue = $0.menuBarHex6 })
+    }
+}
+
+extension Color {
+    fileprivate var menuBarHex6: String {
+        let ns = NSColor(self).usingColorSpace(.sRGB) ?? .black
+        let r = Int((ns.redComponent * 255).rounded())
+        let g = Int((ns.greenComponent * 255).rounded())
+        let b = Int((ns.blueComponent * 255).rounded())
+        return String(format: "%02X%02X%02X", r, g, b)
     }
 }

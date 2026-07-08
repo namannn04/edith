@@ -9,6 +9,8 @@ struct UsageView: View {
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
         true
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
+    @AppStorage("warnPercent", store: SharedDefaults.store) private var warn = 60
+    @AppStorage("critPercent", store: SharedDefaults.store) private var crit = 85
 
     private var theme: Color { themeColor(themeName) }
     private var blurMoney: Bool { presenterState.active && presenterBlurMoney }
@@ -139,7 +141,9 @@ struct UsageView: View {
     }
 
     private func color(for percent: Double) -> Color {
-        percent >= 90 ? .red : percent >= 70 ? .orange : theme
+        if percent >= Double(crit) { return .red }
+        if percent >= Double(warn) { return .orange }
+        return usageSage
     }
 
     private var activityCard: some View {

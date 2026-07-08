@@ -49,7 +49,7 @@ final class LimitsStatusItem {
         attachment.image = image
         let out = NSMutableAttributedString(attachment: attachment)
         out.addAttribute(
-            .foregroundColor, value: fixedColor ?? NSColor.secondaryLabelColor,
+            .foregroundColor, value: subColor ?? NSColor.secondaryLabelColor,
             range: NSRange(location: 0, length: out.length))
         out.append(NSAttributedString(string: " "))
         return out
@@ -64,7 +64,7 @@ final class LimitsStatusItem {
                 string: label + " ",
                 attributes: [
                     .font: NSFont.systemFont(ofSize: 9, weight: .bold),
-                    .foregroundColor: fixedColor ?? NSColor.secondaryLabelColor,
+                    .foregroundColor: subColor ?? NSColor.secondaryLabelColor,
                     .baselineOffset: 1.5,
                 ]))
         let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
@@ -74,7 +74,7 @@ final class LimitsStatusItem {
                     string: "· ·",
                     attributes: [
                         .font: numberFont,
-                        .foregroundColor: fixedColor ?? NSColor.tertiaryLabelColor,
+                        .foregroundColor: subColor ?? NSColor.tertiaryLabelColor,
                     ]))
             return
         }
@@ -84,11 +84,11 @@ final class LimitsStatusItem {
                     string: "\u{2013}",
                     attributes: [
                         .font: numberFont,
-                        .foregroundColor: fixedColor ?? NSColor.tertiaryLabelColor,
+                        .foregroundColor: subColor ?? NSColor.tertiaryLabelColor,
                     ]))
             return
         }
-        let tint = fixedColor ?? color(for: window, kind: kind)
+        let tint = numberOverride ?? color(for: window, kind: kind)
         out.append(
             NSAttributedString(
                 string: "\(Int(window.percent.rounded()))",
@@ -111,30 +111,60 @@ final class LimitsStatusItem {
                 utilization: window.percent, resetsAt: window.resetsAt,
                 windowDuration: kind.duration,
                 pacingMargin: d.object(forKey: "pacingMargin") as? Double ?? 10)
-            return Self.color(forRisk: risk)
+            return color(forRisk: risk)
         }
         switch UsageLevel.from(pct: window.percent, thresholds: .fromDefaults(d)) {
-        case .green: return .systemGreen
-        case .orange: return .systemOrange
-        case .red: return .systemRed
+        case .green: return lowColor
+        case .orange: return midColor
+        case .red: return highColor
         }
     }
 
-    private var fixedColor: NSColor? {
-        switch SharedDefaults.store.string(forKey: "menuBarColorMode") {
+    private var mode: String { SharedDefaults.store.string(forKey: "menuBarColorMode") ?? "auto" }
+
+    private var subColor: NSColor? {
+        switch mode {
+        case "white": return .white
+        case "black": return .black
+        case "custom":
+            return Self.nsColor(hex: SharedDefaults.store.string(forKey: "menuBarSubColorHex"))
+        default: return nil
+        }
+    }
+
+    private var numberOverride: NSColor? {
+        switch mode {
         case "white": return .white
         case "black": return .black
         default: return nil
         }
     }
 
-    static func color(forRisk risk: Double) -> NSColor {
+    private func anchor(_ key: String, _ fallback: NSColor) -> NSColor {
+        guard mode == "custom" else { return fallback }
+        return Self.nsColor(hex: SharedDefaults.store.string(forKey: key)) ?? fallback
+    }
+
+    private var lowColor: NSColor { anchor("menuBarLowColorHex", .systemGreen) }
+    private var midColor: NSColor { anchor("menuBarMidColorHex", .systemOrange) }
+    private var highColor: NSColor { anchor("menuBarHighColorHex", .systemRed) }
+
+    private func color(forRisk risk: Double) -> NSColor {
         let r = max(0, min(1, risk))
-        let green = NSColor.systemGreen, orange = NSColor.systemOrange, red = NSColor.systemRed
-        if r <= 0.30 { return green }
-        if r >= 0.85 { return red }
-        if r <= 0.55 { return interpolateHSB(green, orange, t: (r - 0.30) / 0.25) }
-        return interpolateHSB(orange, red, t: (r - 0.55) / 0.30)
+        if r <= 0.30 { return lowColor }
+        if r >= 0.85 { return highColor }
+        if r <= 0.55 { return Self.interpolateHSB(lowColor, midColor, t: (r - 0.30) / 0.25) }
+        return Self.interpolateHSB(midColor, highColor, t: (r - 0.55) / 0.30)
+    }
+
+    static func nsColor(hex: String?) -> NSColor? {
+        guard var s = hex else { return nil }
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = UInt64(s, radix: 16) else { return nil }
+        return NSColor(
+            srgbRed: CGFloat((v >> 16) & 0xff) / 255,
+            green: CGFloat((v >> 8) & 0xff) / 255,
+            blue: CGFloat(v & 0xff) / 255, alpha: 1)
     }
 
     private static func interpolateHSB(_ a: NSColor, _ b: NSColor, t: Double) -> NSColor {

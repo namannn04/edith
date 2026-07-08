@@ -489,13 +489,11 @@ struct RootView: View {
             if presenterState.autoActive {
                 presenterBanner
             }
+            if let player = services.music, player.current != nil {
+                NowPlayingBar(player: player, theme: themeColor(themeName))
+            }
             if enabledTabs.count > 1 {
                 TabBar(tabs: enabledTabs, selection: $tab, theme: themeColor(themeName))
-            }
-            if tab != "music", let player = services.music, player.current != nil {
-                NowPlayingBar(player: player, theme: themeColor(themeName))
-                    .frame(height: 46)
-                    .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             }
             ZStack {
                 tabBody
