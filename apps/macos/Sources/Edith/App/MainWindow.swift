@@ -67,17 +67,25 @@ enum MainWindow {
         w.titlebarAppearsTransparent = true
         w.titlebarSeparatorStyle = .none
         w.isReleasedWhenClosed = false
-        w.center()
         w.contentMinSize = NSSize(width: 720, height: 500)
         let hosting = NSHostingController(rootView: MainWindowView())
         hosting.sizingOptions = []
         w.contentViewController = hosting
         w.setContentSize(NSSize(width: 900, height: 680))
+        w.center()
+        w.setFrameAutosaveName("EdithMainWindow")
         w.delegate = MainWindowDelegate.shared
         window = w
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        if UserDefaults.standard.bool(forKey: fullScreenDefaultsKey),
+            !w.styleMask.contains(.fullScreen)
+        {
+            w.toggleFullScreen(nil)
+        }
     }
+
+    fileprivate static let fullScreenDefaultsKey = "EdithMainWindowFullScreen"
 
     static func forget() { window = nil }
 }
@@ -87,5 +95,11 @@ final class MainWindowDelegate: NSObject, NSWindowDelegate {
     static let shared = MainWindowDelegate()
     func windowWillClose(_ notification: Notification) {
         MainWindow.forget()
+    }
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        UserDefaults.standard.set(true, forKey: MainWindow.fullScreenDefaultsKey)
+    }
+    func windowDidExitFullScreen(_ notification: Notification) {
+        UserDefaults.standard.set(false, forKey: MainWindow.fullScreenDefaultsKey)
     }
 }
