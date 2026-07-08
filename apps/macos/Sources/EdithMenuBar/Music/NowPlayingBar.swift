@@ -5,6 +5,7 @@ struct NowPlayingBar: View {
     @ObservedObject var player: MusicPlayer
     let theme: Color
     @State private var dragFraction: Double?
+    @State private var tick = Date()
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
@@ -22,7 +23,7 @@ struct NowPlayingBar: View {
                             .lineLimit(1)
                             .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
                             .presenterBlur(blurMusic)
-                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        TimelineView(.periodic(from: tick, by: 1)) { _ in
                             Text(
                                 "\(timeLabel(player.elapsed)) / \(timeLabel(player.trackDuration))"
                             )
@@ -33,7 +34,7 @@ struct NowPlayingBar: View {
                     }
                     Spacer(minLength: 8)
                     if player.isPlaying {
-                        TimelineView(.periodic(from: .now, by: 0.2)) { _ in
+                        TimelineView(.periodic(from: tick, by: 0.2)) { _ in
                             VisualizerBars(level: player.meterLevel(), color: theme.opacity(0.9))
                         }
                     } else {
@@ -97,7 +98,7 @@ struct NowPlayingBar: View {
             let knob: CGFloat = 10
             ZStack(alignment: .leading) {
                 Capsule().fill(.primary.opacity(0.1))
-                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                TimelineView(.periodic(from: tick, by: 0.25)) { _ in
                     let fraction = dragFraction ?? player.progressNow()
                     ZStack(alignment: .leading) {
                         Capsule()
