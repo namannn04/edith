@@ -28,7 +28,7 @@ final class PanelController: NSObject {
         }
 
         popover.behavior = .transient
-        popover.animates = false
+        popover.animates = true
     }
 
     @objc private func statusClicked() {

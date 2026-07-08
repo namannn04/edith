@@ -497,25 +497,16 @@ struct RootView: View {
                     .frame(height: 46)
                     .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             }
-            if tab == "usage", let store = services.usage {
-                UsageView().environmentObject(store)
-            } else if tab == "music", let player = services.music {
-                MusicView().environmentObject(player)
-            } else if tab == "system", let system = services.system {
-                SystemView().environmentObject(system)
-            } else if tab == "calendar", let calendar = services.calendar {
-                CalendarView().environmentObject(calendar)
-            } else if enabledTabs.isEmpty {
-                Text("All tabs are off - enable one in Edith's settings (⚙)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 28)
+            ZStack {
+                tabBody
+                    .id(tab)
+                    .transition(.opacity)
             }
+            .animation(.easeInOut(duration: 0.22), value: tab)
             if showDeveloper {
                 DeveloperPanel()
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: tab)
         .tint(themeColor(themeName))
         .onAppear {
             pinTab()
@@ -532,6 +523,24 @@ struct RootView: View {
         .frame(width: 480)
         .background(PanelBackground())
         .onExitCommand { dismissPanel() }
+    }
+
+    @ViewBuilder
+    private var tabBody: some View {
+        if tab == "usage", let store = services.usage {
+            UsageView().environmentObject(store)
+        } else if tab == "music", let player = services.music {
+            MusicView().environmentObject(player)
+        } else if tab == "system", let system = services.system {
+            SystemView().environmentObject(system)
+        } else if tab == "calendar", let calendar = services.calendar {
+            CalendarView().environmentObject(calendar)
+        } else if enabledTabs.isEmpty {
+            Text("All tabs are off - enable one in Edith's settings (⚙)")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 28)
+        }
     }
 
     private var presenterBanner: some View {
