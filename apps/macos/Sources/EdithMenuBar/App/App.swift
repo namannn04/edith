@@ -38,12 +38,21 @@ func migratedServices() -> AppServices {
 
 final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
+        if anEarlierInstanceIsRunning() { exit(0) }
+        NSApp.setActivationPolicy(.accessory)
         ProcessInfo.processInfo.disableAutomaticTermination("Edith lives in the menu bar")
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         PanelController.shared = PanelController(services: AppState.services)
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+private func anEarlierInstanceIsRunning() -> Bool {
+    guard let id = Bundle.main.bundleIdentifier else { return false }
+    let me = NSRunningApplication.current.processIdentifier
+    return NSRunningApplication.runningApplications(withBundleIdentifier: id)
+        .contains { $0.processIdentifier < me }
 }
 
 @main

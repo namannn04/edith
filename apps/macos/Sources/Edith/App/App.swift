@@ -2,7 +2,7 @@ import EdithKit
 import ServiceManagement
 import SwiftUI
 
-private let helperBundleIdentifier = "com.pulkit.edith.panel"
+private let helperBundleIdentifier = "com.pulkit.edith.statusbar"
 
 @MainActor
 final class MainAppDelegate: NSObject, NSApplicationDelegate {
@@ -55,12 +55,16 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-private let retiredHelperBundleIdentifier = "com.pulkit.edith.bar"
+private let retiredHelperBundleIdentifiers = [
+    "com.pulkit.edith.panel", "com.pulkit.edith.bar", "com.pulkit.edith.menubar",
+]
 
 private func launchHelperIfNeeded() {
-    let retired = SMAppService.loginItem(identifier: retiredHelperBundleIdentifier)
-    if retired.status == .enabled {
-        try? retired.unregister()
+    for identifier in retiredHelperBundleIdentifiers {
+        let retired = SMAppService.loginItem(identifier: identifier)
+        if retired.status == .enabled {
+            try? retired.unregister()
+        }
     }
     let service = SMAppService.loginItem(identifier: helperBundleIdentifier)
     if service.status != .enabled {

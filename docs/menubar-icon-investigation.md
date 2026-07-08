@@ -4,6 +4,124 @@ Full record of the "Edith menu bar icon / status items don't appear" investigati
 including the earlier fix (PR #43), the exhaustive diagnosis, every dead end, the
 root cause, and the fix that shipped in `v1.11.0`.
 
+> The `v1.11.0` work (sections 5 to 9 below) did NOT actually fix it. The real
+> root cause and the durable fix were found on 2026-07-08 and are written up in
+> the section immediately below. Read that first; sections 1 to 10 are the
+> historical trail, kept because several of their observations are still useful
+> (and a few are corrected below).
+
+---
+
+## 0. RESOLVED (2026-07-08): the real root cause + the durable fix
+
+### 0.1 What was actually wrong (two compounding problems)
+
+**Problem A, the real code defect: the helper never registered with the status-bar
+server.** `EdithMenuBar.app` is a nested login-item helper
+(`Edith.app/Contents/Library/LoginItems/EdithMenuBar.app`) launched by launchd
+(SMAppService) or `NSWorkspace.openApplication` in a **background context** (it is
+never brought to the foreground / activated). On macOS 26, `LSUIElement=true` in
+`Info.plist` is **not sufficient** in that launch context: the process gets a normal
+WindowServer connection (so the panel popover and `⌥⌘E` hotkey work fine) but is
+**never registered with the menu-bar / status-item server**, so every
+`NSStatusItem` it creates silently gets no slot. A trivial app happens to register
+in time; the real helper's heavier launch-time init means it is still "background"
+when it creates its items, and they never place.
+
+The fix is one line: call `NSApp.setActivationPolicy(.accessory)` in the helper's
+`applicationWillFinishLaunching`. That explicitly registers the process as an
+accessory (UI-element) app with the status-bar server, independent of launch
+activation. **Proven:** the exact same helper binary places both status items in the
+exact failing nested/background launch context with this line, and places nothing
+without it.
+
+**Problem B, why it kept coming back: a bundle-id "poison".** Because Problem A made
+placement fail on nearly every launch, macOS accumulated a per-bundle-id "these
+status items are broken/hidden" record for `com.pulkit.edith.panel` in a private
+system store. That record is:
+- not in any readable pref (`defaults read com.pulkit.edith.panel`, `com.apple.controlcenter`, ByHost, universalaccess all show nothing),
+- survives reboot, resets a forced `VisibleCC=1` back to `0`, and is unclearable from user space,
+- **bundle-id scoped**: a fresh `autosaveName` on the poisoned id is still hidden; a fresh bundle id (same code, same autosave) places fine. Verified by A/B test.
+
+Every previous "fix" (PR #43 and section 6.1 here) was a bundle-id rename
+(`menubar` to `bar` to `panel`). Each worked until the poison re-accumulated,
+because placement was never actually made reliable. Renaming treats the symptom;
+`setActivationPolicy` treats the cause.
+
+### 0.2 The fix that shipped (2026-07-08)
+
+Three changes, all on `main`:
+1. `Sources/EdithMenuBar/App/App.swift`: `NSApp.setActivationPolicy(.accessory)` in
+   `applicationWillFinishLaunching`. **This is the durable fix.**
+2. Same file: `anEarlierInstanceIsRunning()` single-instance guard. The main app
+   double-launches the helper (SMAppService login item + `openApplication`); once
+   the icons are actually visible, that would show **duplicate** icons. The guard
+   makes the later-launched instance `exit(0)` (lowest pid wins).
+3. One-time bundle-id rename `com.pulkit.edith.panel` to `com.pulkit.edith.statusbar`
+   to escape the already-accumulated poison, in `Resources/HelperInfo.plist`,
+   `Sources/Edith/App/App.swift` (`helperBundleIdentifier` + the retired-id list),
+   and `reset.sh`. `.panel/.bar/.menubar` are all retired on next launch.
+
+Verified end-to-end: install to `/Applications`, normal login-item launch, both
+`edithGlasses` and `limits` place in the real menu bar; exactly one helper instance;
+stable across repeated kill/relaunch cycles.
+
+### 0.3 Is it permanent? Yes, for normal use.
+
+The rename was a **one-time** cleanup of the existing poison. `setActivationPolicy`
+removes the **cause** of poisoning: items now place reliably on every launch, so
+macOS never marks them broken, so `.statusbar` should never get poisoned. The
+single-instance guard removes the other churn source (duplicate instances sharing an
+autosave). Normal quit / relaunch / reboot will not re-break it.
+
+Residual risk (developer-only): dozens of kill/relaunch cycles while the app is in a
+*broken* state (as happened during this investigation) is what poisoned `.panel`. If
+that ever recurs, follow the runbook in 0.4. The poison is bundle-id scoped and a
+running app cannot change its own bundle id, so the only escape remains a rename, but
+with `setActivationPolicy` in place a rename should never again be necessary.
+
+### 0.4 RUNBOOK: if the menu bar icon disappears again
+
+1. **Detect.** The source of truth is `CGWindowList`, never a screenshot (the helper
+   is a non-grantable nested login item, so its popover is filtered out of
+   screenshots; its status items normally composite in). Run:
+   ```sh
+   swift - <<'EOF'
+   import Cocoa
+   let l = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String:Any]]
+   for w in l where (w[kCGWindowLayer as String] as? Int) == 25 {
+     let n = w[kCGWindowName as String] as? String ?? ""
+     let b = w[kCGWindowBounds as String] as? [String:Any] ?? [:]
+     if !n.isEmpty { print(Int((b["X"] as? Double) ?? -1), n) }
+   }
+   EOF
+   ```
+   Look for `edithGlasses` and `limits`. Absent = the status items did not place.
+   (Ignore any window at x=765 layer 33: that is the NotchShelf panel, never the icon.)
+
+2. **First check the code is intact.** Confirm
+   `NSApp.setActivationPolicy(.accessory)` is still the first line of
+   `MenuBarAppDelegate.applicationWillFinishLaunching`. If it was removed, that alone
+   breaks placement, put it back.
+
+3. **Confirm it is the bundle-id poison (not a fresh code regression).** Copy the
+   installed helper to `/tmp`, change its `CFBundleIdentifier` to a throwaway value,
+   ad-hoc `codesign --force --sign -`, and launch it with
+   `NSWorkspace.openApplication`. If the **throwaway id places both items but the
+   installed real id does not**, the real bundle id is poisoned.
+
+4. **Fix (rename to a fresh bundle id).** Pick a new, never-used id and update all
+   three sites, then `./build.sh --install`:
+   - `apps/macos/Resources/HelperInfo.plist` -> `CFBundleIdentifier`
+   - `apps/macos/Sources/Edith/App/App.swift` -> `helperBundleIdentifier`, and add
+     the old id to `retiredHelperBundleIdentifiers`
+   - `apps/macos/reset.sh` -> add to `BUNDLE_IDS` and `HELPER_IDS`
+
+5. **Kill/measure gotchas** (still true): the `openApplication`-launched helper's
+   process name is `EdithMenuBar`; the launchd/login-item one's is the bundle id.
+   `pkill -x EdithMenuBar` misses the login-item instance. Use both, or `pkill -f`
+   the full path.
+
 ---
 
 ## 1. Symptom
@@ -186,6 +304,14 @@ recurrence and the same remedy applied, then diagnosed exhaustively.
   `PanelController.shared?.statusItemFrame`.
 
 ### 7.1 The unresolved verification caveat (critical)
+
+> CORRECTED by section 0: the conclusion in this subsection ("only a real login
+> places the item") is **wrong**. A real login is the same background launch
+> context and fails identically. The missing ingredient was
+> `NSApp.setActivationPolicy(.accessory)`, not the launch timing. The button's
+> stuck `(0, -22, 36, 22)` frame was exactly the "registered-but-no-status-slot"
+> symptom that `setActivationPolicy` fixes.
+
 - With the manual item in place, debug logging showed:
   `button = true`, eventually `isVisible = true`, `image = true`, but the button's
   window stuck at **`(0, -22, 36, 22)` — unplaced** (not in the menu bar), and
@@ -235,6 +361,12 @@ recurrence and the same remedy applied, then diagnosed exhaustively.
   `launchctl bootout`/`disable` + `pkill -f com.pulkit.edith.<id>`.
 
 ## 10. Open questions / next steps
+
+> ANSWERED by section 0 (2026-07-08). The manual `NSStatusItem` does NOT place at
+> real login in the nested helper without `NSApp.setActivationPolicy(.accessory)`;
+> the two-process split is fine and did not need reconsidering. Left below as the
+> original open questions.
+
 
 - **Does the manual `NSStatusItem` place at real login in the two-process helper?**
   TokenEater proves it works in a **single-process** app; Edith's helper is launched as a

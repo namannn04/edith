@@ -9,7 +9,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.pulkit.edith.panel</string>
+	<string>com.pulkit.edith.statusbar</string>
 	<key>CFBundleName</key>
 	<string>Edith</string>
 	<key>CFBundlePackageType</key>
