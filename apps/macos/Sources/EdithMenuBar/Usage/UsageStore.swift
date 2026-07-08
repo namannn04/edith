@@ -47,6 +47,7 @@ final class UsageStore: ObservableObject, FeatureModule {
     private var locked = false
     private var lockObservers: [NSObjectProtocol] = []
     private var process: Process?
+    private var lastLogFlush: Date?
     private var limitsKVO: NSKeyValueObservation?
     private var launchObserver: NSObjectProtocol?
     private var refreshRequestObserver: NSObjectProtocol?
@@ -564,6 +565,8 @@ final class UsageStore: ObservableObject, FeatureModule {
         IPC.post(IPC.Name.usageRefreshStarted)
         let dataDir = Repo.dataDir
         try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+        lastLogFlush = nil
+        flushLog(force: true)
 
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -580,6 +583,7 @@ final class UsageStore: ObservableObject, FeatureModule {
                 guard let self else { return }
                 self.log += text
                 if self.log.count > 20_000 { self.log = String(self.log.suffix(16_000)) }
+                self.flushLog()
             }
         }
         p.terminationHandler = { [weak self] proc in
@@ -593,9 +597,7 @@ final class UsageStore: ObservableObject, FeatureModule {
                 }
                 SettingsBackup.shared.syncUsage()
                 await self.loadStats()
-                try? self.log.write(
-                    to: Repo.dataDir.appendingPathComponent("refresh.log"),
-                    atomically: true, encoding: .utf8)
+                self.flushLog(force: true)
                 NotificationCenter.default.post(name: .usageDataChanged, object: nil)
                 IPC.post(IPC.Name.usageRefreshFinished)
             }
@@ -606,7 +608,17 @@ final class UsageStore: ObservableObject, FeatureModule {
         } catch {
             updating = false
             log = "✖ could not launch refresh-usage: \(error.localizedDescription)"
+            flushLog(force: true)
         }
+    }
+
+    private func flushLog(force: Bool = false) {
+        let now = Date()
+        if !force, let last = lastLogFlush, now.timeIntervalSince(last) < 0.3 { return }
+        lastLogFlush = now
+        try? log.write(
+            to: Repo.dataDir.appendingPathComponent("refresh.log"),
+            atomically: true, encoding: .utf8)
     }
 }
 
