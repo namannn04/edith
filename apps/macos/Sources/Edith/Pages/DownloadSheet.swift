@@ -17,7 +17,7 @@ struct DownloadSheet: View {
         return downloader.parseURLs(from: urlText).count
     }
     private var canStart: Bool {
-        parsedCount > 0 && !downloader.isRunning
+        parsedCount > 0
     }
     private var progressFraction: Double {
         let total = downloader.items.count
@@ -112,6 +112,13 @@ struct DownloadSheet: View {
         } else {
             VStack(spacing: 0) {
                 progressHeader
+                Divider().overlay(DashSkin.line(dark))
+                urlInput
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 10)
+                startRow
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 6)
                 Divider().overlay(DashSkin.line(dark))
                 queueList
                 Divider().overlay(DashSkin.line(dark))
