@@ -239,7 +239,9 @@ struct MainWindowView: View {
                 }
                 .ignoresSafeArea()
                 .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
-                .animation(.spring(response: 0.32, dampingFraction: 0.86), value: musicFooterVisible)
+                .animation(
+                    .spring(response: 0.32, dampingFraction: 0.86),
+                    value: musicFooterVisible)
             }
             .background(historyShortcuts)
 

@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Entrance animation
-
 struct LensEntranceView: View {
     @State private var lensOffset: CGFloat = 0
     @State private var fadeOut = false
@@ -40,7 +38,9 @@ struct LensEntranceView: View {
                 onComplete()
                 return
             }
-            withAnimation(.interpolatingSpring(mass: 0.8, stiffness: 120, damping: 12, initialVelocity: 2)) {
+            withAnimation(
+                .interpolatingSpring(mass: 0.8, stiffness: 120, damping: 12, initialVelocity: 2)
+            ) {
                 lensOffset = lensSize * 0.92
             }
 
@@ -57,8 +57,6 @@ struct LensEntranceView: View {
         }
     }
 }
-
-// MARK: - Single lens half
 
 private struct LensHalf: View {
     enum Side { case left, right }
