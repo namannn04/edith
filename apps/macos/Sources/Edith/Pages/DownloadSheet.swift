@@ -299,9 +299,9 @@ struct DownloadSheet: View {
             Group {
                 switch item.status {
                 case .queued:
-                    Image(systemName: "circle")
-                        .font(.system(size: 13))
-                        .foregroundStyle(DashSkin.lineStrong(dark))
+                    Image(systemName: "clock")
+                        .font(.system(size: 12))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
                 case .resolving:
                     ProgressView()
                         .progressViewStyle(.circular)
@@ -313,17 +313,17 @@ struct DownloadSheet: View {
                         .tint(theme)
                 case .done:
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16))
+                        .font(.system(size: 15))
                         .foregroundStyle(.green)
                 case .error:
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 16))
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
                         .foregroundStyle(.red)
                 }
             }
             .frame(width: 20)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(displayURL(item.url))
                     .font(.system(size: 12))
                     .foregroundStyle(
@@ -332,15 +332,13 @@ struct DownloadSheet: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                HStack(spacing: 5) {
-                    switch item.status {
-                    case .queued:
-                        EmptyView()
-                    case .resolving:
-                        Text("Resolving…")
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(DashSkin.inkSoft(dark))
-                    case let .downloading(progress, videoIndex, videoCount):
+                switch item.status {
+                case .queued:
+                    EmptyView()
+                case .resolving:
+                    EmptyView()
+                case let .downloading(progress, videoIndex, videoCount):
+                    HStack(spacing: 4) {
                         if videoIndex > 0, videoCount > 0 {
                             Text("\(videoIndex)/\(videoCount)")
                                 .font(.system(size: 10.5, weight: .medium))
@@ -351,17 +349,17 @@ struct DownloadSheet: View {
                                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                                 .foregroundStyle(theme)
                         }
-                    case let .done(output):
-                        Text(output)
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(DashSkin.inkFaint(dark))
-                            .lineLimit(1)
-                    case let .error(msg):
-                        Text(msg)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.red)
-                            .lineLimit(2)
                     }
+                case let .done(output):
+                    Text(output)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                        .lineLimit(1)
+                case let .error(msg):
+                    Text(msg)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
                 }
             }
 
