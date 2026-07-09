@@ -85,6 +85,7 @@ public final class YoutubeDownloader: ObservableObject {
         public var status: DownloadStatus
         public var outputFilename: String?
         public let createdAt: Date
+        public var logs: String = ""
 
         public static func == (lhs: DownloadItem, rhs: DownloadItem) -> Bool {
             lhs.id == rhs.id
@@ -259,6 +260,7 @@ public final class YoutubeDownloader: ObservableObject {
             guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
             Task { @MainActor in
                 guard let self, index < self.items.count else { return }
+                self.items[index].logs += text
                 let (progress, videoIndex, videoCount) = self.parseProgress(from: text)
                 self.items[index].status = .downloading(
                     progress: progress, videoIndex: videoIndex, videoCount: videoCount)
