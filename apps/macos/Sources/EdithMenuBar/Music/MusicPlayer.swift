@@ -108,11 +108,17 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
     private func setupRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
         center.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.playPause() }
+            Task { @MainActor in
+                guard let self, !self.isPlaying else { return }
+                self.playPause()
+            }
             return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.playPause() }
+            Task { @MainActor in
+                guard let self, self.isPlaying else { return }
+                self.playPause()
+            }
             return .success
         }
         center.togglePlayPauseCommand.addTarget { [weak self] _ in
