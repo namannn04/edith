@@ -24,7 +24,7 @@ struct DownloadSheet: View {
     private var activeItems: [YoutubeDownloader.DownloadItem] {
         downloader.items.filter {
             switch $0.status {
-            case .queued, .resolving, .downloading: true
+            case .queued, .resolving, .downloading, .error: true
             default: false
             }
         }
@@ -32,7 +32,7 @@ struct DownloadSheet: View {
     private var historyItems: [YoutubeDownloader.DownloadItem] {
         downloader.items.filter {
             switch $0.status {
-            case .queued, .resolving, .downloading: false
+            case .queued, .resolving, .downloading, .error: false
             default: true
             }
         }
@@ -46,7 +46,12 @@ struct DownloadSheet: View {
         return Double(done) / Double(total)
     }
     private var summaryText: String {
-        let active = activeItems.count
+        let active = downloader.items.filter {
+            switch $0.status {
+            case .queued, .resolving, .downloading: true
+            default: false
+            }
+        }.count
         let done = downloader.items.filter {
             if case .done = $0.status { return true }; return false
         }.count
@@ -79,11 +84,38 @@ struct DownloadSheet: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 10) {
             Text("Download YouTube Audio")
                 .font(DashSkin.serif(20))
                 .foregroundStyle(DashSkin.ink(dark))
             Spacer()
+            Button {
+                downloader.updateYTDLP()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(HoverButtonStyle())
+            .disabled(downloader.isRunning || downloader.isUpdatingYTDLP)
+            .pointerCursor()
+            .help("Update yt-dlp")
+            if let result = downloader.updateResult {
+                switch result {
+                case .success(let msg):
+                    Text(msg)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.green)
+                        .lineLimit(1)
+                case .failure(let error):
+                    Text(error.localizedDescription)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                }
+            }
             Button {
                 dismiss()
             } label: {
@@ -169,9 +201,9 @@ struct DownloadSheet: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                 if urlText.isEmpty {
-                    Text("https://youtube.com/watch?v=...\nhttps://youtu.be/...")
+                    Text("Paste one or more YouTube links, one per line")
                         .font(.system(size: 12.5))
-                        .foregroundStyle(DashSkin.inkFaint(dark).opacity(0.7))
+                        .foregroundStyle(DashSkin.inkFaint(dark).opacity(0.45))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .allowsHitTesting(false)
@@ -296,7 +328,7 @@ struct DownloadSheet: View {
     private var progressHeader: some View {
         VStack(spacing: 6) {
             HStack {
-                Text("DOWNLOADING")
+                Text("ACTIVE")
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(DashSkin.inkFaint(dark))
                     .tracking(0.5)
@@ -476,6 +508,20 @@ struct DownloadSheet: View {
             }
 
             Spacer(minLength: 4)
+
+            switch item.status {
+            case .error, .interrupted:
+                Button("Retry") {
+                    downloader.retry(item)
+                }
+                .buttonStyle(HoverButtonStyle())
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(theme)
+                .pointerCursor()
+                .disabled(downloader.isRunning)
+            default:
+                EmptyView()
+            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
@@ -491,7 +537,8 @@ struct DownloadSheet: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            if case .done = item.status {} else {
+            if case .done = item.status {
+            } else {
                 logItem = item
             }
         }
@@ -568,13 +615,16 @@ struct DownloadSheet: View {
     }
 
     private func logSheet(_ item: YoutubeDownloader.DownloadItem) -> some View {
-        VStack(spacing: 0) {
+        let live = downloader.items.first(where: { $0.id == item.id }) ?? item
+        return VStack(spacing: 0) {
             HStack {
                 Text("Download Log")
                     .font(DashSkin.serif(16))
                     .foregroundStyle(DashSkin.ink(dark))
                 Spacer()
-                Button { logItem = nil } label: {
+                Button {
+                    logItem = nil
+                } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -589,15 +639,20 @@ struct DownloadSheet: View {
 
             Divider().overlay(DashSkin.line(dark))
 
-            ScrollView {
-                Text(item.logs.isEmpty ? "Waiting for output…" : item.logs)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(DashSkin.ink(dark))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .padding(14)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(live.logs.isEmpty ? "Waiting for output…" : live.logs)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(DashSkin.ink(dark))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding(14)
+                    Color.clear.frame(height: 1).id("logBottom")
+                }
+                .scrollIndicators(.hidden)
+                .onChange(of: live.logs) { proxy.scrollTo("logBottom", anchor: .bottom) }
+                .onAppear { proxy.scrollTo("logBottom", anchor: .bottom) }
             }
-            .scrollIndicators(.hidden)
         }
         .frame(width: 480, height: 360)
         .background(DashSkin.paper(dark))
