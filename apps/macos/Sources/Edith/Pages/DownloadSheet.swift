@@ -9,6 +9,7 @@ struct DownloadSheet: View {
     @Environment(\.colorScheme) private var scheme
     @State private var urlText = ""
     @State private var filenamePrefix = ""
+    @State private var logItem: YoutubeDownloader.DownloadItem?
 
     private var theme: Color { themeColor(themeName) }
     private var dark: Bool { scheme == .dark }
@@ -114,6 +115,7 @@ struct DownloadSheet: View {
                 progressHeader
                 Divider().overlay(DashSkin.line(dark))
                 urlInput
+                    .frame(height: downloader.isRunning ? 100 : nil)
                     .padding(.horizontal, 22)
                     .padding(.vertical, 10)
                 startRow
@@ -123,6 +125,9 @@ struct DownloadSheet: View {
                 queueList
                 Divider().overlay(DashSkin.line(dark))
                 controlsRow
+            }
+            .sheet(item: $logItem) { item in
+                logSheet(item)
             }
         }
     }
@@ -136,10 +141,9 @@ struct DownloadSheet: View {
                     .foregroundStyle(DashSkin.ink(dark))
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
-                    .frame(height: 104)
+                    .frame(height: downloader.isRunning ? 46 : 104)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
-                    .disabled(downloader.isRunning)
                 if urlText.isEmpty {
                     Text("https://youtube.com/watch?v=...\nhttps://youtu.be/...")
                         .font(.system(size: 12.5))
@@ -181,7 +185,6 @@ struct DownloadSheet: View {
                 }
                 .buttonStyle(HoverButtonStyle())
                 .pointerCursor()
-                .disabled(downloader.isRunning)
             }
             .frame(height: 16)
         }
@@ -202,7 +205,6 @@ struct DownloadSheet: View {
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(DashSkin.line(dark), lineWidth: 1)
                     )
-                    .disabled(downloader.isRunning)
             }
             if !filenamePrefix.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -333,15 +335,16 @@ struct DownloadSheet: View {
                 HStack(spacing: 5) {
                     switch item.status {
                     case .queued:
-                        statusBadge("Waiting", color: DashSkin.inkFaint(dark))
+                        EmptyView()
                     case .resolving:
-                        statusBadge("Resolving", color: DashSkin.inkSoft(dark))
+                        Text("Resolving…")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(DashSkin.inkSoft(dark))
                     case let .downloading(progress, videoIndex, videoCount):
                         if videoIndex > 0, videoCount > 0 {
-                            statusBadge(
-                                "\(videoIndex)/\(videoCount)",
-                                color: theme
-                            )
+                            Text("\(videoIndex)/\(videoCount)")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(theme)
                         }
                         if !progress.isEmpty {
                             Text(progress)
@@ -376,15 +379,48 @@ struct DownloadSheet: View {
                 ? RoundedRectangle(cornerRadius: 9).strokeBorder(theme.opacity(0.3), lineWidth: 1)
                 : nil
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if case .done = item.status {} else {
+                logItem = item
+            }
+        }
     }
 
-    private func statusBadge(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.system(size: 9.5, weight: .medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(color.opacity(0.12), in: Capsule())
+    private func logSheet(_ item: YoutubeDownloader.DownloadItem) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Download Log")
+                    .font(DashSkin.serif(16))
+                    .foregroundStyle(DashSkin.ink(dark))
+                Spacer()
+                Button { logItem = nil } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(HoverButtonStyle())
+                .pointerCursor()
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+
+            Divider().overlay(DashSkin.line(dark))
+
+            ScrollView {
+                Text(item.logs.isEmpty ? "Waiting for output…" : item.logs)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(DashSkin.ink(dark))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .padding(14)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .frame(width: 480, height: 360)
+        .background(DashSkin.paper(dark))
     }
 
     private var controlsRow: some View {
