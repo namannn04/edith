@@ -40,7 +40,8 @@ public struct ClipboardEntry: Codable, Identifiable, Equatable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, sha256, types, ext, sourceApp, sourceBundleID, createdAt, lastCopiedAt, size, preview, pinned
+        case id, sha256, types, ext, sourceApp, sourceBundleID, createdAt, lastCopiedAt, size,
+            preview, pinned
     }
 
     public init(from decoder: Decoder) throws {

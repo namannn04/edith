@@ -264,7 +264,6 @@ final class ClipboardStore: ObservableObject, FeatureModule {
         guard ClipboardRepository.copyToPasteboard(entry, asPlainText: plain) else { return }
         lastChangeCount = NSPasteboard.general.changeCount
 
-        // Bump lastCopiedAt and re-sort so the activated item goes to top
         if let index = entries.firstIndex(where: { $0.id == entry.id }) {
             entries[index].lastCopiedAt = Date()
             entries = sorter.sort(entries)
@@ -282,7 +281,6 @@ final class ClipboardStore: ObservableObject, FeatureModule {
     }
 }
 
-/// Sorts clipboard entries: pinned first (or last), then by lastCopiedAt descending.
 private struct EntrySorter {
     func sort(_ items: [ClipboardEntry], pinToTop: Bool = true) -> [ClipboardEntry] {
         items.sorted { lhs, rhs in
