@@ -172,7 +172,6 @@ private struct NavStack {
 }
 
 struct MainWindowView: View {
-    @State private var entranceDone = false
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.home.rawValue
     @AppStorage("settingsTab", store: SharedDefaults.store) private var settingsTab = "general"
@@ -227,32 +226,22 @@ struct MainWindowView: View {
     }
 
     var body: some View {
-        ZStack {
-            GeometryReader { geo in
-                let bandHeight = max(geo.safeAreaInsets.top, 28)
-                VStack(spacing: 0) {
-                    mainArea(bandHeight)
-                    if musicFooterVisible {
-                        MusicFooter()
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+        GeometryReader { geo in
+            let bandHeight = max(geo.safeAreaInsets.top, 28)
+            VStack(spacing: 0) {
+                mainArea(bandHeight)
+                if musicFooterVisible {
+                    MusicFooter()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .ignoresSafeArea()
-                .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
-                .animation(
-                    .spring(response: 0.32, dampingFraction: 0.86),
-                    value: musicFooterVisible)
             }
-            .background(historyShortcuts)
-
-            if !entranceDone {
-                LensEntranceView(onComplete: {
-                    entranceDone = true
-                })
-                .transition(.opacity)
-                .zIndex(100)
-            }
+            .ignoresSafeArea()
+            .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
+            .animation(
+                .spring(response: 0.32, dampingFraction: 0.86),
+                value: musicFooterVisible)
         }
+        .background(historyShortcuts)
         .onChange(of: currentLocation) { _, location in
             if restoringHistory {
                 restoringHistory = false
