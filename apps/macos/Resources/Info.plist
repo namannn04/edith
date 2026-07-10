@@ -22,6 +22,8 @@
 	<string>14.0</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Edith shows a notch alert when a Bluetooth device connects or disconnects.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Edith shows a camera preview in the notch so you can check yourself before a call.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Edith shows your upcoming calendar events in the app.</string>
 	<key>NSHighResolutionCapable</key>

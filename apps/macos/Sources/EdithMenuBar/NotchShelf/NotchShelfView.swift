@@ -5,43 +5,89 @@ import SwiftUI
 
 struct NotchShelfContentView: View {
     @ObservedObject var controller: NotchShelfController
+    var collapsedBase: CGSize = NotchGeometry.fallbackSize
+    var isBuiltin = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var tabPill
 
     var body: some View {
-        ZStack {
-            NotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-                .fill(.black)
-            if controller.isExpanded {
-                expanded.transition(
-                    reduceMotion
-                        ? .opacity : .opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
-            } else if let alert = controller.currentAlert {
-                NotchAlertDropView(alert: alert, controller: controller).transition(.opacity)
-            } else {
-                collapsed.transition(.opacity)
+        GeometryReader { geo in
+            let shape = shapeSize
+            ZStack {
+                NotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+                    .fill(.black)
+                if controller.isExpanded {
+                    expanded.transition(contentTransition)
+                } else if isBuiltin, let alert = controller.currentAlert {
+                    NotchAlertDropView(alert: alert, controller: controller)
+                        .transition(contentTransition)
+                } else {
+                    collapsed.transition(.opacity)
+                }
+            }
+            .frame(width: shape.width, height: shape.height)
+            .scaleEffect(hoverScale, anchor: .top)
+            .animation(glide, value: controller.isExpanded)
+            .animation(glide, value: controller.currentAlert)
+            .animation(glide, value: controller.nowPlaying == nil)
+            .animation(glide, value: controller.collapsedHover)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let point):
+                    controller.hoverChanged(hoverRect(in: geo.size).contains(point))
+                case .ended:
+                    controller.hoverChanged(false)
+                }
             }
         }
-        .animation(shapeAnimation, value: controller.isExpanded)
-        .animation(shapeAnimation, value: controller.currentAlert)
-        .animation(.easeOut(duration: 0.14), value: controller.isResizing)
-        .onHover { controller.hoverChanged($0) }
+    }
+
+    private var shapeSize: CGSize {
+        if controller.isExpanded { return NotchGeometry.expandedSize }
+        if isBuiltin, controller.currentAlert != nil { return NotchGeometry.alertDropSize }
+        return NotchGeometry.collapsedSize(
+            base: collapsedBase, hasLiveActivity: controller.nowPlaying != nil)
+    }
+
+    private func hoverRect(in panel: CGSize) -> CGRect {
+        let shape = shapeSize
+        return CGRect(
+            x: (panel.width - shape.width) / 2, y: 0, width: shape.width, height: shape.height
+        )
+        .insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
+    }
+
+    private var hoverScale: CGFloat {
+        guard !reduceMotion, controller.collapsedHover, !controller.isExpanded,
+            controller.currentAlert == nil
+        else { return 1 }
+        return NotchGeometry.hoverGrowScale
     }
 
     private var topRadius: CGFloat {
-        controller.isExpanded || controller.currentAlert != nil
+        controller.isExpanded || (isBuiltin && controller.currentAlert != nil)
             ? NotchGeometry.expandedTopRadius : 0
     }
 
     private var bottomRadius: CGFloat {
-        if controller.currentAlert != nil, !controller.isExpanded { return 22 }
-        guard controller.isExpanded else { return NotchGeometry.collapsedBottomRadius }
-        return controller.isResizing
-            ? NotchGeometry.resizingBottomRadius : NotchGeometry.expandedBottomRadius
+        if isBuiltin, controller.currentAlert != nil, !controller.isExpanded { return 22 }
+        return controller.isExpanded
+            ? NotchGeometry.expandedBottomRadius : NotchGeometry.collapsedBottomRadius
     }
 
-    private var shapeAnimation: Animation? {
+    private var glide: Animation {
         reduceMotion
-            ? .easeInOut(duration: 0.24) : .timingCurve(0.28, 1.12, 0.4, 1, duration: 0.42)
+            ? .easeInOut(duration: 0.24) : .spring(response: 0.5, dampingFraction: 0.9)
+    }
+
+    private var contentTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: AnyTransition.modifier(
+                active: NotchContentFade(progress: 0), identity: NotchContentFade(progress: 1)
+            ).animation(.easeOut(duration: 0.35).delay(0.18)),
+            removal: .opacity.animation(.easeOut(duration: 0.12)))
     }
 
     @ViewBuilder private var collapsed: some View {
@@ -59,18 +105,12 @@ struct NotchShelfContentView: View {
     }
 
     private var expanded: some View {
-        ZStack {
-            VStack(spacing: 4) {
-                tabStrip
-                    .padding(.top, 30)
-                    .padding(.horizontal, 16)
-                tabContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            GeometryReader { geo in
-                ResizeEdges(controller: controller, hInset: NotchGeometry.expandedTopRadius)
-                    .frame(width: geo.size.width, height: geo.size.height)
-            }
+        VStack(spacing: 4) {
+            tabStrip
+                .padding(.top, 30)
+                .padding(.horizontal, 16)
+            tabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -95,10 +135,15 @@ struct NotchShelfContentView: View {
                             controller.activeTab == tab ? Color.black : Color.white.opacity(0.7)
                         )
                         .padding(.horizontal, 11).padding(.vertical, 5)
-                        .background(
-                            controller.activeTab == tab
-                                ? Color.white.opacity(0.92) : Color.white.opacity(0.07),
-                            in: Capsule())
+                        .background {
+                            if controller.activeTab == tab {
+                                Capsule()
+                                    .fill(Color.white.opacity(0.92))
+                                    .matchedGeometryEffect(id: "activeTab", in: tabPill)
+                            } else {
+                                Capsule().fill(Color.white.opacity(0.07))
+                            }
+                        }
                 }
                 .buttonStyle(.plain).pointerCursor()
             }
@@ -111,6 +156,9 @@ struct NotchShelfContentView: View {
             }
             .buttonStyle(.plain).pointerCursor()
         }
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
+            value: controller.activeTab)
     }
 
     @ViewBuilder private var tabContent: some View {
@@ -430,9 +478,26 @@ extension Color {
     }
 }
 
+struct NotchContentFade: ViewModifier, Animatable {
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(progress)
+            .blur(radius: (1 - progress) * 8)
+            .offset(y: (1 - progress) * -8)
+    }
+}
+
 private struct NotchMusicWings: View {
     @ObservedObject var controller: NotchShelfController
     let track: NotchNowPlaying
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 0) {
@@ -445,7 +510,28 @@ private struct NotchMusicWings: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    @ViewBuilder private var artwork: some View {
+    private var sourceKey: String { String(describing: track.source) }
+
+    private var artwork: some View {
+        ZStack {
+            wingIcon
+                .id(sourceKey)
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .opacity))
+        }
+        .animation(
+            reduceMotion
+                ? .easeInOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.9),
+            value: sourceKey
+        )
+        .clipped()
+    }
+
+    @ViewBuilder private var wingIcon: some View {
         if let image = controller.nowPlayingArtwork {
             Image(nsImage: image)
                 .resizable()
@@ -457,75 +543,6 @@ private struct NotchMusicWings: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.8))
         }
-    }
-}
-
-private struct ResizeEdges: View {
-    let controller: NotchShelfController
-    let hInset: CGFloat
-
-    var body: some View {
-        Color.clear
-            .overlay(alignment: .leading) {
-                strip(cursor: .resizeLeftRight, resizesWidth: true, resizesHeight: false)
-                    .frame(width: 10)
-                    .padding(.leading, hInset)
-            }
-            .overlay(alignment: .trailing) {
-                strip(cursor: .resizeLeftRight, resizesWidth: true, resizesHeight: false)
-                    .frame(width: 10)
-                    .padding(.trailing, hInset)
-            }
-            .overlay(alignment: .bottom) {
-                strip(cursor: .resizeUpDown, resizesWidth: false, resizesHeight: true)
-                    .frame(height: 10)
-                    .padding(.horizontal, hInset)
-            }
-            .overlay(alignment: .bottomLeading) {
-                strip(
-                    cursor: Self.diagonalCursor(rightSide: false), resizesWidth: true,
-                    resizesHeight: true
-                )
-                .frame(width: 20, height: 20)
-                .padding(.leading, hInset)
-            }
-            .overlay(alignment: .bottomTrailing) {
-                strip(
-                    cursor: Self.diagonalCursor(rightSide: true), resizesWidth: true,
-                    resizesHeight: true
-                )
-                .frame(width: 20, height: 20)
-                .padding(.trailing, hInset)
-            }
-            .onDisappear { NSCursor.arrow.set() }
-    }
-
-    private func strip(cursor: NSCursor, resizesWidth: Bool, resizesHeight: Bool) -> some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .onContinuousHover { phase in
-                switch phase {
-                case .active: cursor.set()
-                case .ended: NSCursor.arrow.set()
-                }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                    .onChanged { _ in
-                        cursor.set()
-                        controller.resizeExpanded(
-                            toPointer: NSEvent.mouseLocation,
-                            resizesWidth: resizesWidth, resizesHeight: resizesHeight)
-                    }
-                    .onEnded { _ in controller.endResize() }
-            )
-    }
-
-    private static func diagonalCursor(rightSide: Bool) -> NSCursor {
-        if #available(macOS 15, *) {
-            return .frameResize(position: rightSide ? .bottomRight : .bottomLeft, directions: .all)
-        }
-        return .crosshair
     }
 }
 

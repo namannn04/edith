@@ -51,7 +51,6 @@ final class SettingsBackup: ObservableObject {
         "creditHidden", "homeClockZones", "presenterBlurCalendar", "showDockIcon",
         "tabCalendarEnabled", "musicLooping",
         "mainSidebarOpen", "mainSidebarWidth",
-        "notchShelfExpandedHeight", "notchShelfExpandedWidth",
     ]
 
     private static let sharedKeys: Set<String> = [
@@ -95,7 +94,6 @@ final class SettingsBackup: ObservableObject {
         "colorPickerHotKeyLabel",
         "creditHidden", "homeClockZones", "presenterBlurCalendar", "showDockIcon",
         "mainSidebarOpen", "mainSidebarWidth",
-        "notchShelfExpandedHeight", "notchShelfExpandedWidth",
     ]
 
     private func store(for key: String) -> UserDefaults {
