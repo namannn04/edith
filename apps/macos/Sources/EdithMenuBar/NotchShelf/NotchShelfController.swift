@@ -520,7 +520,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         let collapsed = CGRect(
             origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: collapsedSize),
             size: collapsedSize)
-        let expandedSize = NotchGeometry.expandedMaxSize
+        let expandedSize = shapeSize(
+            for: id, expanded: true, alert: nil, music: nowPlaying != nil)
         let expanded = CGRect(
             origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: expandedSize),
             size: expandedSize)
