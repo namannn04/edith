@@ -4,21 +4,13 @@ import SwiftUI
 
 struct UsagePane: View {
     @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var enabled = true
-    @AppStorage("limitsInMenuBar", store: SharedDefaults.store) private var limitsInMenuBar = true
-    @AppStorage("menuBarColorMode", store: SharedDefaults.store) private var menuBarColorMode =
-        "auto"
-    @AppStorage("menuBarSubColorHex", store: SharedDefaults.store) private var subColorHex =
-        "8E8E93"
-    @AppStorage("menuBarLowColorHex", store: SharedDefaults.store) private var lowColorHex =
-        "34C759"
-    @AppStorage("menuBarMidColorHex", store: SharedDefaults.store) private var midColorHex =
-        "FF9500"
-    @AppStorage("menuBarHighColorHex", store: SharedDefaults.store) private var highColorHex =
-        "FF3B30"
-    @AppStorage("smartColor", store: SharedDefaults.store) private var smartColor = true
-    @AppStorage("warnPercent", store: SharedDefaults.store) private var warnPercent = 60
-    @AppStorage("critPercent", store: SharedDefaults.store) private var critPercent = 85
     @AppStorage("pacingMargin", store: SharedDefaults.store) private var pacingMargin = 10.0
+
+    @AppStorage("budgetEnabled", store: SharedDefaults.store) private var budgetEnabled = false
+    @AppStorage("budgetMode", store: SharedDefaults.store) private var budgetMode = "pace"
+    @AppStorage("budgetKind", store: SharedDefaults.store) private var budgetKind = "weekly"
+    @AppStorage("budgetCapPercent", store: SharedDefaults.store) private var budgetCap = 50.0
+    @AppStorage("budgetDeadline", store: SharedDefaults.store) private var budgetDeadlineTS = 0.0
 
     @AppStorage("notifyMaster", store: SharedDefaults.store) private var notifyMaster = false
     @AppStorage("notifyTrackSession", store: SharedDefaults.store) private var trackSession = true
@@ -47,50 +39,41 @@ struct UsagePane: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section {
-                Toggle("Show in menu bar", isOn: $limitsInMenuBar)
+            Section("Personal budget") {
+                Toggle("Pace my Claude usage", isOn: $budgetEnabled)
                     .pointerCursor()
-                Picker("Menu bar color", selection: $menuBarColorMode) {
-                    Text("Auto").tag("auto")
-                    Text("White").tag("white")
-                    Text("Black").tag("black")
-                    Text("Custom").tag("custom")
+                Text(
+                    "Set a personal cap under the real limit and get told if you're spending too fast."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                if budgetEnabled {
+                    Picker("Mode", selection: $budgetMode) {
+                        Text("Auto daily pace").tag("pace")
+                        Text("Cap by a deadline").tag("cap")
+                    }.pointerCursor()
+                    Picker("Window", selection: $budgetKind) {
+                        Text("Weekly").tag("weekly")
+                        Text("Session (5h)").tag("session")
+                    }.pointerCursor()
+                    HStack {
+                        Text("Cap")
+                        Slider(value: $budgetCap, in: 10...100, step: 5)
+                        Text("\(Int(budgetCap))%").monospacedDigit().frame(
+                            width: 40, alignment: .trailing)
+                    }
+                    if budgetMode == "cap" {
+                        DatePicker(
+                            "Stay under until",
+                            selection: Binding(
+                                get: {
+                                    budgetDeadlineTS > 0
+                                        ? Date(timeIntervalSinceReferenceDate: budgetDeadlineTS)
+                                        : Date().addingTimeInterval(2 * 86400)
+                                },
+                                set: { budgetDeadlineTS = $0.timeIntervalSinceReferenceDate }),
+                            displayedComponents: [.date, .hourAndMinute])
+                    }
                 }
-                .pointerCursor()
-                if menuBarColorMode == "custom" {
-                    ColorPicker(
-                        "Text color (5h / 7d)", selection: hexBinding($subColorHex),
-                        supportsOpacity: false)
-                    ColorPicker(
-                        "Low risk", selection: hexBinding($lowColorHex), supportsOpacity: false)
-                    ColorPicker(
-                        "Medium risk", selection: hexBinding($midColorHex), supportsOpacity: false)
-                    ColorPicker(
-                        "High risk", selection: hexBinding($highColorHex), supportsOpacity: false)
-                }
-                HStack {
-                    Toggle("Smart color", isOn: $smartColor)
-                        .pointerCursor()
-                    InfoDot(
-                        "When on, both the menu bar color AND the alerts below key off a time-aware risk model instead of the raw percentage - so a weekly alert can fire before you hit the warn threshold if you're burning faster than an even pace."
-                    )
-                }
-                HStack {
-                    Text("Thresholds")
-                    Spacer()
-                    Stepper(
-                        "Warn \(warnPercent)%", value: $warnPercent, in: 10...critPercent - 5,
-                        step: 5
-                    )
-                    .pointerCursor()
-                    Stepper(
-                        "Critical \(critPercent)%", value: $critPercent, in: warnPercent + 5...100,
-                        step: 5
-                    )
-                    .pointerCursor()
-                }
-            } header: {
-                Text("Limits")
             }
 
             Section {
@@ -179,21 +162,5 @@ struct UsagePane: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Usage")
-    }
-
-    private func hexBinding(_ hex: Binding<String>) -> Binding<Color> {
-        Binding(
-            get: { DashPalette.color(hex.wrappedValue) },
-            set: { hex.wrappedValue = $0.menuBarHex6 })
-    }
-}
-
-extension Color {
-    fileprivate var menuBarHex6: String {
-        let ns = NSColor(self).usingColorSpace(.sRGB) ?? .black
-        let r = Int((ns.redComponent * 255).rounded())
-        let g = Int((ns.greenComponent * 255).rounded())
-        let b = Int((ns.blueComponent * 255).rounded())
-        return String(format: "%02X%02X%02X", r, g, b)
     }
 }

@@ -72,6 +72,7 @@ struct EdithApp: App {
         ClipboardHotKey.register()
         FocusDimHotKey.register()
         PresenterHotKey.register()
+        MicHotKey.register()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             SettingsBackup.shared.start()
         }
@@ -84,6 +85,7 @@ struct EdithApp: App {
             SettingsBackup.shared.scheduleClipboardBackup()
             FocusDimHotKey.register()
             PresenterHotKey.register()
+            MicHotKey.register()
             applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
             services.sync()
             services.usage?.refreshMenuBarItem()
@@ -141,6 +143,7 @@ enum GlobalHotKey {
         static let notchShelf: UInt32 = 3
         static let focusDim: UInt32 = 4
         static let colorPicker: UInt32 = 5
+        static let micMute: UInt32 = 6
         static let presenterToggle: UInt32 = 7
     }
 
@@ -244,6 +247,35 @@ enum ClipboardHotKey {
     }
 }
 
+enum MicHotKey {
+    static var code: Int {
+        SharedDefaults.store.object(forKey: "micHotKeyCode") as? Int ?? kVK_ANSI_M
+    }
+    static var mods: Int {
+        SharedDefaults.store.object(forKey: "micHotKeyMods") as? Int ?? (cmdKey | shiftKey)
+    }
+    static var label: String {
+        SharedDefaults.store.string(forKey: "micHotKeyLabel") ?? "⌘⇧M"
+    }
+
+    static func register() {
+        let enabled = SharedDefaults.store.bool(forKey: "micMuteEnabled")
+        guard enabled else {
+            GlobalHotKey.clear(id: GlobalHotKey.ID.micMute)
+            return
+        }
+        GlobalHotKey.set(id: GlobalHotKey.ID.micMute, keyCode: code, modifiers: mods) {
+            MainActor.assumeIsolated { AppState.services.micMute?.toggle() }
+        }
+    }
+
+    static func save(code: Int, mods: Int, label: String) {
+        SharedDefaults.store.set(code, forKey: "micHotKeyCode")
+        SharedDefaults.store.set(mods, forKey: "micHotKeyMods")
+        SharedDefaults.store.set(label, forKey: "micHotKeyLabel")
+    }
+}
+
 enum FocusDimHotKey {
     static var code: Int {
         SharedDefaults.store.object(forKey: "focusDimHotKeyCode") as? Int ?? kVK_ANSI_F
@@ -300,7 +332,7 @@ func togglePanel() {
 }
 
 func showPanel() {
-    MainActor.assumeIsolated { PanelController.shared?.open() }
+    MainActor.assumeIsolated { MainApp.openDashboard() }
 }
 
 func dismissPanel() {

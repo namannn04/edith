@@ -12,6 +12,8 @@ final class AppServices: ObservableObject {
     @Published private(set) var clipboard: ClipboardStore?
     @Published private(set) var focusDim: FocusDimEngine?
     @Published private(set) var presenter: PresenterDetector?
+    @Published private(set) var micMute: MicMuteEngine?
+    @Published private(set) var systemStats: SystemStatsStatusItem?
 
     static func tabEnabled(_ key: String) -> Bool {
         SharedDefaults.store.object(forKey: key) as? Bool ?? true
@@ -60,6 +62,7 @@ final class AppServices: ObservableObject {
             controller.shutdown()
             notchShelf = nil
         }
+        notchShelf?.attachLocalMusic(music)
 
         let colorPickerOn =
             SharedDefaults.store.object(forKey: "colorPickerEnabled") as? Bool ?? false
@@ -76,6 +79,9 @@ final class AppServices: ObservableObject {
             clipboard = nil
         }
         ClipboardPanel.shared.store = clipboard
+        notchShelf?.attachClipboard(clipboard)
+        notchShelf?.attachUsage(usage)
+        notchShelf?.attachCalendar(calendar)
 
         let focusDimOn = SharedDefaults.store.bool(forKey: "focusDimEnabled")
         if focusDimOn, focusDim == nil { focusDim = FocusDimEngine() }
@@ -89,6 +95,20 @@ final class AppServices: ObservableObject {
         if !presenterOn, let detector = presenter {
             detector.shutdown()
             presenter = nil
+        }
+
+        let micOn = Self.featureOffByDefault("micMuteEnabled")
+        if micOn, micMute == nil { micMute = MicMuteEngine() }
+        if !micOn, let engine = micMute {
+            engine.shutdown()
+            micMute = nil
+        }
+
+        let statsOn = Self.featureOffByDefault("menuBarSystemStats")
+        if statsOn, systemStats == nil { systemStats = SystemStatsStatusItem() }
+        if !statsOn, let stats = systemStats {
+            stats.shutdown()
+            systemStats = nil
         }
     }
 }

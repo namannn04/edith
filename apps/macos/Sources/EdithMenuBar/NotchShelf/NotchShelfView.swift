@@ -1,33 +1,129 @@
 import AppKit
+import EdithKit
+import EventKit
 import SwiftUI
 
 struct NotchShelfContentView: View {
     @ObservedObject var controller: NotchShelfController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
+            NotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+                .fill(.black)
             if controller.isExpanded {
-                expanded
+                expanded.transition(
+                    reduceMotion
+                        ? .opacity : .opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+            } else if let alert = controller.currentAlert {
+                NotchAlertDropView(alert: alert, controller: controller).transition(.opacity)
             } else {
-                collapsed
+                collapsed.transition(.opacity)
             }
         }
+        .animation(shapeAnimation, value: controller.isExpanded)
+        .animation(shapeAnimation, value: controller.currentAlert)
+        .animation(.easeOut(duration: 0.14), value: controller.isResizing)
         .onHover { controller.hoverChanged($0) }
     }
 
-    private var collapsed: some View {
-        NotchShape()
-            .fill(.black)
-            .overlay {
-                if !controller.items.isEmpty {
-                    Text("\(controller.items.count)")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
+    private var topRadius: CGFloat {
+        controller.isExpanded || controller.currentAlert != nil
+            ? NotchGeometry.expandedTopRadius : 0
+    }
+
+    private var bottomRadius: CGFloat {
+        if controller.currentAlert != nil, !controller.isExpanded { return 22 }
+        guard controller.isExpanded else { return NotchGeometry.collapsedBottomRadius }
+        return controller.isResizing
+            ? NotchGeometry.resizingBottomRadius : NotchGeometry.expandedBottomRadius
+    }
+
+    private var shapeAnimation: Animation? {
+        reduceMotion
+            ? .easeInOut(duration: 0.24) : .timingCurve(0.28, 1.12, 0.4, 1, duration: 0.42)
+    }
+
+    @ViewBuilder private var collapsed: some View {
+        if let track = controller.nowPlaying {
+            NotchMusicWings(controller: controller, track: track)
+        } else if !controller.items.isEmpty {
+            HStack(spacing: 3) {
+                Image(systemName: "tray.full.fill")
+                    .font(.system(size: 8.5, weight: .semibold))
+                Text("\(controller.items.count)")
+                    .font(.system(size: 9, weight: .semibold))
             }
+            .foregroundStyle(.white.opacity(0.7))
+        }
     }
 
     private var expanded: some View {
+        ZStack {
+            VStack(spacing: 4) {
+                tabStrip
+                    .padding(.top, 30)
+                    .padding(.horizontal, 16)
+                tabContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            GeometryReader { geo in
+                ResizeEdges(controller: controller, hInset: NotchGeometry.expandedTopRadius)
+                    .frame(width: geo.size.width, height: geo.size.height)
+            }
+        }
+    }
+
+    private var visibleTabs: [NotchTab] {
+        let mixerOn = SharedDefaults.store.bool(forKey: "notchAudioMixerEnabled")
+        return NotchTab.allCases.filter { $0 != .audio || mixerOn }
+    }
+
+    private var tabStrip: some View {
+        HStack(spacing: 6) {
+            ForEach(visibleTabs, id: \.self) { tab in
+                Button {
+                    controller.selectTab(tab)
+                } label: {
+                    Text(tab.title)
+                        .font(
+                            .system(
+                                size: 11.5,
+                                weight: controller.activeTab == tab ? .semibold : .regular)
+                        )
+                        .foregroundStyle(
+                            controller.activeTab == tab ? Color.black : Color.white.opacity(0.7)
+                        )
+                        .padding(.horizontal, 11).padding(.vertical, 5)
+                        .background(
+                            controller.activeTab == tab
+                                ? Color.white.opacity(0.92) : Color.white.opacity(0.07),
+                            in: Capsule())
+                }
+                .buttonStyle(.plain).pointerCursor()
+            }
+            Spacer()
+            Button {
+                MainApp.openDashboard()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.7))
+            }
+            .buttonStyle(.plain).pointerCursor()
+        }
+    }
+
+    @ViewBuilder private var tabContent: some View {
+        switch controller.activeTab {
+        case .home: NotchHomeTab(controller: controller)
+        case .files: filesCanvas
+        case .clipboard: NotchClipboardTab(controller: controller)
+        case .audio: NotchAudioTab()
+        case .camera: NotchCameraTab()
+        }
+    }
+
+    private var filesCanvas: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 if controller.items.isEmpty {
@@ -45,45 +141,361 @@ struct NotchShelfContentView: View {
                                     index: index, in: geo.size))
                     }
                 }
-                ResizeEdges(controller: controller)
-                    .frame(width: geo.size.width, height: geo.size.height)
             }
             .coordinateSpace(name: "shelfCanvas")
         }
-        .background(.black, in: NotchShape(bottomRadius: 22))
+    }
+}
+
+private struct NotchHomeTab: View {
+    @ObservedObject var controller: NotchShelfController
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if let track = controller.nowPlaying {
+                NotchNowPlayingCard(controller: controller, track: track)
+            }
+            HStack(alignment: .top, spacing: 10) {
+                if let event = nextEvent {
+                    eventCard(event)
+                }
+                if let usage = controller.usageStore {
+                    NotchUsageRings(usage: usage)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+                }
+            }
+            if controller.nowPlaying == nil, controller.usageStore == nil, nextEvent == nil {
+                Text("Nothing to show yet")
+                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16).padding(.top, 2).padding(.bottom, 14)
+    }
+
+    private var nextEvent: EKEvent? {
+        controller.calendarStore?.events.first { ($0.startDate ?? .distantPast) > Date() }
+    }
+
+    private func eventCard(_ event: EKEvent) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("NEXT UP")
+                .font(.system(size: 9, weight: .bold)).tracking(0.8)
+                .foregroundStyle(.white.opacity(0.4))
+            Text(event.title ?? "Event")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+            Text(event.startDate?.formatted(date: .omitted, time: .shortened) ?? "")
+                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct NotchNowPlayingCard: View {
+    @ObservedObject var controller: NotchShelfController
+    let track: NotchNowPlaying
+
+    var body: some View {
+        HStack(spacing: 14) {
+            artwork
+            VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white).lineLimit(1)
+                    if !track.artist.isEmpty {
+                        Text(track.artist)
+                            .font(.system(size: 12)).foregroundStyle(.white.opacity(0.55))
+                            .lineLimit(1)
+                    }
+                }
+                if controller.nowPlayingSeekable {
+                    NotchSeekBar(controller: controller)
+                }
+                HStack(spacing: 18) {
+                    control("backward.fill", 14) { controller.nowPlayingPrevious() }
+                    control(track.isPlaying ? "pause.fill" : "play.fill", 18) {
+                        controller.nowPlayingPlayPause()
+                    }
+                    control("forward.fill", 14) { controller.nowPlayingNext() }
+                    Spacer(minLength: 8)
+                    volumeControl
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(14)
+        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var artwork: some View {
+        Group {
+            if let image = controller.nowPlayingArtwork {
+                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: 22)).foregroundStyle(.white.opacity(0.5))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.white.opacity(0.08))
+            }
+        }
+        .frame(width: 58, height: 58)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+    }
+
+    private var volumeControl: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "speaker.fill")
+                .font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+            Slider(
+                value: Binding(
+                    get: { controller.nowPlayingVolume },
+                    set: { controller.setNowPlayingVolume($0) }), in: 0...1
+            )
+            .controlSize(.mini).frame(width: 58).tint(.white.opacity(0.85))
+        }
+    }
+
+    private func control(_ name: String, _ size: CGFloat, _ action: @escaping () -> Void)
+        -> some View
+    {
+        Button(action: action) {
+            Image(systemName: name)
+                .font(.system(size: size, weight: .medium)).foregroundStyle(.white)
+        }
+        .buttonStyle(.plain).pointerCursor()
+    }
+}
+
+private struct NotchSeekBar: View {
+    @ObservedObject var controller: NotchShelfController
+    @State private var dragFraction: Double?
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.15)).frame(height: 3)
+                TimelineView(.periodic(from: MusicTick.epoch, by: 0.5)) { _ in
+                    let fraction = dragFraction ?? controller.nowPlayingProgress()
+                    Capsule().fill(.white.opacity(0.85))
+                        .frame(width: max(3, width * min(1, fraction)), height: 3)
+                }
+            }
+            .frame(height: 10)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { dragFraction = min(max($0.location.x / width, 0), 1) }
+                    .onEnded { value in
+                        controller.nowPlayingSeek(min(max(value.location.x / width, 0), 1))
+                        dragFraction = nil
+                    }
+            )
+        }
+        .frame(height: 10)
+    }
+}
+
+private struct NotchUsageRings: View {
+    @ObservedObject var usage: UsageStore
+
+    var body: some View {
+        HStack(spacing: 26) {
+            ring("Session", usage.session?.percent)
+            ring("Week", usage.week?.percent)
+        }
+        .padding(.bottom, 12)
+    }
+
+    private func ring(_ label: String, _ percent: Double?) -> some View {
+        let value = percent ?? 0
+        return VStack(spacing: 4) {
+            ZStack {
+                Circle().stroke(.white.opacity(0.12), lineWidth: 4)
+                Circle()
+                    .trim(from: 0, to: min(1, value / 100))
+                    .stroke(color(value), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Text("\(Int(value.rounded()))")
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+            }
+            .frame(width: 42, height: 42)
+            Text(label).font(.system(size: 10)).foregroundStyle(.white.opacity(0.6))
+        }
+    }
+
+    private func color(_ percent: Double) -> Color {
+        if percent >= 85 { return Color(red: 0.88, green: 0.4, blue: 0.31) }
+        if percent >= 60 { return Color(red: 0.88, green: 0.66, blue: 0.25) }
+        return Color(red: 0.3, green: 0.77, blue: 0.49)
+    }
+}
+
+private struct NotchClipboardTab: View {
+    @ObservedObject var controller: NotchShelfController
+
+    var body: some View {
+        if let store = controller.clipboardStore {
+            NotchClipboardList(store: store, controller: controller)
+        } else {
+            Text("Clipboard history is off")
+                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.5))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+private struct NotchClipboardList: View {
+    @ObservedObject var store: ClipboardStore
+    let controller: NotchShelfController
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                ForEach(store.entries.prefix(8)) { entry in
+                    Button {
+                        controller.copyClipboardEntry(entry)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(entry.preview ?? "Non-text item")
+                                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.85))
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            if entry.pinned {
+                                Image(systemName: "pin.fill")
+                                    .font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+                            }
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain).pointerCursor()
+                }
+            }
+            .padding(.horizontal, 16).padding(.bottom, 12)
+        }
+    }
+}
+
+private struct NotchAlertDropView: View {
+    let alert: NotchAlert
+    @ObservedObject var controller: NotchShelfController
+
+    var body: some View {
+        let tint = Color(hex: alert.tint)
+        return HStack(spacing: 12) {
+            Image(systemName: alert.icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .background(tint.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(alert.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white).lineLimit(1)
+                if let subtitle = alert.subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 34)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .contentShape(Rectangle())
+        .onHover { controller.alertHover($0) }
+        .onTapGesture { controller.dismissAlert() }
+    }
+}
+
+extension Color {
+    fileprivate init(hex: String) {
+        let cleaned = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        var value: UInt64 = 0
+        Scanner(string: cleaned).scanHexInt64(&value)
+        self.init(
+            red: Double((value >> 16) & 0xff) / 255,
+            green: Double((value >> 8) & 0xff) / 255,
+            blue: Double(value & 0xff) / 255)
+    }
+}
+
+private struct NotchMusicWings: View {
+    @ObservedObject var controller: NotchShelfController
+    let track: NotchNowPlaying
+
+    var body: some View {
+        HStack(spacing: 0) {
+            artwork
+                .frame(width: NotchGeometry.musicWingWidth)
+            Spacer(minLength: 0)
+            PlaybackWave(playing: track.isPlaying, color: .white.opacity(0.85), barCount: 4)
+                .frame(width: NotchGeometry.musicWingWidth)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if let image = controller.nowPlayingArtwork {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 20, height: 20)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        } else {
+            Image(systemName: "music.note")
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.8))
+        }
     }
 }
 
 private struct ResizeEdges: View {
     let controller: NotchShelfController
+    let hInset: CGFloat
 
     var body: some View {
         Color.clear
             .overlay(alignment: .leading) {
                 strip(cursor: .resizeLeftRight, resizesWidth: true, resizesHeight: false)
-                    .frame(width: 8)
+                    .frame(width: 10)
+                    .padding(.leading, hInset)
             }
             .overlay(alignment: .trailing) {
                 strip(cursor: .resizeLeftRight, resizesWidth: true, resizesHeight: false)
-                    .frame(width: 8)
+                    .frame(width: 10)
+                    .padding(.trailing, hInset)
             }
             .overlay(alignment: .bottom) {
                 strip(cursor: .resizeUpDown, resizesWidth: false, resizesHeight: true)
-                    .frame(height: 8)
+                    .frame(height: 10)
+                    .padding(.horizontal, hInset)
             }
             .overlay(alignment: .bottomLeading) {
                 strip(
                     cursor: Self.diagonalCursor(rightSide: false), resizesWidth: true,
                     resizesHeight: true
                 )
-                .frame(width: 16, height: 16)
+                .frame(width: 20, height: 20)
+                .padding(.leading, hInset)
             }
             .overlay(alignment: .bottomTrailing) {
                 strip(
                     cursor: Self.diagonalCursor(rightSide: true), resizesWidth: true,
                     resizesHeight: true
                 )
-                .frame(width: 16, height: 16)
+                .frame(width: 20, height: 20)
+                .padding(.trailing, hInset)
             }
             .onDisappear { NSCursor.arrow.set() }
     }
@@ -105,6 +517,7 @@ private struct ResizeEdges: View {
                             toPointer: NSEvent.mouseLocation,
                             resizesWidth: resizesWidth, resizesHeight: resizesHeight)
                     }
+                    .onEnded { _ in controller.endResize() }
             )
     }
 

@@ -16,11 +16,51 @@ enum NotchGeometry {
         }
         let width = screenWidth - left - right
         guard width > 1 else { return fallbackSize }
-        return CGSize(width: width + 2 * topFlareRadius, height: safeAreaTop)
+        return CGSize(width: width, height: safeAreaTop)
     }
 
     static func origin(screenFrame: CGRect, panelSize: CGSize) -> CGPoint {
         CGPoint(x: screenFrame.midX - panelSize.width / 2, y: screenFrame.maxY - panelSize.height)
+    }
+
+    static let openMargin: CGFloat = 6
+    static let keepOpenMargin: CGFloat = 24
+
+    static let expandedTopRadius: CGFloat = 18
+    static let expandedBottomRadius: CGFloat = 34
+    static let resizingBottomRadius: CGFloat = 10
+    static let collapsedBottomRadius: CGFloat = 10
+
+    static let musicWingWidth: CGFloat = 42
+    static let alertDropSize = CGSize(width: 380, height: 84)
+
+    static func collapsedSize(base: CGSize, hasLiveActivity: Bool) -> CGSize {
+        guard hasLiveActivity else { return base }
+        return CGSize(width: base.width + 2 * musicWingWidth, height: base.height)
+    }
+
+    static func proximity(
+        point: CGPoint,
+        collapsedFrame: CGRect,
+        expandedFrame: CGRect,
+        openMargin: CGFloat = openMargin,
+        keepOpenMargin: CGFloat = keepOpenMargin
+    ) -> NotchProximity {
+        if collapsedFrame.insetBy(dx: -openMargin, dy: -openMargin).contains(point) {
+            return .open
+        }
+        if expandedFrame.insetBy(dx: -keepOpenMargin, dy: -keepOpenMargin).contains(point) {
+            return .keepOpen
+        }
+        return .outside
+    }
+
+    static func hardwareNotchRect(in panelSize: CGSize, collapsedSize: CGSize) -> CGRect {
+        let width = min(collapsedSize.width, panelSize.width)
+        let height = min(collapsedSize.height, panelSize.height)
+        return CGRect(
+            x: (panelSize.width - width) / 2, y: panelSize.height - height,
+            width: width, height: height)
     }
 
     static let itemCell = CGSize(width: 78, height: 70)

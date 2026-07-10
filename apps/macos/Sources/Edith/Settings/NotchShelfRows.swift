@@ -14,6 +14,10 @@ struct NotchShelfRows: View {
     @AppStorage("notchShelfShowOnExternal", store: SharedDefaults.store)
     private var showOnExternal = false
     @AppStorage("notchShelfHaptics", store: SharedDefaults.store) private var haptics = true
+    @AppStorage("notchShelfShowMusic", store: SharedDefaults.store) private var showMusic = true
+    @AppStorage("notchAlertsEnabled", store: SharedDefaults.store) private var showAlerts = true
+    @AppStorage("notchAudioMixerEnabled", store: SharedDefaults.store) private var audioMixer =
+        false
 
     var body: some View {
         Group {
@@ -60,6 +64,24 @@ struct NotchShelfRows: View {
             .opacity(enabled ? 1 : 0.5)
 
             Section {
+                Toggle("Show what's playing", isOn: $showMusic)
+                    .pointerCursor()
+                Text(
+                    "Album art and a live equalizer hug the notch while music plays in the library, Spotify, or Apple Music."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                Toggle("Notch alerts", isOn: $showAlerts)
+                    .pointerCursor()
+                Text(
+                    "Drops a brief card from the notch for audio output changes, charging, and low battery."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                Toggle("Per-app volume mixer (beta)", isOn: $audioMixer)
+                    .pointerCursor()
+                Text(
+                    "Adds an Audio tab to set each app's volume. macOS 14.4+; asks for audio-recording permission the first time. Off by default."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle("Show on external displays", isOn: $showOnExternal)
                     .pointerCursor()
                 Text("Draws a small pill at the top of screens without a notch.")

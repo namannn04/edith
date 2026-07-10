@@ -13,8 +13,26 @@ extension NSScreen {
 final class NotchShelfController: ObservableObject, FeatureModule {
     @Published private(set) var items: [ShelfItem] = []
     @Published private(set) var isExpanded = false
+    @Published private(set) var isResizing = false
+    @Published private(set) var nowPlaying: NotchNowPlaying?
+    @Published private(set) var nowPlayingArtwork: NSImage?
+    @Published var activeTab: NotchTab = .home
+    @Published private(set) var currentAlert: NotchAlert?
+    weak var clipboardStore: ClipboardStore?
+    @Published private(set) var usageStore: UsageStore?
+    @Published private(set) var calendarStore: CalendarStore?
+    private var externalVolume: Double = 0.7
+    private var alertDetectors: NotchAlertDetectors?
+    private var alertWorkItem: DispatchWorkItem?
+    private var alertPinned = false
     @Published private(set) var livePositions: [UUID: CGPoint] = [:]
     @Published private(set) var selectedIDs: Set<UUID> = []
+
+    let external = ExternalMusic()
+    private weak var localMusic: MusicPlayer?
+    private var externalCancellable: AnyCancellable?
+    private var localCancellable: AnyCancellable?
+    private var artworkTask: Task<Void, Never>?
 
     private let store = ShelfStore()
     private var panels: [CGDirectDisplayID: NSPanel] = [:]
@@ -23,7 +41,15 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var expandedSize = NotchGeometry.expandedSize
 
     private var screenObserver: NSObjectProtocol?
+    private var spaceObserver: NSObjectProtocol?
     private var dragMonitor: Any?
+    private var moveMonitorGlobal: Any?
+    private var moveMonitorLocal: Any?
+    private var gate = NotchHoverGate(
+        openDwell: NotchShelfController.openDwell, closeGrace: NotchShelfController.closeGrace)
+    private var gateWorkItem: DispatchWorkItem?
+    static let openDwell: TimeInterval = 0.1
+    static let closeGrace: TimeInterval = 0.4
     private var lastDragChangeCount = -1
     private var collapseWorkItem: DispatchWorkItem?
     private var pendingDragOutIDs: Set<UUID> = []
@@ -49,20 +75,90 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         ) { [weak self] _ in
             Task { @MainActor in self?.rebuildPanels() }
         }
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.updateFullScreenVisibility() }
+        }
         dragMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
         ) { [weak self] event in
             Task { @MainActor in self?.handleGlobalMouse(event) }
         }
+        startAlertsIfEnabled()
+    }
+
+    private var alertsEnabled: Bool { flag("notchAlertsEnabled", default: true) }
+
+    private func startAlertsIfEnabled() {
+        guard alertsEnabled else { return }
+        let detectors = NotchAlertDetectors { [weak self] alert in
+            self?.postAlert(alert)
+        }
+        detectors.start()
+        alertDetectors = detectors
+    }
+
+    func postAlert(_ alert: NotchAlert) {
+        guard alertsEnabled, !isExpanded else { return }
+        guard NotchAlertLogic.shouldPreempt(current: currentAlert, incoming: alert) else { return }
+        currentAlert = alert
+        alertPinned = false
+        updateAllFrames(animated: true)
+        scheduleAlertHide(after: alert.autoHide)
+    }
+
+    private func scheduleAlertHide(after delay: TimeInterval) {
+        alertWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.hideAlert() }
+        alertWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func hideAlert() {
+        guard !alertPinned else { return }
+        currentAlert = nil
+        alertWorkItem = nil
+        updateAllFrames(animated: true)
+    }
+
+    func alertHover(_ hovering: Bool) {
+        guard currentAlert != nil else { return }
+        alertPinned = hovering
+        if hovering {
+            alertWorkItem?.cancel()
+        } else {
+            scheduleAlertHide(after: 1.2)
+        }
+    }
+
+    func dismissAlert() {
+        alertPinned = false
+        hideAlert()
     }
 
     func shutdown() {
         if let dragMonitor { NSEvent.removeMonitor(dragMonitor) }
         dragMonitor = nil
+        stopMoveMonitor()
+        alertDetectors?.stop()
+        alertDetectors = nil
+        alertWorkItem?.cancel()
+        alertWorkItem = nil
+        external.stop()
+        externalCancellable = nil
+        localCancellable = nil
+        artworkTask?.cancel()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
+        if let spaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver)
+        }
+        spaceObserver = nil
         collapseWorkItem?.cancel()
         collapseWorkItem = nil
+        gateWorkItem?.cancel()
+        gateWorkItem = nil
         for panel in panels.values { panel.orderOut(nil) }
         panels.removeAll()
         collapsedSizes.removeAll()
@@ -73,6 +169,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
     private var openOnDrag: Bool { flag("notchShelfOpenOnDrag", default: true) }
     private var openOnHover: Bool { flag("notchShelfOpenOnHover", default: true) }
+    private var showMusic: Bool { flag("notchShelfShowMusic", default: true) }
     private var requireOption: Bool { flag("notchShelfRequireOption", default: false) }
     private var removeAfterDragOut: Bool { flag("notchShelfRemoveAfterDragOut", default: true) }
     private var showOnExternal: Bool { flag("notchShelfShowOnExternal", default: false) }
@@ -103,6 +200,24 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         for id in panels.keys where !wanted.contains(id) {
             panels.removeValue(forKey: id)?.orderOut(nil)
             collapsedSizes.removeValue(forKey: id)
+        }
+        updateFullScreenVisibility()
+    }
+
+    private func isFullScreenSpace(_ screen: NSScreen) -> Bool {
+        screen.frame.maxY - screen.visibleFrame.maxY < 1
+    }
+
+    private func updateFullScreenVisibility() {
+        for screen in NSScreen.screens {
+            guard let id = screen.displayID, let panel = panels[id] else { continue }
+            if isFullScreenSpace(screen) {
+                if isExpanded { collapseNow() }
+                panel.orderOut(nil)
+            } else if !panel.isVisible {
+                applyFrame(panel, screen: screen, id: id, animated: false)
+                panel.orderFrontRegardless()
+            }
         }
     }
 
@@ -160,13 +275,21 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private func applyFrame(
         _ panel: NSPanel, screen: NSScreen, id: CGDirectDisplayID, animated: Bool
     ) {
-        let size = isExpanded ? expandedSize : (collapsedSizes[id] ?? NotchGeometry.fallbackSize)
+        let base = collapsedSizes[id] ?? NotchGeometry.fallbackSize
+        let size: CGSize
+        if isExpanded {
+            size = expandedSize
+        } else if currentAlert != nil, id == builtinDisplayID {
+            size = NotchGeometry.alertDropSize
+        } else {
+            size = NotchGeometry.collapsedSize(base: base, hasLiveActivity: nowPlaying != nil)
+        }
         let frame = NSRect(
             origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: size), size: size)
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.35
-                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.34, 1.4, 0.64, 1)
+                ctx.duration = 0.42
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.28, 1.12, 0.4, 1)
                 panel.animator().setFrame(frame, display: true)
             }
         } else {
@@ -187,7 +310,16 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     func expand() {
         collapseWorkItem?.cancel()
+        gateWorkItem?.cancel()
+        gateWorkItem = nil
         purgeExpired()
+        if currentAlert != nil {
+            currentAlert = nil
+            alertWorkItem?.cancel()
+            alertWorkItem = nil
+        }
+        gate.forceOpen()
+        startMoveMonitor()
         guard !isExpanded else { return }
         isExpanded = true
         updateAllFrames(animated: true)
@@ -204,17 +336,104 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private func collapseNow() {
         guard isExpanded, !isSharing else { return }
         isExpanded = false
+        isResizing = false
         selectedIDs = []
+        gate.forceClosed()
+        gateWorkItem?.cancel()
+        gateWorkItem = nil
+        stopMoveMonitor()
         updateAllFrames(animated: true)
     }
 
     func hoverChanged(_ hovering: Bool) {
-        if hovering {
-            guard openOnHover, optionSatisfied() else { return }
-            expand()
-        } else {
-            collapseAfterDelay()
+        guard !isExpanded else { return }
+        applyProximity(hovering ? .open : .outside)
+    }
+
+    private func monotonicNow() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
+
+    private func applyProximity(_ raw: NotchProximity) {
+        var proximity = raw
+        if !gate.isOpen, proximity == .open, !(openOnHover && optionSatisfied()) {
+            proximity = .outside
         }
+        handleGate(gate.sample(proximity, now: monotonicNow()))
+    }
+
+    private func handleGate(_ transition: NotchGateTransition) {
+        switch transition {
+        case .schedule(let deadline):
+            gateWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self] in self?.fireGate() }
+            gateWorkItem = work
+            let delay = max(0, deadline - monotonicNow())
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        case .cancelPending:
+            gateWorkItem?.cancel()
+            gateWorkItem = nil
+        case .none, .opened, .closed:
+            break
+        }
+    }
+
+    private func fireGate() {
+        gateWorkItem = nil
+        switch gate.fire(now: monotonicNow()) {
+        case .opened:
+            expand()
+        case .closed:
+            if isSharing {
+                gate.forceOpen()
+            } else {
+                collapseNow()
+            }
+        case .none, .schedule, .cancelPending:
+            break
+        }
+    }
+
+    private func handleMouseMoved() {
+        guard isExpanded, let frames = builtinFrames() else { return }
+        applyProximity(
+            NotchGeometry.proximity(
+                point: NSEvent.mouseLocation, collapsedFrame: frames.collapsed,
+                expandedFrame: frames.expanded))
+    }
+
+    private func builtinFrames() -> (collapsed: CGRect, expanded: CGRect)? {
+        guard let id = builtinDisplayID,
+            let screen = NSScreen.screens.first(where: { $0.displayID == id })
+        else { return nil }
+        let collapsedSize = NotchGeometry.collapsedSize(
+            base: collapsedSizes[id] ?? NotchGeometry.fallbackSize,
+            hasLiveActivity: nowPlaying != nil)
+        let collapsed = CGRect(
+            origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: collapsedSize),
+            size: collapsedSize)
+        let expanded = CGRect(
+            origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: expandedSize),
+            size: expandedSize)
+        return (collapsed, expanded)
+    }
+
+    private func startMoveMonitor() {
+        guard moveMonitorGlobal == nil else { return }
+        moveMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) {
+            [weak self] _ in
+            Task { @MainActor in self?.handleMouseMoved() }
+        }
+        moveMonitorLocal = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) {
+            [weak self] event in
+            Task { @MainActor in self?.handleMouseMoved() }
+            return event
+        }
+    }
+
+    private func stopMoveMonitor() {
+        if let moveMonitorGlobal { NSEvent.removeMonitor(moveMonitorGlobal) }
+        if let moveMonitorLocal { NSEvent.removeMonitor(moveMonitorLocal) }
+        moveMonitorGlobal = nil
+        moveMonitorLocal = nil
     }
 
     private func handleGlobalMouse(_ event: NSEvent) {
@@ -226,6 +445,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         case .leftMouseDragged:
             guard NSPasteboard(name: .drag).changeCount != lastDragChangeCount else { return }
             guard optionSatisfied(), isNearNotch(NSEvent.mouseLocation) else { return }
+            activeTab = .files
             expand()
         default:
             break
@@ -235,13 +455,18 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     func resizeExpanded(toPointer point: CGPoint, resizesWidth: Bool, resizesHeight: Bool) {
         guard isExpanded else { return }
         collapseWorkItem?.cancel()
+        gateWorkItem?.cancel()
+        gateWorkItem = nil
+        gate.forceOpen()
+        isResizing = true
         let screen =
             NSScreen.screens.first { $0.frame.contains(point) }
             ?? NSScreen.screens.first { $0.displayID == builtinDisplayID }
         guard let screen else { return }
         let proposed = CGSize(
             width: resizesWidth
-                ? abs(point.x - screen.frame.midX) * 2 + 8 : expandedSize.width,
+                ? abs(point.x - screen.frame.midX) * 2 + 2 * NotchGeometry.expandedTopRadius
+                : expandedSize.width,
             height: resizesHeight ? screen.frame.maxY - point.y + 4 : expandedSize.height)
         let minSize = NotchGeometry.expandedSize
         let size = CGSize(
@@ -252,6 +477,10 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         SharedDefaults.store.set(Double(size.width), forKey: "notchShelfExpandedWidth")
         SharedDefaults.store.set(Double(size.height), forKey: "notchShelfExpandedHeight")
         updateAllFrames(animated: false)
+    }
+
+    func endResize() {
+        isResizing = false
     }
 
     private func isNearNotch(_ point: CGPoint) -> Bool {
@@ -267,6 +496,150 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private func fireHaptic() {
         guard hapticsOn else { return }
         NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+    }
+
+    func attachLocalMusic(_ player: MusicPlayer?) {
+        if showMusic {
+            external.start()
+            if externalCancellable == nil {
+                externalCancellable = external.objectWillChange.sink { [weak self] in
+                    Task { @MainActor in self?.recomputeNowPlaying() }
+                }
+            }
+            localMusic = player
+            localCancellable = player?.objectWillChange.sink { [weak self] in
+                Task { @MainActor in self?.recomputeNowPlaying() }
+            }
+        } else {
+            external.stop()
+            externalCancellable = nil
+            localMusic = nil
+            localCancellable = nil
+        }
+        recomputeNowPlaying()
+    }
+
+    private func recomputeNowPlaying() {
+        let resolved = NotchMusicResolver.resolve(
+            localTitle: localMusic?.current?.title,
+            localPlaying: localMusic?.isPlaying ?? false,
+            external: external.current)
+        let active = resolved?.isPlaying == true ? resolved : nil
+        guard active != nowPlaying else { return }
+        let hadActivity = nowPlaying != nil
+        let trackChanged =
+            active?.title != nowPlaying?.title || active?.source != nowPlaying?.source
+        nowPlaying = active
+        if trackChanged { loadArtwork(for: active) }
+        if (active != nil) != hadActivity, !isExpanded {
+            updateAllFrames(animated: true)
+        }
+    }
+
+    private func loadArtwork(for track: NotchNowPlaying?) {
+        artworkTask?.cancel()
+        guard let track else {
+            nowPlayingArtwork = nil
+            return
+        }
+        switch track.source {
+        case .external(let app):
+            nowPlayingArtwork = Self.appIcon(for: app)
+        case .local:
+            nowPlayingArtwork = nil
+            guard let player = localMusic, let current = player.current else { return }
+            artworkTask = Task { [weak self] in
+                let image = await player.artwork(for: current)
+                await MainActor.run {
+                    guard !Task.isCancelled else { return }
+                    self?.nowPlayingArtwork = image
+                }
+            }
+        }
+    }
+
+    private static func appIcon(for app: ExternalApp) -> NSImage? {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleID)
+        else { return nil }
+        return NSWorkspace.shared.icon(forFile: url.path)
+    }
+
+    func attachClipboard(_ store: ClipboardStore?) {
+        clipboardStore = store
+    }
+
+    func attachUsage(_ store: UsageStore?) {
+        usageStore = store
+    }
+
+    func attachCalendar(_ store: CalendarStore?) {
+        calendarStore = store
+    }
+
+    var nowPlayingSeekable: Bool {
+        if case .local = nowPlaying?.source { return true }
+        return false
+    }
+
+    func nowPlayingProgress() -> Double {
+        nowPlayingSeekable ? (localMusic?.progressNow() ?? 0) : 0
+    }
+
+    func nowPlayingSeek(_ fraction: Double) {
+        guard nowPlayingSeekable else { return }
+        localMusic?.seek(to: fraction)
+    }
+
+    var nowPlayingVolume: Double {
+        switch nowPlaying?.source {
+        case .local: return localMusic?.volume ?? 0
+        case .external: return externalVolume
+        case .none: return 0
+        }
+    }
+
+    func setNowPlayingVolume(_ value: Double) {
+        switch nowPlaying?.source {
+        case .local: localMusic?.volume = value
+        case .external:
+            externalVolume = value
+            external.setVolume(Float(value))
+        case .none: break
+        }
+    }
+
+    func selectTab(_ tab: NotchTab) {
+        activeTab = tab
+    }
+
+    func nowPlayingPlayPause() {
+        switch nowPlaying?.source {
+        case .local: localMusic?.playPause()
+        case .external: external.playPause()
+        case .none: break
+        }
+    }
+
+    func nowPlayingNext() {
+        switch nowPlaying?.source {
+        case .local: localMusic?.next()
+        case .external: external.next()
+        case .none: break
+        }
+    }
+
+    func nowPlayingPrevious() {
+        switch nowPlaying?.source {
+        case .local: localMusic?.previous()
+        case .external: external.previous()
+        case .none: break
+        }
+    }
+
+    func copyClipboardEntry(_ entry: ClipboardEntry) {
+        guard let text = entry.preview else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     func fileURL(for item: ShelfItem) -> URL { store.fileURL(for: item) }

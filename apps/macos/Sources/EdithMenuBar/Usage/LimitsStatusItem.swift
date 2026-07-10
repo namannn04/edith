@@ -13,6 +13,7 @@ final class LimitsStatusItem {
         item.isVisible = true
         item.button?.target = self
         item.button?.action = #selector(clicked)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         Self.button = item.button
         showUnavailable()
     }
@@ -22,13 +23,16 @@ final class LimitsStatusItem {
         Self.button = nil
     }
 
-    @objc private func clicked() { togglePanel() }
+    @objc private func clicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            StatusItemMenu.show(from: item)
+        } else {
+            MainApp.openDashboard()
+        }
+    }
 
     func update(session: LimitWindow?, week: LimitWindow?) {
         let title = NSMutableAttributedString()
-        if PresenterState.shared.autoActive {
-            title.append(presenterGlyph())
-        }
         let masked =
             PresenterState.shared.active
             && (SharedDefaults.store.object(forKey: "presenterHideMenuBarNumbers") as? Bool ?? false)
@@ -39,21 +43,6 @@ final class LimitsStatusItem {
     }
 
     func showUnavailable() { update(session: nil, week: nil) }
-
-    private func presenterGlyph() -> NSAttributedString {
-        let attachment = NSTextAttachment()
-        let config = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
-        let image = NSImage(systemSymbolName: "eye.fill", accessibilityDescription: "Presenting")?
-            .withSymbolConfiguration(config)
-        image?.isTemplate = true
-        attachment.image = image
-        let out = NSMutableAttributedString(attachment: attachment)
-        out.addAttribute(
-            .foregroundColor, value: subColor ?? NSColor.secondaryLabelColor,
-            range: NSRange(location: 0, length: out.length))
-        out.append(NSAttributedString(string: " "))
-        return out
-    }
 
     private func segment(
         _ label: String, window: LimitWindow?, kind: LimitWindowKind,
@@ -126,9 +115,8 @@ final class LimitsStatusItem {
         switch mode {
         case "white": return .white
         case "black": return .black
-        case "custom":
+        default:
             return Self.nsColor(hex: SharedDefaults.store.string(forKey: "menuBarSubColorHex"))
-        default: return nil
         }
     }
 
@@ -141,7 +129,7 @@ final class LimitsStatusItem {
     }
 
     private func anchor(_ key: String, _ fallback: NSColor) -> NSColor {
-        guard mode == "custom" else { return fallback }
+        guard mode == "custom" || mode == "auto" else { return fallback }
         return Self.nsColor(hex: SharedDefaults.store.string(forKey: key)) ?? fallback
     }
 
