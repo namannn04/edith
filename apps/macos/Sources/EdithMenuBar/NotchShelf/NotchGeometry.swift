@@ -3,7 +3,16 @@ import CoreGraphics
 enum NotchGeometry {
     static let topFlareRadius: CGFloat = 6
     static let fallbackSize = CGSize(width: 150, height: 28)
-    static let expandedSize = CGSize(width: 540, height: 185)
+    static let expandedWidth: CGFloat = 580
+    static let expandedMaxSize = CGSize(width: expandedWidth, height: 196)
+
+    static func expandedShapeSize(tab: NotchTab, hasMusic: Bool) -> CGSize {
+        switch tab {
+        case .home: CGSize(width: expandedWidth, height: hasMusic ? 192 : 182)
+        case .files: CGSize(width: expandedWidth, height: 168)
+        case .clipboard, .audio, .camera: CGSize(width: expandedWidth, height: 196)
+        }
+    }
 
     static func collapsedSize(
         screenWidth: CGFloat,
@@ -38,12 +47,13 @@ enum NotchGeometry {
             height: max(1, panel.height - panelPadding.height))
     }
 
-    static let expandedTopRadius: CGFloat = 18
-    static let expandedBottomRadius: CGFloat = 34
-    static let collapsedBottomRadius: CGFloat = 10
+    static let expandedTopRadius: CGFloat = 10
+    static let expandedBottomRadius: CGFloat = 22
+    static let alertBottomRadius: CGFloat = 20
+    static let collapsedBottomRadius: CGFloat = 12
 
     static let musicWingWidth: CGFloat = 42
-    static let alertDropSize = CGSize(width: 380, height: 84)
+    static let alertDropSize = CGSize(width: 330, height: 78)
 
     static func collapsedSize(base: CGSize, hasLiveActivity: Bool) -> CGSize {
         guard hasLiveActivity else { return base }

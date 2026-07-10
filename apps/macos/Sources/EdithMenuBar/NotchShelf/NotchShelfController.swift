@@ -19,6 +19,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     @Published var activeTab: NotchTab = .home
     @Published private(set) var currentAlert: NotchAlert?
     weak var clipboardStore: ClipboardStore?
+    private weak var colorPickerStore: ColorPickerStore?
+    @Published private(set) var canPickColor = false
     @Published private(set) var usageStore: UsageStore?
     @Published private(set) var calendarStore: CalendarStore?
     private var externalVolume: Double = 0.7
@@ -39,7 +41,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var panels: [CGDirectDisplayID: NSPanel] = [:]
     private var collapsedSizes: [CGDirectDisplayID: CGSize] = [:]
     private var builtinDisplayID: CGDirectDisplayID?
-    private let expandedSize = NotchGeometry.expandedSize
     private var frameSettleWorkItem: DispatchWorkItem?
 
     private var screenObserver: NSObjectProtocol?
@@ -323,7 +324,9 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }()
 
     private func targetShapeSize(for id: CGDirectDisplayID) -> CGSize {
-        if isExpanded { return expandedSize }
+        if isExpanded {
+            return NotchGeometry.expandedShapeSize(tab: activeTab, hasMusic: nowPlaying != nil)
+        }
         if currentAlert != nil, id == builtinDisplayID { return NotchGeometry.alertDropSize }
         let base = collapsedSizes[id] ?? NotchGeometry.fallbackSize
         return NotchGeometry.collapsedSize(base: base, hasLiveActivity: nowPlaying != nil)
@@ -488,6 +491,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         let collapsed = CGRect(
             origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: collapsedSize),
             size: collapsedSize)
+        let expandedSize = NotchGeometry.expandedMaxSize
         let expanded = CGRect(
             origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: expandedSize),
             size: expandedSize)
@@ -662,6 +666,22 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     func selectTab(_ tab: NotchTab) {
         activeTab = tab
+        if isExpanded { syncFrames() }
+    }
+
+    func attachColorPicker(_ store: ColorPickerStore?) {
+        colorPickerStore = store
+        canPickColor = store != nil
+    }
+
+    func cleanKeyboard() {
+        collapseNow()
+        IPC.post(IPC.Name.requestKeyboardClean)
+    }
+
+    func pickColor() {
+        collapseNow()
+        colorPickerStore?.pick()
     }
 
     func nowPlayingPlayPause() {
