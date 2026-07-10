@@ -11,8 +11,9 @@ enum NotchGeometry {
         let content: CGFloat =
             switch tab {
             case .home: hasMusic ? 158 : 148
-            case .files: 134
-            case .clipboard, .audio: 162
+            case .files: 210
+            case .clipboard: 260
+            case .audio: 162
             case .camera: 332
             }
         return CGSize(width: expandedWidth, height: notchHeight + expandedHeaderBand + content)

@@ -28,10 +28,10 @@ struct NotchShelfContentView: View {
                 layers
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .mask(alignment: .top) {
-                NotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-                    .frame(width: shapeSize.width, height: shapeSize.height)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .mask {
+                CenteredNotchShape(
+                    width: shapeSize.width, height: shapeSize.height,
+                    topRadius: topRadius, bottomRadius: bottomRadius)
             }
             .scaleEffect(hoverScale, anchor: .top)
             .animation(glide, value: controller.isExpanded)
@@ -219,6 +219,7 @@ struct NotchShelfContentView: View {
                     Capsule().fill(Color.white.opacity(0.07))
                 }
             }
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain).shelfPointer()
         .help(tab.title)
@@ -580,29 +581,58 @@ private struct NotchClipboardList: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 6) {
-                ForEach(store.entries.prefix(8)) { entry in
-                    Button {
-                        controller.copyClipboardEntry(entry)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text(entry.preview ?? "Non-text item")
-                                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.85))
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                            if entry.pinned {
-                                Image(systemName: "pin.fill")
-                                    .font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
-                            }
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 8)
-                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain).shelfPointer()
+            LazyVStack(spacing: 6) {
+                ForEach(sortedEntries.prefix(30)) { entry in
+                    row(entry)
                 }
             }
             .padding(.horizontal, 16).padding(.bottom, 14)
         }
+    }
+
+    private var sortedEntries: [ClipboardEntry] {
+        store.entries.sorted { lhs, rhs in
+            if lhs.pinned != rhs.pinned { return lhs.pinned }
+            return lhs.lastCopiedAt > rhs.lastCopiedAt
+        }
+    }
+
+    private func row(_ entry: ClipboardEntry) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                controller.copyClipboardEntry(entry)
+            } label: {
+                Text(entry.preview ?? "Non-text item")
+                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).shelfPointer()
+            Button {
+                store.togglePin(entry.id)
+            } label: {
+                Image(systemName: entry.pinned ? "pin.fill" : "pin")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(entry.pinned ? 0.9 : 0.45))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).shelfPointer()
+            .help(entry.pinned ? "Unpin" : "Pin")
+            Button {
+                store.delete(entry.id)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).shelfPointer()
+            .help("Delete")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

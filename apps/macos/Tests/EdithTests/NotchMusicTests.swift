@@ -86,6 +86,29 @@ import Testing
         #expect(np?.isPlaying == false)
     }
 
+    @Test func pausedExternalStaysWhenItWasLastActive() {
+        let previous = NotchMusicResolver.resolve(
+            localTitle: "Paused Local", localPlaying: false, external: external("Spotify Song"))
+        #expect(previous?.source == .external(.spotify))
+        let np = NotchMusicResolver.resolve(
+            localTitle: "Paused Local", localPlaying: false,
+            external: external("Spotify Song", playing: false), previous: previous)
+        #expect(np?.source == .external(.spotify))
+        #expect(np?.isPlaying == false)
+        #expect(np?.title == "Spotify Song")
+    }
+
+    @Test func pausedExternalYieldsWhenLocalWasLastActive() {
+        let previous = NotchMusicResolver.resolve(
+            localTitle: "Local Song", localPlaying: true,
+            external: external("Spotify Song", playing: false))
+        #expect(previous?.source == .local)
+        let np = NotchMusicResolver.resolve(
+            localTitle: "Local Song", localPlaying: false,
+            external: external("Spotify Song", playing: false), previous: previous)
+        #expect(np?.source == .local)
+    }
+
     @Test func fallsBackToExternalWhenNoLocal() {
         let np = NotchMusicResolver.resolve(
             localTitle: nil, localPlaying: false, external: external("Spotify Song"))

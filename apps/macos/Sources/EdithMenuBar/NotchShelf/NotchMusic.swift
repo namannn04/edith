@@ -38,7 +38,8 @@ struct NotchNowPlaying: Equatable {
 
 enum NotchMusicResolver {
     static func resolve(
-        localTitle: String?, localPlaying: Bool, external: ExternalTrack?
+        localTitle: String?, localPlaying: Bool, external: ExternalTrack?,
+        previous: NotchNowPlaying? = nil
     ) -> NotchNowPlaying? {
         let hasLocal = localTitle?.isEmpty == false
         if hasLocal, localPlaying {
@@ -49,14 +50,18 @@ enum NotchMusicResolver {
                 source: .external(external.app), title: external.title, artist: external.artist,
                 isPlaying: true)
         }
-        if hasLocal {
-            return NotchNowPlaying(source: .local, title: localTitle!, artist: "", isPlaying: false)
+        let pausedLocal =
+            hasLocal
+            ? NotchNowPlaying(source: .local, title: localTitle!, artist: "", isPlaying: false)
+            : nil
+        let pausedExternal = external.map {
+            NotchNowPlaying(
+                source: .external($0.app), title: $0.title, artist: $0.artist,
+                isPlaying: $0.isPlaying)
         }
-        if let external {
-            return NotchNowPlaying(
-                source: .external(external.app), title: external.title, artist: external.artist,
-                isPlaying: external.isPlaying)
+        if case .external = previous?.source {
+            return pausedExternal ?? pausedLocal
         }
-        return nil
+        return pausedLocal ?? pausedExternal
     }
 }

@@ -304,7 +304,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         container.controller = self
         container.registerForDraggedTypes(Self.acceptedDraggedTypes)
 
-        let host = NSHostingView(rootView: AnyView(EmptyView()))
+        let host = ShelfHostingView(rootView: AnyView(EmptyView()))
         host.sizingOptions = []
         host.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(host)
@@ -613,7 +613,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         let resolved = NotchMusicResolver.resolve(
             localTitle: localMusic?.current?.title,
             localPlaying: localMusic?.isPlaying ?? false,
-            external: external.current)
+            external: external.current,
+            previous: nowPlaying)
         let active = resolved
         guard active != nowPlaying else { return }
         let hadActivity = nowPlaying != nil
@@ -779,9 +780,12 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     func copyClipboardEntry(_ entry: ClipboardEntry) {
-        guard let text = entry.preview else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        if let store = clipboardStore {
+            store.activate(entry)
+        } else if let text = entry.preview {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        }
         collapseNow()
     }
 
@@ -922,7 +926,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
                 forClasses: [NSFilePromiseReceiver.self, NSURL.self, NSString.self],
                 options: [.urlReadingFileURLsOnly: true]) ?? []
         var handled = false
-        var repositioned = false
         for object in objects {
             switch object {
             case let receiver as NSFilePromiseReceiver:
@@ -935,7 +938,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
                     internalDragItemIDs.remove(existing.id)
                     store.setPosition(location, for: existing)
                     items = store.items
-                    repositioned = true
                 } else {
                     addFile(at: url, location: location)
                 }
@@ -946,7 +948,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
                 break
             }
         }
-        if handled, !repositioned { collapseAfterDelay(1.2) }
         return handled
     }
 
@@ -1000,6 +1001,11 @@ final class SharePickerDelegate: NSObject, NSSharingServicePickerDelegate {
         let onEnd = onEnd
         Task { @MainActor in onEnd() }
     }
+}
+
+@MainActor
+final class ShelfHostingView: NSHostingView<AnyView> {
+    override func cursorUpdate(with event: NSEvent) {}
 }
 
 @MainActor
