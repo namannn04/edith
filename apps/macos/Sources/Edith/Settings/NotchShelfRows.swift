@@ -16,6 +16,11 @@ struct NotchShelfRows: View {
     @AppStorage("notchShelfHaptics", store: SharedDefaults.store) private var haptics = true
     @AppStorage("notchShelfShowMusic", store: SharedDefaults.store) private var showMusic = true
     @AppStorage("notchAlertsEnabled", store: SharedDefaults.store) private var showAlerts = true
+    @AppStorage("notchAlertAudio", store: SharedDefaults.store) private var alertAudio = true
+    @AppStorage("notchAlertPower", store: SharedDefaults.store) private var alertPower = true
+    @AppStorage("notchAlertBattery", store: SharedDefaults.store) private var alertBattery = true
+    @AppStorage("notchAlertBluetooth", store: SharedDefaults.store) private var alertBluetooth =
+        true
     @AppStorage("notchAudioMixerEnabled", store: SharedDefaults.store) private var audioMixer =
         false
 
@@ -73,9 +78,19 @@ struct NotchShelfRows: View {
                 Toggle("Notch alerts", isOn: $showAlerts)
                     .pointerCursor()
                 Text(
-                    "Drops a brief card from the notch for audio output changes, charging, and low battery."
+                    "Drops a brief card from the notch. Alerts that arrive while the notch is open queue up and show after it closes."
                 )
                 .font(.caption).foregroundStyle(.secondary)
+                if showAlerts {
+                    Toggle("Audio output changes", isOn: $alertAudio)
+                        .pointerCursor()
+                    Toggle("Power plugged / unplugged", isOn: $alertPower)
+                        .pointerCursor()
+                    Toggle("Battery low", isOn: $alertBattery)
+                        .pointerCursor()
+                    Toggle("Bluetooth connect / disconnect", isOn: $alertBluetooth)
+                        .pointerCursor()
+                }
                 Toggle("Per-app volume mixer (beta)", isOn: $audioMixer)
                     .pointerCursor()
                 Text(

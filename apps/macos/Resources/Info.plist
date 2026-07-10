@@ -20,6 +20,8 @@
 	<string>21</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Edith shows a notch alert when a Bluetooth device connects or disconnects.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Edith shows your upcoming calendar events in the app.</string>
 	<key>NSHighResolutionCapable</key>

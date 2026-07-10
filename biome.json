@@ -5,7 +5,8 @@
       "scripts/**",
       "apps/landing/app.js",
       "apps/landing/styles.css",
-      "!**/.claude"
+      "!**/.claude",
+      "!extras"
     ]
   },
   "formatter": { "indentStyle": "space" },

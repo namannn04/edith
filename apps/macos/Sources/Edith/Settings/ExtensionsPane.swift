@@ -3,10 +3,12 @@ import EdithKit
 import SwiftUI
 
 struct ExtensionsPane: View {
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
     @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
         true
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+    @AppStorage("menuBarSystemStats", store: SharedDefaults.store) private var systemStats = false
     @AppStorage("notchShelfEnabled", store: SharedDefaults.store) private var notchShelfEnabled =
         false
     @AppStorage("clipboardEnabled", store: SharedDefaults.store) private var clipboardEnabled =
@@ -20,9 +22,32 @@ struct ExtensionsPane: View {
     var body: some View {
         Form {
             header(
+                "usage", title: "Agent Usage", icon: "chart.bar.fill",
+                subtitle: "Claude session and weekly limits, usage stats, and alerts.",
+                enabled: $usageEnabled, group: "Agent")
+            if expanded.contains("usage") { UsageRows() }
+
+            header(
+                "system", title: "System", icon: "switch.2",
+                subtitle: "Running apps, prevent sleep, and the keyboard-cleaning lock.",
+                enabled: $systemEnabled, group: "System")
+            if expanded.contains("system") { SystemRows() }
+
+            header(
+                "systemStats", title: "CPU & Memory in menu bar", icon: "gauge.with.needle",
+                subtitle: "Live CPU and memory readout as a menu bar item.",
+                enabled: $systemStats)
+            if expanded.contains("systemStats") { SystemStatsRows() }
+
+            header(
+                "micMute", title: "Mic Mute", icon: "mic.slash.fill",
+                subtitle: "Mute every microphone system-wide with ⌘⇧M or the menu bar icon.",
+                enabled: $micMuteEnabled, expandable: false)
+
+            header(
                 "music", title: "Music", icon: "music.note",
                 subtitle: "Plays your local music folder, with media keys.",
-                enabled: $musicEnabled)
+                enabled: $musicEnabled, group: "Media")
             if expanded.contains("music") { MusicRows() }
 
             header(
@@ -31,21 +56,15 @@ struct ExtensionsPane: View {
                 enabled: $calendarEnabled, expandable: false)
 
             header(
-                "system", title: "System", icon: "switch.2",
-                subtitle: "Prevent-sleep toggle and the keyboard-cleaning lock.",
-                enabled: $systemEnabled)
-            if expanded.contains("system") { SystemRows() }
-
-            header(
                 "notchShelf", title: "Notch Shelf", icon: "tray.and.arrow.down",
-                subtitle: "Park files under the notch mid-drag.",
+                subtitle: "File shelf, now playing, camera, and alerts around the notch.",
                 enabled: $notchShelfEnabled)
             if expanded.contains("notchShelf") { NotchShelfRows() }
 
             header(
                 "clipboard", title: "Clipboard", icon: "doc.on.clipboard",
                 subtitle: "Clipboard history with instant paste.",
-                enabled: $clipboardEnabled)
+                enabled: $clipboardEnabled, group: "Utilities")
             if expanded.contains("clipboard") { ClipboardRows() }
 
             header(
@@ -65,11 +84,6 @@ struct ExtensionsPane: View {
                 subtitle: "System loupe on a hotkey, sampled color to your clipboard.",
                 enabled: $colorPickerEnabled)
             if expanded.contains("colorPicker") { ColorPickerRows() }
-
-            header(
-                "micMute", title: "Mic Mute", icon: "mic.slash.fill",
-                subtitle: "Mute every microphone system-wide with ⌘⇧M or the menu bar icon.",
-                enabled: $micMuteEnabled)
         }
         .formStyle(.grouped)
         .navigationTitle("Extensions")
@@ -84,7 +98,7 @@ struct ExtensionsPane: View {
 
     private func header(
         _ id: String, title: String, icon: String, subtitle: String,
-        enabled: Binding<Bool>?, expandable: Bool = true
+        enabled: Binding<Bool>?, expandable: Bool = true, group: String? = nil
     ) -> some View {
         Section {
             HStack(spacing: 12) {
@@ -123,7 +137,62 @@ struct ExtensionsPane: View {
                 }
             }
             .pointerCursor()
+        } header: {
+            if let group { Text(group) }
         }
+    }
+}
+
+private struct UsageRows: View {
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var enabled = true
+    @AppStorage("limitsInMenuBar", store: SharedDefaults.store) private var limitsInMenuBar = true
+
+    var body: some View {
+        Section {
+            Toggle("Show 5h / 7d in the menu bar", isOn: $limitsInMenuBar)
+                .pointerCursor()
+            LabeledContent("Alerts, budget, and readout colors") {
+                Button("Open Usage settings") {
+                    SharedDefaults.store.set("usage", forKey: "settingsTab")
+                    SharedDefaults.store.set(
+                        MainDestination.settings.rawValue, forKey: "mainWindowSection")
+                }
+                .pointerCursor()
+            }
+        }
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.5)
+    }
+}
+
+private struct SystemStatsRows: View {
+    @AppStorage("menuBarSystemStats", store: SharedDefaults.store) private var enabled = false
+    @AppStorage("menuBarStatsColorHex", store: SharedDefaults.store) private var statsColorHex =
+        "FFFFFF"
+
+    var body: some View {
+        Section {
+            ColorPicker(
+                "Color",
+                selection: Binding(
+                    get: { DashPalette.color(statsColorHex) },
+                    set: { statsColorHex = $0.settingsHex6 }),
+                supportsOpacity: false)
+            Text("Sampled every couple of seconds; costs nothing measurable.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.5)
+    }
+}
+
+extension Color {
+    var settingsHex6: String {
+        let ns = NSColor(self).usingColorSpace(.sRGB) ?? .black
+        let r = Int((ns.redComponent * 255).rounded())
+        let g = Int((ns.greenComponent * 255).rounded())
+        let b = Int((ns.blueComponent * 255).rounded())
+        return String(format: "%02X%02X%02X", r, g, b)
     }
 }
 
@@ -162,27 +231,5 @@ private struct SystemRows: View {
         }
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.5)
-    }
-}
-
-struct PanelTabsSection: View {
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
-    @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
-
-    var body: some View {
-        Section {
-            Toggle("Agent Usage", isOn: $usageEnabled).pointerCursor()
-            Toggle("Music", isOn: $musicEnabled).pointerCursor()
-            Toggle("System", isOn: $systemEnabled).pointerCursor()
-            Toggle("Calendar", isOn: $calendarEnabled).pointerCursor()
-        } header: {
-            Text("Features")
-        } footer: {
-            Text("Turn built-in sections on or off across the app and notch.")
-                .font(.caption)
-        }
     }
 }

@@ -25,6 +25,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var alertDetectors: NotchAlertDetectors?
     private var alertWorkItem: DispatchWorkItem?
     private var alertPinned = false
+    private var pendingAlerts: [PendingNotchAlert] = []
     @Published private(set) var livePositions: [UUID: CGPoint] = [:]
     @Published private(set) var selectedIDs: Set<UUID> = []
 
@@ -103,12 +104,23 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     func postAlert(_ alert: NotchAlert) {
-        guard alertsEnabled, !isExpanded else { return }
+        guard alertsEnabled else { return }
+        if isExpanded {
+            pendingAlerts = NotchAlertLogic.queue(pendingAlerts, adding: alert, at: Date())
+            return
+        }
         guard NotchAlertLogic.shouldPreempt(current: currentAlert, incoming: alert) else { return }
         currentAlert = alert
         alertPinned = false
         updateAllFrames(animated: true)
         scheduleAlertHide(after: alert.autoHide)
+    }
+
+    private func flushPendingAlert() {
+        guard !isExpanded, currentAlert == nil else { return }
+        let (next, rest) = NotchAlertLogic.dequeue(pendingAlerts, now: Date())
+        pendingAlerts = rest
+        if let next { postAlert(next) }
     }
 
     private func scheduleAlertHide(after delay: TimeInterval) {
@@ -123,6 +135,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         currentAlert = nil
         alertWorkItem = nil
         updateAllFrames(animated: true)
+        flushPendingAlert()
     }
 
     func alertHover(_ hovering: Bool) {
@@ -367,6 +380,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         gateWorkItem = nil
         stopMoveMonitor()
         updateAllFrames(animated: true)
+        flushPendingAlert()
     }
 
     func hoverChanged(_ hovering: Bool) {

@@ -5,9 +5,7 @@ import Testing
     @Test func sidebarSectionsAreDisjointAndCoverAllDestinations() {
         let listed = MainDestination.homeItems + MainDestination.appItems
         #expect(Set(listed).count == listed.count)
-        let settingsSubDestinations: Set<MainDestination> = [.general, .usage, .icloud]
-        #expect(Set(listed).isDisjoint(with: settingsSubDestinations))
-        #expect(Set(listed).union(settingsSubDestinations) == Set(MainDestination.allCases))
+        #expect(Set(listed) == Set(MainDestination.allCases))
     }
 
     @Test func rawValuesRoundTrip() {
@@ -35,5 +33,63 @@ import Testing
         for destination in MainDestination.appItems {
             #expect(!destination.usesPaperBackground)
         }
+    }
+
+    @Test func allFeaturesOnShowsEveryHomeItem() {
+        let visible = MainDestination.visibleHomeItems(
+            usage: true, music: true, calendar: true, system: true)
+        #expect(visible == MainDestination.homeItems)
+    }
+
+    @Test func disabledFeaturesHideTheirPages() {
+        let visible = MainDestination.visibleHomeItems(
+            usage: false, music: false, calendar: false, system: false)
+        #expect(visible == [.home])
+    }
+
+    @Test func eachToggleHidesExactlyItsPage() {
+        let cases: [(MainDestination, [MainDestination])] = [
+            (
+                .dashboard,
+                MainDestination.visibleHomeItems(
+                    usage: false, music: true, calendar: true, system: true)
+            ),
+            (
+                .music,
+                MainDestination.visibleHomeItems(
+                    usage: true, music: false, calendar: true, system: true)
+            ),
+            (
+                .calendar,
+                MainDestination.visibleHomeItems(
+                    usage: true, music: true, calendar: false, system: true)
+            ),
+            (
+                .system,
+                MainDestination.visibleHomeItems(
+                    usage: true, music: true, calendar: true, system: false)
+            ),
+        ]
+        for (hidden, visible) in cases {
+            #expect(!visible.contains(hidden))
+            #expect(visible.count == MainDestination.homeItems.count - 1)
+        }
+    }
+
+    @Test func resolveFallsBackToHomeForHiddenSelection() {
+        let visible = MainDestination.visibleHomeItems(
+            usage: false, music: true, calendar: true, system: true)
+        #expect(MainDestination.resolve("dashboard", visibleHome: visible) == .home)
+        #expect(MainDestination.resolve("music", visibleHome: visible) == .music)
+    }
+
+    @Test func resolveKeepsAppItemsAndRejectsGarbage() {
+        let visible = MainDestination.visibleHomeItems(
+            usage: false, music: false, calendar: false, system: false)
+        for item in MainDestination.appItems {
+            #expect(MainDestination.resolve(item.rawValue, visibleHome: visible) == item)
+        }
+        #expect(MainDestination.resolve("nonsense", visibleHome: visible) == .home)
+        #expect(MainDestination.resolve("usage", visibleHome: visible) == .home)
     }
 }

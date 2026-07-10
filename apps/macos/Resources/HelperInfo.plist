@@ -26,6 +26,8 @@
 	<string>Edith taps an app's audio only to adjust its volume in the per-app mixer.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Edith shows a camera preview in the notch so you can check yourself before a call.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Edith shows a notch alert when a Bluetooth device connects or disconnects.</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Edith controls playback in Spotify and Apple Music from the notch.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
