@@ -32,7 +32,7 @@ struct NotchShelfContentView: View {
                     width: shapeSize.width, height: shapeSize.height,
                     topRadius: topRadius, bottomRadius: bottomRadius)
             }
-            .scaleEffect(hoverScale, anchor: .top)
+            .scaleEffect(x: hoverScale.width, y: hoverScale.height, anchor: .top)
             .animation(glide, value: controller.isExpanded)
             .animation(glide, value: controller.currentAlert)
             .animation(glide, value: controller.activeTab)
@@ -112,11 +112,14 @@ struct NotchShelfContentView: View {
         .insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
     }
 
-    private var hoverScale: CGFloat {
+    private var hoverScale: CGSize {
         guard !reduceMotion, controller.collapsedHover, !controller.isExpanded,
             controller.currentAlert == nil
-        else { return 1 }
-        return NotchGeometry.hoverGrowScale
+        else { return CGSize(width: 1, height: 1) }
+        let shape = shapeSize
+        return CGSize(
+            width: 1 + NotchGeometry.hoverGrow / shape.width,
+            height: 1 + NotchGeometry.hoverGrow / shape.height)
     }
 
     private var topRadius: CGFloat {
@@ -486,8 +489,8 @@ private struct NotchUsageRings: View {
                     .trim(from: 0, to: drawn ? min(1, value / 100) : 0)
                     .stroke(color(value), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text("\(Int(value.rounded()))")
-                    .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+                Text("\(Int(value.rounded()))%")
+                    .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
             }
             .frame(width: 52, height: 52)
             Text(label)
