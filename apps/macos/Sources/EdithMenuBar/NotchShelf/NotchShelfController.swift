@@ -510,12 +510,19 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func handleGlobalMouse(_ event: NSEvent) {
-        guard openOnDrag else { return }
         switch event.type {
         case .leftMouseDown:
             lastDragChangeCount = NSPasteboard(name: .drag).changeCount
             internalDragItemIDs = []
+            if !isExpanded, currentAlert == nil, let frames = builtinFrames(),
+                frames.collapsed
+                    .insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
+                    .contains(NSEvent.mouseLocation)
+            {
+                expand()
+            }
         case .leftMouseDragged:
+            guard openOnDrag else { return }
             guard NSPasteboard(name: .drag).changeCount != lastDragChangeCount else { return }
             guard optionSatisfied(), isNearNotch(NSEvent.mouseLocation) else { return }
             activeTab = .files

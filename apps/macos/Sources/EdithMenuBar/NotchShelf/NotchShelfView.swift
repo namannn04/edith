@@ -352,27 +352,29 @@ private struct NotchNowPlayingCard: View {
     var body: some View {
         HStack(spacing: 11) {
             artwork
-            VStack(alignment: .leading, spacing: 5) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(track.title)
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.white).lineLimit(1)
-                        .presenterBlur(presenterState.active && presenterBlurMusic)
-                    Text(sourceLabel)
-                        .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.55))
-                        .lineLimit(1)
-                        .presenterBlur(presenterState.active && presenterBlurMusic)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(track.title)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(.white).lineLimit(1)
+                            .presenterBlur(presenterState.active && presenterBlurMusic)
+                        Text(sourceLabel)
+                            .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.55))
+                            .lineLimit(1)
+                            .presenterBlur(presenterState.active && presenterBlurMusic)
+                    }
+                    Spacer(minLength: 4)
+                    HStack(spacing: 6) {
+                        control("backward.fill", 12) { controller.nowPlayingPrevious() }
+                        control(track.isPlaying ? "pause.fill" : "play.fill", 15) {
+                            controller.nowPlayingPlayPause()
+                        }
+                        control("forward.fill", 12) { controller.nowPlayingNext() }
+                    }
                 }
                 if controller.nowPlayingSeekable {
                     NotchSeekBar(controller: controller)
-                }
-                HStack(spacing: 14) {
-                    control("backward.fill", 12) { controller.nowPlayingPrevious() }
-                    control(track.isPlaying ? "pause.fill" : "play.fill", 15) {
-                        controller.nowPlayingPlayPause()
-                    }
-                    control("forward.fill", 12) { controller.nowPlayingNext() }
-                    Spacer(minLength: 0)
                 }
             }
         }

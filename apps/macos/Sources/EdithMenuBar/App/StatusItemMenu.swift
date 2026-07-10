@@ -5,6 +5,22 @@ enum StatusItemMenu {
     private static let handler = StatusMenuHandler()
 
     @MainActor
+    static func attach(to item: NSStatusItem, target: AnyObject, action: Selector) {
+        item.button?.target = target
+        item.button?.action = action
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    @MainActor
+    static func handleClick(on item: NSStatusItem, primary: () -> Void) {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            show(from: item)
+        } else {
+            primary()
+        }
+    }
+
+    @MainActor
     static func show(from item: NSStatusItem) {
         let menu = NSMenu()
         let open = NSMenuItem(
