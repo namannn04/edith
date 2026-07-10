@@ -457,7 +457,7 @@ private struct NotchUsageRings: View {
     var body: some View {
         HStack(spacing: 20) {
             ring("Session", usage.session?.percent)
-            ring("Week", usage.week?.percent)
+            ring("7d", usage.week?.percent)
         }
         .onAppear {
             guard !reduceMotion else {
