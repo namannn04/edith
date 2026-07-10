@@ -20,6 +20,12 @@ final class MicMuteEngine: NSObject, ObservableObject, FeatureModule {
 
     func shutdown() {
         if muted { apply(false) }
+        if let listener = deviceListListener {
+            var address = Self.deviceListAddress
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &address, DispatchQueue.main, listener)
+            deviceListListener = nil
+        }
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         statusItem = nil
     }
@@ -58,11 +64,13 @@ final class MicMuteEngine: NSObject, ObservableObject, FeatureModule {
         }
     }
 
+    private static let deviceListAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+
     private func observeDeviceList() {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDevices,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain)
+        var address = Self.deviceListAddress
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
                 guard let self, self.muted else { return }

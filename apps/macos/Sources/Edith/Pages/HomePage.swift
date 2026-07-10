@@ -143,6 +143,7 @@ enum HomeMath {
 private struct HomeHeader: View {
     let dark: Bool
     @Environment(\.compactLayout) private var compact
+    @ObservedObject private var visibility = WindowVisibility.shared
 
     private var titleSize: CGFloat { compact ? 28 : 40 }
 
@@ -201,14 +202,22 @@ private struct HomeHeader: View {
         }
     }
 
+    private func clockText(_ date: Date) -> some View {
+        Text(clockString(date))
+            .font(DashSkin.serif(titleSize))
+            .foregroundStyle(DashSkin.ink(dark))
+            .monospacedDigit()
+            .lineLimit(1).minimumScaleFactor(0.6)
+    }
+
     private func clockBlock(_ now: Date, alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 2) {
-            TimelineView(.periodic(from: .now, by: 1)) { tick in
-                Text(clockString(tick.date))
-                    .font(DashSkin.serif(titleSize))
-                    .foregroundStyle(DashSkin.ink(dark))
-                    .monospacedDigit()
-                    .lineLimit(1).minimumScaleFactor(0.6)
+            if visibility.visible {
+                TimelineView(.periodic(from: .now, by: 1)) { tick in
+                    clockText(tick.date)
+                }
+            } else {
+                clockText(now)
             }
             Text(
                 "\(Calendar.current.component(.hour, from: now) < 12 ? "AM" : "PM")"
@@ -396,10 +405,15 @@ private struct ClockTile: View {
 private struct ClockFace: View {
     let zone: TimeZone
     let dark: Bool
+    @ObservedObject private var visibility = WindowVisibility.shared
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            face(context.date)
+        if visibility.visible {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                face(context.date)
+            }
+        } else {
+            face(Date())
         }
     }
 
@@ -871,6 +885,7 @@ private struct LimitsSummaryCard: View {
 private struct MusicCard: View {
     let dark: Bool
     @ObservedObject private var remote = MusicRemote.shared
+    @ObservedObject private var visibility = WindowVisibility.shared
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
@@ -910,6 +925,12 @@ private struct MusicCard: View {
         .onAppear { remote.start() }
     }
 
+    private var elapsedText: some View {
+        Text("\(TrackMeta.timeLabel(remote.elapsed)) / \(TrackMeta.timeLabel(remote.duration))")
+            .font(DashSkin.mono(9.5))
+            .foregroundStyle(DashSkin.inkFaint(dark))
+    }
+
     private func nowPlaying(_ track: Track) -> some View {
         HStack(spacing: 10) {
             HomeArtworkThumb(track: track, size: 40)
@@ -919,12 +940,12 @@ private struct MusicCard: View {
                     .lineLimit(1)
                     .foregroundStyle(DashSkin.ink(dark))
                     .presenterBlur(blur)
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    Text(
-                        "\(TrackMeta.timeLabel(remote.elapsed)) / \(TrackMeta.timeLabel(remote.duration))"
-                    )
-                    .font(DashSkin.mono(9.5))
-                    .foregroundStyle(DashSkin.inkFaint(dark))
+                if remote.isPlaying, visibility.visible {
+                    TimelineView(.periodic(from: MusicTick.epoch, by: 1)) { _ in
+                        elapsedText
+                    }
+                } else {
+                    elapsedText
                 }
             }
             PlaybackWave(playing: remote.isPlaying, color: theme.opacity(0.9), maxHeight: 14)
