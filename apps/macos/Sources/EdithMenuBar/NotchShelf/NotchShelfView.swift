@@ -174,7 +174,7 @@ struct NotchShelfContentView: View {
             }
             .buttonStyle(.plain).pointerCursor()
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .frame(height: 34)
         .animation(
             reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
@@ -284,7 +284,7 @@ private struct NotchHomeTab: View {
             .frame(maxHeight: .infinity)
             quickActions
         }
-        .padding(.horizontal, 12).padding(.bottom, 12)
+        .padding(.horizontal, 16).padding(.bottom, 14)
     }
 
     private var quickActions: some View {
@@ -296,10 +296,12 @@ private struct NotchHomeTab: View {
                 preventSleep ? "moon.zzz.fill" : "moon.zzz", "Keep awake", active: preventSleep
             ) {
                 preventSleep.toggle()
+                controller.collapseNow()
             }
             actionTile("person.wave.2", "Presenter", active: presenterMode) {
                 presenterMode.toggle()
                 if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
+                controller.collapseNow()
             }
             if controller.canPickColor {
                 actionTile("eyedropper", "Pick color", active: false) {
@@ -349,6 +351,7 @@ private struct NotchHomeTab: View {
                 .foregroundStyle(.white.opacity(0.42))
             if let url = eventLink(event) {
                 Button {
+                    controller.collapseNow()
                     NSWorkspace.shared.open(url)
                 } label: {
                     HStack(spacing: 3) {
@@ -441,19 +444,25 @@ private struct NotchNowPlayingCard: View {
     }
 
     private var artwork: some View {
-        Group {
-            if let image = controller.nowPlayingArtwork {
-                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
-            } else {
-                Image(systemName: "music.note")
-                    .font(.system(size: 18)).foregroundStyle(.white.opacity(0.5))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.white.opacity(0.08))
+        Button {
+            controller.openNowPlayingApp()
+        } label: {
+            Group {
+                if let image = controller.nowPlayingArtwork {
+                    Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 18)).foregroundStyle(.white.opacity(0.5))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(.white.opacity(0.08))
+                }
             }
+            .frame(width: 46, height: 46)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
         }
-        .frame(width: 46, height: 46)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+        .buttonStyle(.plain).pointerCursor()
+        .help("Open player")
     }
 
     private func control(_ name: String, _ size: CGFloat, _ action: @escaping () -> Void)
@@ -581,7 +590,7 @@ private struct NotchClipboardList: View {
                     .buttonStyle(.plain).pointerCursor()
                 }
             }
-            .padding(.horizontal, 12).padding(.bottom, 12)
+            .padding(.horizontal, 16).padding(.bottom, 14)
         }
     }
 }

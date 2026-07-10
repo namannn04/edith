@@ -11,7 +11,7 @@ struct NotchCameraTab: View {
             case .authorized:
                 CameraPreview()
                     .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .padding(.horizontal, 12).padding(.bottom, 12)
+                    .padding(.horizontal, 16).padding(.bottom, 14)
             case .notDetermined:
                 prompt("Enable the camera") {
                     AVCaptureDevice.requestAccess(for: .video) { granted in
