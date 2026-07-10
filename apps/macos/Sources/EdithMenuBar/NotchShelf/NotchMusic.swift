@@ -12,6 +12,16 @@ enum NotchTab: String, CaseIterable, Equatable {
         case .camera: "Camera"
         }
     }
+
+    var icon: String {
+        switch self {
+        case .home: "house.fill"
+        case .files: "folder.fill"
+        case .clipboard: "doc.on.clipboard"
+        case .audio: "slider.horizontal.3"
+        case .camera: "camera.fill"
+        }
+    }
 }
 
 struct NotchNowPlaying: Equatable {

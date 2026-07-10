@@ -78,7 +78,7 @@ struct NotchShelfContentView: View {
 
     private var glide: Animation {
         reduceMotion
-            ? .easeInOut(duration: 0.24) : .spring(response: 0.5, dampingFraction: 0.9)
+            ? .easeInOut(duration: 0.2) : .spring(response: 0.36, dampingFraction: 0.86)
     }
 
     private var contentTransition: AnyTransition {
@@ -86,8 +86,8 @@ struct NotchShelfContentView: View {
         return .asymmetric(
             insertion: AnyTransition.modifier(
                 active: NotchContentFade(progress: 0), identity: NotchContentFade(progress: 1)
-            ).animation(.easeOut(duration: 0.35).delay(0.18)),
-            removal: .opacity.animation(.easeOut(duration: 0.12)))
+            ).animation(.easeOut(duration: 0.25).delay(0.06)),
+            removal: .opacity.animation(.easeOut(duration: 0.1)))
     }
 
     @ViewBuilder private var collapsed: some View {
@@ -105,60 +105,68 @@ struct NotchShelfContentView: View {
     }
 
     private var expanded: some View {
-        VStack(spacing: 4) {
-            tabStrip
-                .padding(.top, 30)
-                .padding(.horizontal, 16)
+        VStack(spacing: 6) {
+            header
             tabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    private var visibleTabs: [NotchTab] {
-        let mixerOn = SharedDefaults.store.bool(forKey: "notchAudioMixerEnabled")
-        return NotchTab.allCases.filter { $0 != .audio || mixerOn }
-    }
-
-    private var tabStrip: some View {
-        HStack(spacing: 6) {
-            ForEach(visibleTabs, id: \.self) { tab in
-                Button {
-                    controller.selectTab(tab)
-                } label: {
-                    Text(tab.title)
-                        .font(
-                            .system(
-                                size: 11.5,
-                                weight: controller.activeTab == tab ? .semibold : .regular)
-                        )
-                        .foregroundStyle(
-                            controller.activeTab == tab ? Color.black : Color.white.opacity(0.7)
-                        )
-                        .padding(.horizontal, 11).padding(.vertical, 5)
-                        .background {
-                            if controller.activeTab == tab {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.92))
-                                    .matchedGeometryEffect(id: "activeTab", in: tabPill)
-                            } else {
-                                Capsule().fill(Color.white.opacity(0.07))
-                            }
-                        }
+    private var header: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 4) {
+                ForEach(visibleTabs, id: \.self) { tab in
+                    iconTab(tab)
                 }
-                .buttonStyle(.plain).pointerCursor()
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 0)
+                .frame(width: collapsedBase.width)
             Button {
                 MainApp.openDashboard()
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.7))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .frame(width: 32, height: 22)
+                    .background(Color.white.opacity(0.07), in: Capsule())
             }
             .buttonStyle(.plain).pointerCursor()
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .padding(.horizontal, 12)
+        .frame(height: max(30, collapsedBase.height))
         .animation(
-            reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
+            reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
             value: controller.activeTab)
+    }
+
+    private func iconTab(_ tab: NotchTab) -> some View {
+        let active = controller.activeTab == tab
+        return Button {
+            controller.selectTab(tab)
+        } label: {
+            Image(systemName: tab.icon)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(active ? Color.black : Color.white.opacity(0.7))
+                .frame(width: 32, height: 22)
+                .background {
+                    if active {
+                        Capsule()
+                            .fill(Color.white.opacity(0.92))
+                            .matchedGeometryEffect(id: "activeTab", in: tabPill)
+                    } else {
+                        Capsule().fill(Color.white.opacity(0.07))
+                    }
+                }
+        }
+        .buttonStyle(.plain).pointerCursor()
+        .help(tab.title)
+    }
+
+    private var visibleTabs: [NotchTab] {
+        let mixerOn = SharedDefaults.store.bool(forKey: "notchAudioMixerEnabled")
+        return NotchTab.allCases.filter { $0 != .audio || mixerOn }
     }
 
     @ViewBuilder private var tabContent: some View {
@@ -199,47 +207,53 @@ private struct NotchHomeTab: View {
     @ObservedObject var controller: NotchShelfController
 
     var body: some View {
-        VStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             if let track = controller.nowPlaying {
                 NotchNowPlayingCard(controller: controller, track: track)
-            }
-            HStack(alignment: .top, spacing: 10) {
-                if let event = nextEvent {
-                    eventCard(event)
-                }
-                if let usage = controller.usageStore {
-                    NotchUsageRings(usage: usage)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
-                }
-            }
-            if controller.nowPlaying == nil, controller.usageStore == nil, nextEvent == nil {
+                sideColumn.frame(width: 176)
+            } else if nextEvent != nil || controller.usageStore != nil {
+                if let event = nextEvent { eventCard(event) }
+                if let usage = controller.usageStore { ringsCard(usage) }
+            } else {
                 Text("Nothing to show yet")
                     .font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+        .padding(.horizontal, 12).padding(.bottom, 12)
+    }
+
+    private var sideColumn: some View {
+        VStack(spacing: 10) {
+            if let event = nextEvent { eventCard(event) }
+            if let usage = controller.usageStore { ringsCard(usage) }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16).padding(.top, 2).padding(.bottom, 14)
     }
 
     private var nextEvent: EKEvent? {
         controller.calendarStore?.events.first { ($0.startDate ?? .distantPast) > Date() }
     }
 
+    private func ringsCard(_ usage: UsageStore) -> some View {
+        NotchUsageRings(usage: usage)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+    }
+
     private func eventCard(_ event: EKEvent) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 2) {
             Text("NEXT UP")
-                .font(.system(size: 9, weight: .bold)).tracking(0.8)
+                .font(.system(size: 8.5, weight: .bold)).tracking(0.8)
                 .foregroundStyle(.white.opacity(0.4))
             Text(event.title ?? "Event")
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
             Text(event.startDate?.formatted(date: .omitted, time: .shortened) ?? "")
-                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+                .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.55))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(10)
         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
     }
 }
@@ -249,7 +263,7 @@ private struct NotchNowPlayingCard: View {
     let track: NotchNowPlaying
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             artwork
             VStack(alignment: .leading, spacing: 7) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -276,9 +290,9 @@ private struct NotchNowPlayingCard: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(14)
-        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(12)
+        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private var artwork: some View {
@@ -287,12 +301,12 @@ private struct NotchNowPlayingCard: View {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
             } else {
                 Image(systemName: "music.note")
-                    .font(.system(size: 22)).foregroundStyle(.white.opacity(0.5))
+                    .font(.system(size: 20)).foregroundStyle(.white.opacity(0.5))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.white.opacity(0.08))
             }
         }
-        .frame(width: 58, height: 58)
+        .frame(width: 54, height: 54)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
     }
@@ -355,27 +369,26 @@ private struct NotchUsageRings: View {
     @ObservedObject var usage: UsageStore
 
     var body: some View {
-        HStack(spacing: 26) {
+        HStack(spacing: 22) {
             ring("Session", usage.session?.percent)
             ring("Week", usage.week?.percent)
         }
-        .padding(.bottom, 12)
     }
 
     private func ring(_ label: String, _ percent: Double?) -> some View {
         let value = percent ?? 0
-        return VStack(spacing: 4) {
+        return VStack(spacing: 3) {
             ZStack {
-                Circle().stroke(.white.opacity(0.12), lineWidth: 4)
+                Circle().stroke(.white.opacity(0.12), lineWidth: 3.5)
                 Circle()
                     .trim(from: 0, to: min(1, value / 100))
-                    .stroke(color(value), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .stroke(color(value), style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(Int(value.rounded()))")
-                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                    .font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.white)
             }
-            .frame(width: 42, height: 42)
-            Text(label).font(.system(size: 10)).foregroundStyle(.white.opacity(0.6))
+            .frame(width: 34, height: 34)
+            Text(label).font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.6))
         }
     }
 
@@ -427,7 +440,7 @@ private struct NotchClipboardList: View {
                     .buttonStyle(.plain).pointerCursor()
                 }
             }
-            .padding(.horizontal, 16).padding(.bottom, 12)
+            .padding(.horizontal, 12).padding(.bottom, 12)
         }
     }
 }

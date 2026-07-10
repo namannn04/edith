@@ -3,7 +3,7 @@ import CoreGraphics
 enum NotchGeometry {
     static let topFlareRadius: CGFloat = 6
     static let fallbackSize = CGSize(width: 150, height: 28)
-    static let expandedSize = CGSize(width: 360, height: 190)
+    static let expandedSize = CGSize(width: 540, height: 185)
 
     static func collapsedSize(
         screenWidth: CGFloat,
