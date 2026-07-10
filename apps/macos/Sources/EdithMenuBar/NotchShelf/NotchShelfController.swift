@@ -367,6 +367,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
                     origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: holding),
                     size: holding),
                 display: true)
+            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.displayIfNeeded()
         }
     }
 
