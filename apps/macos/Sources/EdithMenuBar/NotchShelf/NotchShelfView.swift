@@ -232,7 +232,10 @@ private struct NotchHomeTab: View {
     }
 
     private var nextEvent: EKEvent? {
-        controller.calendarStore?.events.first { ($0.startDate ?? .distantPast) > Date() }
+        let upcoming = (controller.calendarStore?.events ?? [])
+            .filter { ($0.startDate ?? .distantPast) > Date() }
+            .sorted { ($0.startDate ?? .distantPast) < ($1.startDate ?? .distantPast) }
+        return upcoming.first { !$0.isAllDay } ?? upcoming.first
     }
 
     private func ringsCard(_ usage: UsageStore) -> some View {
@@ -249,12 +252,21 @@ private struct NotchHomeTab: View {
                 .foregroundStyle(.white.opacity(0.4))
             Text(event.title ?? "Event")
                 .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-            Text(event.startDate?.formatted(date: .omitted, time: .shortened) ?? "")
+            Text(eventTimeLabel(event))
                 .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.55))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func eventTimeLabel(_ event: EKEvent) -> String {
+        guard let start = event.startDate else { return "" }
+        let day =
+            Calendar.current.isDateInToday(start)
+            ? "" : start.formatted(.dateTime.weekday(.abbreviated)) + " "
+        if event.isAllDay { return day + "All day" }
+        return day + start.formatted(date: .omitted, time: .shortened)
     }
 }
 
