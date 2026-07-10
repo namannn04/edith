@@ -11,9 +11,7 @@ final class LimitsStatusItem {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = "limits"
         item.isVisible = true
-        item.button?.target = self
-        item.button?.action = #selector(clicked)
-        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        StatusItemMenu.attach(to: item, target: self, action: #selector(clicked))
         Self.button = item.button
         showUnavailable()
     }
@@ -24,11 +22,7 @@ final class LimitsStatusItem {
     }
 
     @objc private func clicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
-            StatusItemMenu.show(from: item)
-        } else {
-            MainApp.openDashboard()
-        }
+        StatusItemMenu.handleClick(on: item) { MainApp.openDashboard() }
     }
 
     func update(session: LimitWindow?, week: LimitWindow?) {

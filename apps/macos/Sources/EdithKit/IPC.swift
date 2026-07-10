@@ -22,6 +22,7 @@ public enum IPC {
         public static let grantFullDisk = Notification.Name("com.pulkit.edith.grantFullDisk")
         public static let grantScreenRecording = Notification.Name(
             "com.pulkit.edith.grantScreenRecording")
+        public static let grantCamera = Notification.Name("com.pulkit.edith.grantCamera")
         public static let requestTestNotification = Notification.Name(
             "com.pulkit.edith.requestTestNotification")
         public static let clipboardChanged = Notification.Name("com.pulkit.edith.clipboardChanged")

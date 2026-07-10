@@ -1,5 +1,32 @@
 import SwiftUI
 
+struct CenteredNotchShape: Shape {
+    var width: CGFloat
+    var height: CGFloat
+    var topRadius: CGFloat
+    var bottomRadius: CGFloat
+
+    var animatableData:
+        AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>>
+    {
+        get {
+            AnimatablePair(AnimatablePair(width, height), AnimatablePair(topRadius, bottomRadius))
+        }
+        set {
+            width = newValue.first.first
+            height = newValue.first.second
+            topRadius = newValue.second.first
+            bottomRadius = newValue.second.second
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let box = CGRect(
+            x: rect.midX - width / 2, y: rect.minY, width: width, height: height)
+        return NotchShape(topRadius: topRadius, bottomRadius: bottomRadius).path(in: box)
+    }
+}
+
 struct NotchShape: Shape {
     var topRadius: CGFloat = NotchGeometry.topFlareRadius
     var bottomRadius: CGFloat = 14

@@ -3,7 +3,21 @@ import CoreGraphics
 enum NotchGeometry {
     static let topFlareRadius: CGFloat = 6
     static let fallbackSize = CGSize(width: 150, height: 28)
-    static let expandedSize = CGSize(width: 360, height: 190)
+    static let expandedWidth: CGFloat = 580
+    static let expandedHeaderBand: CGFloat = 40
+    static let expandedMaxSize = CGSize(width: expandedWidth, height: 412)
+
+    static func expandedShapeSize(tab: NotchTab, hasMusic: Bool, notchHeight: CGFloat) -> CGSize {
+        let content: CGFloat =
+            switch tab {
+            case .home: hasMusic ? 158 : 148
+            case .files: 210
+            case .clipboard: 260
+            case .audio: 162
+            case .camera: 332
+            }
+        return CGSize(width: expandedWidth, height: notchHeight + expandedHeaderBand + content)
+    }
 
     static func collapsedSize(
         screenWidth: CGFloat,
@@ -25,14 +39,26 @@ enum NotchGeometry {
 
     static let openMargin: CGFloat = 6
     static let keepOpenMargin: CGFloat = 24
+    static let panelPadding = CGSize(width: 24, height: 10)
+    static let hoverGrowScale: CGFloat = 1.06
 
-    static let expandedTopRadius: CGFloat = 18
-    static let expandedBottomRadius: CGFloat = 34
-    static let resizingBottomRadius: CGFloat = 10
-    static let collapsedBottomRadius: CGFloat = 10
+    static func panelSize(forShape shape: CGSize) -> CGSize {
+        CGSize(width: shape.width + panelPadding.width, height: shape.height + panelPadding.height)
+    }
+
+    static func shapeSize(inPanel panel: CGSize) -> CGSize {
+        CGSize(
+            width: max(1, panel.width - panelPadding.width),
+            height: max(1, panel.height - panelPadding.height))
+    }
+
+    static let expandedTopRadius: CGFloat = 10
+    static let expandedBottomRadius: CGFloat = 22
+    static let alertBottomRadius: CGFloat = 20
+    static let collapsedBottomRadius: CGFloat = 12
 
     static let musicWingWidth: CGFloat = 42
-    static let alertDropSize = CGSize(width: 380, height: 84)
+    static let alertDropSize = CGSize(width: 330, height: 88)
 
     static func collapsedSize(base: CGSize, hasLiveActivity: Bool) -> CGSize {
         guard hasLiveActivity else { return base }

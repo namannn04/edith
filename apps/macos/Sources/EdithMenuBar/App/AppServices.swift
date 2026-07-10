@@ -82,6 +82,7 @@ final class AppServices: ObservableObject {
         notchShelf?.attachClipboard(clipboard)
         notchShelf?.attachUsage(usage)
         notchShelf?.attachCalendar(calendar)
+        notchShelf?.attachColorPicker(colorPicker)
 
         let focusDimOn = SharedDefaults.store.bool(forKey: "focusDimEnabled")
         if focusDimOn, focusDim == nil { focusDim = FocusDimEngine() }

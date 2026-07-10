@@ -45,8 +45,7 @@ final class MicMuteEngine: NSObject, ObservableObject, FeatureModule {
         let wanted = SharedDefaults.store.object(forKey: "micMuteInMenuBar") as? Bool ?? true
         if wanted, statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            item.button?.action = #selector(statusClicked)
-            item.button?.target = self
+            StatusItemMenu.attach(to: item, target: self, action: #selector(statusClicked))
             statusItem = item
             updateIcon()
         } else if !wanted, let item = statusItem {
@@ -55,7 +54,10 @@ final class MicMuteEngine: NSObject, ObservableObject, FeatureModule {
         }
     }
 
-    @objc private func statusClicked() { toggle() }
+    @objc private func statusClicked() {
+        guard let statusItem else { return }
+        StatusItemMenu.handleClick(on: statusItem) { toggle() }
+    }
 
     private func updateIcon() {
         let name = muted ? "mic.slash.fill" : "mic.fill"

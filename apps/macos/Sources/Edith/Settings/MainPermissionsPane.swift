@@ -36,6 +36,10 @@ private let permissions: [MainPermission] = [
         icon: "rectangle.inset.filled.badge.record",
         usedFor: "Optional - reads window titles for auto presenter mode.",
         key: "permScreenRecordingGranted", request: IPC.Name.grantScreenRecording),
+    MainPermission(
+        id: "camera", name: "Camera", icon: "camera",
+        usedFor: "Optional - the mirror preview in the notch's Camera tab.",
+        key: "permCameraGranted", request: IPC.Name.grantCamera),
 ]
 
 struct MainPermissionsPane: View {
