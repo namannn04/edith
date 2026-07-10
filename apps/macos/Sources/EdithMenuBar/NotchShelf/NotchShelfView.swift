@@ -345,6 +345,9 @@ private struct NotchHomeTab: View {
 private struct NotchNowPlayingCard: View {
     @ObservedObject var controller: NotchShelfController
     let track: NotchNowPlaying
+    @StateObject private var presenterState = PresenterState.shared
+    @AppStorage("presenterBlurMusic", store: SharedDefaults.store)
+    private var presenterBlurMusic = true
 
     var body: some View {
         HStack(spacing: 11) {
@@ -354,9 +357,11 @@ private struct NotchNowPlayingCard: View {
                     Text(track.title)
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(.white).lineLimit(1)
+                        .presenterBlur(presenterState.active && presenterBlurMusic)
                     Text(sourceLabel)
                         .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.55))
                         .lineLimit(1)
+                        .presenterBlur(presenterState.active && presenterBlurMusic)
                 }
                 if controller.nowPlayingSeekable {
                     NotchSeekBar(controller: controller)
@@ -414,6 +419,8 @@ private struct NotchNowPlayingCard: View {
         Button(action: action) {
             Image(systemName: name)
                 .font(.system(size: size, weight: .medium)).foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain).shelfPointer()
     }
@@ -456,8 +463,8 @@ private struct NotchUsageRings: View {
 
     var body: some View {
         HStack(spacing: 20) {
-            ring("Session", usage.session?.percent)
-            ring("7d", usage.week?.percent)
+            ring("5h", usage.session)
+            ring("7d", usage.week)
         }
         .onAppear {
             guard !reduceMotion else {
@@ -468,9 +475,9 @@ private struct NotchUsageRings: View {
         }
     }
 
-    private func ring(_ label: String, _ percent: Double?) -> some View {
-        let value = percent ?? 0
-        return VStack(spacing: 3) {
+    private func ring(_ label: String, _ window: LimitWindow?) -> some View {
+        let value = window?.percent ?? 0
+        return VStack(spacing: 0) {
             ZStack {
                 Circle().stroke(.white.opacity(0.12), lineWidth: 4.5)
                 Circle()
@@ -481,8 +488,37 @@ private struct NotchUsageRings: View {
                     .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
             }
             .frame(width: 52, height: 52)
-            Text(label).font(.system(size: 9.5)).foregroundStyle(.white.opacity(0.6))
+            Text(label)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .padding(.top, 7)
+            resetLabel(window?.resetsAt)
+                .padding(.top, 2)
         }
+    }
+
+    @ViewBuilder private func resetLabel(_ resetsAt: Date?) -> some View {
+        if let reset = resetsAt, reset > Date() {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(countdown(from: context.date, to: reset))
+                    .font(.system(size: 9)).monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+            }
+        } else {
+            Text(" ").font(.system(size: 9))
+        }
+    }
+
+    private func countdown(from now: Date, to reset: Date) -> String {
+        let s = max(0, Int(reset.timeIntervalSince(now)))
+        let d = s / 86400
+        let h = (s % 86400) / 3600
+        let m = (s % 3600) / 60
+        let sec = s % 60
+        if d > 0 { return String(format: "%dd %d:%02d:%02d", d, h, m, sec) }
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, sec) }
+        return String(format: "%d:%02d", m, sec)
     }
 
     private func color(_ percent: Double) -> Color {
