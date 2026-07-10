@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import ApplicationServices
 import CoreGraphics
@@ -16,6 +17,7 @@ final class PermissionsModel: ObservableObject {
     @Published private(set) var inputMonitoring = false
     @Published private(set) var fullDisk = false
     @Published private(set) var screenRecording = false
+    @Published private(set) var camera = false
 
     private let eventStore = EKEventStore()
     private var ipcTokens: [NSObjectProtocol] = []
@@ -38,6 +40,7 @@ final class PermissionsModel: ObservableObject {
             IPC.observe(IPC.Name.grantScreenRecording) { [weak self] in
                 self?.grantScreenRecording()
             },
+            IPC.observe(IPC.Name.grantCamera) { [weak self] in self?.grantCamera() },
         ]
     }
 
@@ -47,6 +50,7 @@ final class PermissionsModel: ObservableObject {
         inputMonitoring = CGPreflightListenEventAccess()
         fullDisk = Self.hasFullDiskAccess()
         screenRecording = CGPreflightScreenCaptureAccess()
+        camera = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         mirrorToSharedDefaults()
         Task { @MainActor in
             let status = await UNUserNotificationCenter.current()
@@ -67,6 +71,7 @@ final class PermissionsModel: ObservableObject {
         setIfChanged(inputMonitoring, "permInputMonitoringGranted")
         setIfChanged(fullDisk, "permFullDiskGranted")
         setIfChanged(screenRecording, "permScreenRecordingGranted")
+        setIfChanged(camera, "permCameraGranted")
     }
 
     var needsAttention: Bool {
@@ -114,6 +119,17 @@ final class PermissionsModel: ObservableObject {
     func grantScreenRecording() {
         CGRequestScreenCaptureAccess()
         openSecuritySettings("Privacy_ScreenCapture")
+    }
+
+    func grantCamera() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { _ in
+                Task { @MainActor in self.refresh() }
+            }
+        default:
+            openSecuritySettings("Privacy_Camera")
+        }
     }
 
     private func openSecuritySettings(_ anchor: String) {
