@@ -50,18 +50,20 @@ enum NotchMusicResolver {
                 source: .external(external.app), title: external.title, artist: external.artist,
                 isPlaying: true)
         }
-        let pausedLocal =
-            hasLocal
-            ? NotchNowPlaying(source: .local, title: localTitle!, artist: "", isPlaying: false)
-            : nil
-        let pausedExternal = external.map {
-            NotchNowPlaying(
-                source: .external($0.app), title: $0.title, artist: $0.artist,
-                isPlaying: $0.isPlaying)
+        switch previous?.source {
+        case .external:
+            return external.map {
+                NotchNowPlaying(
+                    source: .external($0.app), title: $0.title, artist: $0.artist,
+                    isPlaying: $0.isPlaying)
+            }
+        case .local:
+            return hasLocal
+                ? NotchNowPlaying(
+                    source: .local, title: localTitle!, artist: "", isPlaying: false)
+                : nil
+        case .none:
+            return nil
         }
-        if case .external = previous?.source {
-            return pausedExternal ?? pausedLocal
-        }
-        return pausedLocal ?? pausedExternal
     }
 }
