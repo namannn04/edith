@@ -58,7 +58,7 @@ enum NotchGeometry {
     static let collapsedBottomRadius: CGFloat = 12
 
     static let musicWingWidth: CGFloat = 42
-    static let alertDropSize = CGSize(width: 330, height: 78)
+    static let alertDropSize = CGSize(width: 330, height: 88)
 
     static func collapsedSize(base: CGSize, hasLiveActivity: Bool) -> CGSize {
         guard hasLiveActivity else { return base }

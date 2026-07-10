@@ -609,8 +609,8 @@ private struct NotchAlertDropView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 28)
-        .padding(.bottom, 6)
+        .padding(.top, 40)
+        .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onHover { controller.alertHover($0) }

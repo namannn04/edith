@@ -121,12 +121,12 @@ final class ExternalMusic: ObservableObject {
                 if not (exists process "\(app.processName)") then return "none"
             end tell
             tell application "\(app.processName)"
-                set st to player state as text
-                if st is "stopped" then return "none"
-                set nm to name of current track
-                set ar to artist of current track
-                set du to duration of current track
-                return st & "|~|" & nm & "|~|" & ar & "|~|" & du
+                set theState to player state as text
+                if theState is "stopped" then return "none"
+                set theName to name of current track
+                set theArtist to artist of current track
+                set theDuration to duration of current track
+                return theState & "|~|" & theName & "|~|" & theArtist & "|~|" & theDuration
             end tell
             """
         var error: NSDictionary?
