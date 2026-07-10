@@ -25,6 +25,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var alertDetectors: NotchAlertDetectors?
     private var alertWorkItem: DispatchWorkItem?
     private var alertPinned = false
+    private var pendingAlerts: [(alert: NotchAlert, at: Date)] = []
+    private static let pendingAlertTTL: TimeInterval = 60
     @Published private(set) var livePositions: [UUID: CGPoint] = [:]
     @Published private(set) var selectedIDs: Set<UUID> = []
 
@@ -103,12 +105,25 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     func postAlert(_ alert: NotchAlert) {
-        guard alertsEnabled, !isExpanded else { return }
+        guard alertsEnabled else { return }
+        if isExpanded {
+            pendingAlerts.removeAll { $0.alert.id == alert.id }
+            pendingAlerts.append((alert, Date()))
+            if pendingAlerts.count > 3 { pendingAlerts.removeFirst() }
+            return
+        }
         guard NotchAlertLogic.shouldPreempt(current: currentAlert, incoming: alert) else { return }
         currentAlert = alert
         alertPinned = false
         updateAllFrames(animated: true)
         scheduleAlertHide(after: alert.autoHide)
+    }
+
+    private func flushPendingAlert() {
+        let cutoff = Date().addingTimeInterval(-Self.pendingAlertTTL)
+        pendingAlerts.removeAll { $0.at < cutoff }
+        guard !isExpanded, currentAlert == nil, !pendingAlerts.isEmpty else { return }
+        postAlert(pendingAlerts.removeFirst().alert)
     }
 
     private func scheduleAlertHide(after delay: TimeInterval) {
@@ -123,6 +138,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         currentAlert = nil
         alertWorkItem = nil
         updateAllFrames(animated: true)
+        flushPendingAlert()
     }
 
     func alertHover(_ hovering: Bool) {
@@ -367,6 +383,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         gateWorkItem = nil
         stopMoveMonitor()
         updateAllFrames(animated: true)
+        flushPendingAlert()
     }
 
     func hoverChanged(_ hovering: Bool) {

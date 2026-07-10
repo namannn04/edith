@@ -1,5 +1,7 @@
 import CoreAudio
+import EdithKit
 import Foundation
+import IOBluetooth
 import IOKit.ps
 
 @MainActor
@@ -7,8 +9,9 @@ final class NotchAlertDetectors {
     private let post: (NotchAlert) -> Void
     private var audioListener: AudioObjectPropertyListenerBlock?
     private var powerSource: CFRunLoopSource?
+    private var bluetoothWatcher: BluetoothWatcher?
     private var lastOutputDevice: AudioDeviceID = 0
-    private var lastCharging: Bool?
+    private var lastOnAC: Bool?
     private var lastCapacity: Int?
     private var warmingUp = true
 
@@ -16,13 +19,18 @@ final class NotchAlertDetectors {
         self.post = post
     }
 
+    private func enabled(_ key: String) -> Bool {
+        SharedDefaults.store.object(forKey: key) as? Bool ?? true
+    }
+
     func start() {
         lastOutputDevice = Self.defaultOutputDevice()
         let snapshot = Self.readPower()
-        lastCharging = snapshot.charging
+        lastOnAC = snapshot.onAC
         lastCapacity = snapshot.capacity
         startAudio()
         startPower()
+        startBluetooth()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.warmingUp = false
         }
@@ -43,6 +51,24 @@ final class NotchAlertDetectors {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSource, .defaultMode)
         }
         powerSource = nil
+        bluetoothWatcher?.stop()
+        bluetoothWatcher = nil
+    }
+
+    private func startBluetooth() {
+        guard enabled("notchAlertBluetooth") else { return }
+        let watcher = BluetoothWatcher { [weak self] name, connected in
+            guard let self, !self.warmingUp else { return }
+            self.post(
+                NotchAlert(
+                    id: "bluetooth.\(connected ? "connected" : "disconnected")",
+                    icon: connected ? "wave.3.right.circle.fill" : "wave.3.right.circle",
+                    tint: connected ? "#4db3e6" : "#8a7d6c",
+                    title: name, subtitle: connected ? "Connected" : "Disconnected",
+                    priority: .low, autoHide: 2.5))
+        }
+        watcher.start()
+        bluetoothWatcher = watcher
     }
 
     private func startAudio() {
@@ -62,7 +88,7 @@ final class NotchAlertDetectors {
         let device = Self.defaultOutputDevice()
         guard device != lastOutputDevice, device != 0 else { return }
         lastOutputDevice = device
-        guard !warmingUp else { return }
+        guard !warmingUp, enabled("notchAlertAudio") else { return }
         post(
             NotchAlert(
                 id: "audio.output", icon: "hifispeaker.fill", tint: "#4db3e6",
@@ -88,17 +114,18 @@ final class NotchAlertDetectors {
     private func powerChanged() {
         let now = Self.readPower()
         defer {
-            lastCharging = now.charging
+            lastOnAC = now.onAC
             lastCapacity = now.capacity
         }
         guard !warmingUp else { return }
-        if let charging = now.charging, charging != lastCharging {
+        if let onAC = now.onAC, onAC != lastOnAC, enabled("notchAlertPower") {
             let subtitle = now.capacity.map { "\($0)%" }
-            if charging {
+            if onAC {
                 post(
                     NotchAlert(
                         id: "power.charging", icon: "bolt.fill", tint: "#4cc47e",
-                        title: "Charging", subtitle: subtitle, priority: .low, autoHide: 2.5))
+                        title: now.charging == true ? "Charging" : "Plugged in",
+                        subtitle: subtitle, priority: .low, autoHide: 2.5))
             } else {
                 post(
                     NotchAlert(
@@ -106,7 +133,9 @@ final class NotchAlertDetectors {
                         title: "On battery", subtitle: subtitle, priority: .low, autoHide: 2.5))
             }
         }
-        if let capacity = now.capacity, let last = lastCapacity, capacity <= 20, last > 20 {
+        if let capacity = now.capacity, let last = lastCapacity, capacity <= 20, last > 20,
+            enabled("notchAlertBattery")
+        {
             post(
                 NotchAlert(
                     id: "battery.low", icon: "battery.25", tint: "#e0664f", title: "Battery low",
@@ -138,19 +167,71 @@ final class NotchAlertDetectors {
         return value as String
     }
 
-    private static func readPower() -> (charging: Bool?, capacity: Int?) {
+    private static func readPower() -> (onAC: Bool?, charging: Bool?, capacity: Int?) {
         guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
             let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef]
-        else { return (nil, nil) }
+        else { return (nil, nil, nil) }
         for source in sources {
             guard
                 let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue()
                     as? [String: Any]
             else { continue }
+            let state = description[kIOPSPowerSourceStateKey] as? String
+            let onAC = state.map { $0 == kIOPSACPowerValue }
             let charging = description[kIOPSIsChargingKey] as? Bool
             let capacity = description[kIOPSCurrentCapacityKey] as? Int
-            return (charging, capacity)
+            return (onAC, charging, capacity)
         }
-        return (nil, nil)
+        return (nil, nil, nil)
+    }
+}
+
+final class BluetoothWatcher: NSObject {
+    private let changed: @MainActor (String, Bool) -> Void
+    private var connectNotification: IOBluetoothUserNotification?
+    private var disconnectNotifications: [String: IOBluetoothUserNotification] = [:]
+
+    init(changed: @escaping @MainActor (String, Bool) -> Void) {
+        self.changed = changed
+    }
+
+    func start() {
+        connectNotification = IOBluetoothDevice.register(
+            forConnectNotifications: self, selector: #selector(deviceConnected(_:device:)))
+        for device in IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
+        where device.isConnected() {
+            watchDisconnect(device)
+        }
+    }
+
+    func stop() {
+        connectNotification?.unregister()
+        connectNotification = nil
+        for notification in disconnectNotifications.values { notification.unregister() }
+        disconnectNotifications.removeAll()
+    }
+
+    private func watchDisconnect(_ device: IOBluetoothDevice) {
+        guard let key = device.addressString, disconnectNotifications[key] == nil else { return }
+        disconnectNotifications[key] = device.register(
+            forDisconnectNotification: self, selector: #selector(deviceDisconnected(_:device:)))
+    }
+
+    @objc private func deviceConnected(
+        _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
+    ) {
+        let name = device.name ?? "Bluetooth device"
+        watchDisconnect(device)
+        Task { @MainActor in self.changed(name, true) }
+    }
+
+    @objc private func deviceDisconnected(
+        _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
+    ) {
+        let name = device.name ?? "Bluetooth device"
+        if let key = device.addressString, let note = disconnectNotifications.removeValue(forKey: key) {
+            note.unregister()
+        }
+        Task { @MainActor in self.changed(name, false) }
     }
 }
