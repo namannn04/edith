@@ -117,28 +117,11 @@ final class NotchAlertDetectors {
             lastCapacity = now.capacity
         }
         guard !warmingUp else { return }
-        if let onAC = now.onAC, onAC != lastOnAC, enabled("notchAlertPower") {
-            let subtitle = now.capacity.map { "\($0)%" }
-            if onAC {
-                post(
-                    NotchAlert(
-                        id: "power.charging", icon: "bolt.fill", tint: "#4cc47e",
-                        title: now.charging == true ? "Charging" : "Plugged in",
-                        subtitle: subtitle, priority: .low, autoHide: 2.5))
-            } else {
-                post(
-                    NotchAlert(
-                        id: "power.charging", icon: "bolt.slash.fill", tint: "#e0a83f",
-                        title: "On battery", subtitle: subtitle, priority: .low, autoHide: 2.5))
-            }
-        }
-        if let capacity = now.capacity, let last = lastCapacity, capacity <= 20, last > 20,
-            enabled("notchAlertBattery")
-        {
-            post(
-                NotchAlert(
-                    id: "battery.low", icon: "battery.25", tint: "#e0664f", title: "Battery low",
-                    subtitle: "\(capacity)%", priority: .high, autoHide: 4))
+        let alerts = NotchAlertLogic.powerAlerts(
+            now: now, lastOnAC: lastOnAC, lastCapacity: lastCapacity)
+        for alert in alerts {
+            let flag = alert.id == "battery.low" ? "notchAlertBattery" : "notchAlertPower"
+            if enabled(flag) { post(alert) }
         }
     }
 
@@ -166,22 +149,22 @@ final class NotchAlertDetectors {
         return value as String
     }
 
-    private static func readPower() -> (onAC: Bool?, charging: Bool?, capacity: Int?) {
+    private static func readPower() -> PowerSnapshot {
         guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
             let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef]
-        else { return (nil, nil, nil) }
+        else { return PowerSnapshot() }
         for source in sources {
             guard
                 let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue()
                     as? [String: Any]
             else { continue }
             let state = description[kIOPSPowerSourceStateKey] as? String
-            let onAC = state.map { $0 == kIOPSACPowerValue }
-            let charging = description[kIOPSIsChargingKey] as? Bool
-            let capacity = description[kIOPSCurrentCapacityKey] as? Int
-            return (onAC, charging, capacity)
+            return PowerSnapshot(
+                onAC: state.map { $0 == kIOPSACPowerValue },
+                charging: description[kIOPSIsChargingKey] as? Bool,
+                capacity: description[kIOPSCurrentCapacityKey] as? Int)
         }
-        return (nil, nil, nil)
+        return PowerSnapshot()
     }
 }
 

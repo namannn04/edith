@@ -43,6 +43,26 @@ enum MainDestination: String, CaseIterable, Identifiable {
         .settings, .extensions, .permissions, .shortcuts, .about,
     ]
 
+    static func visibleHomeItems(
+        usage: Bool, music: Bool, calendar: Bool, system: Bool
+    ) -> [MainDestination] {
+        homeItems.filter { item in
+            switch item {
+            case .dashboard: return usage
+            case .music: return music
+            case .calendar: return calendar
+            case .system: return system
+            default: return true
+            }
+        }
+    }
+
+    static func resolve(_ raw: String, visibleHome: [MainDestination]) -> MainDestination {
+        let destination = MainDestination(rawValue: raw) ?? .home
+        return visibleHome.contains(destination) || appItems.contains(destination)
+            ? destination : .home
+    }
+
     var usesPaperBackground: Bool { Self.homeItems.contains(self) }
 }
 
@@ -199,21 +219,13 @@ struct MainWindowView: View {
     }
 
     private var destination: MainDestination {
-        let raw = MainDestination(rawValue: mainWindowSection) ?? .home
-        return visibleHomeItems.contains(raw) || MainDestination.appItems.contains(raw)
-            ? raw : .home
+        MainDestination.resolve(mainWindowSection, visibleHome: visibleHomeItems)
     }
 
     private var visibleHomeItems: [MainDestination] {
-        MainDestination.homeItems.filter { item in
-            switch item {
-            case .dashboard: return usageEnabled
-            case .music: return musicEnabled
-            case .calendar: return calendarEnabled
-            case .system: return systemEnabled
-            default: return true
-            }
-        }
+        MainDestination.visibleHomeItems(
+            usage: usageEnabled, music: musicEnabled, calendar: calendarEnabled,
+            system: systemEnabled)
     }
 
     private var currentLocation: String {

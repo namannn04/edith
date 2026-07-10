@@ -25,8 +25,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var alertDetectors: NotchAlertDetectors?
     private var alertWorkItem: DispatchWorkItem?
     private var alertPinned = false
-    private var pendingAlerts: [(alert: NotchAlert, at: Date)] = []
-    private static let pendingAlertTTL: TimeInterval = 60
+    private var pendingAlerts: [PendingNotchAlert] = []
     @Published private(set) var livePositions: [UUID: CGPoint] = [:]
     @Published private(set) var selectedIDs: Set<UUID> = []
 
@@ -107,9 +106,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     func postAlert(_ alert: NotchAlert) {
         guard alertsEnabled else { return }
         if isExpanded {
-            pendingAlerts.removeAll { $0.alert.id == alert.id }
-            pendingAlerts.append((alert, Date()))
-            if pendingAlerts.count > 3 { pendingAlerts.removeFirst() }
+            pendingAlerts = NotchAlertLogic.queue(pendingAlerts, adding: alert, at: Date())
             return
         }
         guard NotchAlertLogic.shouldPreempt(current: currentAlert, incoming: alert) else { return }
@@ -120,10 +117,10 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func flushPendingAlert() {
-        let cutoff = Date().addingTimeInterval(-Self.pendingAlertTTL)
-        pendingAlerts.removeAll { $0.at < cutoff }
-        guard !isExpanded, currentAlert == nil, !pendingAlerts.isEmpty else { return }
-        postAlert(pendingAlerts.removeFirst().alert)
+        guard !isExpanded, currentAlert == nil else { return }
+        let (next, rest) = NotchAlertLogic.dequeue(pendingAlerts, now: Date())
+        pendingAlerts = rest
+        if let next { postAlert(next) }
     }
 
     private func scheduleAlertHide(after delay: TimeInterval) {
