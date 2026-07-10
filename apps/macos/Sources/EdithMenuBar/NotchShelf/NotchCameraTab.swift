@@ -35,7 +35,7 @@ struct NotchCameraTab: View {
             .foregroundStyle(.white.opacity(0.7))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(.plain).pointerCursor()
+        .buttonStyle(.plain).shelfPointer()
     }
 
     private var denied: some View {
@@ -56,7 +56,7 @@ struct NotchCameraTab: View {
             .foregroundStyle(.white.opacity(0.7))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(.plain).pointerCursor()
+        .buttonStyle(.plain).shelfPointer()
     }
 }
 

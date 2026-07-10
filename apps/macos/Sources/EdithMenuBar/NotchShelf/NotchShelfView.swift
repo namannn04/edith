@@ -3,6 +3,17 @@ import EdithKit
 import EventKit
 import SwiftUI
 
+extension View {
+    func shelfPointer() -> some View {
+        onContinuousHover { phase in
+            switch phase {
+            case .active: NSCursor.pointingHand.set()
+            case .ended: NSCursor.arrow.set()
+            }
+        }
+    }
+}
+
 struct NotchShelfContentView: View {
     @ObservedObject var controller: NotchShelfController
     var collapsedBase: CGSize = NotchGeometry.fallbackSize
@@ -172,7 +183,7 @@ struct NotchShelfContentView: View {
                     .frame(width: 32, height: 22)
                     .background(Color.white.opacity(0.07), in: Capsule())
             }
-            .buttonStyle(.plain).pointerCursor()
+            .buttonStyle(.plain).shelfPointer()
         }
         .padding(.horizontal, 16)
         .frame(height: 34)
@@ -209,7 +220,7 @@ struct NotchShelfContentView: View {
                 }
             }
         }
-        .buttonStyle(.plain).pointerCursor()
+        .buttonStyle(.plain).shelfPointer()
         .help(tab.title)
     }
 
@@ -327,7 +338,7 @@ private struct NotchHomeTab: View {
                     ? Color(red: 0.79, green: 0.56, blue: 0.31) : Color.white.opacity(0.055),
                 in: RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(.plain).pointerCursor()
+        .buttonStyle(.plain).shelfPointer()
     }
 
     private var nextEvent: EKEvent? {
@@ -363,7 +374,7 @@ private struct NotchHomeTab: View {
                             .foregroundStyle(.white.opacity(0.6))
                     }
                 }
-                .buttonStyle(.plain).pointerCursor()
+                .buttonStyle(.plain).shelfPointer()
             } else {
                 Text(event.title ?? "Event")
                     .font(.system(size: 11.5, weight: .semibold))
@@ -461,7 +472,7 @@ private struct NotchNowPlayingCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
         }
-        .buttonStyle(.plain).pointerCursor()
+        .buttonStyle(.plain).shelfPointer()
         .help("Open player")
     }
 
@@ -472,7 +483,7 @@ private struct NotchNowPlayingCard: View {
             Image(systemName: name)
                 .font(.system(size: size, weight: .medium)).foregroundStyle(.white)
         }
-        .buttonStyle(.plain).pointerCursor()
+        .buttonStyle(.plain).shelfPointer()
     }
 }
 
@@ -587,7 +598,7 @@ private struct NotchClipboardList: View {
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     }
-                    .buttonStyle(.plain).pointerCursor()
+                    .buttonStyle(.plain).shelfPointer()
                 }
             }
             .padding(.horizontal, 16).padding(.bottom, 14)

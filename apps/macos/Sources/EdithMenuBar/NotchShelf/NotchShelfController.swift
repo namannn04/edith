@@ -614,7 +614,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
             localTitle: localMusic?.current?.title,
             localPlaying: localMusic?.isPlaying ?? false,
             external: external.current)
-        let active = resolved?.isPlaying == true ? resolved : nil
+        let active = resolved
         guard active != nowPlaying else { return }
         let hadActivity = nowPlaying != nil
         let trackChanged =
@@ -1017,6 +1017,8 @@ final class ShelfDropCatcherView: NSView {
         guard rect.contains(local) else { return nil }
         return super.hitTest(point)
     }
+
+    override func cursorUpdate(with event: NSEvent) {}
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         dropOperation(for: sender)
