@@ -8,7 +8,11 @@ public final class PresenterState: ObservableObject {
     @Published public private(set) var autoActive = false
     @Published public private(set) var autoReason: String?
 
-    public var active: Bool { manual || autoActive }
+    public var active: Bool {
+        FeatureGates.presenterActive(enabled: enabled, manual: manual, autoActive: autoActive)
+    }
+
+    @Published public private(set) var enabled = true
 
     private var localToken: NSObjectProtocol?
     private var settingsToken: NSObjectProtocol?
@@ -29,9 +33,11 @@ public final class PresenterState: ObservableObject {
 
     private func refresh() {
         let d = SharedDefaults.store
+        let newEnabled = d.object(forKey: "presenterEnabled") as? Bool ?? true
         let newManual = d.bool(forKey: "presenterMode")
-        let newAutoActive = d.bool(forKey: "presenterAutoActive")
+        let newAutoActive = newEnabled && d.bool(forKey: "presenterAutoActive")
         let newAutoReason = d.string(forKey: "presenterAutoReason")
+        if enabled != newEnabled { enabled = newEnabled }
         if manual != newManual { manual = newManual }
         if autoActive != newAutoActive { autoActive = newAutoActive }
         if autoReason != newAutoReason { autoReason = newAutoReason }

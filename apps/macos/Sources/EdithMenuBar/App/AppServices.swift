@@ -48,6 +48,12 @@ final class AppServices: ObservableObject {
             store.shutdown()
             system = nil
         }
+        let sleepKeyOn = SharedDefaults.store.bool(forKey: "preventSleep")
+        if sleepKeyOn,
+            !FeatureGates.preventSleepPersisted(systemOn: systemOn, current: sleepKeyOn)
+        {
+            SharedDefaults.store.set(false, forKey: "preventSleep")
+        }
 
         let calendarOn = Self.tabEnabled("tabCalendarEnabled")
         if calendarOn, calendar == nil { calendar = CalendarStore() }
@@ -91,7 +97,9 @@ final class AppServices: ObservableObject {
             focusDim = nil
         }
 
-        let presenterOn = Self.featureOffByDefault("presenterAutoEnabled")
+        let presenterOn = FeatureGates.presenterDetectorWanted(
+            presenterEnabled: Self.tabEnabled("presenterEnabled"),
+            autoEnabled: Self.featureOffByDefault("presenterAutoEnabled"))
         if presenterOn, presenter == nil { presenter = PresenterDetector() }
         if !presenterOn, let detector = presenter {
             detector.shutdown()

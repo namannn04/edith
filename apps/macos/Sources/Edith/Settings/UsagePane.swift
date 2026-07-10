@@ -3,7 +3,6 @@ import EdithKit
 import SwiftUI
 
 struct UsagePane: View {
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var enabled = true
     @AppStorage("pacingMargin", store: SharedDefaults.store) private var pacingMargin = 10.0
 
     @AppStorage("budgetEnabled", store: SharedDefaults.store) private var budgetEnabled = false
@@ -32,15 +31,6 @@ struct UsagePane: View {
 
     var body: some View {
         Form {
-            Section {
-                Toggle("Usage & limits", isOn: $enabled)
-                    .pointerCursor()
-                Text(
-                    "Session and weekly rate-limit rings, plus their menu bar readout. Same switch as the Agent Usage extension."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-            }
-
             Section("Personal budget") {
                 Toggle("Pace my Claude usage", isOn: $budgetEnabled)
                     .pointerCursor()

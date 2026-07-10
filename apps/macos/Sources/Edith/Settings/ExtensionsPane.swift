@@ -17,6 +17,9 @@ struct ExtensionsPane: View {
     @AppStorage("micMuteEnabled", store: SharedDefaults.store) private var micMuteEnabled = false
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =
         false
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        true
+    @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @State private var expanded: Set<String> = []
 
     var body: some View {
@@ -42,7 +45,8 @@ struct ExtensionsPane: View {
             header(
                 "micMute", title: "Mic Mute", icon: "mic.slash.fill",
                 subtitle: "Mute every microphone system-wide with ⌘⇧M or the menu bar icon.",
-                enabled: $micMuteEnabled, expandable: false)
+                enabled: $micMuteEnabled)
+            if expanded.contains("micMute") { MicMuteRows() }
 
             header(
                 "music", title: "Music", icon: "music.note",
@@ -76,7 +80,7 @@ struct ExtensionsPane: View {
             header(
                 "presenter", title: "Presenter", icon: "theatermasks.fill",
                 subtitle: "Blurs sensitive numbers while sharing your screen.",
-                enabled: nil)
+                enabled: $presenterEnabled)
             if expanded.contains("presenter") { PresenterRows() }
 
             header(
@@ -88,6 +92,9 @@ struct ExtensionsPane: View {
         .formStyle(.grouped)
         .navigationTitle("Extensions")
         .animation(.easeOut(duration: 0.15), value: expanded)
+        .onChange(of: systemEnabled) {
+            if !systemEnabled { preventSleep = false }
+        }
         .onAppear {
             if let id = SharedDefaults.store.string(forKey: "extensionsExpand") {
                 expanded.insert(id)
@@ -205,6 +212,22 @@ private struct MusicRows: View {
     }
 }
 
+private struct MicMuteRows: View {
+    @AppStorage("micMuteEnabled", store: SharedDefaults.store) private var enabled = false
+    @AppStorage("micMuteInMenuBar", store: SharedDefaults.store) private var inMenuBar = true
+
+    var body: some View {
+        Section {
+            Toggle("Show in the menu bar", isOn: $inMenuBar)
+                .pointerCursor()
+            Text("The menu bar icon shows the current mute state and toggles it on click.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.5)
+    }
+}
+
 private struct SystemRows: View {
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var enabled = true
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
@@ -214,7 +237,7 @@ private struct SystemRows: View {
         Section {
             Toggle(isOn: $preventSleep) {
                 HStack(spacing: 6) {
-                    Text("Prevent sleep")
+                    Text("Keep awake")
                     InfoDot(
                         "Keeps your Mac awake until you turn this off again, even with the lid closed on power."
                     )

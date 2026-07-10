@@ -14,6 +14,8 @@ struct HomePage: View {
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
         true
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        true
     @Environment(\.colorScheme) private var scheme
 
     private var dark: Bool { scheme == .dark }
@@ -28,11 +30,11 @@ struct HomePage: View {
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: 16) {
                             WorldClocksCard(dark: dark)
-                            if systemEnabled { QuickActionsCard(dark: dark) }
+                            if systemEnabled || presenterEnabled { QuickActionsCard(dark: dark) }
                         }
                         VStack(spacing: 16) {
                             WorldClocksCard(dark: dark)
-                            if systemEnabled { QuickActionsCard(dark: dark) }
+                            if systemEnabled || presenterEnabled { QuickActionsCard(dark: dark) }
                         }
                     }
                     if usageEnabled, model.loaded {
@@ -499,6 +501,9 @@ private struct QuickActionsCard: View {
     let dark: Bool
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        true
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
@@ -506,24 +511,28 @@ private struct QuickActionsCard: View {
     var body: some View {
         SkinCard(title: "Quick actions", dark: dark) {
             HStack(alignment: .top, spacing: 12) {
-                tile(
-                    icon: "keyboard", title: "Clean keys",
-                    sub: "Lock the keyboard to wipe it", active: false
-                ) {
-                    IPC.post(IPC.Name.requestKeyboardClean)
+                if systemEnabled {
+                    tile(
+                        icon: "keyboard", title: "Clean keys",
+                        sub: "Lock the keyboard to wipe it", active: false
+                    ) {
+                        IPC.post(IPC.Name.requestKeyboardClean)
+                    }
+                    tile(
+                        icon: preventSleep ? "moon.zzz.fill" : "moon.zzz", title: "Keep awake",
+                        sub: "Stop this Mac from sleeping", active: preventSleep
+                    ) {
+                        preventSleep.toggle()
+                    }
                 }
-                tile(
-                    icon: preventSleep ? "moon.zzz.fill" : "moon.zzz", title: "Keep awake",
-                    sub: "Stop this Mac from sleeping", active: preventSleep
-                ) {
-                    preventSleep.toggle()
-                }
-                tile(
-                    icon: "person.wave.2", title: "Presenter mode",
-                    sub: "Blur sensitive values on screen", active: presenterMode
-                ) {
-                    presenterMode.toggle()
-                    if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
+                if presenterEnabled {
+                    tile(
+                        icon: "person.wave.2", title: "Presenter mode",
+                        sub: "Blur sensitive values on screen", active: presenterMode
+                    ) {
+                        presenterMode.toggle()
+                        if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

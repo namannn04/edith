@@ -4,9 +4,8 @@ import SwiftUI
 struct MenuBarPane: View {
     @AppStorage("limitsInMenuBar", store: SharedDefaults.store) private var limitsInMenuBar = true
     @AppStorage("menuBarSystemStats", store: SharedDefaults.store) private var systemStats = false
-    @AppStorage("micMuteEnabled", store: SharedDefaults.store) private var micMuteEnabled = false
-    @AppStorage("micMuteInMenuBar", store: SharedDefaults.store) private var micMuteInMenuBar =
-        true
+    @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
+        MainDestination.dashboard.rawValue
     @AppStorage("menuBarColorMode", store: SharedDefaults.store) private var menuBarColorMode =
         "auto"
     @AppStorage("smartColor", store: SharedDefaults.store) private var smartColor = true
@@ -26,21 +25,16 @@ struct MenuBarPane: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show Claude usage (5h / 7d)", isOn: $limitsInMenuBar)
+                LabeledContent("What appears in the menu bar") {
+                    Button("Open Extensions") {
+                        mainWindowSection = MainDestination.extensions.rawValue
+                    }
                     .pointerCursor()
-                Toggle("Show CPU & memory", isOn: $systemStats)
-                    .pointerCursor()
-                if micMuteEnabled {
-                    Toggle("Show microphone mute", isOn: $micMuteInMenuBar)
-                        .pointerCursor()
                 }
-            } header: {
-                Text("Show in menu bar")
-            } footer: {
                 Text(
-                    "These mirror the Agent Usage and CPU & Memory extensions - the Extensions page toggles the same things."
+                    "Each extension decides whether it shows a menu bar item; this pane only styles them."
                 )
-                .font(.caption)
+                .font(.caption).foregroundStyle(.secondary)
             }
 
             if systemStats {

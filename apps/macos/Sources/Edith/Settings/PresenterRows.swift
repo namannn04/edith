@@ -4,6 +4,8 @@ import EdithKit
 import SwiftUI
 
 struct PresenterRows: View {
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        true
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
@@ -131,5 +133,7 @@ struct PresenterRows: View {
                 Text("Shortcut")
             }
         }
+        .disabled(!presenterEnabled)
+        .opacity(presenterEnabled ? 1 : 0.5)
     }
 }

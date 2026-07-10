@@ -62,9 +62,13 @@ final class PresenterDetector: FeatureModule {
         }
 
         syncWindowScanTimer()
-        startSessionTimer()
+        syncSessionTimer()
         checkMirroring()
         evaluate()
+    }
+
+    func applySettings() {
+        syncSessionTimer()
     }
 
     func shutdown() {
@@ -131,11 +135,24 @@ final class PresenterDetector: FeatureModule {
         windowScanTimer = timer
     }
 
-    private func startSessionTimer() {
+    private func syncSessionTimer() {
+        let detectSharing =
+            SharedDefaults.store.object(forKey: "presenterDetectScreenSharing") as? Bool ?? true
+        guard detectSharing else {
+            sessionTimer?.invalidate()
+            sessionTimer = nil
+            if sharingHit {
+                sharingHit = false
+                evaluate()
+            }
+            return
+        }
+        guard sessionTimer == nil else { return }
         sessionTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tickSession() }
         }
         sessionTimer?.tolerance = 5
+        tickSession()
     }
 
     private func scanWindows() {
