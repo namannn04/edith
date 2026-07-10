@@ -41,7 +41,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var panels: [CGDirectDisplayID: NSPanel] = [:]
     private var collapsedSizes: [CGDirectDisplayID: CGSize] = [:]
     private var builtinDisplayID: CGDirectDisplayID?
-    private var frameSettleWorkItem: DispatchWorkItem?
 
     private var screenObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
@@ -180,8 +179,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         collapseWorkItem = nil
         gateWorkItem?.cancel()
         gateWorkItem = nil
-        frameSettleWorkItem?.cancel()
-        frameSettleWorkItem = nil
         for panel in panels.values { panel.orderOut(nil) }
         panels.removeAll()
         collapsedSizes.removeAll()
@@ -332,12 +329,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         return NotchGeometry.collapsedSize(base: base, hasLiveActivity: nowPlaying != nil)
     }
 
-    private func targetPanelSize(for id: CGDirectDisplayID) -> CGSize {
-        NotchGeometry.panelSize(forShape: targetShapeSize(for: id))
-    }
-
     private func applyExactFrame(_ panel: NSPanel, screen: NSScreen, id: CGDirectDisplayID) {
-        let size = targetPanelSize(for: id)
+        let size = NotchGeometry.panelSize(forShape: NotchGeometry.expandedMaxSize)
         panel.setFrame(
             NSRect(
                 origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: size),
@@ -346,34 +339,9 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func syncFrames() {
-        frameSettleWorkItem?.cancel()
-        frameSettleWorkItem = nil
-        var needsSettle = false
         for screen in NSScreen.screens {
             guard let id = screen.displayID, let panel = panels[id] else { continue }
-            let size = targetPanelSize(for: id)
-            let holding = CGSize(
-                width: max(size.width, panel.frame.width),
-                height: max(size.height, panel.frame.height))
-            if holding != size { needsSettle = true }
-            panel.setFrame(
-                NSRect(
-                    origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: holding),
-                    size: holding),
-                display: true)
             updateInteractiveShape(panel, id: id)
-        }
-        guard needsSettle else { return }
-        let work = DispatchWorkItem { [weak self] in self?.settleFrames() }
-        frameSettleWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55, execute: work)
-    }
-
-    private func settleFrames() {
-        frameSettleWorkItem = nil
-        for screen in NSScreen.screens {
-            guard let id = screen.displayID, let panel = panels[id] else { continue }
-            applyExactFrame(panel, screen: screen, id: id)
         }
     }
 
@@ -535,8 +503,17 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func isNearNotch(_ point: CGPoint) -> Bool {
-        guard let id = builtinDisplayID, let panel = panels[id] else { return false }
-        return panel.frame.insetBy(dx: -40, dy: -20).contains(point)
+        guard let frames = builtinFrames() else { return false }
+        return frames.collapsed.insetBy(dx: -40, dy: -20).contains(point)
+    }
+
+    private func shapeFrame(of panel: NSPanel) -> CGRect {
+        guard let catcher = panel.contentView as? ShelfDropCatcherView,
+            let shape = catcher.interactiveShapeSize
+        else { return panel.frame }
+        return CGRect(
+            x: panel.frame.midX - shape.width / 2, y: panel.frame.maxY - shape.height,
+            width: shape.width, height: shape.height)
     }
 
     private func purgeExpired() {
@@ -826,7 +803,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         guard !pendingDragOutIDs.isEmpty else { return }
         let ids = pendingDragOutIDs
         pendingDragOutIDs = []
-        let insideShelf = panels.values.contains { $0.frame.contains(point) }
+        let insideShelf = panels.values.contains { shapeFrame(of: $0).contains(point) }
         guard !insideShelf, operation != [] else { return }
         let members = items.filter { ids.contains($0.id) }
         guard !members.isEmpty else { return }
@@ -947,8 +924,22 @@ final class ShelfDropCatcherView: NSView {
         return super.hitTest(point)
     }
 
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { .copy }
-    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { .copy }
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropOperation(for: sender)
+    }
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropOperation(for: sender)
+    }
+
+    private func dropOperation(for sender: NSDraggingInfo) -> NSDragOperation {
+        guard let shape = interactiveShapeSize else { return .copy }
+        let local = convert(sender.draggingLocation, from: nil)
+        let rect = CGRect(
+            x: (bounds.width - shape.width) / 2, y: bounds.height - shape.height,
+            width: shape.width, height: shape.height
+        ).insetBy(dx: -24, dy: -24)
+        return rect.contains(local) ? .copy : []
+    }
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let windowPoint = convert(sender.draggingLocation, from: nil)
         let shapeInset = interactiveShapeSize.map { (bounds.width - $0.width) / 2 } ?? 0
