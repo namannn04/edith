@@ -164,7 +164,7 @@ struct NotchShelfContentView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
-                .frame(width: collapsedBase.width)
+                .frame(width: collapsedBase.width + 16)
             Button {
                 MainApp.openDashboard()
             } label: {
@@ -195,11 +195,11 @@ struct NotchShelfContentView: View {
                 if active {
                     Text(tab.title)
                         .font(.system(size: 11, weight: .semibold))
-                        .fixedSize()
+                        .lineLimit(1)
                         .transition(.opacity)
                 }
             }
-            .padding(.horizontal, active ? 10 : 8)
+            .padding(.horizontal, active ? 10 : 7)
             .frame(height: 24)
             .foregroundStyle(active ? Color.black : Color.white.opacity(0.65))
             .background {
