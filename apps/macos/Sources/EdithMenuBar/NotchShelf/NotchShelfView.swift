@@ -1,6 +1,5 @@
 import AppKit
 import EdithKit
-import EventKit
 import SwiftUI
 
 extension View {
@@ -175,6 +174,7 @@ struct NotchShelfContentView: View {
             }
             Spacer(minLength: 0)
             Button {
+                controller.collapseNow()
                 MainApp.openDashboard()
             } label: {
                 Image(systemName: "gearshape")
@@ -182,6 +182,7 @@ struct NotchShelfContentView: View {
                     .foregroundStyle(.white.opacity(0.7))
                     .frame(width: 32, height: 22)
                     .background(Color.white.opacity(0.07), in: Capsule())
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain).shelfPointer()
         }
@@ -275,19 +276,10 @@ private struct NotchHomeTab: View {
                 if let track = controller.nowPlaying {
                     NotchNowPlayingCard(controller: controller, track: track)
                 }
-                if let event = nextEvent {
-                    if controller.nowPlaying == nil {
-                        eventCard(event).frame(maxWidth: .infinity)
-                    } else {
-                        eventCard(event).frame(width: 150)
-                    }
-                }
                 if let usage = controller.usageStore {
                     ringsCard(usage)
                 }
-                if controller.nowPlaying == nil, nextEvent == nil,
-                    controller.usageStore == nil
-                {
+                if controller.nowPlaying == nil, controller.usageStore == nil {
                     Text("Nothing to show yet")
                         .font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -342,72 +334,11 @@ private struct NotchHomeTab: View {
         .buttonStyle(.plain).shelfPointer()
     }
 
-    private var nextEvent: EKEvent? {
-        let upcoming = (controller.calendarStore?.events ?? [])
-            .filter { ($0.startDate ?? .distantPast) > Date() }
-            .sorted { ($0.startDate ?? .distantPast) < ($1.startDate ?? .distantPast) }
-        return upcoming.first { !$0.isAllDay } ?? upcoming.first
-    }
-
     private func ringsCard(_ usage: UsageStore) -> some View {
         NotchUsageRings(usage: usage)
             .frame(width: 180)
             .frame(maxHeight: .infinity)
             .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func eventCard(_ event: EKEvent) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("NEXT UP")
-                .font(.system(size: 8, weight: .bold)).tracking(0.8)
-                .foregroundStyle(.white.opacity(0.42))
-            if let url = eventLink(event) {
-                Button {
-                    controller.collapseNow()
-                    NSWorkspace.shared.open(url)
-                } label: {
-                    HStack(spacing: 3) {
-                        Text(event.title ?? "Event")
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(.white).lineLimit(1)
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                }
-                .buttonStyle(.plain).shelfPointer()
-            } else {
-                Text(event.title ?? "Event")
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(.white).lineLimit(1)
-            }
-            Text(eventTimeLabel(event))
-                .font(.system(size: 10)).foregroundStyle(.white.opacity(0.55))
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(10)
-        .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func eventLink(_ event: EKEvent) -> URL? {
-        if let url = event.url { return url }
-        for text in [event.location, event.notes] {
-            guard let text else { continue }
-            if let range = text.range(of: "https?://[^\\s<>\"]+", options: .regularExpression) {
-                return URL(string: String(text[range]))
-            }
-        }
-        return nil
-    }
-
-    private func eventTimeLabel(_ event: EKEvent) -> String {
-        guard let start = event.startDate else { return "" }
-        let day =
-            Calendar.current.isDateInToday(start)
-            ? "" : start.formatted(.dateTime.weekday(.abbreviated)) + " "
-        if event.isAllDay { return day + "All day" }
-        return day + start.formatted(date: .omitted, time: .shortened)
     }
 }
 
