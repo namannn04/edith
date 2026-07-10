@@ -64,7 +64,8 @@ struct NotchShelfContentView: View {
 
     private var expandedShape: CGSize {
         NotchGeometry.expandedShapeSize(
-            tab: controller.activeTab, hasMusic: controller.nowPlaying != nil)
+            tab: controller.activeTab, hasMusic: controller.nowPlaying != nil,
+            notchHeight: collapsedBase.height)
     }
 
     private var shapeSize: CGSize {
@@ -153,18 +154,15 @@ struct NotchShelfContentView: View {
             tabContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .padding(.top, collapsedBase.height)
     }
 
     private var header: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 4) {
-                ForEach(visibleTabs, id: \.self) { tab in
-                    iconTab(tab)
-                }
+        HStack(spacing: 4) {
+            ForEach(visibleTabs, id: \.self) { tab in
+                iconTab(tab)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
-                .frame(width: collapsedBase.width + 16)
             Button {
                 MainApp.openDashboard()
             } label: {
@@ -175,10 +173,9 @@ struct NotchShelfContentView: View {
                     .background(Color.white.opacity(0.07), in: Capsule())
             }
             .buttonStyle(.plain).pointerCursor()
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 12)
-        .frame(height: max(30, collapsedBase.height))
+        .frame(height: 34)
         .animation(
             reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
             value: controller.activeTab)
@@ -195,11 +192,11 @@ struct NotchShelfContentView: View {
                 if active {
                     Text(tab.title)
                         .font(.system(size: 11, weight: .semibold))
-                        .lineLimit(1)
+                        .fixedSize()
                         .transition(.opacity)
                 }
             }
-            .padding(.horizontal, active ? 10 : 7)
+            .padding(.horizontal, active ? 10 : 8)
             .frame(height: 24)
             .foregroundStyle(active ? Color.black : Color.white.opacity(0.65))
             .background {

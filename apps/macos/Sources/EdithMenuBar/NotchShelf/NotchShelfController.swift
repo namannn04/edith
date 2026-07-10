@@ -321,11 +321,12 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }()
 
     private func targetShapeSize(for id: CGDirectDisplayID) -> CGSize {
+        let base = collapsedSizes[id] ?? NotchGeometry.fallbackSize
         if isExpanded {
-            return NotchGeometry.expandedShapeSize(tab: activeTab, hasMusic: nowPlaying != nil)
+            return NotchGeometry.expandedShapeSize(
+                tab: activeTab, hasMusic: nowPlaying != nil, notchHeight: base.height)
         }
         if currentAlert != nil, id == builtinDisplayID { return NotchGeometry.alertDropSize }
-        let base = collapsedSizes[id] ?? NotchGeometry.fallbackSize
         return NotchGeometry.collapsedSize(base: base, hasLiveActivity: nowPlaying != nil)
     }
 

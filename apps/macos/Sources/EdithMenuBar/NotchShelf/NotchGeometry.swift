@@ -4,15 +4,18 @@ enum NotchGeometry {
     static let topFlareRadius: CGFloat = 6
     static let fallbackSize = CGSize(width: 150, height: 28)
     static let expandedWidth: CGFloat = 580
-    static let expandedMaxSize = CGSize(width: expandedWidth, height: 368)
+    static let expandedHeaderBand: CGFloat = 40
+    static let expandedMaxSize = CGSize(width: expandedWidth, height: 412)
 
-    static func expandedShapeSize(tab: NotchTab, hasMusic: Bool) -> CGSize {
-        switch tab {
-        case .home: CGSize(width: expandedWidth, height: hasMusic ? 192 : 182)
-        case .files: CGSize(width: expandedWidth, height: 168)
-        case .clipboard, .audio: CGSize(width: expandedWidth, height: 196)
-        case .camera: CGSize(width: expandedWidth, height: 368)
-        }
+    static func expandedShapeSize(tab: NotchTab, hasMusic: Bool, notchHeight: CGFloat) -> CGSize {
+        let content: CGFloat =
+            switch tab {
+            case .home: hasMusic ? 158 : 148
+            case .files: 134
+            case .clipboard, .audio: 162
+            case .camera: 332
+            }
+        return CGSize(width: expandedWidth, height: notchHeight + expandedHeaderBand + content)
     }
 
     static func collapsedSize(
