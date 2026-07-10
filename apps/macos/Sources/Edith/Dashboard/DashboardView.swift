@@ -65,7 +65,7 @@ struct DashboardView: View {
             .background(background)
             .environment(\.compactLayout, compact)
         }
-        .navigationTitle("Dashboard")
+        .navigationTitle("Agent Usage")
         .task {
             await model.load()
         }

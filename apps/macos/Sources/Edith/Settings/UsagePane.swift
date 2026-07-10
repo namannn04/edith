@@ -35,8 +35,10 @@ struct UsagePane: View {
             Section {
                 Toggle("Usage & limits", isOn: $enabled)
                     .pointerCursor()
-                Text("Session and weekly rate-limit rings, plus their menu bar readout.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(
+                    "Session and weekly rate-limit rings, plus their menu bar readout. Same switch as the Agent Usage extension."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Personal budget") {

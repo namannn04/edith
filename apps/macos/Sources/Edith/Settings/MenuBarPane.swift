@@ -30,8 +30,10 @@ struct MenuBarPane: View {
             } header: {
                 Text("Show in menu bar")
             } footer: {
-                Text("CPU and memory refresh every couple of seconds.")
-                    .font(.caption)
+                Text(
+                    "These mirror the Agent Usage and CPU & Memory extensions - the Extensions page toggles the same things."
+                )
+                .font(.caption)
             }
 
             if systemStats {

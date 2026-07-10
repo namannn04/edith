@@ -9,6 +9,11 @@ struct HomePage: View {
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
         true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
+    @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
+        true
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
     @Environment(\.colorScheme) private var scheme
 
     private var dark: Bool { scheme == .dark }
@@ -23,14 +28,14 @@ struct HomePage: View {
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: 16) {
                             WorldClocksCard(dark: dark)
-                            QuickActionsCard(dark: dark)
+                            if systemEnabled { QuickActionsCard(dark: dark) }
                         }
                         VStack(spacing: 16) {
                             WorldClocksCard(dark: dark)
-                            QuickActionsCard(dark: dark)
+                            if systemEnabled { QuickActionsCard(dark: dark) }
                         }
                     }
-                    if model.loaded {
+                    if usageEnabled, model.loaded {
                         SkinCard(title: "Activity", note: "daily cost", dark: dark) {
                             ActivityHeatmap(
                                 days: model.calendarDays, cuts: model.chartData.heatCuts,
@@ -42,10 +47,12 @@ struct HomePage: View {
                         alignment: .leading, spacing: 16
                     ) {
                         Group {
-                            MeetingsCard(dark: dark)
-                            UsageSummaryCard(dark: dark)
-                            LimitsSummaryCard(dark: dark)
-                            MusicCard(dark: dark)
+                            if calendarEnabled { MeetingsCard(dark: dark) }
+                            if usageEnabled {
+                                UsageSummaryCard(dark: dark)
+                                LimitsSummaryCard(dark: dark)
+                            }
+                            if musicEnabled { MusicCard(dark: dark) }
                         }
                         .frame(maxHeight: .infinity, alignment: .top)
                     }

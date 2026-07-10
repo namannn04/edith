@@ -56,9 +56,8 @@ final class NotchAlertDetectors {
     }
 
     private func startBluetooth() {
-        guard enabled("notchAlertBluetooth") else { return }
         let watcher = BluetoothWatcher { [weak self] name, connected in
-            guard let self, !self.warmingUp else { return }
+            guard let self, !self.warmingUp, self.enabled("notchAlertBluetooth") else { return }
             self.post(
                 NotchAlert(
                     id: "bluetooth.\(connected ? "connected" : "disconnected")",
@@ -229,7 +228,9 @@ final class BluetoothWatcher: NSObject {
         _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
     ) {
         let name = device.name ?? "Bluetooth device"
-        if let key = device.addressString, let note = disconnectNotifications.removeValue(forKey: key) {
+        if let key = device.addressString,
+            let note = disconnectNotifications.removeValue(forKey: key)
+        {
             note.unregister()
         }
         Task { @MainActor in self.changed(name, false) }

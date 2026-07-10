@@ -41,14 +41,25 @@ struct ICloudPane: View {
                 Toggle("Settings", isOn: $backupSettings)
                     .pointerCursor()
                     .disabled(!icloudBackup)
+                Text("Every preference in this app: toggles, colors, shortcuts, and layouts.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Usage data", isOn: $backupUsage)
                     .pointerCursor()
                     .disabled(!icloudBackup)
+                Text("The Claude token and cost history behind the Agent Usage charts.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Session history", isOn: $backupLimits)
                     .pointerCursor()
                     .disabled(!icloudBackup)
+                Text("Rate-limit snapshots that draw the session and weekly limit charts.")
+                    .font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("App data")
+            } footer: {
+                Text(
+                    "Everything Edith can back up is listed on this page. Your data never leaves this Mac and your own iCloud Drive - and iCloud is entirely your choice."
+                )
+                .font(.caption)
             }
 
             Section {

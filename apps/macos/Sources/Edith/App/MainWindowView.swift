@@ -4,7 +4,7 @@ import SwiftUI
 
 enum MainDestination: String, CaseIterable, Identifiable {
     case home, dashboard, music, calendar, system
-    case extensions, usage, shortcuts, general, settings, permissions, icloud, about
+    case extensions, shortcuts, settings, permissions, about
 
     var id: String { rawValue }
 
@@ -16,12 +16,9 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .calendar: return "Calendar"
         case .system: return "System"
         case .extensions: return "Extensions"
-        case .usage: return "Usage"
         case .shortcuts: return "Shortcuts"
-        case .general: return "General"
         case .settings: return "Settings"
         case .permissions: return "Permissions"
-        case .icloud: return "iCloud"
         case .about: return "About"
         }
     }
@@ -34,12 +31,9 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .calendar: return "calendar"
         case .system: return "cpu"
         case .extensions: return "puzzlepiece.extension"
-        case .usage: return "gauge.with.dots.needle.67percent"
         case .shortcuts: return "command"
-        case .general: return "slider.horizontal.3"
         case .settings: return "gearshape"
         case .permissions: return "checkmark.shield"
-        case .icloud: return "icloud"
         case .about: return "info.circle"
         }
     }
@@ -181,6 +175,9 @@ struct MainWindowView: View {
     @AppStorage("mainSidebarWidth", store: SharedDefaults.store) private var sidebarWidth = 230.0
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
     @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
+    @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
+        true
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
@@ -202,7 +199,21 @@ struct MainWindowView: View {
     }
 
     private var destination: MainDestination {
-        MainDestination(rawValue: mainWindowSection) ?? .home
+        let raw = MainDestination(rawValue: mainWindowSection) ?? .home
+        return visibleHomeItems.contains(raw) || MainDestination.appItems.contains(raw)
+            ? raw : .home
+    }
+
+    private var visibleHomeItems: [MainDestination] {
+        MainDestination.homeItems.filter { item in
+            switch item {
+            case .dashboard: return usageEnabled
+            case .music: return musicEnabled
+            case .calendar: return calendarEnabled
+            case .system: return systemEnabled
+            default: return true
+            }
+        }
     }
 
     private var currentLocation: String {
@@ -400,7 +411,7 @@ struct MainWindowView: View {
     private var sidebarList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(MainDestination.homeItems) { item in
+                ForEach(visibleHomeItems) { item in
                     SidebarNavRow(
                         item: item, selected: destination == item, theme: theme
                     ) {
@@ -611,12 +622,9 @@ struct MainWindowView: View {
         case .calendar: CalendarPage()
         case .system: SystemPage()
         case .extensions: ExtensionsPane()
-        case .usage: UsagePane()
         case .shortcuts: ShortcutsPane()
-        case .general: GeneralPane()
         case .settings: SettingsPane()
         case .permissions: MainPermissionsPane()
-        case .icloud: ICloudPane()
         case .about: AboutPane()
         }
     }

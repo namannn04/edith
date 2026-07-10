@@ -100,9 +100,10 @@ struct GeneralPane: View {
                 }
             } header: {
                 Text("Window")
+            } footer: {
+                Text("Features are turned on and off from the Extensions page.")
+                    .font(.caption)
             }
-
-            PanelTabsSection()
         }
         .formStyle(.grouped)
         .navigationTitle("General")
