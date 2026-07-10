@@ -129,9 +129,7 @@ struct NotchShelfContentView: View {
     private var contentTransition: AnyTransition {
         guard !reduceMotion else { return .opacity }
         return .asymmetric(
-            insertion: AnyTransition.modifier(
-                active: NotchContentFade(progress: 0), identity: NotchContentFade(progress: 1)
-            ).animation(.easeOut(duration: 0.25).delay(0.06)),
+            insertion: .opacity.animation(.easeOut(duration: 0.22).delay(0.08)),
             removal: .opacity.animation(.easeOut(duration: 0.1)))
     }
 
@@ -654,22 +652,6 @@ extension Color {
             red: Double((value >> 16) & 0xff) / 255,
             green: Double((value >> 8) & 0xff) / 255,
             blue: Double(value & 0xff) / 255)
-    }
-}
-
-struct NotchContentFade: ViewModifier, Animatable {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(progress)
-            .blur(radius: (1 - progress) * 8)
-            .offset(y: (1 - progress) * -8)
     }
 }
 
