@@ -41,7 +41,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var panels: [CGDirectDisplayID: NSPanel] = [:]
     private var collapsedSizes: [CGDirectDisplayID: CGSize] = [:]
     private var builtinDisplayID: CGDirectDisplayID?
-    private var frameSettleWorkItem: DispatchWorkItem?
+    private var fullScreenDisplays: Set<CGDirectDisplayID> = []
 
     private var screenObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
@@ -84,6 +84,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         ) { [weak self] event in
             Task { @MainActor in self?.handleGlobalMouse(event) }
         }
+        startMoveMonitor()
         startAlertsIfEnabled()
     }
 
@@ -116,13 +117,9 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         }
         guard NotchAlertLogic.shouldPreempt(current: currentAlert, incoming: alert) else { return }
         alertPinned = false
-        presizePanels(expanded: false, alert: alert, music: nowPlaying != nil)
-        DispatchQueue.main.async { [weak self] in
-            guard let self, !self.isExpanded else { return }
-            self.currentAlert = alert
-            self.syncFrames()
-            self.scheduleAlertHide(after: alert.autoHide)
-        }
+        currentAlert = alert
+        syncFrames()
+        scheduleAlertHide(after: alert.autoHide)
     }
 
     private func flushPendingAlert() {
@@ -184,8 +181,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         collapseWorkItem = nil
         gateWorkItem?.cancel()
         gateWorkItem = nil
-        frameSettleWorkItem?.cancel()
-        frameSettleWorkItem = nil
         for panel in panels.values { panel.orderOut(nil) }
         panels.removeAll()
         collapsedSizes.removeAll()
@@ -263,10 +258,15 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         for screen in NSScreen.screens {
             guard let id = screen.displayID, let panel = panels[id] else { continue }
             let fullScreen = isFullScreenSpace(screen)
-            if fullScreen, isExpanded { collapseNow() }
+            if fullScreen {
+                fullScreenDisplays.insert(id)
+                if isExpanded { collapseNow() }
+            } else {
+                fullScreenDisplays.remove(id)
+            }
             panel.alphaValue = fullScreen ? 0 : 1
-            panel.ignoresMouseEvents = fullScreen
         }
+        syncFrames()
     }
 
     private func placePanel(on screen: NSScreen, id: CGDirectDisplayID) {
@@ -295,6 +295,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         panel.hasShadow = true
         panel.becomesKeyOnlyIfNeeded = true
         panel.isMovable = false
+        panel.ignoresMouseEvents = true
         panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 8)
         panel.collectionBehavior = [
             .fullScreenAuxiliary, .stationary, .canJoinAllSpaces, .ignoresCycle,
@@ -344,7 +345,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func applyExactFrame(_ panel: NSPanel, screen: NSScreen, id: CGDirectDisplayID) {
-        let size = NotchGeometry.panelSize(forShape: targetShapeSize(for: id))
+        let size = NotchGeometry.panelSize(forShape: NotchGeometry.expandedMaxSize)
         panel.setFrame(
             NSRect(
                 origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: size),
@@ -352,55 +353,13 @@ final class NotchShelfController: ObservableObject, FeatureModule {
             display: true)
     }
 
-    private func presizePanels(expanded: Bool, alert: NotchAlert?, music: Bool) {
-        frameSettleWorkItem?.cancel()
-        frameSettleWorkItem = nil
-        for screen in NSScreen.screens {
-            guard let id = screen.displayID, let panel = panels[id] else { continue }
-            let size = NotchGeometry.panelSize(
-                forShape: shapeSize(for: id, expanded: expanded, alert: alert, music: music))
-            let holding = CGSize(
-                width: max(size.width, panel.frame.width),
-                height: max(size.height, panel.frame.height))
-            panel.setFrame(
-                NSRect(
-                    origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: holding),
-                    size: holding),
-                display: true)
-            panel.contentView?.layoutSubtreeIfNeeded()
-            panel.displayIfNeeded()
-        }
-    }
-
     private func syncFrames() {
-        frameSettleWorkItem?.cancel()
-        frameSettleWorkItem = nil
-        var needsSettle = false
         for screen in NSScreen.screens {
             guard let id = screen.displayID, let panel = panels[id] else { continue }
-            let size = NotchGeometry.panelSize(forShape: targetShapeSize(for: id))
-            let holding = CGSize(
-                width: max(size.width, panel.frame.width),
-                height: max(size.height, panel.frame.height))
-            if holding != size { needsSettle = true }
-            panel.setFrame(
-                NSRect(
-                    origin: NotchGeometry.origin(screenFrame: screen.frame, panelSize: holding),
-                    size: holding),
-                display: true)
+            let interactive =
+                isExpanded || (currentAlert != nil && id == builtinDisplayID)
+            panel.ignoresMouseEvents = fullScreenDisplays.contains(id) || !interactive
             updateInteractiveShape(panel, id: id)
-        }
-        guard needsSettle else { return }
-        let work = DispatchWorkItem { [weak self] in self?.settleFrames() }
-        frameSettleWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55, execute: work)
-    }
-
-    private func settleFrames() {
-        frameSettleWorkItem = nil
-        for screen in NSScreen.screens {
-            guard let id = screen.displayID, let panel = panels[id] else { continue }
-            applyExactFrame(panel, screen: screen, id: id)
         }
     }
 
@@ -421,17 +380,12 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         alertWorkItem?.cancel()
         alertWorkItem = nil
         gate.forceOpen()
-        startMoveMonitor()
         guard !isExpanded else { return }
         collapsedHover = false
-        presizePanels(expanded: true, alert: nil, music: nowPlaying != nil)
-        DispatchQueue.main.async { [weak self] in
-            guard let self, !self.isExpanded else { return }
-            self.currentAlert = nil
-            self.isExpanded = true
-            self.syncFrames()
-            self.fireHaptic()
-        }
+        currentAlert = nil
+        isExpanded = true
+        syncFrames()
+        fireHaptic()
     }
 
     func collapseAfterDelay(_ delay: TimeInterval = 0.35) {
@@ -448,7 +402,6 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         gate.forceClosed()
         gateWorkItem?.cancel()
         gateWorkItem = nil
-        stopMoveMonitor()
         syncFrames()
         flushPendingAlert()
     }
@@ -503,11 +456,19 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func handleMouseMoved() {
-        guard isExpanded, let frames = builtinFrames() else { return }
-        applyProximity(
-            NotchGeometry.proximity(
-                point: NSEvent.mouseLocation, collapsedFrame: frames.collapsed,
-                expandedFrame: frames.expanded))
+        guard let frames = builtinFrames() else { return }
+        let point = NSEvent.mouseLocation
+        if isExpanded {
+            applyProximity(
+                NotchGeometry.proximity(
+                    point: point, collapsedFrame: frames.collapsed,
+                    expandedFrame: frames.expanded))
+        } else if currentAlert == nil {
+            let near = frames.collapsed
+                .insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
+                .contains(point)
+            hoverChanged(near)
+        }
     }
 
     private func builtinFrames() -> (collapsed: CGRect, expanded: CGRect)? {
@@ -620,24 +581,9 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         let hadActivity = nowPlaying != nil
         let trackChanged =
             active?.title != nowPlaying?.title || active?.source != nowPlaying?.source
-        if active != nil, !hadActivity, !isExpanded {
-            presizePanels(expanded: false, alert: currentAlert, music: true)
-            DispatchQueue.main.async { [weak self] in
-                self?.commitNowPlaying(active, trackChanged: trackChanged, grewOrShrank: true)
-            }
-        } else {
-            commitNowPlaying(
-                active, trackChanged: trackChanged,
-                grewOrShrank: (active != nil) != hadActivity)
-        }
-    }
-
-    private func commitNowPlaying(
-        _ active: NotchNowPlaying?, trackChanged: Bool, grewOrShrank: Bool
-    ) {
         nowPlaying = active
         if trackChanged { loadArtwork(for: active) }
-        if grewOrShrank, !isExpanded { syncFrames() }
+        if (active != nil) != hadActivity, !isExpanded { syncFrames() }
     }
 
     private func loadArtwork(for track: NotchNowPlaying?) {
