@@ -83,12 +83,6 @@ final class ExternalMusic: ObservableObject {
             observers.append((app, observer))
         }
         refreshCurrent()
-        for delay in [2.0, 6.0] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, self.current == nil else { return }
-                self.refreshCurrent()
-            }
-        }
     }
 
     func refreshCurrent() {
@@ -96,7 +90,7 @@ final class ExternalMusic: ObservableObject {
             !NSRunningApplication.runningApplications(withBundleIdentifier: $0.bundleID).isEmpty
         }
         guard !running.isEmpty else { return }
-        Task { @MainActor [weak self] in
+        Task.detached { [weak self] in
             var best: ExternalTrack?
             for app in running {
                 guard let track = Self.query(app) else { continue }
@@ -106,12 +100,12 @@ final class ExternalMusic: ObservableObject {
                 }
                 if best == nil { best = track }
             }
-            if let best { self?.applyRefreshed(best) }
+            if let best { await self?.applyRefreshed(best) }
         }
     }
 
     private func applyRefreshed(_ track: ExternalTrack) {
-        guard current == nil || (current?.isPlaying != true && track.isPlaying) else { return }
+        guard current == nil else { return }
         current = track
     }
 
