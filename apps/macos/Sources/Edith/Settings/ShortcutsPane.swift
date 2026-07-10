@@ -8,6 +8,8 @@ struct ShortcutsPane: View {
         false
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =
         false
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        true
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.dashboard.rawValue
 
@@ -32,7 +34,9 @@ struct ShortcutsPane: View {
                     keyPrefix: "focusDimHotKey", defaultLabel: "⌥⌘F")
                 shortcutRow(
                     "Presenter mode", subtitle: "Forces presenter blur on or off",
-                    keyPrefix: "presenterHotKey", defaultLabel: "⇧⌥⌘P")
+                    keyPrefix: "presenterHotKey", defaultLabel: "⇧⌥⌘P",
+                    offExtension: !presenterEnabled
+                        ? (id: "presenter", message: "Presenter extension is off") : nil)
                 shortcutRow(
                     "Pick a color", subtitle: "Summons the color picker loupe",
                     keyPrefix: "colorPickerHotKey", defaultLabel: "⌃⌥⌘C",

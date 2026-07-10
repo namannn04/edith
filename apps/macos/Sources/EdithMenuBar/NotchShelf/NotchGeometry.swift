@@ -40,7 +40,7 @@ enum NotchGeometry {
     static let openMargin: CGFloat = 6
     static let keepOpenMargin: CGFloat = 24
     static let panelPadding = CGSize(width: 24, height: 10)
-    static let hoverGrowScale: CGFloat = 1.06
+    static let hoverGrow: CGFloat = 12
 
     static func panelSize(forShape shape: CGSize) -> CGSize {
         CGSize(width: shape.width + panelPadding.width, height: shape.height + panelPadding.height)

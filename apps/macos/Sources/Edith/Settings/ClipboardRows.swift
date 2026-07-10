@@ -14,7 +14,7 @@ struct ClipboardRows: View {
     @AppStorage("clipboardPastePlainText", store: SharedDefaults.store) private var pastePlainText =
         false
     @AppStorage("clipboardCheckInterval", store: SharedDefaults.store) private var checkInterval =
-        0.5
+        1.0
     @AppStorage("permAccessibilityGranted", store: SharedDefaults.store)
     private var accessibilityGranted = false
     @AppStorage("clipboardPopupAt", store: SharedDefaults.store) private var popupAt = "cursor"

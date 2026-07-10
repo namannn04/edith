@@ -32,7 +32,7 @@ struct NotchShelfContentView: View {
                     width: shapeSize.width, height: shapeSize.height,
                     topRadius: topRadius, bottomRadius: bottomRadius)
             }
-            .scaleEffect(hoverScale, anchor: .top)
+            .scaleEffect(x: hoverScale.width, y: hoverScale.height, anchor: .top)
             .animation(glide, value: controller.isExpanded)
             .animation(glide, value: controller.currentAlert)
             .animation(glide, value: controller.activeTab)
@@ -112,11 +112,14 @@ struct NotchShelfContentView: View {
         .insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
     }
 
-    private var hoverScale: CGFloat {
+    private var hoverScale: CGSize {
         guard !reduceMotion, controller.collapsedHover, !controller.isExpanded,
             controller.currentAlert == nil
-        else { return 1 }
-        return NotchGeometry.hoverGrowScale
+        else { return CGSize(width: 1, height: 1) }
+        let shape = shapeSize
+        return CGSize(
+            width: 1 + NotchGeometry.hoverGrow / shape.width,
+            height: 1 + NotchGeometry.hoverGrow / shape.height)
     }
 
     private var topRadius: CGFloat {
@@ -134,7 +137,7 @@ struct NotchShelfContentView: View {
 
     private var glide: Animation {
         reduceMotion
-            ? .easeInOut(duration: 0.2) : .spring(response: 0.36, dampingFraction: 0.86)
+            ? .easeInOut(duration: 0.2) : .spring(response: 0.36, dampingFraction: 0.9)
     }
 
     private var contentTransition: AnyTransition {
@@ -189,7 +192,7 @@ struct NotchShelfContentView: View {
         .padding(.horizontal, 16)
         .frame(height: 34)
         .animation(
-            reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
+            reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.9),
             value: controller.activeTab)
     }
 
@@ -269,12 +272,18 @@ private struct NotchHomeTab: View {
     @ObservedObject var controller: NotchShelfController
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        true
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+    @AppStorage("notchShelfShowMusic", store: SharedDefaults.store) private var showMusic = true
 
     var body: some View {
         VStack(spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
                 if let track = controller.nowPlaying {
                     NotchNowPlayingCard(controller: controller, track: track)
+                } else if showMusic, controller.usageStore != nil {
+                    emptyMusicCard
                 }
                 if let usage = controller.usageStore {
                     ringsCard(usage)
@@ -286,26 +295,32 @@ private struct NotchHomeTab: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            quickActions
+            if systemEnabled || presenterEnabled || controller.canPickColor {
+                quickActions
+            }
         }
         .padding(.horizontal, 16).padding(.bottom, 14)
     }
 
     private var quickActions: some View {
         HStack(spacing: 8) {
-            actionTile("keyboard", "Clean keys", active: false) {
-                controller.cleanKeyboard()
+            if systemEnabled {
+                actionTile("keyboard", "Clean keys", active: false) {
+                    controller.cleanKeyboard()
+                }
+                actionTile(
+                    preventSleep ? "moon.zzz.fill" : "moon.zzz", "Keep awake", active: preventSleep
+                ) {
+                    preventSleep.toggle()
+                    controller.collapseNow()
+                }
             }
-            actionTile(
-                preventSleep ? "moon.zzz.fill" : "moon.zzz", "Keep awake", active: preventSleep
-            ) {
-                preventSleep.toggle()
-                controller.collapseNow()
-            }
-            actionTile("person.wave.2", "Presenter", active: presenterMode) {
-                presenterMode.toggle()
-                if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
-                controller.collapseNow()
+            if presenterEnabled {
+                actionTile("person.wave.2", "Presenter", active: presenterMode) {
+                    presenterMode.toggle()
+                    if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
+                    controller.collapseNow()
+                }
             }
             if controller.canPickColor {
                 actionTile("eyedropper", "Pick color", active: false) {
@@ -332,6 +347,19 @@ private struct NotchHomeTab: View {
                 in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain).shelfPointer()
+    }
+
+    private var emptyMusicCard: some View {
+        VStack(spacing: 5) {
+            Image(systemName: "music.note")
+                .font(.system(size: 15))
+                .foregroundStyle(.white.opacity(0.28))
+            Text("Nothing playing")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.35))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func ringsCard(_ usage: UsageStore) -> some View {
@@ -486,8 +514,8 @@ private struct NotchUsageRings: View {
                     .trim(from: 0, to: drawn ? min(1, value / 100) : 0)
                     .stroke(color(value), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text("\(Int(value.rounded()))")
-                    .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+                Text("\(Int(value.rounded()))%")
+                    .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
             }
             .frame(width: 52, height: 52)
             Text(label)

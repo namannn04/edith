@@ -78,7 +78,7 @@ final class ClipboardStore: ObservableObject, FeatureModule {
     }
 
     private var interval: Double {
-        SharedDefaults.store.object(forKey: "clipboardCheckInterval") as? Double ?? 0.5
+        SharedDefaults.store.object(forKey: "clipboardCheckInterval") as? Double ?? 1.0
     }
 
     private func startTimer() {

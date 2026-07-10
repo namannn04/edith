@@ -96,6 +96,7 @@ struct EdithApp: App {
             services.usage?.notifier.clearStateIfMasterOff()
             services.colorPicker?.registerHotKey()
             services.focusDim?.applySettings()
+            services.presenter?.applySettings()
         }
         _ = IPC.observe(IPC.Name.presenterAutoActiveChanged) {
             services.usage?.refreshMenuBarItem()
@@ -316,6 +317,11 @@ enum PresenterHotKey {
     }
 
     static func register() {
+        let enabled = SharedDefaults.store.object(forKey: "presenterEnabled") as? Bool ?? true
+        guard enabled else {
+            GlobalHotKey.clear(id: GlobalHotKey.ID.presenterToggle)
+            return
+        }
         GlobalHotKey.set(id: GlobalHotKey.ID.presenterToggle, keyCode: code, modifiers: mods) {
             let d = SharedDefaults.store
             let enabled = !d.bool(forKey: "presenterMode")

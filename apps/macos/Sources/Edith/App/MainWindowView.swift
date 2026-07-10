@@ -200,6 +200,8 @@ struct MainWindowView: View {
         true
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        true
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("creditHidden", store: SharedDefaults.store) private var creditHidden = false
     @State private var dragBaseWidth: Double?
@@ -263,7 +265,7 @@ struct MainWindowView: View {
             .ignoresSafeArea()
             .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
             .animation(
-                .spring(response: 0.32, dampingFraction: 0.86),
+                .spring(response: 0.32, dampingFraction: 0.9),
                 value: musicFooterVisible)
         }
         .background(historyShortcuts)
@@ -357,7 +359,7 @@ struct MainWindowView: View {
                 .opacity(sidebarOpen ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.34, dampingFraction: 0.88), value: sidebarOpen)
+        .animation(.spring(response: 0.34, dampingFraction: 0.9), value: sidebarOpen)
     }
 
     private func refreshPermissionsPill() {
@@ -397,7 +399,7 @@ struct MainWindowView: View {
     }
 
     private var footerVisible: Bool {
-        systemEnabled || permissionsNeedAttention
+        systemEnabled || presenterEnabled || permissionsNeedAttention
     }
 
     private func sidebar(_ bandHeight: CGFloat) -> some View {
@@ -448,7 +450,7 @@ struct MainWindowView: View {
 
     private var sidebarFooter: some View {
         VStack(spacing: 8) {
-            if systemEnabled {
+            if systemEnabled || presenterEnabled {
                 quickActions
             }
             if permissionsNeedAttention {
@@ -475,21 +477,24 @@ struct MainWindowView: View {
                 preventSleep.toggle()
             },
         ]
-        let presenterTile = quickActionTile(
-            icon: "theatermasks.fill", title: "Presenter mode", active: presenterMode,
-            help: "Blur sensitive numbers and track names everywhere in Edith"
-        ) {
-            presenterMode.toggle()
-        }
         VStack(spacing: 8) {
-            if clampedSidebarWidth < 220 {
-                tiles[0]; tiles[1]
-            } else {
-                HStack(spacing: 8) {
+            if systemEnabled {
+                if clampedSidebarWidth < 220 {
                     tiles[0]; tiles[1]
+                } else {
+                    HStack(spacing: 8) {
+                        tiles[0]; tiles[1]
+                    }
                 }
             }
-            presenterTile
+            if presenterEnabled {
+                quickActionTile(
+                    icon: "theatermasks.fill", title: "Presenter mode", active: presenterMode,
+                    help: "Blur sensitive numbers and track names everywhere in Edith"
+                ) {
+                    presenterMode.toggle()
+                }
+            }
         }
     }
 
