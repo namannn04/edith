@@ -4,6 +4,27 @@ import {Background} from '../components/Background';
 import {Caption} from '../components/Caption';
 import {colors, fontFamily} from '../tokens';
 import {easeOut, springIn} from '../animation';
+import {
+  AppleIcon,
+  BatteryIcon,
+  BoltIcon,
+  CameraIcon,
+  ChipIcon,
+  ClipboardIcon,
+  EyedropperIcon,
+  FolderIcon,
+  GearIcon,
+  HouseIcon,
+  KeyboardIcon,
+  MicIcon,
+  MoonIcon,
+  NextIcon,
+  PauseIcon,
+  PinIcon,
+  PresenterIcon,
+  PrevIcon,
+  TrashIcon,
+} from './icons';
 
 const mono =
   '"SF Mono", ui-monospace, Menlo, monospace';
@@ -116,7 +137,7 @@ const MiniRing: React.FC<{
   );
 };
 
-const QuickAction: React.FC<{icon: string; label: string; active?: boolean}> = ({
+const QuickAction: React.FC<{icon: React.ReactNode; label: string; active?: boolean}> = ({
   icon,
   label,
   active,
@@ -137,13 +158,13 @@ const QuickAction: React.FC<{icon: string; label: string; active?: boolean}> = (
       whiteSpace: 'nowrap',
     }}
   >
-    <span style={{fontSize: 13}}>{icon}</span>
+    {icon}
     {label}
   </div>
 );
 
 const TabPills: React.FC<{active: 'home' | 'files' | 'clipboard'}> = ({active}) => {
-  const pill = (id: string, icon: string, label?: string) => {
+  const pill = (id: string, icon: React.ReactNode, label?: string) => {
     const isActive = id === active;
     return (
       <div
@@ -159,19 +180,21 @@ const TabPills: React.FC<{active: 'home' | 'files' | 'clipboard'}> = ({active}) 
           fontWeight: 700,
         }}
       >
-        <span style={{fontSize: 12}}>{icon}</span>
+        {icon}
         {isActive ? label ?? null : null}
       </div>
     );
   };
   return (
     <div style={{display: 'flex', alignItems: 'center', gap: 7}}>
-      {pill('home', '⌂', 'Home')}
-      {pill('files', '🗂', 'Files')}
-      {pill('clipboard', '📋', 'Clipboard')}
-      {pill('camera', '📷')}
+      {pill('home', <HouseIcon size={13} />, 'Home')}
+      {pill('files', <FolderIcon size={13} />, 'Files')}
+      {pill('clipboard', <ClipboardIcon size={13} />, 'Clipboard')}
+      {pill('camera', <CameraIcon size={13} />)}
       <div style={{flex: 1}} />
-      <span style={{color: 'rgba(255,255,255,0.5)', fontSize: 13}}>⚙</span>
+      <span style={{color: 'rgba(255,255,255,0.5)'}}>
+        <GearIcon size={14} />
+      </span>
     </div>
   );
 };
@@ -228,10 +251,10 @@ const HomeTab: React.FC<{contentP: number; startFrame: number}> = ({
               />
             </div>
           </div>
-          <div style={{display: 'flex', gap: 12, color: '#fff', fontSize: 15}}>
-            <span>⏮</span>
-            <span>⏸</span>
-            <span>⏭</span>
+          <div style={{display: 'flex', gap: 13, color: '#fff', alignItems: 'center'}}>
+            <PrevIcon size={15} />
+            <PauseIcon size={16} />
+            <NextIcon size={15} />
           </div>
         </div>
         <div
@@ -252,10 +275,10 @@ const HomeTab: React.FC<{contentP: number; startFrame: number}> = ({
       </div>
       <div style={{display: 'flex', gap: 8}}>
         {[
-          {icon: '⌨', label: 'Clean keys'},
-          {icon: '☾', label: 'Keep awake', active: true},
-          {icon: '👤', label: 'Presenter'},
-          {icon: '💧', label: 'Pick color'},
+          {icon: <KeyboardIcon size={13} />, label: 'Clean keys'},
+          {icon: <MoonIcon size={13} />, label: 'Keep awake', active: true},
+          {icon: <PresenterIcon size={13} />, label: 'Presenter'},
+          {icon: <EyedropperIcon size={13} />, label: 'Pick color'},
         ].map((a, i) => {
           const p = springIn(frame, fps, startFrame + 10 + i * 4);
           return (
@@ -383,8 +406,17 @@ const ClipboardTab: React.FC<{startFrame: number}> = ({startFrame}) => {
             >
               {r}
             </span>
-            <span style={{color: 'rgba(255,255,255,0.35)', fontSize: 11, marginLeft: 12}}>
-              📌 🗑
+            <span
+              style={{
+                color: 'rgba(255,255,255,0.35)',
+                marginLeft: 12,
+                display: 'flex',
+                gap: 9,
+                alignItems: 'center',
+              }}
+            >
+              <PinIcon size={12} />
+              <TrashIcon size={12} />
             </span>
           </div>
         );
@@ -469,7 +501,7 @@ export const MacScreen: React.FC<{
             zIndex: 5,
           }}
         >
-          <span style={{fontSize: 13}}></span>
+          <AppleIcon size={13} />
           <span style={{marginLeft: 16, fontWeight: 700}}>Finder</span>
           <span style={{marginLeft: 16, opacity: 0.65}}>File</span>
           <span style={{marginLeft: 12, opacity: 0.65}}>Edit</span>
@@ -478,8 +510,21 @@ export const MacScreen: React.FC<{
           <span style={{fontFamily: mono, fontSize: 11.5}}>
             <b>5h</b> 14% <b>7d</b> 35%
           </span>
-          <span style={{fontFamily: mono, fontSize: 11.5, marginLeft: 14}}>⚙ 12% ▭ 75%</span>
-          <span style={{marginLeft: 14, opacity: 0.8}}>🎙</span>
+          <span
+            style={{
+              fontFamily: mono,
+              fontSize: 11.5,
+              marginLeft: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <ChipIcon size={12} /> 12% <BatteryIcon size={14} /> 75%
+          </span>
+          <span style={{marginLeft: 14, opacity: 0.8, display: 'flex'}}>
+            <MicIcon size={12} />
+          </span>
           <span style={{marginLeft: 14, fontSize: 11.5}}>Sat Jul 11 7:35 AM</span>
         </div>
         {children}
@@ -584,10 +629,32 @@ export const NotchHeroScene: React.FC = () => {
     extrapolateRight: 'clamp',
   });
   const openP = springIn(frame, fps, OPEN_AT, true);
+  const pulseP = interpolate(frame, [HOVER_AT, HOVER_AT + 14], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: easeOut,
+  });
 
   return (
     <Background>
       <MacScreen originY="42%">
+        {frame >= HOVER_AT && frame < OPEN_AT + 4 ? (
+          <div
+            style={{
+              position: 'absolute',
+              top: -26,
+              left: '50%',
+              transform: `translateX(-50%) scale(${0.9 + pulseP * 0.35})`,
+              width: NOTCH_COLLAPSED_W + 60,
+              height: 96,
+              borderRadius: 40,
+              border: '2px solid rgba(245,166,35,0.55)',
+              opacity: (1 - pulseP) * 0.9,
+              zIndex: 15,
+              pointerEvents: 'none',
+            }}
+          />
+        ) : null}
         <NotchShelf
           mode={frame < HOVER_AT ? 'collapsed' : frame < OPEN_AT ? 'hover' : 'open'}
           openP={openP}
@@ -674,10 +741,9 @@ export const NotchAlertScene: React.FC = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#4cd964',
-                fontSize: 18,
               }}
             >
-              ⚡
+              <BoltIcon size={19} />
             </div>
             <div style={{fontFamily}}>
               <div style={{color: '#fff', fontSize: 15, fontWeight: 700}}>Plugged in</div>

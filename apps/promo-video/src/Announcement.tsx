@@ -143,19 +143,19 @@ const SCENES: Array<{
   vo?: string;
   node: React.ReactNode;
 }> = [
-  {id: 'cold', frames: 150, vo: 'L01.mp3', node: <ColdOpen />},
+  {id: 'cold', frames: 165, vo: 'L01.mp3', node: <ColdOpen />},
   {id: 'notchHero', frames: 240, vo: 'L02.mp3', node: <NotchHeroScene />},
-  {id: 'notchTabs', frames: 195, vo: 'L03.mp3', node: <NotchTabsScene />},
-  {id: 'alert', frames: 105, vo: 'L04.mp3', node: <NotchAlertScene />},
+  {id: 'notchTabs', frames: 200, vo: 'L03.mp3', node: <NotchTabsScene />},
+  {id: 'alert', frames: 120, vo: 'L04.mp3', node: <NotchAlertScene />},
   {id: 'home', frames: 110, vo: 'L05.mp3', node: <HomeDashboardScene />},
-  {id: 'rings', frames: 150, vo: 'L06.mp3', node: <AgentUsageRings />},
-  {id: 'stats', frames: 95, vo: 'L06b.mp3', node: <UsageStats />},
-  {id: 'heatmap', frames: 95, vo: 'L06c.mp3', node: <ActivityHeatmap />},
+  {id: 'rings', frames: 180, vo: 'L06.mp3', node: <AgentUsageRings />},
+  {id: 'stats', frames: 140, vo: 'L06b.mp3', node: <UsageStats />},
+  {id: 'heatmap', frames: 110, vo: 'L06c.mp3', node: <ActivityHeatmap />},
   {id: 'menubar', frames: 130, vo: 'L07.mp3', node: <MenuBarBadgeScene />},
   {id: 'music', frames: 110, vo: 'L08.mp3', node: <MusicScene />},
   {id: 'system', frames: 150, vo: 'L09.mp3', node: <SystemScene />},
   {id: 'settings', frames: 125, vo: 'L10.mp3', node: <SettingsMontage />},
-  {id: 'trust', frames: 170, vo: 'L11.mp3', node: <TrustScene />},
+  {id: 'trust', frames: 185, vo: 'L11.mp3', node: <TrustScene />},
   {id: 'outro', frames: 190, vo: 'L12.mp3', node: <AnnouncementOutro />},
 ];
 
