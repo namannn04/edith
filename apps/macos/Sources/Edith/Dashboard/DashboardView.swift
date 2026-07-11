@@ -38,9 +38,17 @@ struct DashboardView: View {
                             kpiGrid.padding(.horizontal, compact ? 18 : 24)
                             LazyVStack(spacing: 16) {
                                 SkinCard(title: "Activity", dark: dark) {
-                                    ActivityHeatmap(
-                                        days: model.calendarDays, cuts: model.chartData.heatCuts,
-                                        model: model, dark: dark, blur: blurMoney)
+                                    HStack(alignment: .center, spacing: 20) {
+                                        ActivityHeatmap(
+                                            days: model.calendarDays,
+                                            cuts: model.chartData.heatCuts,
+                                            model: model, dark: dark, blur: blurMoney
+                                        )
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        if !compact {
+                                            SessionDialsView(dark: dark)
+                                        }
+                                    }
                                 }
                                 LimitsCardView(theme: acc, dark: dark)
                                 BudgetCardView(theme: acc, dark: dark)
@@ -162,7 +170,7 @@ struct DashboardView: View {
             ("Updated \(m.updated)", false),
             (m.totalCost, true),
             ("\(m.activeDays) active days", false),
-            ("\(m.totalTokens) tokens", true),
+            ("\(m.totalTokens) tokens", false),
             ("\(m.modelCount) models", false),
             (m.sourceLabels, false),
         ]
@@ -187,7 +195,7 @@ struct DashboardView: View {
                             .presenterBlur(kpi.sensitiveValue && blurMoney)
                         Text(kpi.sub)
                             .font(.system(size: 11.5)).foregroundStyle(DashSkin.inkSoft(dark))
-                            .presenterBlur(blurMoney)
+                            .presenterBlur(kpi.sensitiveSub && blurMoney)
                     }
                     .padding(14)
                     Spacer(minLength: 0)
@@ -435,7 +443,7 @@ struct DashboardView: View {
 
     private var shareByModelCard: some View {
         SkinCard(title: "Share by model", dark: dark) {
-            DonutChart(slices: donutSlices, blur: blurMoney)
+            DonutChart(slices: donutSlices)
         }
     }
 
@@ -465,7 +473,7 @@ struct DashboardView: View {
                     ).foregroundStyle(DashSkin.inkSoft(dark))
                     Text(DashFmt.tokens(m.tokens)).font(DashSkin.mono(11)).frame(
                         width: 70, alignment: .trailing
-                    ).presenterBlur(blurMoney)
+                    )
                     Text("\(m.days)").font(DashSkin.mono(11)).frame(width: 44, alignment: .trailing)
                         .foregroundStyle(DashSkin.inkSoft(dark))
                 }

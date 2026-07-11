@@ -109,6 +109,63 @@ enum DashLimits {
     }
 }
 
+struct SessionDialsView: View {
+    let dark: Bool
+    @AppStorage("warnPercent") private var warn = 60
+    @AppStorage("critPercent") private var crit = 85
+    @State private var point: DashLimitPoint?
+
+    var body: some View {
+        HStack(spacing: 18) {
+            dial("SESSION", pct: point?.s, reset: point?.sr)
+            dial("WEEK", pct: point?.w, reset: point?.wr)
+        }
+        .task { point = DashLimits.loadLatest() }
+    }
+
+    private func dial(_ label: String, pct: Double?, reset: Date?) -> some View {
+        let p = pct ?? 0
+        return VStack(spacing: 6) {
+            ZStack {
+                Circle().stroke(DashSkin.line(dark), lineWidth: 6)
+                Circle()
+                    .trim(from: 0, to: min(p / 100, 1))
+                    .stroke(color(for: p), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.5), value: p)
+                Text(pct != nil ? "\(Int(p))%" : "-")
+                    .font(DashSkin.serif(18)).foregroundStyle(DashSkin.ink(dark))
+                    .monospacedDigit()
+            }
+            .frame(width: 66, height: 66)
+            Text(label).font(DashSkin.mono(9)).tracking(1.2)
+                .foregroundStyle(DashSkin.inkFaint(dark))
+            if let reset, reset > Date() {
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    Text(countdown(from: ctx.date, to: reset))
+                        .font(DashSkin.mono(9)).foregroundStyle(DashSkin.inkSoft(dark)).lineLimit(1)
+                }
+            } else {
+                Text(" ").font(DashSkin.mono(9))
+            }
+        }
+    }
+
+    private func color(for percent: Double) -> Color {
+        if percent >= Double(crit) { return .red }
+        if percent >= Double(warn) { return .orange }
+        return DashSkin.accent(dark)
+    }
+
+    private func countdown(from now: Date, to reset: Date) -> String {
+        let s = max(0, Int(reset.timeIntervalSince(now)))
+        let d = s / 86400, h = (s % 86400) / 3600, m = (s % 3600) / 60, sec = s % 60
+        if d > 0 { return String(format: "%dd %d:%02d", d, h, m) }
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, sec) }
+        return String(format: "%d:%02d", m, sec)
+    }
+}
+
 struct LimitsCardView: View {
     let theme: Color
     let dark: Bool

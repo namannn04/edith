@@ -25,6 +25,8 @@ struct NotchShelfContentView: View {
             ZStack(alignment: .top) {
                 Color.black
                 layers
+                    .scaleEffect(
+                        x: 1 / hoverScale.width, y: 1 / hoverScale.height, anchor: .top)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .mask {

@@ -244,6 +244,7 @@ struct KPI: Identifiable {
     let sub: String
     var hot = false
     var sensitiveValue = false
+    var sensitiveSub = false
 }
 
 struct NamedValue: Identifiable {
@@ -1026,7 +1027,7 @@ final class DashboardModel: ObservableObject {
             KPI(
                 label: "Total tokens", value: DashFmt.tokens(totalTokens),
                 sub: "\(DashFmt.usd(totalCost)) · \(active.count) active days", hot: true,
-                sensitiveValue: true),
+                sensitiveSub: true),
             KPI(
                 label: "Total cost", value: DashFmt.usd(totalCost),
                 sub: "\(DashFmt.tokensFull(totalTokens)) tokens", sensitiveValue: true),
@@ -1035,7 +1036,8 @@ final class DashboardModel: ObservableObject {
             out.append(
                 KPI(
                     label: "Busiest day", value: busiest.label,
-                    sub: "\(DashFmt.tokens(busiest.tokens)) · \(DashFmt.usd(busiest.cost))"))
+                    sub: "\(DashFmt.tokens(busiest.tokens)) · \(DashFmt.usd(busiest.cost))",
+                    sensitiveSub: true))
         }
         if !active.isEmpty {
             out.append(
@@ -1043,7 +1045,7 @@ final class DashboardModel: ObservableObject {
                     label: "Daily average",
                     value: DashFmt.tokens(totalTokens / Double(active.count)),
                     sub: "\(DashFmt.usd(totalCost / Double(active.count))) / active day",
-                    sensitiveValue: true))
+                    sensitiveSub: true))
         }
         out.append(
             KPI(
@@ -1053,7 +1055,8 @@ final class DashboardModel: ObservableObject {
             out.append(
                 KPI(
                     label: "Top model", value: DashFmt.shortModel(top.model),
-                    sub: "\(DashFmt.usd(top.cost)) · \(DashFmt.pct(top.share))"))
+                    sub: "\(DashFmt.usd(top.cost)) · \(DashFmt.pct(top.share))",
+                    sensitiveSub: true))
         }
         kpis = out
     }
