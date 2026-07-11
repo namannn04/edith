@@ -1,5 +1,5 @@
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct PresenterRulesTests {
     @Test func matchesZoomShareTitle() {

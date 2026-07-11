@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct PlaybackStoreTests {
     private func freshDefaults() -> UserDefaults {

@@ -294,7 +294,6 @@ struct UsageView: View {
                             Spacer()
                             Text(stat.tokens.compactTokens)
                                 .monospacedDigit()
-                                .presenterBlur(blurMoney)
                             Text(String(format: "$%.2f", stat.cost))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)

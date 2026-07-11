@@ -1,5 +1,5 @@
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @MainActor @Suite struct MusicPlayerIdleTests {
     @Test func idlePlayerReportsNoActivity() {

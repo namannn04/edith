@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct ShelfExpiryTests {
     let now = Date(timeIntervalSince1970: 1_750_000_000)

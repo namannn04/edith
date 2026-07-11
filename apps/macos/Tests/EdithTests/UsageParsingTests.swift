@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct ParseISOTests {
     let epoch = Date(timeIntervalSince1970: 1_751_364_000)

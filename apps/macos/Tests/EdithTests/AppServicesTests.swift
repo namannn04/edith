@@ -1,7 +1,7 @@
 import EdithKit
 import Foundation
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @MainActor @Suite struct AppServicesTests {
     private let probe = "tabEnabledProbeKey"

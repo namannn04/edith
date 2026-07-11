@@ -225,7 +225,7 @@ private struct ProjectRow: View {
     @ViewBuilder private var content: some View {
         let row = HStack(spacing: 0) {
             nameColumn
-            num(DashFmt.tokensFull(node.tokens), width: ProjColumns.tokens, blurred: true)
+            num(DashFmt.tokensFull(node.tokens), width: ProjColumns.tokens)
             num(DashFmt.usdLong(node.cost), width: ProjColumns.cost, blurred: true)
             num(DashFmt.pct(node.share), width: ProjColumns.share)
             num("\(node.days)", width: ProjColumns.days)

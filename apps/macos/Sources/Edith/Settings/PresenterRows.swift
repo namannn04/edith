@@ -41,7 +41,7 @@ struct PresenterRows: View {
                 Toggle("Blur music", isOn: $presenterBlurMusic)
                     .pointerCursor()
                     .disabled(!presenterMode && !autoEnabled)
-                Toggle("Blur cost and usage figures", isOn: $presenterBlurMoney)
+                Toggle("Blur cost figures", isOn: $presenterBlurMoney)
                     .pointerCursor()
                     .disabled(!presenterMode && !autoEnabled)
                 Toggle("Blur calendar events", isOn: $presenterBlurCalendar)

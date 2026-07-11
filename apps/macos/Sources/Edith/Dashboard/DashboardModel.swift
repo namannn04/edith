@@ -244,6 +244,7 @@ struct KPI: Identifiable {
     let sub: String
     var hot = false
     var sensitiveValue = false
+    var sensitiveSub = false
 }
 
 struct NamedValue: Identifiable {
@@ -301,13 +302,14 @@ final class DashboardModel: ObservableObject {
     @Published var billingDay = 26 { didSet { persist(); rebuildCycles(); recompute() } }
     @Published var sortColumn: TableColumn = .cost { didSet { persist(); resortTotals() } }
     @Published var sortAscending = false { didSet { persist(); resortTotals() } }
-    @Published var heatMetric: DashMetric = .tokens
+    @Published var heatMetric: DashMetric = .tokens { didSet { persist() } }
     @Published var projSortKey: ProjSortKey = .cost { didSet { persist(); resortProjectTree() } }
     @Published var projSortAscending = false { didSet { persist(); resortProjectTree() } }
     @Published var projListOpen = false
     @Published var projExpanded: Set<String> = []
 
     private var loading = false
+    private var restored = false
 
     @Published private(set) var loaded = false
     @Published private(set) var loadAttempted = false
@@ -441,7 +443,12 @@ final class DashboardModel: ObservableObject {
         }
         monthOptions = months.sorted(by: >)
 
-        restore()
+        if restored {
+            reconcile()
+        } else {
+            restore()
+            restored = true
+        }
         loaded = true
         recompute()
     }
@@ -476,6 +483,18 @@ final class DashboardModel: ObservableObject {
             projSortKey = key
         }
         projSortAscending = d.bool(forKey: "projSortAsc")
+        if let hm = d.string(forKey: "dashHeatMetric"), let m = DashMetric(rawValue: hm) {
+            heatMetric = m
+        }
+    }
+
+    private func reconcile() {
+        loading = true
+        defer { loading = false }
+        let validSources = selectedSources.intersection(Set(allSources.map(\.id)))
+        selectedSources = validSources.isEmpty ? Set(defaultSources) : validSources
+        let validModels = selectedModels.intersection(Set(allModels))
+        selectedModels = validModels.isEmpty ? Set(defaultModels) : validModels
     }
 
     private func persist() {
@@ -489,6 +508,7 @@ final class DashboardModel: ObservableObject {
         d.set(sortAscending, forKey: "dashSortAsc")
         d.set(projSortKey.rawValue, forKey: "projSort")
         d.set(projSortAscending, forKey: "projSortAsc")
+        d.set(heatMetric.rawValue, forKey: "dashHeatMetric")
     }
 
     private func encodeRange(_ r: DashRange) -> String {
@@ -531,6 +551,7 @@ final class DashboardModel: ObservableObject {
         sortAscending = false
         projSortKey = .cost
         projSortAscending = false
+        heatMetric = .tokens
         projExpanded = []
         projListOpen = false
     }
@@ -1006,7 +1027,7 @@ final class DashboardModel: ObservableObject {
             KPI(
                 label: "Total tokens", value: DashFmt.tokens(totalTokens),
                 sub: "\(DashFmt.usd(totalCost)) · \(active.count) active days", hot: true,
-                sensitiveValue: true),
+                sensitiveSub: true),
             KPI(
                 label: "Total cost", value: DashFmt.usd(totalCost),
                 sub: "\(DashFmt.tokensFull(totalTokens)) tokens", sensitiveValue: true),
@@ -1015,7 +1036,8 @@ final class DashboardModel: ObservableObject {
             out.append(
                 KPI(
                     label: "Busiest day", value: busiest.label,
-                    sub: "\(DashFmt.tokens(busiest.tokens)) · \(DashFmt.usd(busiest.cost))"))
+                    sub: "\(DashFmt.tokens(busiest.tokens)) · \(DashFmt.usd(busiest.cost))",
+                    sensitiveSub: true))
         }
         if !active.isEmpty {
             out.append(
@@ -1023,7 +1045,7 @@ final class DashboardModel: ObservableObject {
                     label: "Daily average",
                     value: DashFmt.tokens(totalTokens / Double(active.count)),
                     sub: "\(DashFmt.usd(totalCost / Double(active.count))) / active day",
-                    sensitiveValue: true))
+                    sensitiveSub: true))
         }
         out.append(
             KPI(
@@ -1033,7 +1055,8 @@ final class DashboardModel: ObservableObject {
             out.append(
                 KPI(
                     label: "Top model", value: DashFmt.shortModel(top.model),
-                    sub: "\(DashFmt.usd(top.cost)) · \(DashFmt.pct(top.share))"))
+                    sub: "\(DashFmt.usd(top.cost)) · \(DashFmt.pct(top.share))",
+                    sensitiveSub: true))
         }
         kpis = out
     }

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# bench-helper.sh - sample the EdithMenuBar helper's resource use in a fixed
+# bench-helper.sh - sample the EdithHelper helper's resource use in a fixed
 # scenario and print a one-line result you can paste into a PR description.
 #
 # The Notch 2.0 plan gates each PR on these numbers not regressing. Run it
 # once per scenario (idle collapsed, music playing collapsed, expanded, ...)
 # and record the row.
 #
-#   ./scripts/bench-helper.sh                          # 60s, EdithMenuBar
+#   ./scripts/bench-helper.sh                          # 60s, EdithHelper
 #   ./scripts/bench-helper.sh --label "idle collapsed"
 #   ./scripts/bench-helper.sh --seconds 30 --process Edith
 #
@@ -15,7 +15,7 @@
 # when a single pid matches. No sudo required.
 set -euo pipefail
 
-PROCESS="EdithMenuBar"
+PROCESS="EdithHelper"
 SECONDS_TOTAL=60
 INTERVAL=2
 LABEL=""

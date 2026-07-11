@@ -43,8 +43,10 @@ struct ICloudPane: View {
                 Toggle("Settings", isOn: $backupSettings)
                     .pointerCursor()
                     .disabled(!icloudBackup)
-                Text("Every preference in this app: toggles, colors, shortcuts, and layouts.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(
+                    "Every preference in this app: toggles, colors, shortcuts, layouts, and your Agent Usage filters."
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 Toggle("Usage data", isOn: $backupUsage)
                     .pointerCursor()
                     .disabled(!icloudBackup)

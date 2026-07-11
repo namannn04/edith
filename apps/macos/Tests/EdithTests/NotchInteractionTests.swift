@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import Testing
 
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct NotchHoverGateTests {
     @Test func opensOnlyAfterDwellInsideOpenZone() {

@@ -2,7 +2,7 @@ import EdithKit
 import Foundation
 import Testing
 @testable import Edith
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct LimitsChartMathTests {
     let now = Date(timeIntervalSince1970: 1_750_000_000)

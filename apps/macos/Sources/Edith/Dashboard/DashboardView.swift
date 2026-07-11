@@ -37,11 +37,7 @@ struct DashboardView: View {
                         if model.loaded {
                             kpiGrid.padding(.horizontal, compact ? 18 : 24)
                             LazyVStack(spacing: 16) {
-                                SkinCard(title: "Activity", dark: dark) {
-                                    ActivityHeatmap(
-                                        days: model.calendarDays, cuts: model.chartData.heatCuts,
-                                        model: model, dark: dark, blur: blurMoney)
-                                }
+                                activityRow(compact: compact)
                                 LimitsCardView(theme: acc, dark: dark)
                                 BudgetCardView(theme: acc, dark: dark)
                                 charts
@@ -68,12 +64,10 @@ struct DashboardView: View {
         .navigationTitle("Agent Usage")
         .task {
             await model.load()
+            syncCustomDates()
         }
         .onChange(of: model.loaded) { _, loaded in
-            if loaded, let b = model.dataRange {
-                customFrom = b.lowerBound
-                customTo = b.upperBound
-            }
+            if loaded { syncCustomDates() }
         }
         .onChange(of: refresh.updating) { _, updating in
             if !updating {
@@ -164,7 +158,7 @@ struct DashboardView: View {
             ("Updated \(m.updated)", false),
             (m.totalCost, true),
             ("\(m.activeDays) active days", false),
-            ("\(m.totalTokens) tokens", true),
+            ("\(m.totalTokens) tokens", false),
             ("\(m.modelCount) models", false),
             (m.sourceLabels, false),
         ]
@@ -189,7 +183,7 @@ struct DashboardView: View {
                             .presenterBlur(kpi.sensitiveValue && blurMoney)
                         Text(kpi.sub)
                             .font(.system(size: 11.5)).foregroundStyle(DashSkin.inkSoft(dark))
-                            .presenterBlur(blurMoney)
+                            .presenterBlur(kpi.sensitiveSub && blurMoney)
                     }
                     .padding(14)
                     Spacer(minLength: 0)
@@ -202,6 +196,28 @@ struct DashboardView: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 14))
                 .shadow(color: .black.opacity(dark ? 0.3 : 0.05), radius: 8, y: 4)
+            }
+        }
+    }
+
+    @ViewBuilder private func activityRow(compact: Bool) -> some View {
+        let activity = SkinCard(title: "Activity", dark: dark) {
+            ActivityHeatmap(
+                days: model.calendarDays, cuts: model.chartData.heatCuts,
+                model: model, dark: dark, blur: blurMoney
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        let limits = RateLimitsDialsView(dark: dark)
+        if compact {
+            VStack(spacing: 16) {
+                activity
+                limits
+            }
+        } else {
+            HStack(alignment: .top, spacing: 16) {
+                activity
+                limits.frame(width: 340)
             }
         }
     }
@@ -278,6 +294,20 @@ struct DashboardView: View {
                 in: (model.dataRange ?? Date()...Date()), displayedComponents: .date
             )
             .labelsHidden().datePickerStyle(.field).pointerCursor().controlSize(.small)
+        }
+    }
+
+    private func syncCustomDates() {
+        guard model.loaded else { return }
+        if case let .custom(from, to) = model.range,
+            let f = DashboardModel.ymd.date(from: from),
+            let t = DashboardModel.ymd.date(from: to)
+        {
+            customFrom = f
+            customTo = t
+        } else if let b = model.dataRange {
+            customFrom = b.lowerBound
+            customTo = b.upperBound
         }
     }
 
@@ -423,7 +453,7 @@ struct DashboardView: View {
 
     private var shareByModelCard: some View {
         SkinCard(title: "Share by model", dark: dark) {
-            DonutChart(slices: donutSlices, blur: blurMoney)
+            DonutChart(slices: donutSlices)
         }
     }
 
@@ -453,7 +483,7 @@ struct DashboardView: View {
                     ).foregroundStyle(DashSkin.inkSoft(dark))
                     Text(DashFmt.tokens(m.tokens)).font(DashSkin.mono(11)).frame(
                         width: 70, alignment: .trailing
-                    ).presenterBlur(blurMoney)
+                    )
                     Text("\(m.days)").font(DashSkin.mono(11)).frame(width: 44, alignment: .trailing)
                         .foregroundStyle(DashSkin.inkSoft(dark))
                 }

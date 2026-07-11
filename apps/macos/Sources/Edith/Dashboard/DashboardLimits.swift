@@ -109,6 +109,82 @@ enum DashLimits {
     }
 }
 
+struct RateLimitsDialsView: View {
+    let dark: Bool
+    @AppStorage("warnPercent") private var warn = 60
+    @AppStorage("critPercent") private var crit = 85
+    @State private var point: DashLimitPoint?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Rate limits").font(DashSkin.serif(18)).foregroundStyle(DashSkin.ink(dark))
+                Spacer()
+                Text("session · weekly").font(.system(size: 11.5))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                LimitsRefreshButton(dark: dark) { point = DashLimits.loadLatest() }
+            }
+            HStack(spacing: 24) {
+                dial("SESSION (5H)", pct: point?.s, reset: point?.sr)
+                dial("WEEKLY", pct: point?.w, reset: point?.wr)
+            }
+            .frame(maxWidth: .infinity)
+            if let point {
+                Text("As of \(point.t.formatted(.dateTime.hour().minute()))")
+                    .font(DashSkin.mono(10)).foregroundStyle(DashSkin.inkFaint(dark))
+            }
+        }
+        .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16).strokeBorder(DashSkin.line(dark), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(dark ? 0.32 : 0.05), radius: 12, y: 8)
+        .task { point = DashLimits.loadLatest() }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(for: IPC.Name.limitsUpdated)
+        ) { _ in
+            point = DashLimits.loadLatest()
+        }
+    }
+
+    private func dial(_ label: String, pct: Double?, reset: Date?) -> some View {
+        let p = pct ?? 0
+        return VStack(spacing: 8) {
+            ZStack {
+                Circle().stroke(DashSkin.line(dark), lineWidth: 8)
+                Circle()
+                    .trim(from: 0, to: min(p / 100, 1))
+                    .stroke(color(for: p), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.5), value: p)
+                Text(pct != nil ? "\(Int(p))%" : "-")
+                    .font(DashSkin.serif(30)).foregroundStyle(DashSkin.ink(dark))
+                    .monospacedDigit()
+            }
+            .frame(width: 104, height: 104)
+            Text(label).font(DashSkin.mono(9)).tracking(1.4)
+                .foregroundStyle(DashSkin.inkFaint(dark))
+            Text(resetText(reset)).font(.system(size: 11))
+                .foregroundStyle(DashSkin.inkSoft(dark)).lineLimit(1)
+        }
+    }
+
+    private func resetText(_ d: Date?) -> String {
+        guard let d else { return " " }
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .full
+        return "Resets " + f.localizedString(for: d, relativeTo: Date())
+    }
+
+    private func color(for percent: Double) -> Color {
+        if percent >= Double(crit) { return .red }
+        if percent >= Double(warn) { return .orange }
+        return DashSkin.accent(dark)
+    }
+}
+
 struct LimitsRefreshButton: View {
     let dark: Bool
     var onRefreshed: () -> Void

@@ -70,7 +70,7 @@ struct ComboChart: View {
                     if let d = value.as(Double.self) {
                         Text(DashFmt.tokens(d)).font(.system(size: 9)).foregroundStyle(
                             DashSkin.inkSoft(dark)
-                        ).presenterBlur(blur)
+                        )
                     }
                 }
             }
@@ -113,7 +113,6 @@ struct PointTooltip: View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label).font(.system(size: 9)).foregroundStyle(.secondary)
             Text(DashFmt.tokens(tokens)).font(.system(size: 11, weight: .semibold))
-                .presenterBlur(blur)
             Text(DashFmt.usdFull(cost)).font(.system(size: 10)).foregroundStyle(.secondary)
                 .presenterBlur(blur)
         }
@@ -197,7 +196,7 @@ struct StackedChart: View {
                     if let d = value.as(Double.self) {
                         Text(DashFmt.tokens(d)).font(.system(size: 9)).foregroundStyle(
                             DashSkin.inkSoft(dark)
-                        ).presenterBlur(blur)
+                        )
                     }
                 }
             }
@@ -241,7 +240,6 @@ func donutSlice(at value: Double, in slices: [DonutSlice]) -> DonutSlice? {
 struct DonutChart: View {
     let slices: [DonutSlice]
     var height: CGFloat = 220
-    var blur = false
     @State private var angle: Double?
 
     private var selected: DonutSlice? {
@@ -273,12 +271,10 @@ struct DonutChart: View {
                         .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                         .lineLimit(1)
                     Text(DashFmt.tokens(s.value)).font(.system(size: 13, weight: .semibold))
-                        .presenterBlur(blur)
                     Text(DashFmt.pct(s.value / total)).font(.system(size: 9))
                         .foregroundStyle(.tertiary)
                 } else {
                     Text(DashFmt.tokens(total)).font(.system(size: 13, weight: .semibold))
-                        .presenterBlur(blur)
                     Text("tokens").font(.system(size: 8)).foregroundStyle(.tertiary)
                 }
             }
@@ -299,9 +295,13 @@ struct HeatCard: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(DashboardModel.ymd.string(from: detail.date))
                 .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            Text("\(DashFmt.tokens(detail.tokens)) tokens · \(DashFmt.usdFull(detail.cost))")
-                .font(.system(size: 15, weight: .semibold))
-                .presenterBlur(blur)
+            HStack(spacing: 5) {
+                Text("\(DashFmt.tokens(detail.tokens)) tokens")
+                    .font(.system(size: 15, weight: .semibold))
+                Text("· \(DashFmt.usdFull(detail.cost))")
+                    .font(.system(size: 15, weight: .semibold))
+                    .presenterBlur(blur)
+            }
             HStack(spacing: 5) {
                 if detail.projCount > 0 { chip("\(detail.projCount) proj") }
                 if detail.chatCount > 0 { chip("\(detail.chatCount) chats") }
@@ -344,7 +344,6 @@ struct HeatCard: View {
             Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
             Spacer()
             Text(DashFmt.tokens(value)).font(.system(size: 10)).monospacedDigit()
-                .presenterBlur(blur)
         }
     }
 
@@ -367,7 +366,6 @@ struct HeatCard: View {
                     Text(p.name).font(.system(size: 10)).lineLimit(1)
                     Spacer()
                     Text(DashFmt.tokens(p.value)).font(.system(size: 9)).foregroundStyle(.secondary)
-                        .presenterBlur(blur)
                 }
             }
             if detail.projects.count > 4 {
