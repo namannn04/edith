@@ -834,15 +834,22 @@ private struct LimitsSummaryCard: View {
                         gauge("Weekly", value: latest.w, reset: latest.wr)
                     }
                     .frame(maxWidth: .infinity)
-                    Text("As of \(latest.t.formatted(date: .omitted, time: .shortened))")
-                        .font(DashSkin.mono(9))
-                        .foregroundStyle(DashSkin.inkFaint(dark))
+                    HStack {
+                        Text("As of \(latest.t.formatted(date: .omitted, time: .shortened))")
+                            .font(DashSkin.mono(9))
+                            .foregroundStyle(DashSkin.inkFaint(dark))
+                        Spacer()
+                        LimitsRefreshButton(dark: dark) { reload() }
+                    }
                     jumpLink("Open Agent Usage", to: .dashboard, dark: dark)
                 } else {
-                    Text("Collecting limit history…")
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(DashSkin.inkFaint(dark))
-                        .frame(maxWidth: .infinity, minHeight: 90)
+                    HStack {
+                        Text("Collecting limit history…")
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(DashSkin.inkFaint(dark))
+                            .frame(maxWidth: .infinity, minHeight: 90)
+                        LimitsRefreshButton(dark: dark) { reload() }
+                    }
                 }
             }
         }

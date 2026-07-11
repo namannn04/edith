@@ -109,6 +109,43 @@ enum DashLimits {
     }
 }
 
+struct LimitsRefreshButton: View {
+    let dark: Bool
+    var onRefreshed: () -> Void
+    @State private var refreshing = false
+
+    var body: some View {
+        Button {
+            refreshing = true
+            IPC.post(IPC.Name.requestLimitsRefresh)
+            Task {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                refreshing = false
+            }
+        } label: {
+            Group {
+                if refreshing {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                }
+            }
+            .frame(width: 16, height: 16)
+        }
+        .buttonStyle(HoverButtonStyle())
+        .disabled(refreshing)
+        .help("Refresh limits now")
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(for: IPC.Name.limitsUpdated)
+        ) { _ in
+            refreshing = false
+            onRefreshed()
+        }
+    }
+}
+
 struct LimitsCardView: View {
     let theme: Color
     let dark: Bool
@@ -143,25 +180,31 @@ struct LimitsCardView: View {
                         segmented
                         Spacer()
                         readout
+                        LimitsRefreshButton(dark: dark) { reloadAll() }
                     }
                     chart
                 }
             } else {
-                Text("Collecting limit history…")
-                    .font(.system(size: 12)).foregroundStyle(DashSkin.inkFaint(dark))
-                    .frame(maxWidth: .infinity, minHeight: 60)
+                HStack {
+                    Text("Collecting limit history…")
+                        .font(.system(size: 12)).foregroundStyle(DashSkin.inkFaint(dark))
+                        .frame(maxWidth: .infinity, minHeight: 60)
+                    LimitsRefreshButton(dark: dark) { reloadAll() }
+                }
             }
         }
-        .task {
-            all = DashLimits.loadAll()
-            let now = all.last?.t ?? Date()
-            downsampled = DashLimits.downsample(all, now: now)
-            rebuildVisible()
-        }
+        .task { reloadAll() }
         .onChange(of: range) {
             selected = nil
             rebuildVisible()
         }
+    }
+
+    private func reloadAll() {
+        all = DashLimits.loadAll()
+        let now = all.last?.t ?? Date()
+        downsampled = DashLimits.downsample(all, now: now)
+        rebuildVisible()
     }
 
     private func rebuildVisible() {
