@@ -47,6 +47,10 @@ final class UsageStore: ObservableObject, FeatureModule {
     private var wakeTask: Task<Void, Never>?
     private var launchObserver: NSObjectProtocol?
     private var refreshRequestObserver: NSObjectProtocol?
+    private var limitsRefreshObserver: NSObjectProtocol?
+    private var hasLiveLimits = false
+    private var quickRetries = 0
+    private var quickRetryTask: Task<Void, Never>?
     let notifier = LimitNotifier()
     private var history = LimitsHistory()
     @Published private(set) var limitPoints: [LimitPoint] = []
@@ -54,6 +58,7 @@ final class UsageStore: ObservableObject, FeatureModule {
     private var statusItem: LimitsStatusItem?
 
     init() {
+        seedFromHistory()
         startPolling()
 
         sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -118,7 +123,25 @@ final class UsageStore: ObservableObject, FeatureModule {
 
         refreshRequestObserver = IPC.observe(IPC.Name.requestUsageRefresh) { [weak self] in
             self?.runUpdate()
+            Task { @MainActor in await self?.refreshLimits(force: true) }
         }
+
+        limitsRefreshObserver = IPC.observe(IPC.Name.requestLimitsRefresh) { [weak self] in
+            Task { @MainActor in await self?.refreshLimits(force: true) }
+        }
+    }
+
+    private func seedFromHistory() {
+        guard let last = LimitsHistory.latest() else { return }
+        let now = Date()
+        let fresh = { (w: LimitWindow?) -> LimitWindow? in
+            w.flatMap { ($0.resetsAt ?? .distantFuture) > now ? $0 : nil }
+        }
+        session = fresh(last.session)
+        week = fresh(last.week)
+        guard session != nil || week != nil else { return }
+        limitsUpdatedAt = last.date
+        diag("seeded last-known limits from history (\(last.date.formatted()))")
     }
 
     private func startPolling() {
@@ -176,6 +199,12 @@ final class UsageStore: ObservableObject, FeatureModule {
             IPC.stopObserving(refreshRequestObserver)
             self.refreshRequestObserver = nil
         }
+        if let limitsRefreshObserver {
+            IPC.stopObserving(limitsRefreshObserver)
+            self.limitsRefreshObserver = nil
+        }
+        quickRetryTask?.cancel()
+        quickRetryTask = nil
     }
 
     func syncStatusItem() {
@@ -269,6 +298,19 @@ final class UsageStore: ObservableObject, FeatureModule {
         Log.usage.error("\(msg, privacy: .public)")
         diag(msg)
         keepOrBlankMenuBar()
+        scheduleQuickRetry()
+    }
+
+    private func scheduleQuickRetry() {
+        guard !hasLiveLimits, quickRetries < 6, retryNotBefore == nil else { return }
+        quickRetries += 1
+        diag("no live limits yet - quick retry \(quickRetries)/6 in 20s")
+        quickRetryTask?.cancel()
+        quickRetryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.refreshLimits()
+        }
     }
 
     private func diag(_ message: String) {
@@ -301,10 +343,14 @@ final class UsageStore: ObservableObject, FeatureModule {
         limitsError = nil
         limitsUpdatedAt = Date()
         retryNotBefore = nil
+        hasLiveLimits = true
+        quickRetryTask?.cancel()
+        quickRetryTask = nil
         notifier.evaluate(session: session, week: week)
         history.append(session: session, week: week)
         SettingsBackup.shared.syncLimits()
         statusItem?.update(session: session, week: week)
+        IPC.post(IPC.Name.limitsUpdated)
     }
 
     private struct OAuthUsage: Decodable {

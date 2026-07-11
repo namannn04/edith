@@ -78,6 +78,34 @@ import Testing
         #expect(pts.count == 2)
     }
 
+    @Test func latestReadsLastValidLine() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("edith-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("limits-history.jsonl")
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        #expect(LimitsHistory.latest(url: url) == nil)
+
+        let iso = ISO8601DateFormatter()
+        let ts = iso.string(from: now)
+        let reset = iso.string(from: now.addingTimeInterval(3600))
+        let text = """
+            {"ts":"\(iso.string(from: now.addingTimeInterval(-600)))","s":10,"w":20}
+            {"ts":"\(ts)","s":42.1,"w":67.3,"sr":"\(reset)","wr":null}
+            {"ts":"torn
+            """
+        try Data(text.utf8).write(to: url)
+
+        let latest = try #require(LimitsHistory.latest(url: url))
+        #expect(abs(latest.date.timeIntervalSince(now)) < 1)
+        #expect(latest.session?.percent == 42.1)
+        #expect(latest.week?.percent == 67.3)
+        let sr = try #require(latest.session?.resetsAt)
+        #expect(abs(sr.timeIntervalSince(now.addingTimeInterval(3600))) < 1)
+        #expect(latest.week?.resetsAt == nil)
+    }
+
     @Test func mergeUnionsSortsAndDedupes() {
         let a = """
             {"ts":"2026-07-01T10:00:00Z","s":10,"w":5}

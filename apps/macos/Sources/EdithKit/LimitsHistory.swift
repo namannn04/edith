@@ -75,6 +75,28 @@ public struct LimitsHistory {
         lastKey = "\(row.s ?? -1)|\(row.w ?? -1)|\(row.sr ?? "-")|\(row.wr ?? "-")"
     }
 
+    public static func latest(url: URL = LimitsHistory.url) -> (
+        date: Date, session: LimitWindow?, week: LimitWindow?
+    )? {
+        let text = FileTail.read(url, maxBytes: 8192)
+        let decoder = JSONDecoder()
+        for line in text.split(separator: "\n").reversed() {
+            guard let row = try? decoder.decode(Row.self, from: Data(line.utf8)),
+                let date = EdithDate.parseISO(row.ts)
+            else { continue }
+            return (
+                date: date,
+                session: row.s.map {
+                    LimitWindow(percent: $0, resetsAt: row.sr.flatMap(EdithDate.parseISO))
+                },
+                week: row.w.map {
+                    LimitWindow(percent: $0, resetsAt: row.wr.flatMap(EdithDate.parseISO))
+                }
+            )
+        }
+        return nil
+    }
+
     public static func parse(_ text: String, since: Date) -> [LimitPoint] {
         var out: [LimitPoint] = []
         let decoder = JSONDecoder()

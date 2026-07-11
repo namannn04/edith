@@ -496,6 +496,8 @@ private struct NotchUsageRings: View {
             ring("5h", usage.session)
             ring("7d", usage.week)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .topTrailing) { refreshButton.padding(6) }
         .onAppear {
             guard !reduceMotion else {
                 drawn = true
@@ -503,6 +505,30 @@ private struct NotchUsageRings: View {
             }
             withAnimation(.easeOut(duration: 0.8).delay(0.25)) { drawn = true }
         }
+    }
+
+    private var refreshButton: some View {
+        Button {
+            Task { await usage.refreshLimits(force: true) }
+        } label: {
+            Group {
+                if usage.refreshingLimits {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.mini)
+                        .tint(.white)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+            }
+            .frame(width: 18, height: 18)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).shelfPointer()
+        .disabled(usage.refreshingLimits)
+        .help("Refresh limits now")
     }
 
     private func ring(_ label: String, _ window: LimitWindow?) -> some View {
