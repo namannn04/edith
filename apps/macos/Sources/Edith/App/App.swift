@@ -70,15 +70,38 @@ private func launchHelperIfNeeded() {
     if service.status != .enabled {
         try? service.register()
     }
-    guard
-        NSRunningApplication.runningApplications(
-            withBundleIdentifier: helperBundleIdentifier
-        ).isEmpty
-    else { return }
     let helperURL = Bundle.main.bundleURL
         .appendingPathComponent("Contents/Library/LoginItems/EdithMenuBar.app")
+    if let running = NSRunningApplication.runningApplications(
+        withBundleIdentifier: helperBundleIdentifier
+    ).first {
+        guard let installedAt = helperInstalledDate(helperURL),
+            let launchedAt = running.launchDate, launchedAt < installedAt
+        else { return }
+        running.forceTerminate()
+        relaunchHelper(at: helperURL, after: running)
+        return
+    }
     NSWorkspace.shared.openApplication(
         at: helperURL, configuration: NSWorkspace.OpenConfiguration())
+}
+
+private func helperInstalledDate(_ helperURL: URL) -> Date? {
+    let exec = helperURL.appendingPathComponent("Contents/MacOS/EdithMenuBar")
+    return (try? FileManager.default.attributesOfItem(atPath: exec.path)[.modificationDate])
+        as? Date
+}
+
+private func relaunchHelper(at url: URL, after proc: NSRunningApplication) {
+    DispatchQueue.global(qos: .userInitiated).async {
+        for _ in 0..<50 where !proc.isTerminated {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        DispatchQueue.main.async {
+            NSWorkspace.shared.openApplication(
+                at: url, configuration: NSWorkspace.OpenConfiguration())
+        }
+    }
 }
 
 @main
