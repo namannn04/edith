@@ -12,6 +12,7 @@ import {
 import {colors, fontFamily} from './tokens';
 import {springIn} from './animation';
 import {Background} from './components/Background';
+import {CaptionsEnabled} from './components/Caption';
 import {NotchAlertScene, NotchHeroScene, NotchTabsScene} from './announce/MacBookNotch';
 import {HomeDashboardScene} from './scenes/HomeDashboardScene';
 import {AgentUsageRings} from './scenes/AgentUsageRings';
@@ -141,41 +142,206 @@ const SCENES: Array<{
   id: string;
   frames: number;
   vo?: string;
+  voSeconds?: number;
+  subs?: string[];
   node: React.ReactNode;
 }> = [
-  {id: 'cold', frames: 165, vo: 'L01.mp3', node: <ColdOpen />},
-  {id: 'notchHero', frames: 240, vo: 'L02.mp3', node: <NotchHeroScene />},
-  {id: 'notchTabs', frames: 200, vo: 'L03.mp3', node: <NotchTabsScene />},
-  {id: 'alert', frames: 120, vo: 'L04.mp3', node: <NotchAlertScene />},
-  {id: 'home', frames: 110, vo: 'L05.mp3', node: <HomeDashboardScene />},
-  {id: 'rings', frames: 180, vo: 'L06.mp3', node: <AgentUsageRings />},
-  {id: 'stats', frames: 140, vo: 'L06b.mp3', node: <UsageStats />},
-  {id: 'heatmap', frames: 110, vo: 'L06c.mp3', node: <ActivityHeatmap />},
-  {id: 'menubar', frames: 130, vo: 'L07.mp3', node: <MenuBarBadgeScene />},
-  {id: 'music', frames: 110, vo: 'L08.mp3', node: <MusicScene />},
-  {id: 'system', frames: 150, vo: 'L09.mp3', node: <SystemScene />},
-  {id: 'settings', frames: 125, vo: 'L10.mp3', node: <SettingsMontage />},
-  {id: 'trust', frames: 185, vo: 'L11.mp3', node: <TrustScene />},
-  {id: 'outro', frames: 190, vo: 'L12.mp3', node: <AnnouncementOutro />},
+  {
+    id: 'cold',
+    frames: 165,
+    vo: 'L01.mp3',
+    voSeconds: 3.58,
+    subs: ['This is Edith. A quiet control center for your Mac.'],
+    node: <ColdOpen />,
+  },
+  {
+    id: 'notchHero',
+    frames: 240,
+    vo: 'L02.mp3',
+    voSeconds: 4.41,
+    subs: ['It lives where your Mac already has room.', 'Hover the notch, and it opens.'],
+    node: <NotchHeroScene />,
+  },
+  {
+    id: 'notchTabs',
+    frames: 200,
+    vo: 'L03.mp3',
+    voSeconds: 5.11,
+    subs: [
+      'Park files on a shelf. Reach your clipboard history.',
+      'Right from the top of your screen.',
+    ],
+    node: <NotchTabsScene />,
+  },
+  {
+    id: 'alert',
+    frames: 120,
+    vo: 'L04.mp3',
+    voSeconds: 2.37,
+    subs: ['Alerts appear where your eyes already are.'],
+    node: <NotchAlertScene />,
+  },
+  {
+    id: 'home',
+    frames: 110,
+    vo: 'L05.mp3',
+    voSeconds: 1.86,
+    subs: ['One window brings it all together.'],
+    node: <HomeDashboardScene />,
+  },
+  {
+    id: 'rings',
+    frames: 180,
+    vo: 'L06.mp3',
+    voSeconds: 4.6,
+    subs: ['Track every AI agent you run,', 'with live rate limits and countdowns.'],
+    node: <AgentUsageRings />,
+  },
+  {
+    id: 'stats',
+    frames: 140,
+    vo: 'L06b.mp3',
+    voSeconds: 3.72,
+    subs: ['See exactly where every token and every dollar went.'],
+    node: <UsageStats />,
+  },
+  {
+    id: 'heatmap',
+    frames: 110,
+    vo: 'L06c.mp3',
+    voSeconds: 2.37,
+    subs: ['And a full year of usage, at a glance.'],
+    node: <ActivityHeatmap />,
+  },
+  {
+    id: 'menubar',
+    frames: 130,
+    vo: 'L07.mp3',
+    voSeconds: 3.16,
+    subs: ['Your limits stay one glance away,', 'right in the menu bar.'],
+    node: <MenuBarBadgeScene />,
+  },
+  {
+    id: 'music',
+    frames: 110,
+    vo: 'L08.mp3',
+    voSeconds: 2.23,
+    subs: ['Your local music, played beautifully.'],
+    node: <MusicScene />,
+  },
+  {
+    id: 'system',
+    frames: 270,
+    vo: 'L09.mp3',
+    voSeconds: 3.34,
+    subs: ['Runaway apps. Junk. Sleep. Handled.'],
+    node: <SystemScene />,
+  },
+  {
+    id: 'settings',
+    frames: 125,
+    vo: 'L10.mp3',
+    voSeconds: 3.02,
+    subs: ['Twelve extensions. Every one of them optional.'],
+    node: <SettingsMontage />,
+  },
+  {
+    id: 'trust',
+    frames: 185,
+    vo: 'L11.mp3',
+    voSeconds: 5.11,
+    subs: ['And everything stays on your Mac.', 'Local first. No accounts. No subscriptions.'],
+    node: <TrustScene />,
+  },
+  {
+    id: 'outro',
+    frames: 190,
+    vo: 'L12.mp3',
+    voSeconds: 4.83,
+    subs: ['Edith. One app instead of five subscriptions.', 'Pay once. Own it forever.'],
+    node: <AnnouncementOutro />,
+  },
 ];
+
+const Subtitles: React.FC<{chunks: string[]; voSeconds: number}> = ({chunks, voSeconds}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const totalWords = chunks.reduce((a, c) => a + c.split(' ').length, 0);
+  const voFrames = voSeconds * fps;
+  let cursor = 0;
+  let active: {text: string; from: number; to: number} | null = null;
+  for (const chunk of chunks) {
+    const share = chunk.split(' ').length / totalWords;
+    const from = cursor;
+    const to = cursor + share * voFrames;
+    if (frame >= from && frame < to + 8) {
+      active = {text: chunk, from, to};
+      break;
+    }
+    cursor = to;
+  }
+  if (!active) return null;
+  const opacity = interpolate(
+    frame,
+    [active.from, active.from + 5, active.to + 3, active.to + 8],
+    [0, 1, 1, 0],
+    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
+  );
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 46,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        opacity,
+        zIndex: 90,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1400,
+          background: 'rgba(12,10,8,0.78)',
+          borderRadius: 12,
+          padding: '12px 26px',
+          fontFamily,
+          fontSize: 32,
+          fontWeight: 500,
+          color: '#f5f2ec',
+          textAlign: 'center',
+          lineHeight: 1.35,
+        }}
+      >
+        {active.text}
+      </div>
+    </div>
+  );
+};
 
 export const announcementDuration = SCENES.reduce((a, s) => a + s.frames, 0);
 
 export const Announcement: React.FC = () => {
   let at = 0;
   return (
-    <AbsoluteFill style={{background: colors.bg}}>
-      <Audio src={asset('music-bed.m4a')} volume={0.9} />
-      {SCENES.map((s) => {
-        const from = at;
-        at += s.frames;
-        return (
-          <Sequence key={s.id} from={from} durationInFrames={s.frames}>
-            {s.vo ? <Audio src={asset(`vo/${s.vo}`)} /> : null}
-            <SceneFade frames={s.frames}>{s.node}</SceneFade>
-          </Sequence>
-        );
-      })}
-    </AbsoluteFill>
+    <CaptionsEnabled.Provider value={false}>
+      <AbsoluteFill style={{background: colors.bg}}>
+        <Audio src={asset('music-bed.m4a')} volume={0.9} />
+        {SCENES.map((s) => {
+          const from = at;
+          at += s.frames;
+          return (
+            <Sequence key={s.id} from={from} durationInFrames={s.frames}>
+              {s.vo ? <Audio src={asset(`vo/${s.vo}`)} /> : null}
+              <SceneFade frames={s.frames}>{s.node}</SceneFade>
+              {s.subs && s.voSeconds ? (
+                <Subtitles chunks={s.subs} voSeconds={s.voSeconds} />
+              ) : null}
+            </Sequence>
+          );
+        })}
+      </AbsoluteFill>
+    </CaptionsEnabled.Provider>
   );
 };

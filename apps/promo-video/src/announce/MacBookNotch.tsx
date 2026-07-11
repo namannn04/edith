@@ -425,7 +425,7 @@ const ClipboardTab: React.FC<{startFrame: number}> = ({startFrame}) => {
   );
 };
 
-const Cursor: React.FC<{x: number; y: number; pressed?: boolean}> = ({x, y, pressed}) => (
+export const Cursor: React.FC<{x: number; y: number; pressed?: boolean}> = ({x, y, pressed}) => (
   <svg
     width={26}
     height={26}

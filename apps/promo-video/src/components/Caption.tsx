@@ -3,13 +3,18 @@ import {useCurrentFrame, useVideoConfig} from 'remotion';
 import {colors, fontFamily} from '../tokens';
 import {fadeUp} from '../animation';
 
+export const CaptionsEnabled = React.createContext(true);
+
 export const Caption: React.FC<{children: React.ReactNode; delay?: number}> = ({
   children,
   delay = 20,
 }) => {
+  const enabled = React.useContext(CaptionsEnabled);
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const style = fadeUp(frame, fps, delay);
+
+  if (!enabled) return null;
 
   return (
     <div
