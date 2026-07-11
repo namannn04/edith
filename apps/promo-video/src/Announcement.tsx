@@ -116,7 +116,7 @@ const AnnouncementOutro: React.FC = () => {
           Edith
         </div>
         <div style={{marginTop: 12, fontSize: 28, color: colors.textDim, opacity: tag}}>
-          One app instead of five subscriptions.
+          One app instead of twelve subscriptions.
         </div>
         <div
           style={{
@@ -257,8 +257,8 @@ const SCENES: Array<{
     id: 'outro',
     frames: 190,
     vo: 'L12.mp3',
-    voSeconds: 4.83,
-    subs: ['*Edith*. One app instead of five subscriptions.', '*Pay once*. Own it forever.'],
+    voSeconds: 5.02,
+    subs: ['*Edith*. One app instead of twelve subscriptions.', '*Pay once*. Own it forever.'],
     node: <AnnouncementOutro />,
   },
 ];
