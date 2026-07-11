@@ -22,8 +22,9 @@ export const Background: React.FC<{children: React.ReactNode}> = ({
     >
       <AbsoluteFill
         style={{
-          background: `radial-gradient(46% 38% at ${x1}% ${y1}%, rgba(245,166,35,0.075) 0%, transparent 70%),
-            radial-gradient(40% 34% at ${x2}% ${y2}%, rgba(120,150,245,0.05) 0%, transparent 70%)`,
+          background: `radial-gradient(48% 40% at ${x1}% ${y1}%, rgba(245,166,35,0.17) 0%, transparent 70%),
+            radial-gradient(44% 38% at ${x2}% ${y2}%, rgba(139,92,246,0.15) 0%, transparent 70%),
+            radial-gradient(38% 34% at ${100 - x1}% ${104 - y2}%, rgba(45,212,191,0.09) 0%, transparent 72%)`,
         }}
       />
       <AbsoluteFill

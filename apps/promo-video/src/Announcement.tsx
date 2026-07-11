@@ -268,19 +268,42 @@ const subtitleFont =
 
 const plain = (text: string) => text.replace(/\*/g, '');
 
-const HighlightedText: React.FC<{text: string}> = ({text}) => (
-  <>
-    {text.split(/(\*[^*]+\*)/).map((part, i) =>
-      part.startsWith('*') ? (
-        <span key={i} style={{color: colors.accent}}>
-          {part.slice(1, -1)}
-        </span>
-      ) : (
-        <React.Fragment key={i}>{part}</React.Fragment>
-      ),
-    )}
-  </>
-);
+const parseWords = (text: string) => {
+  const words: Array<{text: string; hl: boolean}> = [];
+  for (const part of text.split(/(\*[^*]+\*)/)) {
+    const hl = part.startsWith('*');
+    const clean = hl ? part.slice(1, -1) : part;
+    for (const w of clean.split(' ')) {
+      if (!w) continue;
+      if (/^[.,!?;:]+$/.test(w) && words.length > 0) {
+        words[words.length - 1].text += w;
+      } else {
+        words.push({text: w, hl});
+      }
+    }
+  }
+  return words;
+};
+
+const KaraokeText: React.FC<{text: string; progress: number}> = ({text, progress}) => {
+  const words = parseWords(text);
+  const spoken = progress * words.length;
+  return (
+    <>
+      {words.map((w, i) => {
+        const wordP = Math.min(1, Math.max(0, spoken - i));
+        const off = 'rgba(34,30,25,0.22)';
+        const on = w.hl ? colors.accent : '#221e19';
+        return (
+          <React.Fragment key={i}>
+            <span style={{color: wordP > 0.5 ? on : off}}>{w.text}</span>
+            {i < words.length - 1 ? ' ' : null}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+};
 
 const Subtitles: React.FC<{chunks: string[]; voSeconds: number}> = ({chunks, voSeconds}) => {
   const frame = useCurrentFrame();
@@ -338,7 +361,13 @@ const Subtitles: React.FC<{chunks: string[]; voSeconds: number}> = ({chunks, voS
           transform: `scale(${interpolate(pop, [0, 1], [0.92, 1])})`,
         }}
       >
-        <HighlightedText text={active.text} />
+        <KaraokeText
+          text={active.text}
+          progress={interpolate(frame, [active.from, active.to], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          })}
+        />
       </div>
     </div>
   );

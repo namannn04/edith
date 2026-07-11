@@ -637,7 +637,7 @@ export const NotchHeroScene: React.FC = () => {
 
   return (
     <Background>
-      <MacScreen originY="42%">
+      <MacScreen scale={1.5} originY="10%">
         {frame >= HOVER_AT && frame < OPEN_AT + 4 ? (
           <div
             style={{
@@ -679,7 +679,7 @@ export const NotchTabsScene: React.FC = () => {
   const tab = frame < SWITCH ? 'files' : 'clipboard';
   return (
     <Background>
-      <MacScreen scale={1.32} originY="12%">
+      <MacScreen scale={1.5} originY="8%">
         <NotchShelf
           mode="open"
           openP={1}
@@ -700,7 +700,7 @@ export const NotchAlertScene: React.FC = () => {
   const alertW = 380;
   return (
     <Background>
-      <MacScreen scale={1.32} originY="12%">
+      <MacScreen scale={1.5} originY="8%">
         <div
           style={{
             position: 'absolute',
