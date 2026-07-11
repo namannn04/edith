@@ -312,6 +312,8 @@ final class DashboardModel: ObservableObject {
 
     private var loading = false
     private var restored = false
+    private var knownSources: Set<String> = []
+    private var knownModels: Set<String> = []
 
     @Published private(set) var loaded = false
     @Published private(set) var loadAttempted = false
@@ -488,15 +490,23 @@ final class DashboardModel: ObservableObject {
         if let hm = d.string(forKey: "dashHeatMetric"), let m = DashMetric(rawValue: hm) {
             heatMetric = m
         }
+        knownSources = validSources
+        knownModels = validModels
     }
 
     private func reconcile() {
         loading = true
         defer { loading = false }
-        let validSources = selectedSources.intersection(Set(allSources.map(\.id)))
-        selectedSources = validSources.isEmpty ? Set(defaultSources) : validSources
-        let validModels = selectedModels.intersection(Set(allModels))
-        selectedModels = validModels.isEmpty ? Set(defaultModels) : validModels
+        let validSources = Set(allSources.map(\.id))
+        let keptSources =
+            selectedSources.union(validSources.subtracting(knownSources)).intersection(validSources)
+        selectedSources = keptSources.isEmpty ? Set(defaultSources) : keptSources
+        knownSources = validSources
+        let validModels = Set(allModels)
+        let keptModels =
+            selectedModels.union(validModels.subtracting(knownModels)).intersection(validModels)
+        selectedModels = keptModels.isEmpty ? Set(defaultModels) : keptModels
+        knownModels = validModels
     }
 
     private func persist() {
