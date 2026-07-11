@@ -151,7 +151,7 @@ const SCENES: Array<{
     frames: 165,
     vo: 'L01.mp3',
     voSeconds: 3.58,
-    subs: ['This is Edith. A quiet control center for your Mac.'],
+    subs: ['This is *Edith*. A quiet control center for your *Mac*.'],
     node: <ColdOpen />,
   },
   {
@@ -159,7 +159,7 @@ const SCENES: Array<{
     frames: 240,
     vo: 'L02.mp3',
     voSeconds: 4.41,
-    subs: ['It lives where your Mac already has room.', 'Hover the notch, and it opens.'],
+    subs: ['It lives where your Mac already has *room*.', '*Hover* the notch, and it opens.'],
     node: <NotchHeroScene />,
   },
   {
@@ -168,8 +168,8 @@ const SCENES: Array<{
     vo: 'L03.mp3',
     voSeconds: 5.11,
     subs: [
-      'Park files on a shelf. Reach your clipboard history.',
-      'Right from the top of your screen.',
+      'Park files on a *shelf*. Reach your clipboard *history*.',
+      'Right from the *top* of your screen.',
     ],
     node: <NotchTabsScene />,
   },
@@ -178,7 +178,7 @@ const SCENES: Array<{
     frames: 120,
     vo: 'L04.mp3',
     voSeconds: 2.37,
-    subs: ['Alerts appear where your eyes already are.'],
+    subs: ['Alerts appear where your *eyes* already are.'],
     node: <NotchAlertScene />,
   },
   {
@@ -186,7 +186,7 @@ const SCENES: Array<{
     frames: 110,
     vo: 'L05.mp3',
     voSeconds: 1.86,
-    subs: ['One window brings it all together.'],
+    subs: ['*One window* brings it all together.'],
     node: <HomeDashboardScene />,
   },
   {
@@ -194,7 +194,7 @@ const SCENES: Array<{
     frames: 180,
     vo: 'L06.mp3',
     voSeconds: 4.6,
-    subs: ['Track every AI agent you run,', 'with live rate limits and countdowns.'],
+    subs: ['Track *every AI agent* you run,', 'with *live rate limits* and countdowns.'],
     node: <AgentUsageRings />,
   },
   {
@@ -202,7 +202,7 @@ const SCENES: Array<{
     frames: 140,
     vo: 'L06b.mp3',
     voSeconds: 3.72,
-    subs: ['See exactly where every token and every dollar went.'],
+    subs: ['See exactly where every *token* and every *dollar* went.'],
     node: <UsageStats />,
   },
   {
@@ -210,7 +210,7 @@ const SCENES: Array<{
     frames: 110,
     vo: 'L06c.mp3',
     voSeconds: 2.37,
-    subs: ['And a full year of usage, at a glance.'],
+    subs: ['And a *full year* of usage, at a glance.'],
     node: <ActivityHeatmap />,
   },
   {
@@ -218,7 +218,7 @@ const SCENES: Array<{
     frames: 130,
     vo: 'L07.mp3',
     voSeconds: 3.16,
-    subs: ['Your limits stay one glance away,', 'right in the menu bar.'],
+    subs: ['Your limits stay *one glance* away,', 'right in the *menu bar*.'],
     node: <MenuBarBadgeScene />,
   },
   {
@@ -226,7 +226,7 @@ const SCENES: Array<{
     frames: 110,
     vo: 'L08.mp3',
     voSeconds: 2.23,
-    subs: ['Your local music, played beautifully.'],
+    subs: ['Your *local music*, played beautifully.'],
     node: <MusicScene />,
   },
   {
@@ -234,7 +234,7 @@ const SCENES: Array<{
     frames: 270,
     vo: 'L09.mp3',
     voSeconds: 3.34,
-    subs: ['Runaway apps. Junk. Sleep. Handled.'],
+    subs: ['Runaway apps. Junk. Sleep. *Handled*.'],
     node: <SystemScene />,
   },
   {
@@ -242,7 +242,7 @@ const SCENES: Array<{
     frames: 125,
     vo: 'L10.mp3',
     voSeconds: 3.02,
-    subs: ['Twelve extensions. Every one of them optional.'],
+    subs: ['*Twelve extensions*. Every one of them optional.'],
     node: <SettingsMontage />,
   },
   {
@@ -250,7 +250,7 @@ const SCENES: Array<{
     frames: 185,
     vo: 'L11.mp3',
     voSeconds: 5.11,
-    subs: ['And everything stays on your Mac.', 'Local first. No accounts. No subscriptions.'],
+    subs: ['And everything *stays on your Mac*.', '*Local first*. No accounts. No subscriptions.'],
     node: <TrustScene />,
   },
   {
@@ -258,20 +258,39 @@ const SCENES: Array<{
     frames: 190,
     vo: 'L12.mp3',
     voSeconds: 4.83,
-    subs: ['Edith. One app instead of five subscriptions.', 'Pay once. Own it forever.'],
+    subs: ['*Edith*. One app instead of five subscriptions.', '*Pay once*. Own it forever.'],
     node: <AnnouncementOutro />,
   },
 ];
 
+const subtitleFont =
+  '"Futura-CondensedExtraBold", "Avenir Next Condensed", "Arial Narrow", ' + fontFamily;
+
+const plain = (text: string) => text.replace(/\*/g, '');
+
+const HighlightedText: React.FC<{text: string}> = ({text}) => (
+  <>
+    {text.split(/(\*[^*]+\*)/).map((part, i) =>
+      part.startsWith('*') ? (
+        <span key={i} style={{color: colors.accent}}>
+          {part.slice(1, -1)}
+        </span>
+      ) : (
+        <React.Fragment key={i}>{part}</React.Fragment>
+      ),
+    )}
+  </>
+);
+
 const Subtitles: React.FC<{chunks: string[]; voSeconds: number}> = ({chunks, voSeconds}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const totalWords = chunks.reduce((a, c) => a + c.split(' ').length, 0);
+  const totalWords = chunks.reduce((a, c) => a + plain(c).split(' ').length, 0);
   const voFrames = voSeconds * fps;
   let cursor = 0;
   let active: {text: string; from: number; to: number} | null = null;
   for (const chunk of chunks) {
-    const share = chunk.split(' ').length / totalWords;
+    const share = plain(chunk).split(' ').length / totalWords;
     const from = cursor;
     const to = cursor + share * voFrames;
     if (frame >= from && frame < to + 8) {
@@ -281,9 +300,10 @@ const Subtitles: React.FC<{chunks: string[]; voSeconds: number}> = ({chunks, voS
     cursor = to;
   }
   if (!active) return null;
+  const pop = springIn(frame, fps, active.from);
   const opacity = interpolate(
     frame,
-    [active.from, active.from + 5, active.to + 3, active.to + 8],
+    [active.from, active.from + 4, active.to + 4, active.to + 8],
     [0, 1, 1, 0],
     {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
   );
@@ -291,7 +311,7 @@ const Subtitles: React.FC<{chunks: string[]; voSeconds: number}> = ({chunks, voS
     <div
       style={{
         position: 'absolute',
-        bottom: 46,
+        bottom: 44,
         left: 0,
         right: 0,
         display: 'flex',
@@ -302,19 +322,23 @@ const Subtitles: React.FC<{chunks: string[]; voSeconds: number}> = ({chunks, voS
     >
       <div
         style={{
-          maxWidth: 1400,
-          background: 'rgba(12,10,8,0.78)',
-          borderRadius: 12,
-          padding: '12px 26px',
-          fontFamily,
-          fontSize: 32,
-          fontWeight: 500,
-          color: '#f5f2ec',
+          maxWidth: 1500,
+          background: '#faf8f4',
+          borderRadius: 16,
+          padding: '10px 30px 12px',
+          fontFamily: subtitleFont,
+          fontSize: 44,
+          fontWeight: 900,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+          color: '#221e19',
           textAlign: 'center',
-          lineHeight: 1.35,
+          lineHeight: 1.2,
+          boxShadow: '0 14px 40px rgba(0,0,0,0.45)',
+          transform: `scale(${interpolate(pop, [0, 1], [0.92, 1])})`,
         }}
       >
-        {active.text}
+        <HighlightedText text={active.text} />
       </div>
     </div>
   );
