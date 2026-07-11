@@ -109,60 +109,79 @@ enum DashLimits {
     }
 }
 
-struct SessionDialsView: View {
+struct RateLimitsDialsView: View {
     let dark: Bool
     @AppStorage("warnPercent") private var warn = 60
     @AppStorage("critPercent") private var crit = 85
     @State private var point: DashLimitPoint?
 
     var body: some View {
-        HStack(spacing: 18) {
-            dial("SESSION", pct: point?.s, reset: point?.sr)
-            dial("WEEK", pct: point?.w, reset: point?.wr)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Rate limits").font(DashSkin.serif(18)).foregroundStyle(DashSkin.ink(dark))
+                Spacer()
+                Text("session · weekly").font(.system(size: 11.5))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                LimitsRefreshButton(dark: dark) { point = DashLimits.loadLatest() }
+            }
+            HStack(spacing: 24) {
+                dial("SESSION (5H)", pct: point?.s, reset: point?.sr)
+                dial("WEEKLY", pct: point?.w, reset: point?.wr)
+            }
+            .frame(maxWidth: .infinity)
+            if let point {
+                Text("As of \(point.t.formatted(.dateTime.hour().minute()))")
+                    .font(DashSkin.mono(10)).foregroundStyle(DashSkin.inkFaint(dark))
+            }
         }
+        .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16).strokeBorder(DashSkin.line(dark), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(dark ? 0.32 : 0.05), radius: 12, y: 8)
         .task { point = DashLimits.loadLatest() }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(for: IPC.Name.limitsUpdated)
+        ) { _ in
+            point = DashLimits.loadLatest()
+        }
     }
 
     private func dial(_ label: String, pct: Double?, reset: Date?) -> some View {
         let p = pct ?? 0
-        return VStack(spacing: 6) {
+        return VStack(spacing: 8) {
             ZStack {
-                Circle().stroke(DashSkin.line(dark), lineWidth: 6)
+                Circle().stroke(DashSkin.line(dark), lineWidth: 8)
                 Circle()
                     .trim(from: 0, to: min(p / 100, 1))
-                    .stroke(color(for: p), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .stroke(color(for: p), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.easeOut(duration: 0.5), value: p)
                 Text(pct != nil ? "\(Int(p))%" : "-")
-                    .font(DashSkin.serif(18)).foregroundStyle(DashSkin.ink(dark))
+                    .font(DashSkin.serif(30)).foregroundStyle(DashSkin.ink(dark))
                     .monospacedDigit()
             }
-            .frame(width: 66, height: 66)
-            Text(label).font(DashSkin.mono(9)).tracking(1.2)
+            .frame(width: 104, height: 104)
+            Text(label).font(DashSkin.mono(9)).tracking(1.4)
                 .foregroundStyle(DashSkin.inkFaint(dark))
-            if let reset, reset > Date() {
-                TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                    Text(countdown(from: ctx.date, to: reset))
-                        .font(DashSkin.mono(9)).foregroundStyle(DashSkin.inkSoft(dark)).lineLimit(1)
-                }
-            } else {
-                Text(" ").font(DashSkin.mono(9))
-            }
+            Text(resetText(reset)).font(.system(size: 11))
+                .foregroundStyle(DashSkin.inkSoft(dark)).lineLimit(1)
         }
+    }
+
+    private func resetText(_ d: Date?) -> String {
+        guard let d else { return " " }
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .full
+        return "Resets " + f.localizedString(for: d, relativeTo: Date())
     }
 
     private func color(for percent: Double) -> Color {
         if percent >= Double(crit) { return .red }
         if percent >= Double(warn) { return .orange }
         return DashSkin.accent(dark)
-    }
-
-    private func countdown(from now: Date, to reset: Date) -> String {
-        let s = max(0, Int(reset.timeIntervalSince(now)))
-        let d = s / 86400, h = (s % 86400) / 3600, m = (s % 3600) / 60, sec = s % 60
-        if d > 0 { return String(format: "%dd %d:%02d", d, h, m) }
-        if h > 0 { return String(format: "%d:%02d:%02d", h, m, sec) }
-        return String(format: "%d:%02d", m, sec)
     }
 }
 

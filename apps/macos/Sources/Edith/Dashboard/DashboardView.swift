@@ -37,19 +37,7 @@ struct DashboardView: View {
                         if model.loaded {
                             kpiGrid.padding(.horizontal, compact ? 18 : 24)
                             LazyVStack(spacing: 16) {
-                                SkinCard(title: "Activity", dark: dark) {
-                                    HStack(alignment: .center, spacing: 20) {
-                                        ActivityHeatmap(
-                                            days: model.calendarDays,
-                                            cuts: model.chartData.heatCuts,
-                                            model: model, dark: dark, blur: blurMoney
-                                        )
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        if !compact {
-                                            SessionDialsView(dark: dark)
-                                        }
-                                    }
-                                }
+                                activityRow(compact: compact)
                                 LimitsCardView(theme: acc, dark: dark)
                                 BudgetCardView(theme: acc, dark: dark)
                                 charts
@@ -208,6 +196,28 @@ struct DashboardView: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 14))
                 .shadow(color: .black.opacity(dark ? 0.3 : 0.05), radius: 8, y: 4)
+            }
+        }
+    }
+
+    @ViewBuilder private func activityRow(compact: Bool) -> some View {
+        let activity = SkinCard(title: "Activity", dark: dark) {
+            ActivityHeatmap(
+                days: model.calendarDays, cuts: model.chartData.heatCuts,
+                model: model, dark: dark, blur: blurMoney
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        let limits = RateLimitsDialsView(dark: dark)
+        if compact {
+            VStack(spacing: 16) {
+                activity
+                limits
+            }
+        } else {
+            HStack(alignment: .top, spacing: 16) {
+                activity
+                limits.frame(width: 340)
             }
         }
     }

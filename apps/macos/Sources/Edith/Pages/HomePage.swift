@@ -623,13 +623,14 @@ private struct MeetingsCard: View {
             Text(timeLabel(event))
                 .font(DashSkin.mono(11))
                 .foregroundStyle(DashSkin.inkSoft(dark))
-                .frame(width: 96, alignment: .leading)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Text(event.title ?? "Untitled")
                 .font(.system(size: 12.5))
                 .lineLimit(1)
                 .foregroundStyle(DashSkin.ink(dark))
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .presenterBlur(blurCalendar)
-            Spacer(minLength: 6)
             if let url = MeetingLink.url(for: event) {
                 Button {
                     NSWorkspace.shared.open(url)
