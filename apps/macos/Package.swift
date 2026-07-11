@@ -16,13 +16,13 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
-            name: "EdithMenuBar",
+            name: "EdithHelper",
             dependencies: ["EdithKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "EdithTests",
-            dependencies: ["Edith", "EdithKit", "EdithMenuBar"],
+            dependencies: ["Edith", "EdithKit", "EdithHelper"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

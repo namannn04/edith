@@ -3,7 +3,7 @@ import EdithKit
 import SwiftUI
 import Testing
 @testable import Edith
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @MainActor
 private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 700) -> Bool {

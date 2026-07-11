@@ -1,7 +1,7 @@
 import EdithKit
 import Foundation
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite(.serialized) struct ClipboardPanelHeightTests {
     private func entry(ext: String) -> ClipboardEntry {

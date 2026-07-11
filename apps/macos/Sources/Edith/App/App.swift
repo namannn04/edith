@@ -71,7 +71,7 @@ private func launchHelperIfNeeded() {
         try? service.register()
     }
     let helperURL = Bundle.main.bundleURL
-        .appendingPathComponent("Contents/Library/LoginItems/EdithMenuBar.app")
+        .appendingPathComponent("Contents/Library/LoginItems/EdithHelper.app")
     if let running = NSRunningApplication.runningApplications(
         withBundleIdentifier: helperBundleIdentifier
     ).first {
@@ -87,7 +87,7 @@ private func launchHelperIfNeeded() {
 }
 
 private func helperInstalledDate(_ helperURL: URL) -> Date? {
-    let exec = helperURL.appendingPathComponent("Contents/MacOS/EdithMenuBar")
+    let exec = helperURL.appendingPathComponent("Contents/MacOS/EdithHelper")
     return (try? FileManager.default.attributesOfItem(atPath: exec.path)[.modificationDate])
         as? Date
 }

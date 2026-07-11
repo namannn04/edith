@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct NotchAlertQueueTests {
     private func alert(_ id: String) -> NotchAlert {

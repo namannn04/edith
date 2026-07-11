@@ -35,7 +35,7 @@ fi
 
 # 1. quit anything running
 killall Edith 2>/dev/null || true
-pkill -x EdithMenuBar 2>/dev/null || true
+pkill -x EdithHelper 2>/dev/null || true
 pkill -f "/Applications/Edith.app" 2>/dev/null || true
 sleep 1
 

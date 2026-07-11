@@ -1,6 +1,6 @@
 import Testing
 
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct NotchAlertLogicTests {
     private func alert(_ id: String, _ priority: NotchAlertPriority) -> NotchAlert {

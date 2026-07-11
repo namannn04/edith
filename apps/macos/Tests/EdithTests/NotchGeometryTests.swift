@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite struct NotchGeometryTests {
     @Test func usesRealNotchMathWhenAreasArePresent() {

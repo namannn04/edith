@@ -1,7 +1,7 @@
 import Carbon.HIToolbox
 import EdithKit
 import Testing
-@testable import EdithMenuBar
+@testable import EdithHelper
 
 @Suite(.serialized) struct HotKeyDefaultsTests {
     private func withCleanKeys(_ prefix: String, _ body: () -> Void) {

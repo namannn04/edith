@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# build.sh - build Edith.app (+ nested EdithMenuBar.app helper) from the
+# build.sh - build Edith.app (+ nested EdithHelper.app helper) from the
 # Swift package.
 #
 #   ./build.sh                # build into dist/Edith.app and launch it
@@ -81,7 +81,7 @@ if [ ! -f Resources/AppIcon.icns ] || [ "$ARTWORK" -nt Resources/AppIcon.icns ];
 fi
 
 APP="dist/Edith.app"
-HELPER="$APP/Contents/Library/LoginItems/EdithMenuBar.app"
+HELPER="$APP/Contents/Library/LoginItems/EdithHelper.app"
 rm -rf dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Edith "$APP/Contents/MacOS/"
@@ -89,7 +89,7 @@ cp Resources/Info.plist "$APP/Contents/"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
 mkdir -p "$HELPER/Contents/MacOS" "$HELPER/Contents/Resources"
-cp .build/release/EdithMenuBar "$HELPER/Contents/MacOS/"
+cp .build/release/EdithHelper "$HELPER/Contents/MacOS/"
 cp Resources/HelperInfo.plist "$HELPER/Contents/Info.plist"
 cp Resources/AppIcon.icns "$HELPER/Contents/Resources/"
 cp Resources/refresh-usage "$HELPER/Contents/Resources/"
