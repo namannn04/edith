@@ -34,6 +34,7 @@ struct ProjectDrilldownView: View {
     @ObservedObject var model: DashboardModel
     let dark: Bool
     var blur = false
+    var blurTokens = false
 
     private static let chatsPerGroup = 20
     private static let rowHeight: CGFloat = 27
@@ -52,6 +53,7 @@ struct ProjectDrilldownView: View {
                             ForEach(flatRows, id: \.node.id) { row in
                                 ProjectRow(
                                     node: row.node, depth: row.depth, dark: dark, blur: blur,
+                                    blurTokens: blurTokens,
                                     expanded: model.projExpanded.contains(row.node.id),
                                     onToggle: { toggleExpand(row.node.id) },
                                     onCopy: copyToPasteboard)
@@ -205,6 +207,7 @@ private struct ProjectRow: View {
     let depth: Int
     let dark: Bool
     let blur: Bool
+    let blurTokens: Bool
     let expanded: Bool
     let onToggle: () -> Void
     let onCopy: (String) -> Void
@@ -225,8 +228,8 @@ private struct ProjectRow: View {
     @ViewBuilder private var content: some View {
         let row = HStack(spacing: 0) {
             nameColumn
-            num(DashFmt.tokensFull(node.tokens), width: ProjColumns.tokens)
-            num(DashFmt.usdLong(node.cost), width: ProjColumns.cost, blurred: true)
+            num(DashFmt.tokensFull(node.tokens), width: ProjColumns.tokens, blurWhen: blurTokens)
+            num(DashFmt.usdLong(node.cost), width: ProjColumns.cost, blurWhen: blur)
             num(DashFmt.pct(node.share), width: ProjColumns.share)
             num("\(node.days)", width: ProjColumns.days)
             num(DashFmt.duration(node.dur), width: ProjColumns.dur)
@@ -282,13 +285,13 @@ private struct ProjectRow: View {
         }
     }
 
-    private func num(_ text: String, width: CGFloat, blurred: Bool = false) -> some View {
+    private func num(_ text: String, width: CGFloat, blurWhen: Bool = false) -> some View {
         Text(text)
             .font(DashSkin.mono(11))
             .lineLimit(1)
             .foregroundStyle(tint)
             .frame(width: width, alignment: .leading)
-            .presenterBlur(blurred && blur)
+            .presenterBlur(blurWhen)
     }
 
     private var tint: Color {

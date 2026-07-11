@@ -9,6 +9,8 @@ struct DashboardView: View {
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
         true
+    @AppStorage("presenterBlurUsage", store: SharedDefaults.store) private var presenterBlurUsage =
+        false
     @Environment(\.colorScheme) private var scheme
     @State private var showLog = false
     @State private var customFrom = Date()
@@ -19,6 +21,7 @@ struct DashboardView: View {
     private var acc: Color { DashSkin.accent(dark) }
     private var gold: Color { DashSkin.gold }
     private var blurMoney: Bool { presenterState.active && presenterBlurMoney }
+    private var blurUsage: Bool { presenterState.active && presenterBlurUsage }
 
     var body: some View {
         GeometryReader { geo in
@@ -110,7 +113,7 @@ struct DashboardView: View {
             WrapHStack(spacing: 6, lineSpacing: 2) {
                 ForEach(metaSegments) { seg in
                     Text(seg.text)
-                        .presenterBlur(seg.sensitive && blurMoney)
+                        .presenterBlur((seg.sensitive && blurMoney) || (seg.usage && blurUsage))
                 }
             }
             .font(.system(size: 12.5)).foregroundStyle(DashSkin.inkSoft(dark))
@@ -149,22 +152,24 @@ struct DashboardView: View {
         let id: Int
         let text: String
         let sensitive: Bool
+        var usage = false
     }
 
     private var metaSegments: [MetaSegment] {
         guard model.loaded else { return [MetaSegment(id: 0, text: "Loading…", sensitive: false)] }
         let m = model.meta
-        let parts: [(String, Bool)] = [
-            ("Updated \(m.updated)", false),
-            (m.totalCost, true),
-            ("\(m.activeDays) active days", false),
-            ("\(m.totalTokens) tokens", false),
-            ("\(m.modelCount) models", false),
-            (m.sourceLabels, false),
+        let parts: [(String, Bool, Bool)] = [
+            ("Updated \(m.updated)", false, false),
+            (m.totalCost, true, false),
+            ("\(m.activeDays) active days", false, false),
+            ("\(m.totalTokens) tokens", false, true),
+            ("\(m.modelCount) models", false, false),
+            (m.sourceLabels, false, false),
         ]
         return parts.enumerated().map { index, part in
             MetaSegment(
-                id: index, text: index == 0 ? part.0 : "·  \(part.0)", sensitive: part.1)
+                id: index, text: index == 0 ? part.0 : "·  \(part.0)", sensitive: part.1,
+                usage: part.2)
         }
     }
 
@@ -180,10 +185,12 @@ struct DashboardView: View {
                         Text(kpi.value)
                             .font(DashSkin.serif(26))
                             .foregroundStyle(DashSkin.ink(dark))
-                            .presenterBlur(kpi.sensitiveValue && blurMoney)
+                            .presenterBlur(
+                                (kpi.sensitiveValue && blurMoney) || (kpi.usageValue && blurUsage))
                         Text(kpi.sub)
                             .font(.system(size: 11.5)).foregroundStyle(DashSkin.inkSoft(dark))
-                            .presenterBlur(kpi.sensitiveSub && blurMoney)
+                            .presenterBlur(
+                                (kpi.sensitiveSub && blurMoney) || (kpi.usageSub && blurUsage))
                     }
                     .padding(14)
                     Spacer(minLength: 0)
@@ -204,7 +211,7 @@ struct DashboardView: View {
         let activity = SkinCard(title: "Activity", dark: dark) {
             ActivityHeatmap(
                 days: model.calendarDays, cuts: model.chartData.heatCuts,
-                model: model, dark: dark, blur: blurMoney
+                model: model, dark: dark, blur: blurMoney, blurTokens: blurUsage
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -216,9 +223,10 @@ struct DashboardView: View {
             }
         } else {
             HStack(alignment: .top, spacing: 16) {
-                activity
-                limits.frame(width: 340)
+                activity.frame(maxHeight: .infinity)
+                limits.frame(width: 340, alignment: .top).frame(maxHeight: .infinity)
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -396,23 +404,26 @@ struct DashboardView: View {
         SkinCard(title: "Daily usage", dark: dark) {
             ComboChart(
                 points: model.chartData.daily, barColor: acc, lineColor: gold, dark: dark,
-                scroll: true, blur: blurMoney)
+                scroll: true, blur: blurMoney, blurTokens: blurUsage)
         }
         SkinCard(title: "Token mix by day", dark: dark) {
             StackedChart(
                 bars: model.chartData.tokenMix, costLine: model.chartData.daily,
-                domain: tokenMixDomain, range: tokenMixRange, dark: dark, blur: blurMoney)
+                domain: tokenMixDomain, range: tokenMixRange, dark: dark, blur: blurMoney,
+                blurTokens: blurUsage)
         }
         SkinCard(title: "Model usage over time", dark: dark) {
             StackedChart(
                 bars: model.chartData.modelTime, costLine: model.chartData.daily,
-                domain: modelDomain, range: modelRange, dark: dark, blur: blurMoney)
+                domain: modelDomain, range: modelRange, dark: dark, blur: blurMoney,
+                blurTokens: blurUsage)
         }
         if model.allSources.count > 1 {
             SkinCard(title: "Usage by source over time", dark: dark) {
                 StackedChart(
                     bars: model.chartData.source, costLine: model.chartData.daily,
-                    domain: sourceDomain, range: sourceRange, dark: dark, blur: blurMoney)
+                    domain: sourceDomain, range: sourceRange, dark: dark, blur: blurMoney,
+                    blurTokens: blurUsage)
             }
         }
         ViewThatFits(in: .horizontal) {
@@ -430,15 +441,16 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ComboChart(
                         points: model.chartData.project, barColor: acc, lineColor: gold,
-                        dark: dark, height: 280, blur: blurMoney)
-                    ProjectDrilldownView(model: model, dark: dark, blur: blurMoney)
+                        dark: dark, height: 280, blur: blurMoney, blurTokens: blurUsage)
+                    ProjectDrilldownView(
+                        model: model, dark: dark, blur: blurMoney, blurTokens: blurUsage)
                 }
             }
         }
         SkinCard(title: "Hourly - all time", dark: dark) {
             ComboChart(
                 points: model.chartData.hourly, barColor: acc, lineColor: gold, dark: dark,
-                height: 200, blur: blurMoney)
+                height: 200, blur: blurMoney, blurTokens: blurUsage)
         }
         SkinCard(title: "Models", dark: dark) { modelsTable }
     }
@@ -447,13 +459,13 @@ struct DashboardView: View {
         SkinCard(title: "By day of week", dark: dark) {
             ComboChart(
                 points: model.chartData.dow, barColor: acc, lineColor: gold, dark: dark,
-                height: 200, blur: blurMoney)
+                height: 200, blur: blurMoney, blurTokens: blurUsage)
         }
     }
 
     private var shareByModelCard: some View {
         SkinCard(title: "Share by model", dark: dark) {
-            DonutChart(slices: donutSlices)
+            DonutChart(slices: donutSlices, blurTokens: blurUsage)
         }
     }
 
@@ -483,7 +495,7 @@ struct DashboardView: View {
                     ).foregroundStyle(DashSkin.inkSoft(dark))
                     Text(DashFmt.tokens(m.tokens)).font(DashSkin.mono(11)).frame(
                         width: 70, alignment: .trailing
-                    )
+                    ).presenterBlur(blurUsage)
                     Text("\(m.days)").font(DashSkin.mono(11)).frame(width: 44, alignment: .trailing)
                         .foregroundStyle(DashSkin.inkSoft(dark))
                 }
@@ -545,6 +557,7 @@ struct ActivityHeatmap: View {
     let model: DashboardModel
     let dark: Bool
     var blur = false
+    var blurTokens = false
     @State private var hoveredDay: String?
 
     var body: some View {
@@ -598,7 +611,7 @@ struct ActivityHeatmap: View {
                                         if let detail = model.heatDetail[day.id] {
                                             HeatCard(
                                                 detail: detail, model: model, dark: dark,
-                                                blur: blur)
+                                                blur: blur, blurTokens: blurTokens)
                                         }
                                     }
                             }

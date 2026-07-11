@@ -245,6 +245,8 @@ struct KPI: Identifiable {
     var hot = false
     var sensitiveValue = false
     var sensitiveSub = false
+    var usageValue = false
+    var usageSub = false
 }
 
 struct NamedValue: Identifiable {
@@ -1027,17 +1029,18 @@ final class DashboardModel: ObservableObject {
             KPI(
                 label: "Total tokens", value: DashFmt.tokens(totalTokens),
                 sub: "\(DashFmt.usd(totalCost)) · \(active.count) active days", hot: true,
-                sensitiveSub: true),
+                sensitiveSub: true, usageValue: true),
             KPI(
                 label: "Total cost", value: DashFmt.usd(totalCost),
-                sub: "\(DashFmt.tokensFull(totalTokens)) tokens", sensitiveValue: true),
+                sub: "\(DashFmt.tokensFull(totalTokens)) tokens", sensitiveValue: true,
+                usageSub: true),
         ]
         if let busiest {
             out.append(
                 KPI(
                     label: "Busiest day", value: busiest.label,
                     sub: "\(DashFmt.tokens(busiest.tokens)) · \(DashFmt.usd(busiest.cost))",
-                    sensitiveSub: true))
+                    sensitiveSub: true, usageSub: true))
         }
         if !active.isEmpty {
             out.append(
@@ -1045,12 +1048,12 @@ final class DashboardModel: ObservableObject {
                     label: "Daily average",
                     value: DashFmt.tokens(totalTokens / Double(active.count)),
                     sub: "\(DashFmt.usd(totalCost / Double(active.count))) / active day",
-                    sensitiveSub: true))
+                    sensitiveSub: true, usageValue: true))
         }
         out.append(
             KPI(
                 label: "Cache hit rate", value: DashFmt.pct(cacheRate),
-                sub: "\(DashFmt.tokens(cacheRead)) cached reads"))
+                sub: "\(DashFmt.tokens(cacheRead)) cached reads", usageSub: true))
         if let top {
             out.append(
                 KPI(

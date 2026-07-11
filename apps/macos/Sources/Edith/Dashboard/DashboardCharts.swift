@@ -23,6 +23,7 @@ struct ComboChart: View {
     var scroll = false
     var height: CGFloat = 200
     var blur = false
+    var blurTokens = false
     @State private var selected: String?
 
     private var selectedPoint: ComboPoint? {
@@ -59,7 +60,9 @@ struct ComboChart: View {
                         position: .top, alignment: .center, spacing: 6,
                         overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
                     ) {
-                        PointTooltip(label: p.label, tokens: p.tokens, cost: p.cost, blur: blur)
+                        PointTooltip(
+                            label: p.label, tokens: p.tokens, cost: p.cost, blur: blur,
+                            blurTokens: blurTokens)
                     }
             }
         }
@@ -70,7 +73,7 @@ struct ComboChart: View {
                     if let d = value.as(Double.self) {
                         Text(DashFmt.tokens(d)).font(.system(size: 9)).foregroundStyle(
                             DashSkin.inkSoft(dark)
-                        )
+                        ).presenterBlur(blurTokens)
                     }
                 }
             }
@@ -109,10 +112,12 @@ struct PointTooltip: View {
     let tokens: Double
     let cost: Double
     var blur = false
+    var blurTokens = false
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label).font(.system(size: 9)).foregroundStyle(.secondary)
             Text(DashFmt.tokens(tokens)).font(.system(size: 11, weight: .semibold))
+                .presenterBlur(blurTokens)
             Text(DashFmt.usdFull(cost)).font(.system(size: 10)).foregroundStyle(.secondary)
                 .presenterBlur(blur)
         }
@@ -149,6 +154,7 @@ struct StackedChart: View {
     var scroll = true
     var height: CGFloat = 200
     var blur = false
+    var blurTokens = false
     @State private var selected: String?
 
     private var selectedPoint: ComboPoint? {
@@ -183,7 +189,9 @@ struct StackedChart: View {
                         position: .top, alignment: .center, spacing: 6,
                         overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
                     ) {
-                        PointTooltip(label: p.label, tokens: p.tokens, cost: p.cost, blur: blur)
+                        PointTooltip(
+                            label: p.label, tokens: p.tokens, cost: p.cost, blur: blur,
+                            blurTokens: blurTokens)
                     }
             }
         }
@@ -196,7 +204,7 @@ struct StackedChart: View {
                     if let d = value.as(Double.self) {
                         Text(DashFmt.tokens(d)).font(.system(size: 9)).foregroundStyle(
                             DashSkin.inkSoft(dark)
-                        )
+                        ).presenterBlur(blurTokens)
                     }
                 }
             }
@@ -240,6 +248,7 @@ func donutSlice(at value: Double, in slices: [DonutSlice]) -> DonutSlice? {
 struct DonutChart: View {
     let slices: [DonutSlice]
     var height: CGFloat = 220
+    var blurTokens = false
     @State private var angle: Double?
 
     private var selected: DonutSlice? {
@@ -271,10 +280,12 @@ struct DonutChart: View {
                         .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                         .lineLimit(1)
                     Text(DashFmt.tokens(s.value)).font(.system(size: 13, weight: .semibold))
+                        .presenterBlur(blurTokens)
                     Text(DashFmt.pct(s.value / total)).font(.system(size: 9))
                         .foregroundStyle(.tertiary)
                 } else {
                     Text(DashFmt.tokens(total)).font(.system(size: 13, weight: .semibold))
+                        .presenterBlur(blurTokens)
                     Text("tokens").font(.system(size: 8)).foregroundStyle(.tertiary)
                 }
             }
@@ -290,6 +301,7 @@ struct HeatCard: View {
     let model: DashboardModel
     let dark: Bool
     var blur = false
+    var blurTokens = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -298,6 +310,7 @@ struct HeatCard: View {
             HStack(spacing: 5) {
                 Text("\(DashFmt.tokens(detail.tokens)) tokens")
                     .font(.system(size: 15, weight: .semibold))
+                    .presenterBlur(blurTokens)
                 Text("· \(DashFmt.usdFull(detail.cost))")
                     .font(.system(size: 15, weight: .semibold))
                     .presenterBlur(blur)
@@ -344,6 +357,7 @@ struct HeatCard: View {
             Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
             Spacer()
             Text(DashFmt.tokens(value)).font(.system(size: 10)).monospacedDigit()
+                .presenterBlur(blurTokens)
         }
     }
 
@@ -353,7 +367,7 @@ struct HeatCard: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.system(size: 8, weight: .semibold)).tracking(0.8)
                 .foregroundStyle(.tertiary)
-            FlowTags(items: items, color: color)
+            FlowTags(items: items, color: color, blurTokens: blurTokens)
         }
     }
 
@@ -366,6 +380,7 @@ struct HeatCard: View {
                     Text(p.name).font(.system(size: 10)).lineLimit(1)
                     Spacer()
                     Text(DashFmt.tokens(p.value)).font(.system(size: 9)).foregroundStyle(.secondary)
+                        .presenterBlur(blurTokens)
                 }
             }
             if detail.projects.count > 4 {
@@ -379,6 +394,7 @@ struct HeatCard: View {
 struct FlowTags: View {
     let items: [NamedValue]
     let color: (String) -> Color
+    var blurTokens = false
 
     var body: some View {
         WrapHStack(spacing: 4, lineSpacing: 4) {
@@ -387,6 +403,7 @@ struct FlowTags: View {
                     Circle().fill(color(item.id)).frame(width: 6, height: 6)
                     Text("\(item.name) \(DashFmt.tokens(item.value))")
                         .font(.system(size: 9))
+                        .presenterBlur(blurTokens)
                 }
                 .padding(.horizontal, 5).padding(.vertical, 2)
                 .background(.primary.opacity(0.06), in: Capsule())

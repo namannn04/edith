@@ -26,7 +26,7 @@ struct NotchShelfContentView: View {
                 Color.black
                 layers
                     .scaleEffect(
-                        x: hoverScale.height / hoverScale.width, y: 1, anchor: .top)
+                        x: 1 / hoverScale.width, y: 1 / hoverScale.height, anchor: .center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .mask {

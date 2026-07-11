@@ -8,12 +8,15 @@ struct UsageView: View {
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
         true
+    @AppStorage("presenterBlurUsage", store: SharedDefaults.store) private var presenterBlurUsage =
+        false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("warnPercent", store: SharedDefaults.store) private var warn = 60
     @AppStorage("critPercent", store: SharedDefaults.store) private var crit = 85
 
     private var theme: Color { themeColor(themeName) }
     private var blurMoney: Bool { presenterState.active && presenterBlurMoney }
+    private var blurUsage: Bool { presenterState.active && presenterBlurUsage }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -294,6 +297,7 @@ struct UsageView: View {
                             Spacer()
                             Text(stat.tokens.compactTokens)
                                 .monospacedDigit()
+                                .presenterBlur(blurUsage)
                             Text(String(format: "$%.2f", stat.cost))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
