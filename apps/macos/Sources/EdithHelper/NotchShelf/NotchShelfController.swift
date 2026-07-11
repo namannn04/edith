@@ -356,16 +356,30 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private func syncFrames() {
         for screen in NSScreen.screens {
             guard let id = screen.displayID, let panel = panels[id] else { continue }
-            let interactive =
-                isExpanded || (currentAlert != nil && id == builtinDisplayID)
-            panel.ignoresMouseEvents = fullScreenDisplays.contains(id) || !interactive
             updateInteractiveShape(panel, id: id)
         }
+        refreshMouseTransparency()
     }
 
     private func updateInteractiveShape(_ panel: NSPanel, id: CGDirectDisplayID) {
         guard let catcher = panel.contentView as? ShelfDropCatcherView else { return }
         catcher.interactiveShapeSize = targetShapeSize(for: id)
+    }
+
+    private func refreshMouseTransparency() {
+        let cursor = NSEvent.mouseLocation
+        for screen in NSScreen.screens {
+            guard let id = screen.displayID, let panel = panels[id] else { continue }
+            let allowMouse: Bool
+            if isExpanded {
+                allowMouse = true
+            } else if currentAlert != nil, id == builtinDisplayID {
+                allowMouse = shapeFrame(of: panel).contains(cursor)
+            } else {
+                allowMouse = false
+            }
+            panel.ignoresMouseEvents = fullScreenDisplays.contains(id) || !allowMouse
+        }
     }
 
     private func optionSatisfied() -> Bool {
@@ -456,6 +470,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func handleMouseMoved() {
+        refreshMouseTransparency()
         guard let frames = builtinFrames() else { return }
         let point = NSEvent.mouseLocation
         if isExpanded {
