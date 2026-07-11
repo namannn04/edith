@@ -46,53 +46,51 @@ struct MenuBarPane: View {
 
             if limitsInMenuBar {
                 Section {
-                    Picker("Color", selection: $menuBarColorMode) {
-                        Text("Auto").tag("auto")
+                    Picker("Color", selection: colorModeBinding) {
                         Text("White").tag("white")
                         Text("Black").tag("black")
                         Text("Custom").tag("custom")
                     }
                     .pointerCursor()
-                    Toggle("Smart color", isOn: $smartColor)
-                        .pointerCursor()
-                    if !smartColor {
-                        HStack {
-                            Text("Thresholds")
-                            Spacer()
-                            Stepper(
-                                "Warn \(warnPercent)%", value: $warnPercent,
-                                in: 10...critPercent - 5, step: 5
-                            )
+
+                    if isCustomColor {
+                        ColorPicker(
+                            "Text (5h / 7d)", selection: hexBinding($subColorHex),
+                            supportsOpacity: false)
+                        ColorPicker(
+                            "Low risk", selection: hexBinding($lowColorHex), supportsOpacity: false)
+                        ColorPicker(
+                            "Medium risk", selection: hexBinding($midColorHex),
+                            supportsOpacity: false)
+                        ColorPicker(
+                            "High risk", selection: hexBinding($highColorHex),
+                            supportsOpacity: false)
+                        Toggle("Smart color", isOn: $smartColor)
                             .pointerCursor()
-                            Stepper(
-                                "Critical \(critPercent)%", value: $critPercent,
-                                in: warnPercent + 5...100, step: 5
-                            )
-                            .pointerCursor()
+                        if !smartColor {
+                            HStack {
+                                Text("Thresholds")
+                                Spacer()
+                                Stepper(
+                                    "Warn \(warnPercent)%", value: $warnPercent,
+                                    in: 10...critPercent - 5, step: 5
+                                )
+                                .pointerCursor()
+                                Stepper(
+                                    "Critical \(critPercent)%", value: $critPercent,
+                                    in: warnPercent + 5...100, step: 5
+                                )
+                                .pointerCursor()
+                            }
                         }
                     }
                 } header: {
                     Text("Claude usage readout")
                 } footer: {
-                    Text("Smart color tints by time-aware risk instead of the raw percentage.")
-                        .font(.caption)
-                }
-
-                Section {
-                    ColorPicker(
-                        "Text (5h / 7d)", selection: hexBinding($subColorHex),
-                        supportsOpacity: false)
-                    ColorPicker(
-                        "Low risk", selection: hexBinding($lowColorHex), supportsOpacity: false)
-                    ColorPicker(
-                        "Medium risk", selection: hexBinding($midColorHex), supportsOpacity: false)
-                    ColorPicker(
-                        "High risk", selection: hexBinding($highColorHex), supportsOpacity: false)
-                } header: {
-                    Text("Readout colors")
-                } footer: {
                     Text(
-                        "Used in Auto and Custom modes. White and Black force a single tint and ignore these."
+                        isCustomColor
+                            ? "The percentage shifts from Low to High risk as usage climbs. Smart color drives that shift by time-aware pacing instead of the raw percentage."
+                            : "White and Black force a single tint. Pick Custom to color by risk stage."
                     )
                     .font(.caption)
                 }
@@ -100,6 +98,16 @@ struct MenuBarPane: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Menu bar")
+    }
+
+    private var isCustomColor: Bool {
+        menuBarColorMode == "custom" || menuBarColorMode == "auto"
+    }
+
+    private var colorModeBinding: Binding<String> {
+        Binding(
+            get: { isCustomColor ? "custom" : menuBarColorMode },
+            set: { menuBarColorMode = $0 })
     }
 
     private func hexBinding(_ hex: Binding<String>) -> Binding<Color> {
