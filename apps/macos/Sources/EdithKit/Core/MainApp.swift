@@ -12,4 +12,9 @@ public enum MainApp {
         NSWorkspace.shared.openApplication(
             at: url, configuration: NSWorkspace.OpenConfiguration())
     }
+
+    public static func open(section: String) {
+        SharedDefaults.store.set(section, forKey: "mainWindowSection")
+        openDashboard()
+    }
 }

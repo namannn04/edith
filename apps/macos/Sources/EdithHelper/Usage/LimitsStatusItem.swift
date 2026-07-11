@@ -22,7 +22,7 @@ final class LimitsStatusItem {
     }
 
     @objc private func clicked() {
-        StatusItemMenu.handleClick(on: item) { MainApp.openDashboard() }
+        StatusItemMenu.handleClick(on: item) { MainApp.open(section: "dashboard") }
     }
 
     func update(session: LimitWindow?, week: LimitWindow?) {
