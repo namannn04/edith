@@ -14,6 +14,8 @@ import {springIn} from './animation';
 import {Background} from './components/Background';
 import {CaptionsEnabled} from './components/Caption';
 import {NotchAlertScene, NotchHeroScene, NotchTabsScene} from './announce/MacBookNotch';
+import {PileupStage, ProblemHook} from './announce/PileupStory';
+import {NativeScene} from './announce/NativeScene';
 import {HomeDashboardScene} from './scenes/HomeDashboardScene';
 import {AgentUsageRings} from './scenes/AgentUsageRings';
 import {UsageStats} from './scenes/UsageStats';
@@ -28,16 +30,26 @@ const asset = (name: string) => staticFile(`announce/${name}`);
 
 const FADE = 12;
 
-const SceneFade: React.FC<{frames: number; children: React.ReactNode}> = ({
-  frames,
-  children,
-}) => {
+const SceneFade: React.FC<{
+  frames: number;
+  fadeIn?: boolean;
+  fadeOut?: boolean;
+  children: React.ReactNode;
+}> = ({frames, fadeIn = true, fadeOut = true, children}) => {
   const frame = useCurrentFrame();
-  const opacity = interpolate(frame, [0, FADE, frames - FADE, frames], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  return <AbsoluteFill style={{opacity}}>{children}</AbsoluteFill>;
+  const inO = fadeIn
+    ? interpolate(frame, [0, FADE], [0, 1], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      })
+    : 1;
+  const outO = fadeOut
+    ? interpolate(frame, [frames - FADE, frames], [1, 0], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      })
+    : 1;
+  return <AbsoluteFill style={{opacity: Math.min(inO, outO)}}>{children}</AbsoluteFill>;
 };
 
 const ColdOpen: React.FC = () => {
@@ -131,7 +143,7 @@ const AnnouncementOutro: React.FC = () => {
             background: colors.accentSoft,
           }}
         >
-          edith.app · $50, one time
+          Early preview · releasing soon
         </div>
       </div>
     </Background>
@@ -144,121 +156,225 @@ const SCENES: Array<{
   vo?: string;
   voSeconds?: number;
   subs?: string[];
+  vo2?: string;
+  vo2At?: number;
+  vo2Seconds?: number;
+  subs2?: string[];
+  fadeIn?: boolean;
+  fadeOut?: boolean;
   node: React.ReactNode;
 }> = [
   {
-    id: 'cold',
-    frames: 165,
-    vo: 'L01.mp3',
+    id: 'hook',
+    frames: 135,
+    vo: 'A01.mp3',
+    voSeconds: 3.48,
+    subs: ["Let's talk about what it costs", 'to make your Mac feel *complete*.'],
+    node: <ProblemHook />,
+  },
+  {
+    id: 'p1',
+    frames: 145,
+    vo: 'A02.mp3',
     voSeconds: 3.58,
-    subs: ['This is *Edith*. A quiet control center for your *Mac*.'],
+    subs: ['Want *clipboard history*?', "That's a paste manager. *Six dollars* a month."],
+    fadeOut: false,
+    node: <PileupStage revealFrom={0} revealTo={1} />,
+  },
+  {
+    id: 'p2',
+    frames: 125,
+    vo: 'A03.mp3',
+    voSeconds: 3.11,
+    subs: ['*Screen dimming*, for focus?', "That's a different app. *Five* more."],
+    fadeIn: false,
+    fadeOut: false,
+    node: <PileupStage revealFrom={1} revealTo={2} />,
+  },
+  {
+    id: 'p3',
+    frames: 180,
+    vo: 'A04.mp3',
+    voSeconds: 4.92,
+    subs: [
+      'A *music player*. A *color picker*. A *volume mixer*.',
+      'Each one, another subscription.',
+    ],
+    fadeIn: false,
+    fadeOut: false,
+    node: <PileupStage revealFrom={2} revealTo={5} />,
+  },
+  {
+    id: 'p4',
+    frames: 295,
+    vo: 'A05.mp3',
+    voSeconds: 8.96,
+    subs: [
+      'And tracking your *AI usage*?',
+      'A *rate-limit tracker*. A menu-bar *readout*.',
+      'An *alerts service*. And an analytics *dashboard*.',
+    ],
+    fadeIn: false,
+    fadeOut: false,
+    node: <PileupStage revealFrom={5} revealTo={9} />,
+  },
+  {
+    id: 'p5',
+    frames: 160,
+    vo: 'A06.mp3',
+    voSeconds: 4.23,
+    subs: ['Add a *heatmap*. A *mic muter*. A *disk cleaner*.', 'It never ends.'],
+    fadeIn: false,
+    fadeOut: false,
+    node: <PileupStage revealFrom={9} revealTo={12} />,
+  },
+  {
+    id: 'p6',
+    frames: 160,
+    vo: 'A07.mp3',
+    voSeconds: 2.88,
+    subs: ['*Twelve* subscriptions. *Seventy dollars* a month.', '*Forever*.'],
+    fadeIn: false,
+    fadeOut: false,
+    node: <PileupStage revealFrom={12} revealTo={12} showTotal collapse />,
+  },
+  {
+    id: 'turn',
+    frames: 125,
+    vo: 'A08.mp3',
+    voSeconds: 2.51,
+    subs: ['Or, you install *one app*.', 'This is *Edith*.'],
     node: <ColdOpen />,
   },
   {
     id: 'notchHero',
     frames: 240,
-    vo: 'L02.mp3',
-    voSeconds: 4.41,
-    subs: ['It lives where your Mac already has *room*.', '*Hover* the notch, and it opens.'],
+    vo: 'A09.mp3',
+    voSeconds: 4.37,
+    subs: ['Edith lives in the *notch*. Space your Mac already has.', '*Hover*, and it opens.'],
     node: <NotchHeroScene />,
   },
   {
     id: 'notchTabs',
     frames: 200,
-    vo: 'L03.mp3',
-    voSeconds: 5.11,
+    vo: 'A10.mp3',
+    voSeconds: 3.99,
     subs: [
-      'Park files on a *shelf*. Reach your clipboard *history*.',
-      'Right from the *top* of your screen.',
+      'That *paste manager*? Built in.',
+      'With a *file shelf*, right at the top of your screen.',
     ],
     node: <NotchTabsScene />,
   },
   {
     id: 'alert',
     frames: 120,
-    vo: 'L04.mp3',
-    voSeconds: 2.37,
-    subs: ['Alerts appear where your *eyes* already are.'],
+    vo: 'A11.mp3',
+    voSeconds: 2.41,
+    subs: ['Your *alerts* appear where your *eyes* already are.'],
     node: <NotchAlertScene />,
   },
   {
     id: 'home',
     frames: 110,
-    vo: 'L05.mp3',
-    voSeconds: 1.86,
-    subs: ['*One window* brings it all together.'],
+    vo: 'A12.mp3',
+    voSeconds: 2.23,
+    subs: ['And *one window* brings everything together.'],
     node: <HomeDashboardScene />,
   },
   {
     id: 'rings',
-    frames: 180,
-    vo: 'L06.mp3',
-    voSeconds: 4.6,
-    subs: ['Track *every AI agent* you run,', 'with *live rate limits* and countdowns.'],
+    frames: 210,
+    vo: 'A13.mp3',
+    voSeconds: 5.99,
+    subs: [
+      'The *rate-limit tracker*? Replaced.',
+      'Every *AI agent* you run, with *live limits* and countdowns.',
+    ],
     node: <AgentUsageRings />,
   },
   {
     id: 'stats',
-    frames: 140,
-    vo: 'L06b.mp3',
-    voSeconds: 3.72,
-    subs: ['See exactly where every *token* and every *dollar* went.'],
+    frames: 150,
+    vo: 'A14.mp3',
+    voSeconds: 3.81,
+    subs: ['The *dashboard*? Included.', 'Every *token*, and every *dollar*, accounted for.'],
     node: <UsageStats />,
   },
   {
     id: 'heatmap',
-    frames: 110,
-    vo: 'L06c.mp3',
-    voSeconds: 2.37,
-    subs: ['And a *full year* of usage, at a glance.'],
+    frames: 125,
+    vo: 'A15.mp3',
+    voSeconds: 3.16,
+    subs: ['The *heatmap* too. A *full year* of usage, at a glance.'],
     node: <ActivityHeatmap />,
   },
   {
     id: 'menubar',
-    frames: 130,
-    vo: 'L07.mp3',
-    voSeconds: 3.16,
-    subs: ['Your limits stay *one glance* away,', 'right in the *menu bar*.'],
+    frames: 120,
+    vo: 'A16.mp3',
+    voSeconds: 2.79,
+    subs: ['The *menu-bar readout*? Right here. *One glance* away.'],
     node: <MenuBarBadgeScene />,
   },
   {
     id: 'music',
     frames: 110,
-    vo: 'L08.mp3',
-    voSeconds: 2.23,
-    subs: ['Your *local music*, played beautifully.'],
+    vo: 'A17.mp3',
+    voSeconds: 1.44,
+    subs: ['The *music player*? Covered.'],
     node: <MusicScene />,
   },
   {
     id: 'system',
-    frames: 270,
-    vo: 'L09.mp3',
-    voSeconds: 3.34,
-    subs: ['Runaway apps. Junk. Sleep. *Handled*.'],
+    frames: 285,
+    vo: 'A18.mp3',
+    voSeconds: 3.62,
+    subs: ['The *focus dimmer*, the *sleep blocker*, the *disk cleaner*.', '*Handled*.'],
+    vo2: 'A18b.mp3',
+    vo2At: 135,
+    vo2Seconds: 3.85,
+    subs2: ['Oh, and when the keys need a *wipe*?', 'One click turns the *keyboard off*. Clean away.'],
     node: <SystemScene />,
   },
   {
     id: 'settings',
     frames: 125,
-    vo: 'L10.mp3',
-    voSeconds: 3.02,
+    vo: 'A19.mp3',
+    voSeconds: 2.65,
     subs: ['*Twelve extensions*. Every one of them optional.'],
     node: <SettingsMontage />,
   },
   {
+    id: 'light',
+    frames: 340,
+    vo: 'A19b.mp3',
+    voSeconds: 10.4,
+    subs: [
+      'With everything packed in,',
+      "you'd think Edith is *heavy*. Nope.",
+      "It's a *native Swift* app.",
+      '*Near zero* CPU. About *22 megabytes* of memory.',
+    ],
+    node: <NativeScene />,
+  },
+  {
     id: 'trust',
-    frames: 185,
-    vo: 'L11.mp3',
-    voSeconds: 5.11,
-    subs: ['And everything *stays on your Mac*.', '*Local first*. No accounts. No subscriptions.'],
+    frames: 260,
+    vo: 'A20.mp3',
+    voSeconds: 7.8,
+    subs: [
+      'And unlike those twelve subscriptions,',
+      'nothing ever *leaves your Mac*.',
+      '*Local first*. No accounts. No cloud.',
+    ],
     node: <TrustScene />,
   },
   {
     id: 'outro',
     frames: 190,
-    vo: 'L12.mp3',
-    voSeconds: 5.02,
-    subs: ['*Edith*. One app instead of twelve subscriptions.', '*Pay once*. Own it forever.'],
+    vo: 'A21.mp3',
+    voSeconds: 4.37,
+    subs: ['*Edith*. Twelve subscriptions, replaced by *one app*.', '*Early preview*. Releasing soon.'],
     node: <AnnouncementOutro />,
   },
 ];
@@ -387,9 +503,19 @@ export const Announcement: React.FC = () => {
           return (
             <Sequence key={s.id} from={from} durationInFrames={s.frames}>
               {s.vo ? <Audio src={asset(`vo/${s.vo}`)} /> : null}
-              <SceneFade frames={s.frames}>{s.node}</SceneFade>
+              <SceneFade frames={s.frames} fadeIn={s.fadeIn} fadeOut={s.fadeOut}>
+                {s.node}
+              </SceneFade>
               {s.subs && s.voSeconds ? (
                 <Subtitles chunks={s.subs} voSeconds={s.voSeconds} />
+              ) : null}
+              {s.vo2 && s.vo2At != null ? (
+                <Sequence from={s.vo2At} durationInFrames={s.frames - s.vo2At}>
+                  <Audio src={asset(`vo/${s.vo2}`)} />
+                  {s.subs2 && s.vo2Seconds ? (
+                    <Subtitles chunks={s.subs2} voSeconds={s.vo2Seconds} />
+                  ) : null}
+                </Sequence>
               ) : null}
             </Sequence>
           );

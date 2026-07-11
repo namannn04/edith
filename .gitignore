@@ -16,3 +16,6 @@ extras/
 # promo-video: track source, not build output
 apps/promo-video/node_modules/
 apps/promo-video/out/
+
+.env
+.env.local

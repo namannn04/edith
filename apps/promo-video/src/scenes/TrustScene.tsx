@@ -5,7 +5,6 @@ import {colors, fontFamily} from '../tokens';
 import {springIn} from '../animation';
 
 const ROWS = [
-  'Free and open source',
   'Your data never leaves your Mac',
   'Optional iCloud sync across your Macs',
 ];

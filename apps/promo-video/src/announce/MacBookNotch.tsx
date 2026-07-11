@@ -373,7 +373,7 @@ const ClipboardTab: React.FC<{startFrame: number}> = ({startFrame}) => {
   const rows = [
     '#F5A623',
     'git rebase -i origin/main',
-    'https://edith.app/download',
+    'Design tokens v2 final.sketch',
     'Ship the announcement video Friday',
   ];
   return (
