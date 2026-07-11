@@ -75,6 +75,37 @@
     }, 100);
   }
 
+  const revealTargets = document.querySelectorAll(
+    ".pitch-grid > *, .replaces .tr, .replaces-sum, .feature-copy, .feature-media, .more-head, .mcard, .perf-grid > *, .local > *, .pricing-head, .price-card, .download > *",
+  );
+  if ("IntersectionObserver" in window && revealTargets.length) {
+    const groups = new Map();
+    revealTargets.forEach((el) => {
+      const parent = el.parentElement;
+      const index = groups.get(parent) ?? 0;
+      groups.set(parent, index + 1);
+      el.classList.add("reveal");
+      el.style.setProperty(
+        "--reveal-delay",
+        `${Math.min(index * 0.07, 0.42)}s`,
+      );
+    });
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("in");
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.15 },
+    );
+    for (const el of revealTargets) {
+      io.observe(el);
+    }
+  }
+
   const pdemo = document.querySelector("[data-presenter-demo]");
   if (pdemo) {
     const badge = pdemo.querySelector("[data-pbadge]");

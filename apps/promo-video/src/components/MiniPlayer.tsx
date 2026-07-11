@@ -1,5 +1,6 @@
 import React from 'react';
 import {colors, fontFamily} from '../tokens';
+import {NextIcon, PauseIcon, PlayIcon, PrevIcon} from '../announce/icons';
 
 const timeLabel = (t: number) => {
   const s = Math.max(0, Math.round(t));
@@ -66,9 +67,15 @@ export const MiniPlayer: React.FC<{
 
         <div style={{flex: 1}} />
 
-        <span style={{color: colors.accent, fontSize: 17}}>&#9198;</span>
-        <span style={{color: colors.accent, fontSize: 22}}>{playing ? '⏸' : '▶'}</span>
-        <span style={{color: colors.accent, fontSize: 17}}>&#9197;</span>
+        <span style={{color: colors.accent, display: 'flex'}}>
+          <PrevIcon size={17} />
+        </span>
+        <span style={{color: colors.accent, display: 'flex'}}>
+          {playing ? <PauseIcon size={22} /> : <PlayIcon size={22} />}
+        </span>
+        <span style={{color: colors.accent, display: 'flex'}}>
+          <NextIcon size={17} />
+        </span>
 
         <div style={{width: 70, height: 4, borderRadius: 2, background: colors.track, marginLeft: 8}}>
           <div style={{width: '65%', height: 4, borderRadius: 2, background: colors.accent}} />

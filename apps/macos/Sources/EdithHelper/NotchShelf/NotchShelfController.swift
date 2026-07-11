@@ -971,8 +971,7 @@ final class ShelfDropCatcherView: NSView {
         let local = convert(point, from: superview)
         let rect = CGRect(
             x: (bounds.width - shape.width) / 2, y: bounds.height - shape.height,
-            width: shape.width, height: shape.height
-        ).insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
+            width: shape.width, height: shape.height)
         guard rect.contains(local) else { return nil }
         return super.hitTest(point)
     }

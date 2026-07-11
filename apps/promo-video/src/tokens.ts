@@ -1,6 +1,7 @@
 export const colors = {
-  bg: '#0b0a08',
-  bgVignette: 'radial-gradient(120% 100% at 50% 0%, #1c1611 0%, #0b0a08 60%, #050403 100%)',
+  bg: '#0d0b15',
+  bgVignette:
+    'radial-gradient(120% 100% at 50% 0%, #2b2144 0%, #191330 40%, #0e0b1a 72%, #090713 100%)',
   panel: 'rgba(20, 17, 14, 0.6)',
   border: 'rgba(255, 255, 255, 0.06)',
   accent: '#f5a623',

@@ -5,12 +5,15 @@ import {AppFrame, SectionLabel} from '../components/AppFrame';
 import {ToggleSwitch} from '../components/ToggleSwitch';
 import {Caption} from '../components/Caption';
 import {colors} from '../tokens';
-import {springIn} from '../animation';
+import {easeOut, springIn} from '../animation';
+import {Cursor} from '../announce/MacBookNotch';
+import {KeyboardIcon} from '../announce/icons';
 
-const SCRIM_IN = [100, 118];
-const ARMING_START = 118;
-const ARMING_END = 166;
-const CLEANING_START = 166;
+const CLICK_AT = 76;
+const SCRIM_IN: [number, number] = [84, 100];
+const ARMING_START = 100;
+const ARMING_END = 172;
+const CLEANING_START = 172;
 
 const Card: React.FC<{children: React.ReactNode}> = ({children}) => (
   <div
@@ -31,6 +34,22 @@ export const SystemScene: React.FC = () => {
 
   const tabIndex = interpolate(springIn(frame, fps, 0), [0, 1], [0, 2]);
   const togglePos = interpolate(springIn(frame, fps, 24), [0, 1], [0, 1]);
+
+  const cursorX = interpolate(frame, [26, CLICK_AT - 4], [1310, 962], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: easeOut,
+  });
+  const cursorY = interpolate(frame, [26, CLICK_AT - 4], [830, 700], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+    easing: easeOut,
+  });
+  const pressed = frame >= CLICK_AT - 3 && frame <= CLICK_AT + 4;
+  const buttonGlow = interpolate(frame, [CLICK_AT - 2, CLICK_AT + 6], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
 
   const scrimOpacity = interpolate(frame, SCRIM_IN, [0, 1], {
     extrapolateLeft: 'clamp',
@@ -83,17 +102,33 @@ export const SystemScene: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 12,
-                color: colors.accent,
-                fontSize: 17,
-                fontWeight: 600,
               }}
             >
-              <span>&#9096;</span> Clean keyboard
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  color: colors.accent,
+                  fontSize: 17,
+                  fontWeight: 600,
+                  padding: '10px 24px',
+                  borderRadius: 14,
+                  background: `rgba(245,166,35,${0.08 + buttonGlow * 0.16})`,
+                  border: `1px solid rgba(245,166,35,${0.2 + buttonGlow * 0.5})`,
+                  transform: `scale(${pressed ? 0.96 : 1})`,
+                }}
+              >
+                <KeyboardIcon size={17} /> Clean keyboard
+              </div>
             </div>
           </Card>
         </AppFrame>
       </div>
+
+      {frame >= 26 && frame < SCRIM_IN[1] && (
+        <Cursor x={cursorX} y={cursorY} pressed={pressed} />
+      )}
 
       {scrimOpacity > 0.02 && (
         <AbsoluteFill style={{background: 'rgba(0,0,0,0.6)', opacity: scrimOpacity}} />
@@ -109,7 +144,9 @@ export const SystemScene: React.FC = () => {
             gap: 18,
           }}
         >
-          <div style={{fontSize: 52}}>&#9096;</div>
+          <div style={{color: colors.text}}>
+            <KeyboardIcon size={52} strokeWidth={1.5} />
+          </div>
           {isCleaning ? (
             <>
               <div style={{color: colors.text, fontSize: 30, fontWeight: 700}}>
@@ -144,7 +181,7 @@ export const SystemScene: React.FC = () => {
           )}
         </AbsoluteFill>
       )}
-      <Caption delay={40}>Prevent sleep, and lock the keyboard to wipe it</Caption>
+      <Caption delay={30}>Prevent sleep, and lock the keyboard to wipe it</Caption>
     </Background>
   );
 };

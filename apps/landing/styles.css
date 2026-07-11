@@ -1257,6 +1257,120 @@ h4 {
   }
 }
 
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0s);
+  will-change: opacity, transform;
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.hero .eyebrow,
+.hero h1,
+.hero .lede,
+.hero-cta,
+.hero .fine,
+.hero-demo {
+  animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hero .eyebrow {
+  animation-delay: 0.08s;
+}
+.hero h1 {
+  animation-delay: 0.16s;
+}
+.hero .lede {
+  animation-delay: 0.24s;
+}
+.hero-cta {
+  animation-delay: 0.32s;
+}
+.hero .fine {
+  animation-delay: 0.38s;
+}
+.hero-demo {
+  animation-delay: 0.48s;
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+.hero-icon {
+  animation:
+    hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both,
+    float-slow 7s ease-in-out 1.4s infinite;
+}
+
+.mcard,
+.btn {
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.35s ease,
+    box-shadow 0.35s ease;
+}
+.mcard:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.legal {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 140px 24px 96px;
+}
+.legal h1 {
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+.legal .updated {
+  color: var(--subtle);
+  font-size: 0.9rem;
+  margin-bottom: 40px;
+}
+.legal h2 {
+  font-size: 1.25rem;
+  margin: 40px 0 12px;
+}
+.legal p,
+.legal li {
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+.legal ul {
+  padding-left: 22px;
+  margin-bottom: 16px;
+}
+.legal a {
+  color: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
@@ -1264,5 +1378,9 @@ h4 {
   }
   html {
     scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
   }
 }
