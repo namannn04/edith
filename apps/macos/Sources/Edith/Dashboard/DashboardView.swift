@@ -68,12 +68,10 @@ struct DashboardView: View {
         .navigationTitle("Agent Usage")
         .task {
             await model.load()
+            syncCustomDates()
         }
         .onChange(of: model.loaded) { _, loaded in
-            if loaded, let b = model.dataRange {
-                customFrom = b.lowerBound
-                customTo = b.upperBound
-            }
+            if loaded { syncCustomDates() }
         }
         .onChange(of: refresh.updating) { _, updating in
             if !updating {
@@ -278,6 +276,20 @@ struct DashboardView: View {
                 in: (model.dataRange ?? Date()...Date()), displayedComponents: .date
             )
             .labelsHidden().datePickerStyle(.field).pointerCursor().controlSize(.small)
+        }
+    }
+
+    private func syncCustomDates() {
+        guard model.loaded else { return }
+        if case let .custom(from, to) = model.range,
+            let f = DashboardModel.ymd.date(from: from),
+            let t = DashboardModel.ymd.date(from: to)
+        {
+            customFrom = f
+            customTo = t
+        } else if let b = model.dataRange {
+            customFrom = b.lowerBound
+            customTo = b.upperBound
         }
     }
 
