@@ -208,26 +208,26 @@ struct DashboardView: View {
     }
 
     @ViewBuilder private func activityRow(compact: Bool) -> some View {
-        let activity = SkinCard(title: "Activity", dark: dark) {
-            ActivityHeatmap(
-                days: model.calendarDays, cuts: model.chartData.heatCuts,
-                model: model, dark: dark, blur: blurMoney, blurTokens: blurUsage
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        let limits = RateLimitsDialsView(dark: dark)
         if compact {
             VStack(spacing: 16) {
-                activity
-                limits
+                SkinCard(title: "Activity", dark: dark) { activityHeatmap }
+                RateLimitsDialsView(dark: dark)
             }
         } else {
             HStack(alignment: .top, spacing: 16) {
-                activity.frame(maxHeight: .infinity)
-                limits.frame(width: 340, alignment: .top).frame(maxHeight: .infinity)
+                SkinCard(title: "Activity", dark: dark, fill: true) { activityHeatmap }
+                RateLimitsDialsView(dark: dark, fill: true).frame(width: 340)
             }
             .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var activityHeatmap: some View {
+        ActivityHeatmap(
+            days: model.calendarDays, cuts: model.chartData.heatCuts,
+            model: model, dark: dark, blur: blurMoney, blurTokens: blurUsage
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var controlsBar: some View {

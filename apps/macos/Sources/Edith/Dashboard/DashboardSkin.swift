@@ -59,6 +59,7 @@ struct SkinCard<Content: View>: View {
     let title: String
     var note: String? = nil
     let dark: Bool
+    var fill = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -78,7 +79,7 @@ struct SkinCard<Content: View>: View {
             content()
         }
         .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
         .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16).strokeBorder(DashSkin.line(dark), lineWidth: 1)

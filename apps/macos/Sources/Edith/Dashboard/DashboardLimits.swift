@@ -111,6 +111,7 @@ enum DashLimits {
 
 struct RateLimitsDialsView: View {
     let dark: Bool
+    var fill = false
     @AppStorage("warnPercent") private var warn = 60
     @AppStorage("critPercent") private var crit = 85
     @State private var point: DashLimitPoint?
@@ -135,7 +136,7 @@ struct RateLimitsDialsView: View {
             }
         }
         .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
         .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16).strokeBorder(DashSkin.line(dark), lineWidth: 1)
