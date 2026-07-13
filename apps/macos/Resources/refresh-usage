@@ -234,15 +234,47 @@ if [ -d "$PROJECTS_DIR" ] && [ -s "$TMP/cli.daily.json" ]; then
     else empty end
   '
 
+  WALKC='
+    [., inputs] as $L
+    | ([ $L[] | select(.type == "session_meta") ] | .[0].payload) as $meta
+    | (($meta.id // "") | tostring) as $sid
+    | if $sid == "" then empty else
+        ($meta.cwd // "") as $cwd
+        | ([ $L[] | select(.type == "turn_context") | .payload.model | select(. != null) ] | .[0] // "unknown") as $model
+        | ( $L | to_entries[] | .key as $i | .value
+            | if .type == "event_msg" and (.payload.type == "user_message") then
+                ((.payload.message // "") | tostring | gsub("^\\s+"; "") | gsub("\\s+$"; "")) as $x
+                | if $x != "" and ($x | startswith("<") | not)
+                  then {t: "text", sid: $sid, tms: (.timestamp // ""), text: $x[0:80]}
+                  else empty end
+              elif .type == "event_msg" and (.payload.type == "token_count")
+                   and (.payload.info.last_token_usage != null) and (.timestamp != null) then
+                (.payload.info.last_token_usage) as $u
+                | ($u.total_tokens // 0) as $tok
+                | if $tok == 0 then empty else
+                    (.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $ep
+                    | ($ep + $off) as $loc
+                    | { t: "rec", id: ($sid + ":" + ($i | tostring)),
+                        date: ($loc | strftime("%Y-%m-%d")), hour: (($loc / 3600 | floor) % 24),
+                        ts: ($ep * 1000), model: $model, cwd: $cwd, wt: null,
+                        sid: $sid, src: $src,
+                        inp: (($u.input_tokens // 0) - ($u.cached_input_tokens // 0)),
+                        out: ($u.output_tokens // 0), cc: 0, cr: ($u.cached_input_tokens // 0),
+                        tok: $tok }
+                  end
+              else empty end )
+      end
+  '
+
   : >"$TMP/walk.jsonl"
   WCACHE="$HOME/Library/Application Support/Edith/.walkcache"
   mkdir -p "$WCACHE"
   find "$WCACHE" -type f -mtime +45 -delete 2>/dev/null || true
-  WVER=$(md5 -q -s "$WALK" 2>/dev/null || echo v1)
   walk_dir() {
     [ -d "$1" ] || return 0
-    WALK_DIR="$1" WALK_SRC="$2" WALK_OFF="$OFF" WALK_VER="$WVER" \
-      WALK_CACHE="$WCACHE" WALK_OUT="$TMP/walk.jsonl" WALK_PROG="$WALK" \
+    local prog="${3:-$WALK}"
+    WALK_DIR="$1" WALK_SRC="$2" WALK_OFF="$OFF" WALK_VER="$(md5 -q -s "$prog" 2>/dev/null || echo v1)" \
+      WALK_CACHE="$WCACHE" WALK_OUT="$TMP/walk.jsonl" WALK_PROG="$prog" \
       perl -e '
       use File::Find;
       use Digest::MD5 qw(md5_hex);
@@ -289,6 +321,8 @@ if [ -d "$PROJECTS_DIR" ] && [ -s "$TMP/cli.daily.json" ]; then
       for c in $COWORK_CFG; do walk_dir "$c/projects" cowork; done
     )
   fi
+  walk_dir "$HOME/.codex/sessions" codex "$WALKC"
+  walk_dir "$HOME/.codex/archived_sessions" codex "$WALKC"
   jq -c 'select(.t == "rec") | del(.t)' "$TMP/walk.jsonl" >"$TMP/records.jsonl"
   jq -s '
     [ .[] | select(.t != "rec") ]
@@ -298,8 +332,17 @@ if [ -d "$PROJECTS_DIR" ] && [ -s "$TMP/cli.daily.json" ]; then
   ' "$TMP/walk.jsonl" >"$TMP/titles.json"
   _phase "walk" "$(wc -l <"$TMP/records.jsonl" | tr -d ' ') messages"
 
-  jq -s --slurpfile r "$TMP/rates.json" \
-    'unique_by(.id) | map(. + {cost: (.tok * (($r[0][.date][.model]) // 0))})' \
+  jq -c '
+    reduce ((.daily // [])[]) as $d ({};
+      ([ $d.models[]? | ((.inputTokens // 0) + (.outputTokens // 0) + (.reasoningOutputTokens // 0)
+          + (.cacheCreationTokens // 0) + (.cacheReadTokens // 0)) ] | add // 0) as $t
+      | .[$d.date] = (if $t > 0 then ($d.costUSD // $d.totalCost // 0) / $t else 0 end))
+  ' "$TMP/codex.daily.json" >"$TMP/codex-rates.json" 2>/dev/null || echo '{}' >"$TMP/codex-rates.json"
+
+  jq -s --slurpfile r "$TMP/rates.json" --slurpfile cr "$TMP/codex-rates.json" \
+    'unique_by(.id) | map(. + {cost: (.tok *
+       (if .src == "codex" then (($cr[0][.date]) // 0)
+        else (($r[0][.date][.model]) // 0) end))})' \
     "$TMP/records.jsonl" >"$TMP/recs.json"
 
   CWDMAP_CACHE="$HOME/Library/Application Support/Edith/.cwdmap.jsonl"

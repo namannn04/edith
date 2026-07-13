@@ -15,6 +15,7 @@ function extractBlock(name) {
 
 const NORM = extractBlock("NORM");
 const WALK = extractBlock("WALK");
+const WALKC = extractBlock("WALKC");
 
 function jq(program, input, args = []) {
   const proc = Bun.spawnSync(["jq", "-c", ...args, program], {
@@ -146,6 +147,95 @@ describe("WALK", () => {
     expect(out[1].text).toBe("block text");
     expect(out.length).toBe(3);
     expect(out[2].text.length).toBe(80);
+  });
+});
+
+const walkc = (lines, src = "codex", off = 0) =>
+  jq(WALKC, lines.map((l) => JSON.stringify(l)).join("\n"), [
+    "--argjson",
+    "off",
+    String(off),
+    "--arg",
+    "src",
+    src,
+  ]);
+
+const sessionMeta = (over = {}) => ({
+  timestamp: "2026-06-10T12:00:00.000Z",
+  type: "session_meta",
+  payload: { id: "cx-1", cwd: "/repo/app", ...over },
+});
+
+const tokenCount = (usage = {}, over = {}) => ({
+  timestamp: "2026-06-10T12:30:00.123Z",
+  type: "event_msg",
+  payload: {
+    type: "token_count",
+    info: {
+      last_token_usage: {
+        input_tokens: 100,
+        cached_input_tokens: 60,
+        output_tokens: 20,
+        reasoning_output_tokens: 5,
+        total_tokens: 120,
+        ...usage,
+      },
+    },
+  },
+  ...over,
+});
+
+describe("WALKC", () => {
+  test("token_count becomes a rec carrying session meta, model, and source", () => {
+    const out = walkc([
+      sessionMeta(),
+      { type: "turn_context", payload: { model: "gpt-5.6-sol" } },
+      tokenCount(),
+      tokenCount({}, { timestamp: "2026-06-10T13:30:00.123Z" }),
+    ]);
+    expect(out.length).toBe(2);
+    const [a, b] = out;
+    expect(a.t).toBe("rec");
+    expect(a.sid).toBe("cx-1");
+    expect(a.cwd).toBe("/repo/app");
+    expect(a.model).toBe("gpt-5.6-sol");
+    expect(a.src).toBe("codex");
+    expect(a.tok).toBe(120);
+    expect(a.inp).toBe(40);
+    expect(a.cr).toBe(60);
+    expect(a.out).toBe(20);
+    expect(a.date).toBe("2026-06-10");
+    expect(a.hour).toBe(12);
+    expect(a.ts).toBe(Date.parse("2026-06-10T12:30:00Z"));
+    expect(a.wt).toBeNull();
+    expect(a.id).not.toBe(b.id);
+  });
+
+  test("user_message becomes a text record, tag-prefixed and empty skipped", () => {
+    const msg = (message) => ({
+      timestamp: "2026-06-10T12:01:00.000Z",
+      type: "event_msg",
+      payload: { type: "user_message", message },
+    });
+    const out = walkc([
+      sessionMeta(),
+      msg("  fix the bug  "),
+      msg("<environment_context>x"),
+      msg(""),
+    ]);
+    expect(out).toEqual([
+      {
+        t: "text",
+        sid: "cx-1",
+        tms: "2026-06-10T12:01:00.000Z",
+        text: "fix the bug",
+      },
+    ]);
+  });
+
+  test("zero-token counts and files without session_meta emit nothing", () => {
+    expect(walkc([sessionMeta(), tokenCount({ total_tokens: 0 })])).toEqual([]);
+    expect(walkc([tokenCount()])).toEqual([]);
   });
 });
 
