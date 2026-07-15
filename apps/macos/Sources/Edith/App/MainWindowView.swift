@@ -586,9 +586,7 @@ struct MainWindowView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .background(
-            hoveredPresenterQuickAction == title
-                ? Color.primary.opacity(0.06) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            hoveredPresenterQuickAction == title ? Color.primary.opacity(0.06) : Color.clear
         )
         .contentShape(Rectangle())
         .onHover { hovering in
