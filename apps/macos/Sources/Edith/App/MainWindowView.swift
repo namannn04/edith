@@ -202,6 +202,17 @@ struct MainWindowView: View {
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
         true
+    @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
+        true
+    @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
+        true
+    @AppStorage("presenterBlurUsage", store: SharedDefaults.store) private var presenterBlurUsage =
+        false
+    @AppStorage("presenterBlurCalendar", store: SharedDefaults.store)
+    private var presenterBlurCalendar = true
+    @AppStorage("presenterAutoEnabled", store: SharedDefaults.store) private
+        var presenterAutoEnabled =
+        false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("creditHidden", store: SharedDefaults.store) private var creditHidden = false
     @State private var dragBaseWidth: Double?
@@ -209,6 +220,8 @@ struct MainWindowView: View {
     @State private var nav = NavStack()
     @State private var restoringHistory = false
     @State private var permissionsNeedAttention = PermissionsStatus.current
+    @State private var presenterQuickActionsPresented = false
+    @State private var hoveredPresenterQuickAction: String?
     @Environment(\.colorScheme) private var scheme
 
     private var theme: Color { themeColor(themeName) }
@@ -488,14 +501,106 @@ struct MainWindowView: View {
                 }
             }
             if presenterEnabled {
-                quickActionTile(
-                    icon: "theatermasks.fill", title: "Presenter mode", active: presenterMode,
-                    help: "Blur sensitive numbers and track names everywhere in Edith"
-                ) {
-                    presenterMode.toggle()
-                }
+                presenterQuickActionTile
             }
         }
+    }
+
+    private var presenterQuickActionTile: some View {
+        HStack(spacing: 0) {
+            Button {
+                presenterMode.toggle()
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "theatermasks.fill")
+                        .font(.system(size: 14))
+                    Text("Presenter mode")
+                        .font(.system(size: 10, weight: .medium))
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+            .help("Blur sensitive numbers and track names everywhere in Edith")
+
+            Rectangle()
+                .fill(presenterMode ? Color.white.opacity(0.24) : Color.primary.opacity(0.08))
+                .frame(width: 1, height: 28)
+
+            Button {
+                presenterQuickActionsPresented.toggle()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 30, height: 46)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+            .help("Choose what Presenter mode blurs")
+            .popover(isPresented: $presenterQuickActionsPresented, arrowEdge: .leading) {
+                presenterQuickActionsPopover
+            }
+        }
+        .foregroundStyle(presenterMode ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+        .background(
+            presenterMode ? AnyShapeStyle(theme) : AnyShapeStyle(.primary.opacity(0.05)),
+            in: RoundedRectangle(cornerRadius: 9)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+    }
+
+    private var presenterQuickActionsPopover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Presenter mode")
+                .font(.system(size: 13, weight: .semibold))
+                .padding(.bottom, 10)
+            presenterQuickActionToggle("Blur music", isOn: $presenterBlurMusic)
+            Divider()
+            presenterQuickActionToggle("Blur cost figures", isOn: $presenterBlurMoney)
+            Divider()
+            presenterQuickActionToggle("Blur usage figures", isOn: $presenterBlurUsage)
+            Divider()
+            presenterQuickActionToggle("Blur calendar events", isOn: $presenterBlurCalendar)
+        }
+        .padding(14)
+        .frame(width: 250)
+        .disabled(!presenterMode && !presenterAutoEnabled)
+    }
+
+    private func presenterQuickActionToggle(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .allowsHitTesting(false)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(
+            hoveredPresenterQuickAction == title ? Color.primary.opacity(0.06) : Color.clear
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard presenterMode || presenterAutoEnabled else { return }
+            isOn.wrappedValue.toggle()
+        }
+        .onHover { hovering in
+            if hovering {
+                hoveredPresenterQuickAction = title
+            } else if hoveredPresenterQuickAction == title {
+                hoveredPresenterQuickAction = nil
+            }
+        }
+        .pointerCursor()
     }
 
     private func quickActionTile(
