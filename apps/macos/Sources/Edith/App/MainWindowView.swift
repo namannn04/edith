@@ -572,27 +572,32 @@ struct MainWindowView: View {
     }
 
     private func presenterQuickActionToggle(_ title: String, isOn: Binding<Bool>) -> some View {
-        Toggle(title, isOn: isOn)
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .font(.system(size: 12.5))
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .background(
-                hoveredPresenterQuickAction == title
-                    ? Color.primary.opacity(0.06) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
-            .contentShape(Rectangle())
-            .onHover { hovering in
-                if hovering {
-                    hoveredPresenterQuickAction = title
-                } else if hoveredPresenterQuickAction == title {
-                    hoveredPresenterQuickAction = nil
-                }
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .pointerCursor()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(
+            hoveredPresenterQuickAction == title
+                ? Color.primary.opacity(0.06) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            if hovering {
+                hoveredPresenterQuickAction = title
+            } else if hoveredPresenterQuickAction == title {
+                hoveredPresenterQuickAction = nil
             }
-            .pointerCursor()
+        }
     }
 
     private func quickActionTile(
