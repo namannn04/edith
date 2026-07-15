@@ -221,6 +221,7 @@ struct MainWindowView: View {
     @State private var restoringHistory = false
     @State private var permissionsNeedAttention = PermissionsStatus.current
     @State private var presenterQuickActionsPresented = false
+    @State private var hoveredPresenterQuickAction: String?
     @Environment(\.colorScheme) private var scheme
 
     private var theme: Color { themeColor(themeName) }
@@ -575,7 +576,22 @@ struct MainWindowView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
             .font(.system(size: 12.5))
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
             .padding(.vertical, 8)
+            .background(
+                hoveredPresenterQuickAction == title
+                    ? Color.primary.opacity(0.06) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            )
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering {
+                    hoveredPresenterQuickAction = title
+                } else if hoveredPresenterQuickAction == title {
+                    hoveredPresenterQuickAction = nil
+                }
+            }
             .pointerCursor()
     }
 
