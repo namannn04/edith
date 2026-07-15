@@ -15,19 +15,19 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.13.1</string>
+	<string>1.14.0</string>
 	<key>CFBundleVersion</key>
-	<string>21</string>
+	<string>22</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Edith shows a notch alert when a Bluetooth device connects or disconnects.</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Edith controls playback in Spotify and Apple Music from the notch.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Edith shows a camera preview in the notch so you can check yourself before a call.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Edith shows a notch alert when a Bluetooth device connects or disconnects.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Edith shows your upcoming calendar events in the app.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Edith shows a camera preview in the notch so you can check yourself before a call.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>
