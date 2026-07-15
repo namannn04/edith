@@ -580,7 +580,7 @@ struct MainWindowView: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .pointerCursor()
+                .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 8)
@@ -589,6 +589,10 @@ struct MainWindowView: View {
             hoveredPresenterQuickAction == title ? Color.primary.opacity(0.06) : Color.clear
         )
         .contentShape(Rectangle())
+        .onTapGesture {
+            guard presenterMode || presenterAutoEnabled else { return }
+            isOn.wrappedValue.toggle()
+        }
         .onHover { hovering in
             if hovering {
                 hoveredPresenterQuickAction = title
@@ -596,6 +600,7 @@ struct MainWindowView: View {
                 hoveredPresenterQuickAction = nil
             }
         }
+        .pointerCursor()
     }
 
     private func quickActionTile(
