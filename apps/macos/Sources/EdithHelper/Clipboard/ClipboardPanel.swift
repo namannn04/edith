@@ -17,6 +17,7 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
 
     private var panel: NSPanel?
     private var hosting: NSHostingView<AnyView>?
+    private var showCount = 0
 
     func toggle() {
         if let panel, panel.isVisible {
@@ -29,11 +30,14 @@ final class ClipboardPanel: NSObject, NSWindowDelegate {
     func show() {
         guard let store else { return }
         let p = panel ?? makePanel()
+        showCount += 1
         hosting?.rootView = AnyView(
             ClipboardPanelView(
                 store: store,
                 onDismiss: { [weak self] in self?.hide() },
-                onHeightChange: { [weak self] height in self?.resize(toFit: height) }))
+                onHeightChange: { [weak self] height in self?.resize(toFit: height) }
+            )
+            .id(showCount))
         let height = min(
             ClipboardPanelView.estimatedHeight(entries: store.entries), Self.maxHeight)
         p.setContentSize(NSSize(width: Self.width, height: height))

@@ -9,6 +9,12 @@ struct ClipboardPanelView: View {
     @State private var filterText = ""
     @State private var selectedID: String?
     @State private var keyboardScrollTick = 0
+    @State private var visible: [ClipboardEntry] = []
+    @State private var searching = false
+    @State private var searchTask: Task<Void, Never>?
+    @State private var lastMouse = NSEvent.mouseLocation
+    @State private var rowFrames: [String: CGRect] = [:]
+    @State private var listHeight: CGFloat = 0
     @FocusState private var searchFocused: Bool
     @AppStorage("clipboardShowFooter", store: SharedDefaults.store) private var showFooter = true
     @AppStorage("clipboardPinTo", store: SharedDefaults.store) private var pinTo = "top"
@@ -39,9 +45,10 @@ struct ClipboardPanelView: View {
 
     private var pinToTop: Bool { pinTo != "bottom" }
 
-    private var visible: [ClipboardEntry] {
-        let query = filterText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matched = store.entries.filter { entry in
+    private nonisolated static func arrange(
+        _ entries: [ClipboardEntry], query: String, pinToTop: Bool
+    ) -> [ClipboardEntry] {
+        let matched = entries.filter { entry in
             query.isEmpty
                 || (entry.preview?.lowercased().contains(query) ?? false)
                 || (entry.sourceApp?.lowercased().contains(query) ?? false)
@@ -49,6 +56,40 @@ struct ClipboardPanelView: View {
         let pinned = matched.filter(\.pinned).sorted { $0.lastCopiedAt > $1.lastCopiedAt }
         let unpinned = matched.filter { !$0.pinned }.sorted { $0.lastCopiedAt > $1.lastCopiedAt }
         return pinToTop ? pinned + unpinned : unpinned + pinned
+    }
+
+    private nonisolated static func search(
+        _ entries: [ClipboardEntry], query: String, pinToTop: Bool
+    ) async -> [ClipboardEntry] {
+        arrange(entries, query: query, pinToTop: pinToTop)
+    }
+
+    private func refreshVisible(selectFirst: Bool = false) {
+        searchTask?.cancel()
+        let query = filterText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if query.isEmpty {
+            visible = Self.arrange(store.entries, query: query, pinToTop: pinToTop)
+            searching = false
+            if selectFirst { selectFirstRow() }
+            reportHeight()
+            return
+        }
+        searching = true
+        let entries = store.entries
+        let pinTop = pinToTop
+        searchTask = Task {
+            let arranged = await Self.search(entries, query: query, pinToTop: pinTop)
+            guard !Task.isCancelled else { return }
+            visible = arranged
+            searching = false
+            if selectFirst { selectFirstRow() }
+            reportHeight()
+        }
+    }
+
+    private func selectFirstRow() {
+        selectedID = visible.first?.id
+        keyboardScrollTick += 1
     }
 
     private var digitShortcuts: [String: Int] {
@@ -68,16 +109,13 @@ struct ClipboardPanelView: View {
         .padding(.bottom, Self.bottomPadding)
         .frame(width: ClipboardPanel.width)
         .onAppear {
-            searchFocused = true
-            selectedID = visible.first?.id
-            reportHeight()
+            lastMouse = NSEvent.mouseLocation
+            refreshVisible(selectFirst: true)
+            DispatchQueue.main.async { searchFocused = true }
         }
-        .onChange(of: filterText) { _, _ in
-            selectedID = visible.first?.id
-            keyboardScrollTick += 1
-            reportHeight()
-        }
-        .onChange(of: store.entries) { _, _ in reportHeight() }
+        .onChange(of: filterText) { _, _ in refreshVisible(selectFirst: true) }
+        .onChange(of: store.entries) { _, _ in refreshVisible() }
+        .onChange(of: pinTo) { _, _ in refreshVisible() }
         .onChange(of: showFooter) { _, _ in reportHeight() }
     }
 
@@ -98,12 +136,13 @@ struct ClipboardPanelView: View {
                     .disableAutocorrection(true)
                     .padding(.horizontal, 4)
                     .focused($searchFocused)
-                    .onKeyPress(.downArrow) {
-                        move(1)
-                        return .handled
-                    }
-                    .onKeyPress(.upArrow) {
-                        move(-1)
+                    .onKeyPress(keys: [.upArrow, .downArrow]) { press in
+                        let up = press.key == .upArrow
+                        if press.modifiers.contains(.command) {
+                            jumpToEdge(top: up)
+                        } else {
+                            move(up ? -1 : 1)
+                        }
                         return .handled
                     }
                     .onKeyPress(.escape) {
@@ -115,6 +154,13 @@ struct ClipboardPanelView: View {
                         return .handled
                     }
                     .onKeyPress { press in handle(press) }
+                if searching {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.6)
+                        .frame(width: 12, height: 12)
+                        .padding(.trailing, 4)
+                }
                 if !filterText.isEmpty {
                     Button {
                         filterText = ""
@@ -148,6 +194,13 @@ struct ClipboardPanelView: View {
                     ForEach(visible) { entry in
                         row(entry)
                             .id(entry.id)
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear.preference(
+                                        key: RowFramesKey.self,
+                                        value: [entry.id: geo.frame(in: .named("clipboardList"))])
+                                }
+                            )
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
                             .listRowBackground(
@@ -163,6 +216,15 @@ struct ClipboardPanelView: View {
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, Self.rowHeight)
             .padding(.horizontal, 5)
+            .coordinateSpace(name: "clipboardList")
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { listHeight = geo.size.height }
+                        .onChange(of: geo.size.height) { _, height in listHeight = height }
+                }
+            )
+            .onPreferenceChange(RowFramesKey.self) { rowFrames = $0 }
             .onChange(of: keyboardScrollTick) { _, _ in
                 guard let selectedID else { return }
                 proxy.scrollTo(selectedID)
@@ -191,8 +253,12 @@ struct ClipboardPanelView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(selected ? Color.white : Color.primary)
         .contentShape(Rectangle())
-        .onHover { hovering in
-            if hovering { selectedID = entry.id }
+        .onContinuousHover { phase in
+            guard case .active = phase else { return }
+            let location = NSEvent.mouseLocation
+            guard location != lastMouse else { return }
+            lastMouse = location
+            selectedID = entry.id
         }
         .onTapGesture { activate(entry, plainText: false) }
     }
@@ -247,9 +313,38 @@ struct ClipboardPanelView: View {
         let items = visible
         guard !items.isEmpty else { return }
         let index = selectedID.flatMap { id in items.firstIndex { $0.id == id } } ?? -delta
-        let next = min(max(index + delta, 0), items.count - 1)
+        let next: Int
+        if delta < 0, index == 0 {
+            next = edgeShownIndex(in: items, bottom: true) ?? items.count - 1
+        } else if delta > 0, index == items.count - 1 {
+            next = edgeShownIndex(in: items, bottom: false) ?? 0
+        } else {
+            next = min(max(index + delta, 0), items.count - 1)
+        }
         selectedID = items[next].id
         keyboardScrollTick += 1
+    }
+
+    private func jumpToEdge(top: Bool) {
+        let items = visible
+        guard !items.isEmpty else { return }
+        if top {
+            selectedID = items[0].id
+        } else {
+            let index = edgeShownIndex(in: items, bottom: true) ?? items.count - 1
+            selectedID = items[index].id
+        }
+        keyboardScrollTick += 1
+    }
+
+    private func edgeShownIndex(in items: [ClipboardEntry], bottom: Bool) -> Int? {
+        let shown = rowFrames.filter { $0.value.minY >= -1 && $0.value.maxY <= listHeight + 1 }
+        let edge =
+            bottom
+            ? shown.max { $0.value.minY < $1.value.minY }
+            : shown.min { $0.value.minY < $1.value.minY }
+        guard let id = edge?.key else { return nil }
+        return items.firstIndex { $0.id == id }
     }
 
     private func handle(_ press: KeyPress) -> KeyPress.Result {
@@ -292,21 +387,21 @@ struct ClipboardPanelView: View {
 
     private func deleteSelected() {
         guard let entry = selectedEntry else { return }
-        let items = visible
-        let index = items.firstIndex { $0.id == entry.id } ?? 0
+        let index = visible.firstIndex { $0.id == entry.id } ?? 0
+        visible.removeAll { $0.id == entry.id }
         store.delete(entry.id)
-        let remaining = visible
-        if remaining.isEmpty {
+        if visible.isEmpty {
             selectedID = nil
         } else {
-            selectedID = remaining[min(index, remaining.count - 1)].id
+            selectedID = visible[min(index, visible.count - 1)].id
         }
         reportHeight()
     }
 
     private func clear() {
         store.clear()
-        selectedID = visible.first?.id
+        visible = []
+        selectedID = nil
         reportHeight()
     }
 
@@ -320,6 +415,13 @@ struct ClipboardPanelView: View {
     private func reportHeight() {
         let sizingEntries = filterText.isEmpty ? visible : store.entries
         onHeightChange(Self.height(for: sizingEntries, showFooter: showFooter))
+    }
+}
+
+private struct RowFramesKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 
