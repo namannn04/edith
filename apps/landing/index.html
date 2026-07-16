@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Edith: One Mac app instead of twelve</title>
+    <title>Edith: Claude &amp; Codex usage tracker and Mac menu bar toolkit</title>
     <meta
       name="description"
-      content="Edith is a native macOS menu bar app for Claude and Codex rate-limit tracking, usage analytics, a local music player, and system tools."
+      content="Edith is a native macOS menu bar app: Claude and Codex rate-limit tracking, usage analytics and alerts, a local music player, clipboard history, and a full set of Mac utilities in one app."
     />
     <link rel="canonical" href="https://edith.app/" />
     <meta name="theme-color" content="#0e0f11" />
@@ -14,28 +14,61 @@
     <link rel="apple-touch-icon" href="/favicon-180.png" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Edith" />
-    <meta property="og:title" content="Edith: One Mac app instead of twelve" />
+    <meta property="og:title" content="Edith: Claude &amp; Codex usage tracker and Mac menu bar toolkit" />
     <meta
       property="og:description"
-      content="Native macOS menu bar app for AI rate-limit tracking, usage analytics, local music, and system tools."
+      content="Native macOS menu bar app for Claude and Codex rate-limit tracking, usage analytics, local music, and system tools. One app instead of twelve."
     />
     <meta property="og:image" content="https://edith.app/app-icon-512.png" />
     <meta property="og:url" content="https://edith.app/" />
+    <meta property="og:video" content="https://edith.app/announcement.mp4" />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="og:video:width" content="1920" />
+    <meta property="og:video:height" content="1080" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Edith: One Mac app instead of twelve" />
+    <meta name="twitter:title" content="Edith: Claude &amp; Codex usage tracker and Mac menu bar toolkit" />
     <meta
       name="twitter:description"
-      content="Native macOS menu bar app for AI rate-limit tracking, usage analytics, local music, and system tools."
+      content="Native macOS menu bar app for Claude and Codex rate-limit tracking, usage analytics, local music, and system tools. One app instead of twelve."
     />
     <meta name="twitter:image" content="https://edith.app/app-icon-512.png" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Edith",
-        "applicationCategory": "UtilitiesApplication",
-        "operatingSystem": "macOS 13+",
-        "description": "A native macOS menu bar app for AI rate-limit tracking, usage analytics, a local music player, and system tools."
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "name": "Edith",
+            "url": "https://edith.app/",
+            "image": "https://edith.app/app-icon-512.png",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "macOS 13+",
+            "downloadUrl": "https://github.com/pulkitxm/edith/releases/latest",
+            "description": "A native macOS menu bar app for Claude and Codex rate-limit tracking, usage analytics, a local music player, and system tools.",
+            "featureList": [
+              "Claude and Codex rate-limit tracking with live countdowns",
+              "Menu bar session and weekly usage readout",
+              "Usage alerts and notifications",
+              "Usage analytics dashboard with per-model charts",
+              "Daily spend heatmap",
+              "Local music player with Spotify and Apple Music control",
+              "Clipboard history with instant paste",
+              "Color picker",
+              "Focus dim, prevent sleep, keyboard-clean lock",
+              "Notch file shelf, alerts, and camera check",
+              "Mic mute and per-app volume mixer",
+              "Disk junk cleaner and running-apps monitor"
+            ]
+          },
+          {
+            "@type": "VideoObject",
+            "name": "Edith announcement film",
+            "description": "A two-minute tour of every feature in Edith, the macOS menu bar app.",
+            "contentUrl": "https://edith.app/announcement.mp4",
+            "thumbnailUrl": "https://edith.app/announcement-poster.jpg",
+            "uploadDate": "2026-07-16"
+          }
+        ]
       }
     </script>
     <link rel="stylesheet" href="/styles.css" />
@@ -187,7 +220,16 @@
           <p class="eyebrow">The film</p>
           <h2>See the whole app in two minutes.</h2>
         </div>
-        <video controls playsinline preload="metadata" src="/announcement.mp4"></video>
+        <video
+          controls
+          playsinline
+          preload="metadata"
+          src="/announcement.mp4"
+          poster="/announcement-poster.jpg"
+          width="1920"
+          height="1080"
+          aria-label="Edith announcement film: a two-minute tour of every feature"
+        ></video>
       </section>
 
       <section class="feature">
