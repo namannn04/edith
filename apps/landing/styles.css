@@ -998,6 +998,27 @@ h4 {
   max-width: 440px;
 }
 
+.film {
+  padding-top: 96px;
+  padding-bottom: 96px;
+  border-top: 1px solid var(--line);
+}
+.film-head {
+  max-width: 620px;
+  margin: 0 auto 40px;
+  text-align: center;
+}
+.film-head h2 {
+  margin-top: 12px;
+}
+.film video {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius);
+  background: #000;
+}
+
 .providers {
   display: flex;
   flex-direction: column;

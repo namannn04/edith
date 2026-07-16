@@ -76,7 +76,7 @@
   }
 
   const revealTargets = document.querySelectorAll(
-    ".pitch-grid > *, .replaces .tr, .feature-copy, .feature-media, .more-head, .mcard, .perf-grid > *, .local > *, .download > *",
+    ".pitch-grid > *, .replaces .tr, .film > *, .feature-copy, .feature-media, .more-head, .mcard, .perf-grid > *, .local > *, .download > *",
   );
   if ("IntersectionObserver" in window && revealTargets.length) {
     const groups = new Map();
