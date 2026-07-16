@@ -447,7 +447,7 @@ struct DashboardView: View {
                 }
             }
         }
-        SkinCard(title: "Hourly - all time", dark: dark) {
+        SkinCard(title: "Hourly usage", dark: dark) {
             ComboChart(
                 points: model.chartData.hourly, barColor: acc, lineColor: gold, dark: dark,
                 height: 200, blur: blurMoney, blurTokens: blurUsage)

@@ -752,9 +752,20 @@ final class DashboardModel: ObservableObject {
                 let wd = (cal.component(.weekday, from: cursor) + 6) % 7
                 dowTokens[wd] += datum.tokens
                 dowCost[wd] += datum.cost
-                for (i, h) in (day.hours ?? []).enumerated() where i < 24 {
-                    hourTok[i] += h.tokens ?? 0
-                    hourCost[i] += h.cost ?? 0
+                let hours = Array((day.hours ?? []).prefix(24))
+                let rawHourTokens = hours.reduce(0) { $0 + ($1.tokens ?? 0) }
+                let rawHourCost = hours.reduce(0) { $0 + ($1.cost ?? 0) }
+                for (i, h) in hours.enumerated() {
+                    hourTok[i] += normalizedPart(
+                        h.tokens ?? 0, alternate: h.cost ?? 0, rawTotal: rawHourTokens,
+                        rawAlternateTotal: rawHourCost, target: datum.tokens)
+                    hourCost[i] += normalizedPart(
+                        h.cost ?? 0, alternate: h.tokens ?? 0, rawTotal: rawHourCost,
+                        rawAlternateTotal: rawHourTokens, target: datum.cost)
+                }
+                if rawHourTokens == 0, rawHourCost == 0 {
+                    hourTok[0] += datum.tokens
+                    hourCost[0] += datum.cost
                 }
                 for p in day.projects ?? [] {
                     let name = p.projectName ?? "unknown"
@@ -787,7 +798,10 @@ final class DashboardModel: ObservableObject {
             HourDatum(id: $0, hour: $0, tokens: hourTok[$0], cost: hourCost[$0])
         }
 
-        projectTree = buildProjectTree(projAgg)
+        let totalTokens = rows.reduce(0) { $0 + $1.tokens }
+        let activeDays = Set(rows.filter { $0.tokens > 0 || $0.cost > 0 }.map(\.id))
+        projectTree = buildProjectTree(
+            projAgg, targetTokens: totalTokens, targetCost: totalCost, targetDays: activeDays)
         projects = projectTree.map {
             ProjectAgg(id: $0.id, name: $0.name, tokens: $0.tokens, cost: $0.cost, share: $0.share)
         }
@@ -795,14 +809,21 @@ final class DashboardModel: ObservableObject {
 
         buildKPIs(rows: rows, totalCost: totalCost)
         buildMeta(from: fromStr, to: toStr)
-        let key =
-            "\(selectedSources.sorted().joined(separator: ","))|"
-            + "\(selectedModels.sorted().joined(separator: ","))|\(ingestStamp)"
+        let key = String(ingestStamp)
         if key != calendarKey {
             calendarKey = key
             buildCalendar(data: data)
         }
         rebuildChartData()
+    }
+
+    private func normalizedPart(
+        _ value: Double, alternate: Double, rawTotal: Double, rawAlternateTotal: Double,
+        target: Double
+    ) -> Double {
+        if rawTotal > 0 { return target * value / rawTotal }
+        if rawAlternateTotal > 0 { return target * alternate / rawAlternateTotal }
+        return 0
     }
 
     private func rebuildChartData() {
@@ -916,7 +937,10 @@ final class DashboardModel: ObservableObject {
         }
     }
 
-    private func buildProjectTree(_ agg: [String: ProjAccum]) -> [ProjTreeRow] {
+    private func buildProjectTree(
+        _ agg: [String: ProjAccum], targetTokens: Double, targetCost: Double,
+        targetDays: Set<String>
+    ) -> [ProjTreeRow] {
         let visible = { (c: ChatAcc) in c.source.isEmpty || self.selectedSources.contains(c.source)
         }
         func chatRow(_ id: String, _ a: ChatAcc) -> ProjChat {
@@ -972,26 +996,61 @@ final class DashboardModel: ObservableObject {
                     chats: mainChats, worktrees: worktrees))
         }
 
-        let totalCost = rows.reduce(0) { $0 + $1.cost }
-        if totalCost > 0 {
-            rows = rows.map { row in
-                var r = row
-                r.share = row.cost / totalCost
-                r.chats = row.chats.map {
-                    var c = $0; c.share = c.cost / totalCost; return c
-                }
-                r.worktrees = row.worktrees.map { wt in
-                    var w = wt
-                    w.share = wt.cost / totalCost
-                    w.chats = wt.chats.map {
-                        var c = $0; c.share = c.cost / totalCost; return c
-                    }
-                    return w
-                }
-                return r
-            }
-        }
+        rows = normalizeProjectRows(
+            rows, targetTokens: targetTokens, targetCost: targetCost, targetDays: targetDays)
         return sortTree(rows)
+    }
+
+    private func normalizeProjectRows(
+        _ rows: [ProjTreeRow], targetTokens: Double, targetCost: Double,
+        targetDays: Set<String>
+    ) -> [ProjTreeRow] {
+        guard targetTokens > 0 || targetCost > 0 else { return [] }
+        let rawTokens = rows.reduce(0) { $0 + $1.tokens }
+        let rawCost = rows.reduce(0) { $0 + $1.cost }
+        guard rawTokens > 0 || rawCost > 0 else {
+            return [
+                ProjTreeRow(
+                    id: "proj:__unattributed", name: "Unattributed", tokens: targetTokens,
+                    cost: targetCost, share: targetCost > 0 ? 1 : 0, days: targetDays.count,
+                    dur: 0, lastActive: targetDays.max() ?? "", chats: [], worktrees: [])
+            ]
+        }
+        func tokens(_ value: Double, _ cost: Double) -> Double {
+            normalizedPart(
+                value, alternate: cost, rawTotal: rawTokens, rawAlternateTotal: rawCost,
+                target: targetTokens)
+        }
+        func cost(_ value: Double, _ tokens: Double) -> Double {
+            normalizedPart(
+                value, alternate: tokens, rawTotal: rawCost, rawAlternateTotal: rawTokens,
+                target: targetCost)
+        }
+        func chat(_ row: ProjChat) -> ProjChat {
+            let nextTokens = tokens(row.tokens, row.cost)
+            let nextCost = cost(row.cost, row.tokens)
+            return ProjChat(
+                id: row.id, title: row.title, tokens: nextTokens, cost: nextCost,
+                share: targetCost > 0 ? nextCost / targetCost : 0, daySet: row.daySet,
+                dur: row.dur, lastActive: row.lastActive, source: row.source)
+        }
+        func worktree(_ row: ProjWorktree) -> ProjWorktree {
+            let nextTokens = tokens(row.tokens, row.cost)
+            let nextCost = cost(row.cost, row.tokens)
+            return ProjWorktree(
+                id: row.id, name: row.name, tokens: nextTokens, cost: nextCost,
+                share: targetCost > 0 ? nextCost / targetCost : 0, days: row.days, dur: row.dur,
+                lastActive: row.lastActive, chats: row.chats.map(chat))
+        }
+        return rows.map { row in
+            let nextTokens = tokens(row.tokens, row.cost)
+            let nextCost = cost(row.cost, row.tokens)
+            return ProjTreeRow(
+                id: row.id, name: row.name, tokens: nextTokens, cost: nextCost,
+                share: targetCost > 0 ? nextCost / targetCost : 0, days: row.days, dur: row.dur,
+                lastActive: row.lastActive, chats: row.chats.map(chat),
+                worktrees: row.worktrees.map(worktree))
+        }
     }
 
     func projLess(_ a: some ProjSortable, _ b: some ProjSortable) -> Bool {
@@ -1118,10 +1177,9 @@ final class DashboardModel: ObservableObject {
             var h = HeatDay(date: d)
             var modelTok: [String: Double] = [:]
             var srcTok: [String: Double] = [:]
-            for (src, models) in dayRow.bySource ?? [:] where selectedSources.contains(src) {
+            for (src, models) in dayRow.bySource ?? [:] {
                 for m in models {
                     let name = m.modelName ?? "unknown"
-                    guard selectedModels.contains(name) else { continue }
                     h.input += m.inputTokens ?? 0
                     h.output += m.outputTokens ?? 0
                     h.cacheCreate += m.cacheCreationTokens ?? 0
@@ -1141,20 +1199,31 @@ final class DashboardModel: ObservableObject {
             var projTok: [String: Double] = [:]
             var chats = 0
             for p in dayRow.projects ?? [] {
-                projTok[p.projectName ?? "unknown", default: 0] += p.tokens ?? 0
-                var wtChats = 0
-                for wt in p.worktrees ?? [] {
-                    wtChats += wt.chats?.count ?? 0
+                let projectChats = (p.chats ?? []) + (p.worktrees ?? []).flatMap { $0.chats ?? [] }
+                let rawTokens = projectChats.reduce(0) { $0 + ($1.tokens ?? 0) }
+                if rawTokens > 0 {
+                    projTok[p.projectName ?? "unknown", default: 0] += rawTokens
+                } else if projectChats.isEmpty {
+                    projTok[p.projectName ?? "unknown", default: 0] += p.tokens ?? 0
                 }
-                chats += (p.chats?.count ?? 0) + wtChats
+                chats += projectChats.count
+            }
+            let rawProjectTokens = projTok.values.reduce(0, +)
+            if rawProjectTokens > 0 {
+                projTok = projTok.mapValues { h.tokens * $0 / rawProjectTokens }
+            } else if h.tokens > 0 {
+                projTok = ["Unattributed": h.tokens]
             }
             h.projects = projTok.sorted { $0.value > $1.value }.map {
                 NamedValue(id: $0.key, name: $0.key, value: $0.value)
             }
             h.projCount = projTok.count
             h.chatCount = chats
+            let rawPeakTotal = (dayRow.hours ?? []).prefix(24).reduce(0) {
+                $0 + ($1.tokens ?? 0)
+            }
             for (i, hr) in (dayRow.hours ?? []).enumerated() where i < 24 {
-                let t = hr.tokens ?? 0
+                let t = rawPeakTotal > 0 ? h.tokens * (hr.tokens ?? 0) / rawPeakTotal : 0
                 if t > h.peakTokens {
                     h.peakTokens = t
                     h.peakHour = i

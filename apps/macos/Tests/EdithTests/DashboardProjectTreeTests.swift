@@ -37,13 +37,23 @@ import Testing
         """
     }
 
-    private func day(_ period: String, projects: String) -> String {
-        """
-        {"period":"\(period)",
-         "bySource":{"cli":[{"modelName":"m","inputTokens":10,"outputTokens":0,
-           "cacheCreationTokens":0,"cacheReadTokens":0,"cost":1}]},
-         "projects":[\(projects)]}
-        """
+    private func day(_ period: String, projects: String, bySource: String? = nil) -> String {
+        let objects =
+            (try? JSONSerialization.jsonObject(with: Data("[\(projects)]".utf8)))
+            as? [[String: Any]] ?? []
+        let tokens = objects.reduce(0.0) { $0 + (($1["tokens"] as? NSNumber)?.doubleValue ?? 0) }
+        let cost = objects.reduce(0.0) { $0 + (($1["cost"] as? NSNumber)?.doubleValue ?? 0) }
+        let sources =
+            bySource
+                ?? """
+                "cli":[{"modelName":"m","inputTokens":\(tokens),"outputTokens":0,
+                  "cacheCreationTokens":0,"cacheReadTokens":0,"cost":\(cost)}]
+                """
+        return """
+            {"period":"\(period)",
+             "bySource":{\(sources)},
+             "projects":[\(projects)]}
+            """
     }
 
     @Test func chatFragmentsMergeAcrossDays() throws {
@@ -133,6 +143,10 @@ import Testing
                  "chats":[\(chat("a", tokens: 100, source: "cli")),
                           \(chat("b", tokens: 150, source: "codex")),
                           \(chat("c", tokens: 50))]}
+                """,
+            bySource: """
+                "cli":[{"modelName":"m","inputTokens":150,"cost":1.5}],
+                "codex":[{"modelName":"m","inputTokens":150,"cost":1.5}]
                 """)
         let m = try model(usage(daily: d))
         m.selectedSources = ["cli"]
@@ -148,6 +162,9 @@ import Testing
             projects: """
                 {"projectName":"only-codex","tokens":100,"cost":1,
                  "chats":[\(chat("x", tokens: 100, source: "codex"))]}
+                """,
+            bySource: """
+                "codex":[{"modelName":"m","inputTokens":100,"cost":1}]
                 """)
         let m = try model(usage(daily: d))
         m.selectedSources = ["cli"]
@@ -162,6 +179,10 @@ import Testing
                  "chats":[\(chat("a", tokens: 100, source: "cli"))],
                  "worktrees":[{"name":"feat","tokens":200,"cost":2,
                    "chats":[\(chat("w", tokens: 200, source: "codex"))]}]}
+                """,
+            bySource: """
+                "cli":[{"modelName":"m","inputTokens":100,"cost":1}],
+                "codex":[{"modelName":"m","inputTokens":200,"cost":2}]
                 """)
         let m = try model(usage(daily: d))
         m.selectedSources = ["cli"]
@@ -239,6 +260,69 @@ import Testing
         #expect(m.projSortAscending == false)
         #expect(m.projListOpen == false)
         #expect(m.projExpanded.isEmpty)
+    }
+
+    @Test func projectAndHourlyTotalsMatchCanonicalFilteredUsage() throws {
+        let d = day(
+            "2026-06-01",
+            projects: """
+                {"projectName":"inflated","tokens":700,"cost":70,
+                 "chats":[\(chat("x", tokens: 700, cost: 70, source: "cli"))]}
+                """,
+            bySource: """
+                "cli":[{"modelName":"m","inputTokens":100,"cost":10}]
+                """)
+        let m = try model(usage(daily: d))
+        #expect(abs(m.projectTree.reduce(0) { $0 + $1.tokens } - 100) < 0.0001)
+        #expect(abs(m.projectTree.reduce(0) { $0 + $1.cost } - 10) < 0.0001)
+        #expect(abs(m.hourlyAll.reduce(0) { $0 + $1.tokens } - 100) < 0.0001)
+        #expect(abs(m.hourlyAll.reduce(0) { $0 + $1.cost } - 10) < 0.0001)
+    }
+
+    @Test func todayRangeKeepsFullActivityCalendar() throws {
+        let first = day(
+            "2026-06-01",
+            projects: """
+                {"projectName":"old","tokens":100,"cost":1,
+                 "chats":[\(chat("old", tokens: 100, source: "cli"))]}
+                """)
+        let latest = day(
+            "2026-06-02",
+            projects: """
+                {"projectName":"new","tokens":200,"cost":2,
+                 "chats":[\(chat("new", tokens: 200, source: "cli"))]}
+                """)
+        let m = try model(usage(daily: "\(first),\(latest)"))
+        m.range = .today
+        #expect(Set(m.heatDetail.keys) == ["2026-06-01", "2026-06-02"])
+        #expect(m.calendarDays.count > 7)
+        #expect(m.projectTree.map(\.name) == ["new"])
+        #expect(abs(m.projectTree.reduce(0) { $0 + $1.tokens } - 200) < 0.0001)
+        let detail = try #require(m.heatDetail["2026-06-02"])
+        #expect(abs(detail.projects.reduce(0) { $0 + $1.value } - 200) < 0.0001)
+    }
+
+    @Test func modelFilterLeavesActivityUnfiltered() throws {
+        let d = day(
+            "2026-06-01",
+            projects: """
+                {"projectName":"mixed","tokens":1000,"cost":100,
+                 "chats":[\(chat("x", tokens: 1000, cost: 100, source: "cli"))]}
+                """,
+            bySource: """
+                "cli":[
+                  {"modelName":"a","inputTokens":100,"cost":10},
+                  {"modelName":"b","inputTokens":300,"cost":30}
+                ]
+                """)
+        let m = try model(usage(daily: d))
+        m.selectedModels = ["a"]
+        #expect(abs(m.series.reduce(0) { $0 + $1.tokens } - 100) < 0.0001)
+        #expect(abs(m.projectTree.reduce(0) { $0 + $1.tokens } - 100) < 0.0001)
+        #expect(abs(m.hourlyAll.reduce(0) { $0 + $1.tokens } - 100) < 0.0001)
+        let detail = try #require(m.heatDetail["2026-06-01"])
+        #expect(abs(detail.tokens - 400) < 0.0001)
+        #expect(abs(detail.projects.reduce(0) { $0 + $1.value } - 400) < 0.0001)
     }
 }
 
