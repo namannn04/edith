@@ -1064,16 +1064,326 @@ h4 {
   border-radius: var(--radius);
   padding: 24px;
 }
-.mic {
+.mviz {
   display: flex;
-  width: 44px;
-  height: 44px;
   align-items: center;
   justify-content: center;
+  gap: 10px;
+  height: 104px;
+  padding: 14px;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  background: var(--surface2);
+  overflow: hidden;
+}
+.mviz.viz-col {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+}
+.vrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.vrow.on {
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+}
+.vrow.indent {
+  padding-left: 16px;
+}
+.vlabel {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vlabel.vw {
+  width: 44px;
+  flex: none;
+}
+.vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.vchip.accent {
   color: var(--accent);
-  font-size: 20px;
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+}
+.vchip.vurl {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.vbar {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line2);
+  min-width: 30px;
+}
+.vbar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.vtext {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line2);
+}
+.vtext.w40 {
+  width: 40%;
+}
+.vtext.w60 {
+  width: 60%;
+}
+.vtext.w80 {
+  width: 80%;
+}
+.vrow .vtext {
+  flex: none;
+}
+.vrow.on .vtext {
+  background: color-mix(in oklab, var(--accent) 50%, var(--line2));
+  flex: 1;
+}
+.vkey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--line2);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.vkey.big {
+  min-width: 40px;
+  height: 40px;
+  font-size: 17px;
+  border-radius: 9px;
+}
+.vloupe {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background:
+    conic-gradient(
+      var(--line2) 0 25%,
+      transparent 0 50%,
+      var(--line2) 0 75%,
+      transparent 0
+    )
+    0 0 / 10px 10px,
+    var(--surface);
+  position: relative;
+}
+.vloupe::after {
+  content: "";
+  position: absolute;
+  inset: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px;
+  border: 1.5px solid var(--fg);
+  background: var(--accent);
+}
+.viz-stack {
+  position: relative;
+}
+.vwin {
+  width: 72px;
+  height: 46px;
+  border-radius: 8px;
+  border: 1px solid var(--line2);
+  background: linear-gradient(var(--line2) 10px, transparent 0), var(--surface);
+}
+.vwin.dimmed {
+  opacity: 0.35;
+  transform: translate(10px, -6px);
+}
+.vwin.lit {
+  transform: translate(-10px, 6px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+.vnotch {
+  width: 92px;
+  height: 15px;
+  align-self: center;
+  border-radius: 0 0 10px 10px;
+  background: #000;
+  border: 1px solid var(--line2);
+  border-top: 0;
+  margin-top: -14px;
+}
+.vfiles {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.vfile {
+  width: 22px;
+  height: 27px;
+  border-radius: 4px 8px 4px 4px;
+  border: 1px solid var(--line2);
+  background:
+    linear-gradient(
+      transparent 8px,
+      var(--line2) 8px,
+      var(--line2) 10px,
+      transparent 10px,
+      transparent 14px,
+      var(--line2) 14px,
+      var(--line2) 16px,
+      transparent 16px
+    ),
+    var(--surface);
+}
+.vlock {
+  width: 20px;
+  height: 15px;
+  flex: none;
+  border-radius: 4px;
+  background: var(--accent);
+  position: relative;
+  margin-top: 9px;
+}
+.vlock::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: -9px;
+  width: 14px;
+  height: 12px;
+  border: 2.5px solid var(--muted);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  box-sizing: border-box;
+}
+.vmic {
+  width: 12px;
+  height: 19px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--muted);
+  position: relative;
+}
+.vmic::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  height: 12px;
+  border: 2px solid var(--muted);
+  border-top: 0;
+  border-radius: 0 0 11px 11px;
+}
+.vmic::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  bottom: -8px;
+  width: 2.5px;
+  background: var(--danger);
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+.vmenubar {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--surface);
+}
+.vtime {
+  color: var(--subtle);
+}
+.vquit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  font-size: 9px;
+  color: var(--danger);
+}
+.vcam {
+  width: 110px;
+  height: 62px;
+  border-radius: 10px;
+  border: 1px solid var(--line2);
+  background: #000;
+  position: relative;
+}
+.vface {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -60%);
+  border-radius: 50%;
+  background: var(--surface2);
+}
+.vface::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 26px;
+  width: 34px;
+  height: 18px;
+  transform: translateX(-50%);
+  border-radius: 10px 10px 0 0;
+  background: var(--surface2);
+}
+.vswitch {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--fg);
+  font-size: 10px;
 }
 .mcard h4 {
   margin-top: 20px;
@@ -1198,7 +1508,7 @@ h4 {
     order: 1;
   }
   .more-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
   .perf-grid {
     grid-template-columns: 5fr 7fr;

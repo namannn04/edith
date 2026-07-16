@@ -372,24 +372,104 @@
           <h2>Everything else you'd otherwise install one by one.</h2>
         </div>
         <div class="more-grid">
-          <div class="mcard"><span class="mic">◉</span><h4>Color picker</h4><p>A system loupe on a hotkey. Sample any pixel and the hex lands on your clipboard.</p></div>
-          <div class="mcard"><span class="mic">⊚</span><h4>Focus dim</h4><p>Dims everything behind your active app so one window is all you see.</p></div>
-          <div class="mcard"><span class="mic">▭</span><h4>Notch shelf</h4><p>Park files under the notch mid-drag, then drop them wherever they belong.</p></div>
-          <div class="mcard"><span class="mic">▤</span><h4>Clipboard history</h4><p>Everything you copied, one shortcut away, with instant paste.</p></div>
-          <div class="mcard"><span class="mic">▦</span><h4>Calendar</h4><p>Today's schedule in the panel and the app, with one-tap join links.</p></div>
-          <div class="mcard"><span class="mic">◷</span><h4>World clocks</h4><p>Local time plus the offices you care about, at a glance.</p></div>
-          <div class="mcard"><span class="mic">⌘</span><h4>Global shortcut</h4><p>Toggle the panel from anywhere. Defaults to Option-Command-E and re-records to taste.</p></div>
-          <div class="mcard"><span class="mic">⛨</span><h4>Local first</h4><p>Usage never leaves your Mac. Optional iCloud backup merges across machines.</p></div>
-          <div class="mcard"><span class="mic">🎙</span><h4>Mic mute</h4><p>Every microphone muted system-wide with one hotkey. The menu bar shows when you're safe.</p></div>
-          <div class="mcard"><span class="mic">≣</span><h4>Audio mixer</h4><p>Per-app volume from the panel. Quiet the browser, keep the music.</p></div>
-          <div class="mcard"><span class="mic">◬</span><h4>Notch alerts</h4><p>Bluetooth, audio-output, and charger changes surface as small notices around the notch.</p></div>
-          <div class="mcard"><span class="mic">⌁</span><h4>CPU &amp; memory readout</h4><p>Live stats in the menu bar, so a runaway process never sneaks up on you.</p></div>
-          <div class="mcard"><span class="mic">♺</span><h4>Junk cleaner</h4><p>Scan build caches, package managers, and old logs. Reclaim gigabytes, restorable from the Trash.</p></div>
-          <div class="mcard"><span class="mic">▥</span><h4>Running apps</h4><p>Sort every open app by CPU or memory and quit the heavy ones in a click.</p></div>
-          <div class="mcard"><span class="mic">⇣</span><h4>YouTube audio</h4><p>Paste links, get tagged audio files straight into your music folder, with live progress.</p></div>
-          <div class="mcard"><span class="mic">⌥</span><h4>Project drilldown</h4><p>Spend by project, worktree, and chat, across Claude and Codex, so you know which repo eats the budget.</p></div>
-          <div class="mcard"><span class="mic">♫</span><h4>Spotify &amp; Apple Music</h4><p>Whatever is already playing shows up in the player with full controls, next to your local library.</p></div>
-          <div class="mcard"><span class="mic">◎</span><h4>Camera check</h4><p>A quick mirror under the notch before the call, with a switcher for every connected camera.</p></div>
+          <div class="mcard">
+            <div class="mviz"><span class="vloupe"></span><span class="vchip mono accent">#F5A623</span></div>
+            <h4>Color picker</h4><p>A system loupe on a hotkey. Sample any pixel and the hex lands on your clipboard.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-stack"><span class="vwin dimmed"></span><span class="vwin lit"></span></div>
+            <h4>Focus dim</h4><p>Dims everything behind your active app so one window is all you see.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col"><span class="vnotch"></span><span class="vfiles"><span class="vfile"></span><span class="vfile"></span><span class="vfile"></span></span></div>
+            <h4>Notch shelf</h4><p>Park files under the notch mid-drag, then drop them wherever they belong.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vrow on"><span class="vtext w60"></span><span class="vkey">⌘V</span></span>
+              <span class="vrow"><span class="vtext w80"></span></span>
+              <span class="vrow"><span class="vtext w40"></span></span>
+            </div>
+            <h4>Clipboard history</h4><p>Everything you copied, one shortcut away, with instant paste.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vrow"><i class="dot accent-bg"></i><span class="vlabel">10:00 Standup</span><span class="vchip accent">Join</span></span>
+              <span class="vrow"><i class="dot sage-bg"></i><span class="vlabel">1:30 Design review</span></span>
+            </div>
+            <h4>Calendar</h4><p>Today's schedule in the panel and the app, with one-tap join links.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz"><span class="vchip mono">SF 11:59</span><span class="vchip mono">NY 2:29</span><span class="vchip mono">LDN 7:29</span></div>
+            <h4>World clocks</h4><p>Local time plus the offices you care about, at a glance.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz"><span class="vkey big">⌥</span><span class="vkey big">⌘</span><span class="vkey big">E</span></div>
+            <h4>Global shortcut</h4><p>Toggle the panel from anywhere. Defaults to Option-Command-E and re-records to taste.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz"><span class="vlock"></span><span class="vlabel">Stays on this Mac</span></div>
+            <h4>Local first</h4><p>Usage never leaves your Mac. Optional iCloud backup merges across machines.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz"><span class="vmic"></span><span class="vchip"><i class="dot danger-bg"></i>All mics muted</span></div>
+            <h4>Mic mute</h4><p>Every microphone muted system-wide with one hotkey. The menu bar shows when you're safe.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vrow"><span class="vlabel vw">Safari</span><span class="vbar"><i style="width:35%"></i></span></span>
+              <span class="vrow"><span class="vlabel vw">Music</span><span class="vbar"><i style="width:80%"></i></span></span>
+              <span class="vrow"><span class="vlabel vw">Zoom</span><span class="vbar"><i style="width:55%"></i></span></span>
+            </div>
+            <h4>Audio mixer</h4><p>Per-app volume from the panel. Quiet the browser, keep the music.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col"><span class="vnotch"></span><span class="vchip"><i class="dot sage-bg"></i>AirPods connected</span></div>
+            <h4>Notch alerts</h4><p>Bluetooth, audio-output, and charger changes surface as small notices around the notch.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz"><span class="vmenubar mono">CPU 3% · 6.2 GB<span class="vtime">Wed 14:22</span></span></div>
+            <h4>CPU &amp; memory readout</h4><p>Live stats in the menu bar, so a runaway process never sneaks up on you.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vrow"><span class="vlabel">Build caches</span><span class="vchip mono">8.2 GB</span></span>
+              <span class="vrow"><span class="vbar"><i style="width:64%"></i></span><span class="vlabel mono">12.4 GB found</span></span>
+            </div>
+            <h4>Junk cleaner</h4><p>Scan build caches, package managers, and old logs. Reclaim gigabytes, restorable from the Trash.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vrow"><span class="vlabel">Chrome</span><span class="vchip mono">42%</span><span class="vquit">✕</span></span>
+              <span class="vrow"><span class="vlabel">node</span><span class="vchip mono">31%</span><span class="vquit">✕</span></span>
+            </div>
+            <h4>Running apps</h4><p>Sort every open app by CPU or memory and quit the heavy ones in a click.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vchip mono vurl">youtube.com/watch?v=dQw4…</span>
+              <span class="vrow"><span class="vbar"><i style="width:64%"></i></span><span class="vlabel mono">64%</span></span>
+            </div>
+            <h4>YouTube audio</h4><p>Paste links, get tagged audio files straight into your music folder, with live progress.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vrow"><span class="vlabel">▸ edith</span><span class="vchip mono">$412</span></span>
+              <span class="vrow indent"><span class="vlabel">notch-motion</span><span class="vchip mono">$268</span></span>
+            </div>
+            <h4>Project drilldown</h4><p>Spend by project, worktree, and chat, across Claude and Codex, so you know which repo eats the budget.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz viz-col">
+              <span class="vrow"><i class="dot sage-bg"></i><span class="vlabel">Spotify · Weightless</span></span>
+              <span class="vrow"><span class="vbar"><i style="width:42%"></i></span><span class="vlabel mono">-3:34</span></span>
+            </div>
+            <h4>Spotify &amp; Apple Music</h4><p>Whatever is already playing shows up in the player with full controls, next to your local library.</p>
+          </div>
+          <div class="mcard">
+            <div class="mviz"><span class="vcam"><span class="vface"></span><span class="vswitch">⟳</span></span></div>
+            <h4>Camera check</h4><p>A quick mirror under the notch before the call, with a switcher for every connected camera.</p>
+          </div>
         </div>
       </section>
 
