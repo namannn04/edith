@@ -998,6 +998,27 @@ h4 {
   max-width: 440px;
 }
 
+.providers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.provider {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 20px;
+  align-items: baseline;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 14px;
+}
+.provider-name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
 .more {
   padding-top: 96px;
   padding-bottom: 96px;

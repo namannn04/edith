@@ -6,7 +6,7 @@
     <title>Edith: One Mac app instead of twelve</title>
     <meta
       name="description"
-      content="Edith is a native macOS menu bar app for AI rate-limit tracking, usage analytics, a local music player, and system tools."
+      content="Edith is a native macOS menu bar app for Claude and Codex rate-limit tracking, usage analytics, a local music player, and system tools."
     />
     <link rel="canonical" href="https://edith.app/" />
     <meta name="theme-color" content="#0e0f11" />
@@ -63,8 +63,8 @@
           <p class="eyebrow">For macOS</p>
           <h1>One menu bar app<br />instead of twelve.</h1>
           <p class="lede">
-            Edith is a native Mac app for AI rate-limit tracking, usage analytics, local music, and
-            system tools.
+            Edith is a native Mac app for Claude and Codex rate-limit tracking, usage analytics,
+            local music, and system tools.
           </p>
           <div class="hero-cta">
             <a href="#download" class="btn btn-solid">
@@ -167,7 +167,7 @@
             <span>Instead of installing</span>
             <span>Edith includes it</span>
           </div>
-          <div class="tr"><span class="strike">An AI usage and rate-limit tracker</span><span class="inc">Live session and weekly rings with countdowns</span></div>
+          <div class="tr"><span class="strike">An AI usage and rate-limit tracker</span><span class="inc">Claude and Codex rings with live countdowns</span></div>
           <div class="tr"><span class="strike">A menu bar stats readout</span><span class="inc">Session and weekly %, tinted by a risk model</span></div>
           <div class="tr"><span class="strike">A usage-alerts service</span><span class="inc">Threshold, ahead-of-pace, burn, back-to-green, pre-reset</span></div>
           <div class="tr"><span class="strike">An analytics dashboard</span><span class="inc">KPIs, per-day and per-model charts, sortable table</span></div>
@@ -187,7 +187,7 @@
           <div class="feature-copy">
             <p class="eyebrow">Rate limits</p>
             <h3>Live rings for session and week.</h3>
-            <p class="muted big">Second-by-second countdowns to your next 5-hour session reset and to the weekly rollover. A 24-hour spark shows the shape of your day at a glance.</p>
+            <p class="muted big">Second-by-second countdowns to your next 5-hour session reset and to the weekly rollover, for Claude and Codex alike. A 24-hour spark shows the shape of your day at a glance.</p>
           </div>
           <div class="feature-media">
             <div class="card">
@@ -212,6 +212,26 @@
       <section class="feature">
         <div class="page feature-inner reverse">
           <div class="feature-copy">
+            <p class="eyebrow">Codex</p>
+            <h3>Claude and Codex, side by side.</h3>
+            <p class="muted big">Edith tracks both agents. Switch the rate-limit rings between providers, filter the dashboard by source, and see Codex chats right in the project drilldown next to your Claude sessions.</p>
+          </div>
+          <div class="feature-media">
+            <div class="card">
+              <div class="panel-h between"><span>Providers</span><span class="mono muted2">both tracked</span></div>
+              <div class="providers">
+                <div class="provider"><span class="provider-name">Claude</span><span class="mono">47% <span class="muted2">session</span></span><span class="mono">68% <span class="muted2">week</span></span></div>
+                <div class="provider"><span class="provider-name">Codex</span><span class="mono">12% <span class="muted2">session</span></span><span class="mono">31% <span class="muted2">week</span></span></div>
+              </div>
+              <p class="center muted small">Toggle either provider off in Settings and its polling stops entirely.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="feature">
+        <div class="page feature-inner">
+          <div class="feature-copy">
             <p class="eyebrow">Menu bar</p>
             <h3>Two numbers in your menu bar.</h3>
             <p class="muted big">Session and weekly percentages, tinted by a time-aware risk model. Green when you have room. Amber when you're close. Red when the next prompt could push you over.</p>
@@ -233,7 +253,7 @@
       </section>
 
       <section class="feature">
-        <div class="page feature-inner">
+        <div class="page feature-inner reverse">
           <div class="feature-copy">
             <p class="eyebrow">Notifications</p>
             <h3>Alerts that stay out of your way.</h3>
@@ -250,7 +270,7 @@
       </section>
 
       <section class="feature">
-        <div class="page feature-inner reverse">
+        <div class="page feature-inner">
           <div class="feature-copy">
             <p class="eyebrow">Heatmap</p>
             <h3>A year of usage at a glance.</h3>
@@ -268,7 +288,7 @@
       </section>
 
       <section class="feature">
-        <div class="page feature-inner">
+        <div class="page feature-inner reverse">
           <div class="feature-copy">
             <p class="eyebrow">Music</p>
             <h3>Your local music folder, done right.</h3>
@@ -296,7 +316,7 @@
       </section>
 
       <section class="feature">
-        <div class="page feature-inner reverse">
+        <div class="page feature-inner">
           <div class="feature-copy">
             <p class="eyebrow">Privacy</p>
             <h3>Presenter mode for the room.</h3>
@@ -318,7 +338,7 @@
       </section>
 
       <section class="feature">
-        <div class="page feature-inner">
+        <div class="page feature-inner reverse">
           <div class="feature-copy">
             <p class="eyebrow">System</p>
             <h3>Prevent sleep. Lock the keyboard.</h3>
@@ -359,7 +379,9 @@
           <div class="mcard"><span class="mic">♺</span><h4>Junk cleaner</h4><p>Scan build caches, package managers, and old logs. Reclaim gigabytes, restorable from the Trash.</p></div>
           <div class="mcard"><span class="mic">▥</span><h4>Running apps</h4><p>Sort every open app by CPU or memory and quit the heavy ones in a click.</p></div>
           <div class="mcard"><span class="mic">⇣</span><h4>YouTube audio</h4><p>Paste links, get tagged audio files straight into your music folder, with live progress.</p></div>
-          <div class="mcard"><span class="mic">⌥</span><h4>Project drilldown</h4><p>Spend by project, worktree, and chat, so you know exactly which repo eats the budget.</p></div>
+          <div class="mcard"><span class="mic">⌥</span><h4>Project drilldown</h4><p>Spend by project, worktree, and chat, across Claude and Codex, so you know which repo eats the budget.</p></div>
+          <div class="mcard"><span class="mic">♫</span><h4>Spotify &amp; Apple Music</h4><p>Whatever is already playing shows up in the player with full controls, next to your local library.</p></div>
+          <div class="mcard"><span class="mic">◎</span><h4>Camera check</h4><p>A quick mirror under the notch before the call, with a switcher for every connected camera.</p></div>
         </div>
       </section>
 
