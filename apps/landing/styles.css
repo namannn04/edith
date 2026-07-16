@@ -83,10 +83,6 @@ a {
 .small {
   font-size: 12px;
 }
-.strike {
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in oklab, var(--subtle) 60%, transparent);
-}
 .vh {
   position: absolute;
   width: 1px;
@@ -971,11 +967,11 @@ h4 {
   letter-spacing: 0.14em;
   color: var(--muted);
 }
-.tr .inc {
+.tr .feat {
   font-size: 15px;
   font-weight: 500;
 }
-.tr .strike {
+.tr .inc {
   font-size: 15px;
   color: var(--muted);
 }
