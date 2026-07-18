@@ -37,8 +37,10 @@ enum NotchGeometry {
         CGPoint(x: screenFrame.midX - panelSize.width / 2, y: screenFrame.maxY - panelSize.height)
     }
 
-    static let openMargin: CGFloat = 6
-    static let keepOpenMargin: CGFloat = 24
+    static let openInset: CGFloat = 6
+    static let keepInset: CGFloat = 24
+    static let interactInset: CGFloat = 24
+    static let openMargin = openInset
     static let panelPadding = CGSize(width: 24, height: 10)
     static let hoverGrow: CGFloat = 12
 
@@ -69,16 +71,28 @@ enum NotchGeometry {
         point: CGPoint,
         collapsedFrame: CGRect,
         expandedFrame: CGRect,
-        openMargin: CGFloat = openMargin,
-        keepOpenMargin: CGFloat = keepOpenMargin
+        openInset: CGFloat = openInset,
+        keepInset: CGFloat = keepInset
     ) -> NotchProximity {
-        if collapsedFrame.insetBy(dx: -openMargin, dy: -openMargin).contains(point) {
+        if insetFrame(collapsedFrame, by: openInset).contains(point) {
             return .open
         }
-        if expandedFrame.insetBy(dx: -keepOpenMargin, dy: -keepOpenMargin).contains(point) {
+        if insetFrame(expandedFrame, by: keepInset).contains(point) {
             return .keepOpen
         }
         return .outside
+    }
+
+    static func openFrame(around frame: CGRect) -> CGRect {
+        insetFrame(frame, by: openInset)
+    }
+
+    static func interactionFrame(around frame: CGRect) -> CGRect {
+        insetFrame(frame, by: interactInset)
+    }
+
+    private static func insetFrame(_ frame: CGRect, by inset: CGFloat) -> CGRect {
+        frame.insetBy(dx: -inset, dy: -inset)
     }
 
     static func hardwareNotchRect(in panelSize: CGSize, collapsedSize: CGSize) -> CGRect {

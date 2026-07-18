@@ -113,8 +113,8 @@ import Testing
         #expect(p == .open)
     }
 
-    @Test func withinOpenMarginStillCountsAsOpen() {
-        let justAbove = CGPoint(x: 756, y: collapsed.maxY + NotchGeometry.openMargin - 1)
+    @Test func withinOpenInsetStillCountsAsOpen() {
+        let justAbove = CGPoint(x: 756, y: collapsed.maxY + NotchGeometry.openInset - 1)
         #expect(
             NotchGeometry.proximity(
                 point: justAbove, collapsedFrame: collapsed, expandedFrame: expanded) == .open)
@@ -132,8 +132,8 @@ import Testing
         #expect(p == .outside)
     }
 
-    @Test func keepOpenMarginExtendsBeyondExpandedFrame() {
-        let justBelow = CGPoint(x: 756, y: expanded.minY - NotchGeometry.keepOpenMargin + 1)
+    @Test func keepInsetExtendsBeyondExpandedFrame() {
+        let justBelow = CGPoint(x: 756, y: expanded.minY - NotchGeometry.keepInset + 1)
         #expect(
             NotchGeometry.proximity(
                 point: justBelow, collapsedFrame: collapsed, expandedFrame: expanded) == .keepOpen)
@@ -143,7 +143,7 @@ import Testing
         let center = CGPoint(x: collapsed.midX, y: collapsed.midY)
         let onlyKeep = NotchGeometry.proximity(
             point: center, collapsedFrame: collapsed, expandedFrame: .zero,
-            openMargin: -1000, keepOpenMargin: NotchGeometry.keepOpenMargin)
+            openInset: -1000, keepInset: NotchGeometry.keepInset)
         #expect(onlyKeep == .outside)
         let asOpen = NotchGeometry.proximity(
             point: center, collapsedFrame: collapsed, expandedFrame: expanded)
@@ -191,8 +191,8 @@ import Testing
     @Test func oscillatingAtBoundaryDoesNotFlicker() {
         var gate = NotchHoverGate(openDwell: 0.1, closeGrace: 0.4)
         gate.forceOpen()
-        let justInside = CGPoint(x: 756, y: expanded.minY - NotchGeometry.keepOpenMargin + 2)
-        let justOutside = CGPoint(x: 756, y: expanded.minY - NotchGeometry.keepOpenMargin - 2)
+        let justInside = CGPoint(x: 756, y: expanded.minY - NotchGeometry.keepInset + 2)
+        let justOutside = CGPoint(x: 756, y: expanded.minY - NotchGeometry.keepInset - 2)
         var now = 1.0
         for _ in 0..<20 {
             drive(&gate, point: justOutside, at: now)
