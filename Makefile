@@ -27,10 +27,10 @@ ci-swift-check:
 ci-swift: ci-swift-check
 	cd apps/macos && ./build.sh --no-open
 	test -f apps/macos/dist/Edith.app/Contents/MacOS/Edith
-	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/EdithMenuBar.app/Contents/MacOS/EdithMenuBar
-	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/EdithMenuBar.app/Contents/Resources/AppIcon.icns
-	/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' apps/macos/dist/Edith.app/Contents/Library/LoginItems/EdithMenuBar.app/Contents/Info.plist | grep -qx Edith
-	codesign --verify apps/macos/dist/Edith.app/Contents/Library/LoginItems/EdithMenuBar.app
+	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/MacOS/Edith
+	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/AppIcon.icns
+	/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Info.plist | grep -qx Edith
+	codesign --verify apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app
 	codesign --verify apps/macos/dist/Edith.app
 
 build:

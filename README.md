@@ -45,7 +45,7 @@ cd apps/macos
 
 Needs only Xcode Command Line Tools (Swift 6).
 
-`build.sh` also assembles a small `EdithMenuBar.app` helper nested inside
+`build.sh` also assembles a small `Edith.app` login item nested inside the main
 `Edith.app` (`Contents/Library/LoginItems`) - the always-on menu bar
 companion that will keep running after the main app quits. Both bundles are
 signed ad-hoc by default. Ad-hoc signatures change on every rebuild, which
