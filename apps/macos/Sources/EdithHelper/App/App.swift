@@ -33,6 +33,7 @@ func migratedServices() -> AppServices {
         d.set(true, forKey: "migratedFromControlCenter")
     }
     SharedDefaults.migrate()
+    ExtensionDefaultsMigration.migrate()
     return AppServices()
 }
 
@@ -317,7 +318,7 @@ enum PresenterHotKey {
     }
 
     static func register() {
-        let enabled = SharedDefaults.store.object(forKey: "presenterEnabled") as? Bool ?? true
+        let enabled = SharedDefaults.store.object(forKey: "presenterEnabled") as? Bool ?? false
         guard enabled else {
             GlobalHotKey.clear(id: GlobalHotKey.ID.presenterToggle)
             return
@@ -386,11 +387,11 @@ struct RootView: View {
     @EnvironmentObject private var services: AppServices
     @State private var tab = UserDefaults.standard.string(forKey: "tab") ?? "usage"
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
+        false
     @AppStorage("focusDimEnabled", store: SharedDefaults.store) private var focusDimEnabled = false
     @AppStorage("tabOrder", store: SharedDefaults.store) private var tabOrderRaw =
         "usage,music,system"

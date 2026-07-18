@@ -9,7 +9,7 @@ struct ShortcutsPane: View {
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =
         false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
+        false
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.dashboard.rawValue
 

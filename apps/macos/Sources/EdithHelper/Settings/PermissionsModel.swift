@@ -76,7 +76,7 @@ final class PermissionsModel: ObservableObject {
 
     var needsAttention: Bool {
         let d = SharedDefaults.store
-        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? true }
+        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? false }
         return PermissionsStatus.needsAttention(
             calendarTab: on("tabCalendarEnabled"), systemTab: on("tabSystemEnabled"),
             notifyMaster: d.bool(forKey: "notifyMaster"),

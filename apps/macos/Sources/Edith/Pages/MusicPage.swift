@@ -130,7 +130,7 @@ final class MusicRemote: ObservableObject {
 
 struct MusicPage: View {
     @ObservedObject private var remote = MusicRemote.shared
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var enabled = true
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var enabled = false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true

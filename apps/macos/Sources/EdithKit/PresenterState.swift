@@ -33,7 +33,7 @@ public final class PresenterState: ObservableObject {
 
     private func refresh() {
         let d = SharedDefaults.store
-        let newEnabled = d.object(forKey: "presenterEnabled") as? Bool ?? true
+        let newEnabled = d.object(forKey: "presenterEnabled") as? Bool ?? false
         let newManual = d.bool(forKey: "presenterMode")
         let newAutoActive = newEnabled && d.bool(forKey: "presenterAutoActive")
         let newAutoReason = d.string(forKey: "presenterAutoReason")

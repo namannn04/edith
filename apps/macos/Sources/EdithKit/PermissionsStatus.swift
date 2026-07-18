@@ -3,7 +3,7 @@ import Foundation
 public enum PermissionsStatus {
     public static var current: Bool {
         let d = SharedDefaults.store
-        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? true }
+        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? false }
         return needsAttention(
             calendarTab: on("tabCalendarEnabled"), systemTab: on("tabSystemEnabled"),
             notifyMaster: d.bool(forKey: "notifyMaster"),

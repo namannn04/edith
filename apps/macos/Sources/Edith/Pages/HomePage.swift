@@ -9,13 +9,13 @@ struct HomePage: View {
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
         true
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+        false
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
+        false
     @Environment(\.colorScheme) private var scheme
 
     private var dark: Bool { scheme == .dark }
@@ -502,8 +502,8 @@ private struct QuickActionsCard: View {
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+        false
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }

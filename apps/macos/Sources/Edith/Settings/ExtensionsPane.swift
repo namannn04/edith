@@ -3,17 +3,17 @@ import EdithKit
 import SwiftUI
 
 struct ExtensionsPane: View {
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
     @AppStorage("claudeLimitsEnabled", store: SharedDefaults.store) private var claudeEnabled = true
     @AppStorage("codexLimitsEnabled", store: SharedDefaults.store) private var codexEnabled = true
     @AppStorage("limitsInMenuBar", store: SharedDefaults.store) private var limitsInMenuBar = true
     @AppStorage("notifyMaster", store: SharedDefaults.store) private var notifyMaster = false
     @AppStorage("limitsProvider", store: SharedDefaults.store) private var limitsProviderRaw =
         LimitProvider.claude.rawValue
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+        false
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
     @AppStorage("menuBarSystemStats", store: SharedDefaults.store) private var systemStats = false
     @AppStorage("notchShelfEnabled", store: SharedDefaults.store) private var notchShelfEnabled =
         false
@@ -24,76 +24,32 @@ struct ExtensionsPane: View {
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =
         false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
+        false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
+    @AppStorage("permCalendarGranted", store: SharedDefaults.store) private var calendarGranted =
+        false
+    @AppStorage("permNotificationsGranted", store: SharedDefaults.store)
+    private var notificationsGranted = false
+    @AppStorage("permAccessibilityGranted", store: SharedDefaults.store)
+    private var accessibilityGranted = false
+    @AppStorage("permInputMonitoringGranted", store: SharedDefaults.store)
+    private var inputMonitoringGranted = false
+    @AppStorage("permFullDiskGranted", store: SharedDefaults.store) private var fullDiskGranted =
+        false
+    @AppStorage("permScreenRecordingGranted", store: SharedDefaults.store)
+    private var screenRecordingGranted = false
+    @AppStorage("permCameraGranted", store: SharedDefaults.store) private var cameraGranted = false
     @State private var expanded: Set<String> = []
 
     var body: some View {
         Form {
-            header(
-                "usage", title: "Agent Usage", icon: "chart.bar.fill",
-                subtitle: "Claude and Codex limits, usage stats, and alerts.",
-                enabled: agentUsageBinding, group: "Agent")
-            if expanded.contains("usage") { UsageRows() }
-
-            header(
-                "system", title: "System", icon: "switch.2",
-                subtitle: "Running apps, prevent sleep, and the keyboard-cleaning lock.",
-                enabled: $systemEnabled, group: "System")
-            if expanded.contains("system") { SystemRows() }
-
-            header(
-                "systemStats", title: "CPU & Memory in menu bar", icon: "gauge.with.needle",
-                subtitle: "Live CPU and memory readout as a menu bar item.",
-                enabled: $systemStats)
-            if expanded.contains("systemStats") { SystemStatsRows() }
-
-            header(
-                "micMute", title: "Mic Mute", icon: "mic.slash.fill",
-                subtitle: "Mute every microphone system-wide with ⌘⇧M or the menu bar icon.",
-                enabled: $micMuteEnabled)
-            if expanded.contains("micMute") { MicMuteRows() }
-
-            header(
-                "music", title: "Music", icon: "music.note",
-                subtitle: "Plays your local music folder, with media keys.",
-                enabled: $musicEnabled, group: "Media")
-            if expanded.contains("music") { MusicRows() }
-
-            header(
-                "calendar", title: "Calendar", icon: "calendar",
-                subtitle: "Shows your schedule in the panel and the app.",
-                enabled: $calendarEnabled, expandable: false)
-
-            header(
-                "notchShelf", title: "Notch Shelf", icon: "tray.and.arrow.down",
-                subtitle: "File shelf, now playing, camera, and alerts around the notch.",
-                enabled: $notchShelfEnabled)
-            if expanded.contains("notchShelf") { NotchShelfRows() }
-
-            header(
-                "clipboard", title: "Clipboard", icon: "doc.on.clipboard",
-                subtitle: "Clipboard history with instant paste.",
-                enabled: $clipboardEnabled, group: "Utilities")
-            if expanded.contains("clipboard") { ClipboardRows() }
-
-            header(
-                "focusDim", title: "Focus Dim", icon: "circle.lefthalf.filled",
-                subtitle: "Dims everything behind your active app.",
-                enabled: $focusDimEnabled)
-            if expanded.contains("focusDim") { FocusDimRows() }
-
-            header(
-                "presenter", title: "Presenter", icon: "theatermasks.fill",
-                subtitle: "Blurs sensitive numbers while sharing your screen.",
-                enabled: $presenterEnabled)
-            if expanded.contains("presenter") { PresenterRows() }
-
-            header(
-                "colorPicker", title: "Color Picker", icon: "eyedropper",
-                subtitle: "System loupe on a hotkey, sampled color to your clipboard.",
-                enabled: $colorPickerEnabled)
-            if expanded.contains("colorPicker") { ColorPickerRows() }
+            ForEach(Array(ExtensionRegistry.entries.enumerated()), id: \.element.id) {
+                index, entry in
+                header(entry, group: groupTitle(at: index))
+                if expanded.contains(entry.id) {
+                    detailRows(for: entry)
+                }
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("Extensions")
@@ -133,44 +89,124 @@ struct ExtensionsPane: View {
         notifyMaster = state.alertsEnabled
     }
 
-    private func header(
-        _ id: String, title: String, icon: String, subtitle: String,
-        enabled: Binding<Bool>?, expandable: Bool = true, group: String? = nil
-    ) -> some View {
-        Section {
+    private func groupTitle(at index: Int) -> String? {
+        let entry = ExtensionRegistry.entries[index]
+        guard index == 0 || ExtensionRegistry.entries[index - 1].group != entry.group else {
+            return nil
+        }
+        return entry.group.rawValue
+    }
+
+    private func enabledBinding(for entry: ExtensionRegistryEntry) -> Binding<Bool> {
+        switch entry.defaultsKey {
+        case "tabUsageEnabled": agentUsageBinding
+        case "tabSystemEnabled": $systemEnabled
+        case "menuBarSystemStats": $systemStats
+        case "micMuteEnabled": $micMuteEnabled
+        case "tabMusicEnabled": $musicEnabled
+        case "tabCalendarEnabled": $calendarEnabled
+        case "notchShelfEnabled": $notchShelfEnabled
+        case "clipboardEnabled": $clipboardEnabled
+        case "focusDimEnabled": $focusDimEnabled
+        case "presenterEnabled": $presenterEnabled
+        case "colorPickerEnabled": $colorPickerEnabled
+        default: .constant(false)
+        }
+    }
+
+    @ViewBuilder
+    private func detailRows(for entry: ExtensionRegistryEntry) -> some View {
+        switch entry.id {
+        case "usage": UsageRows()
+        case "system": SystemRows()
+        case "systemStats": SystemStatsRows()
+        case "micMute": MicMuteRows()
+        case "music": MusicRows()
+        case "notchShelf": NotchShelfRows()
+        case "clipboard": ClipboardRows()
+        case "focusDim": FocusDimRows()
+        case "presenter": PresenterRows()
+        case "colorPicker": ColorPickerRows()
+        default: EmptyView()
+        }
+    }
+
+    private func permissionGranted(_ permission: ExtensionPermission) -> Bool {
+        switch permission {
+        case .calendar: calendarGranted
+        case .notifications: notificationsGranted
+        case .accessibility: accessibilityGranted
+        case .inputMonitoring: inputMonitoringGranted
+        case .fullDisk: fullDiskGranted
+        case .screenRecording: screenRecordingGranted
+        case .camera: cameraGranted
+        case .bluetooth, .automation: false
+        }
+    }
+
+    private func permissionChip(for entry: ExtensionRegistryEntry) -> some View {
+        let missing = entry.requiredPermissions.filter { !permissionGranted($0) }
+        let label: String
+        let color: Color
+        if entry.requiredPermissions.isEmpty {
+            if entry.optionalPermissions.isEmpty {
+                label = "No permissions"
+            } else {
+                let names = entry.optionalPermissions.map(\.displayName).joined(separator: ", ")
+                label = "Optional: \(names)"
+            }
+            color = Color(nsColor: .secondaryLabelColor)
+        } else if missing.isEmpty {
+            label = "granted"
+            color = .green
+        } else {
+            label = missing.map(\.displayName).joined(separator: ", ")
+            color = .orange
+        }
+        return Text(label)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12), in: Capsule())
+    }
+
+    private func header(_ entry: ExtensionRegistryEntry, group: String?) -> some View {
+        let expandable = entry.id != "calendar"
+        return Section {
             HStack(spacing: 12) {
-                Image(systemName: icon)
+                Image(systemName: entry.symbolName)
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                    Text(subtitle)
+                    Text(entry.title)
+                    Text(entry.subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                if let enabled {
-                    Toggle("", isOn: enabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        .pointerCursor()
-                }
+                permissionChip(for: entry)
+                Toggle("", isOn: enabledBinding(for: entry))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .pointerCursor()
                 if expandable {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(expanded.contains(id) ? 90 : 0))
+                        .rotationEffect(.degrees(expanded.contains(entry.id) ? 90 : 0))
                 }
             }
             .contentShape(Rectangle())
             .onTapGesture {
                 guard expandable else { return }
-                if expanded.contains(id) {
-                    expanded.remove(id)
+                if expanded.contains(entry.id) {
+                    expanded.remove(entry.id)
                 } else {
-                    expanded.insert(id)
+                    expanded.insert(entry.id)
                 }
             }
             .pointerCursor()
@@ -181,7 +217,7 @@ struct ExtensionsPane: View {
 }
 
 private struct UsageRows: View {
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var enabled = true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var enabled = false
     @AppStorage("limitsInMenuBar", store: SharedDefaults.store) private var limitsInMenuBar = true
     @AppStorage("claudeLimitsEnabled", store: SharedDefaults.store) private var claudeEnabled = true
     @AppStorage("codexLimitsEnabled", store: SharedDefaults.store) private var codexEnabled = true
@@ -263,7 +299,7 @@ private struct SystemStatsRows: View {
 }
 
 private struct MusicRows: View {
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var enabled = true
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var enabled = false
 
     var body: some View {
         Section {
@@ -298,7 +334,7 @@ private struct MicMuteRows: View {
 }
 
 private struct SystemRows: View {
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var enabled = true
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var enabled = false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @State private var cleaningStarted = false
 

@@ -194,15 +194,15 @@ struct MainWindowView: View {
     @AppStorage("settingsTab", store: SharedDefaults.store) private var settingsTab = "general"
     @AppStorage("mainSidebarOpen", store: SharedDefaults.store) private var sidebarOpen = true
     @AppStorage("mainSidebarWidth", store: SharedDefaults.store) private var sidebarWidth = 230.0
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
+        false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
+        false
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =

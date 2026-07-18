@@ -15,11 +15,11 @@ final class AppServices: ObservableObject {
     @Published private(set) var micMute: MicMuteEngine?
     @Published private(set) var systemStats: SystemStatsStatusItem?
 
-    static func tabEnabled(_ key: String) -> Bool {
+    static func preferenceOnByDefault(_ key: String) -> Bool {
         SharedDefaults.store.object(forKey: key) as? Bool ?? true
     }
 
-    static func featureOffByDefault(_ key: String) -> Bool {
+    static func extensionEnabled(_ key: String) -> Bool {
         SharedDefaults.store.object(forKey: key) as? Bool ?? false
     }
 
@@ -30,7 +30,7 @@ final class AppServices: ObservableObject {
     func sync() {
         let usageState = Self.reconcileAgentUsageSettings()
         let usageOn = usageState.enabled
-        let musicOn = Self.tabEnabled("tabMusicEnabled")
+        let musicOn = Self.extensionEnabled("tabMusicEnabled")
 
         if usageOn, usage == nil { usage = UsageStore() }
         if !usageOn, let store = usage {
@@ -43,7 +43,7 @@ final class AppServices: ObservableObject {
             music = nil
         }
 
-        let systemOn = Self.tabEnabled("tabSystemEnabled")
+        let systemOn = Self.extensionEnabled("tabSystemEnabled")
         if systemOn, system == nil { system = SystemStore() }
         if !systemOn, let store = system {
             store.shutdown()
@@ -56,7 +56,7 @@ final class AppServices: ObservableObject {
             SharedDefaults.store.set(false, forKey: "preventSleep")
         }
 
-        let calendarOn = Self.tabEnabled("tabCalendarEnabled")
+        let calendarOn = Self.extensionEnabled("tabCalendarEnabled")
         if calendarOn, calendar == nil { calendar = CalendarStore() }
         if !calendarOn, let store = calendar {
             store.shutdown()
@@ -99,22 +99,22 @@ final class AppServices: ObservableObject {
         }
 
         let presenterOn = FeatureGates.presenterDetectorWanted(
-            presenterEnabled: Self.tabEnabled("presenterEnabled"),
-            autoEnabled: Self.featureOffByDefault("presenterAutoEnabled"))
+            presenterEnabled: Self.extensionEnabled("presenterEnabled"),
+            autoEnabled: Self.extensionEnabled("presenterAutoEnabled"))
         if presenterOn, presenter == nil { presenter = PresenterDetector() }
         if !presenterOn, let detector = presenter {
             detector.shutdown()
             presenter = nil
         }
 
-        let micOn = Self.featureOffByDefault("micMuteEnabled")
+        let micOn = Self.extensionEnabled("micMuteEnabled")
         if micOn, micMute == nil { micMute = MicMuteEngine() }
         if !micOn, let engine = micMute {
             engine.shutdown()
             micMute = nil
         }
 
-        let statsOn = Self.featureOffByDefault("menuBarSystemStats")
+        let statsOn = Self.extensionEnabled("menuBarSystemStats")
         if statsOn, systemStats == nil { systemStats = SystemStatsStatusItem() }
         if !statsOn, let stats = systemStats {
             stats.shutdown()
@@ -126,10 +126,10 @@ final class AppServices: ObservableObject {
         let defaults = SharedDefaults.store
         let state = AgentUsageSettingsFlow.providersChanged(
             AgentUsageSettingsState(
-                enabled: tabEnabled("tabUsageEnabled"),
-                claudeEnabled: tabEnabled("claudeLimitsEnabled"),
-                codexEnabled: tabEnabled("codexLimitsEnabled"),
-                menuBarEnabled: tabEnabled("limitsInMenuBar"),
+                enabled: extensionEnabled("tabUsageEnabled"),
+                claudeEnabled: preferenceOnByDefault("claudeLimitsEnabled"),
+                codexEnabled: preferenceOnByDefault("codexLimitsEnabled"),
+                menuBarEnabled: preferenceOnByDefault("limitsInMenuBar"),
                 alertsEnabled: defaults.bool(forKey: "notifyMaster"),
                 selectedProvider: LimitProvider(
                     rawValue: defaults.string(forKey: "limitsProvider") ?? "") ?? .claude))
