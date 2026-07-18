@@ -45,6 +45,7 @@ struct ExtensionsPane: View {
     @State private var expanded: Set<String> = []
     @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
     @State private var permissionRequest: ExtensionPermissionRequest?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Form {
@@ -58,7 +59,7 @@ struct ExtensionsPane: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Extensions")
-        .animation(.easeOut(duration: 0.15), value: expanded)
+        .animation(Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: expanded)
         .onChange(of: systemEnabled) {
             if !systemEnabled { preventSleep = false }
         }

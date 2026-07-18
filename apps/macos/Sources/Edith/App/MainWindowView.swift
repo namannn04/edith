@@ -129,14 +129,9 @@ private struct SidebarNavRow: View {
     let selected: Bool
     let available: Bool
     let theme: Color
+    let selectionNamespace: Namespace.ID
     let action: () -> Void
     @State private var hovering = false
-
-    private var rowBackground: AnyShapeStyle {
-        if selected { return AnyShapeStyle(.primary.opacity(0.09)) }
-        if hovering { return AnyShapeStyle(.primary.opacity(0.05)) }
-        return AnyShapeStyle(.clear)
-    }
 
     var body: some View {
         Button(action: action) {
@@ -144,9 +139,7 @@ private struct SidebarNavRow: View {
                 Image(systemName: item.icon)
                     .font(.system(size: 14, weight: selected ? .semibold : .regular))
                     .foregroundStyle(
-                        selected && available
-                            ? AnyShapeStyle(theme)
-                            : AnyShapeStyle(.secondary)
+                        available ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary)
                     )
                     .frame(width: 22)
                 Text(item.title)
@@ -169,7 +162,20 @@ private struct SidebarNavRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(rowBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background {
+            ZStack {
+                if hovering && !selected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.primary.opacity(0.07))
+                }
+                if selected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(theme.opacity(0.16))
+                        .matchedGeometryEffect(
+                            id: "sidebarSelection", in: selectionNamespace, isSource: true)
+                }
+            }
+        }
         .onHover { hovering = $0 }
         .pointerCursor()
     }
@@ -238,7 +244,10 @@ struct MainWindowView: View {
     @State private var permissionsNeedAttention = PermissionsStatus.current
     @State private var presenterQuickActionsPresented = false
     @State private var hoveredPresenterQuickAction: String?
+    @State private var keyboardCleanTrigger = 0
+    @Namespace private var sidebarSelectionNamespace
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var theme: Color { themeColor(themeName) }
 
@@ -295,7 +304,7 @@ struct MainWindowView: View {
             .ignoresSafeArea()
             .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
             .animation(
-                .spring(response: 0.32, dampingFraction: 0.9),
+                Motion.animation(Motion.glide, reduceMotion: reduceMotion),
                 value: musicFooterVisible)
         }
         .background(historyShortcuts)
@@ -396,7 +405,8 @@ struct MainWindowView: View {
                 .opacity(sidebarOpen ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.34, dampingFraction: 0.9), value: sidebarOpen)
+        .animation(
+            Motion.animation(Motion.glide, reduceMotion: reduceMotion), value: sidebarOpen)
     }
 
     private func refreshPermissionsPill() {
@@ -440,18 +450,20 @@ struct MainWindowView: View {
     }
 
     private func sidebar(_ bandHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            band(Color(nsColor: .windowBackgroundColor), height: bandHeight)
+        ZStack {
+            SidebarMaterial()
             VStack(spacing: 0) {
-                sidebarList
-                if footerVisible {
-                    Divider()
-                    sidebarFooter
+                band(.clear, height: bandHeight)
+                VStack(spacing: 0) {
+                    sidebarList
+                    if footerVisible {
+                        Divider()
+                        sidebarFooter
+                    }
+                    credit
+                        .padding(.vertical, 8)
                 }
-                credit
-                    .padding(.vertical, 8)
             }
-            .background(Color(nsColor: .windowBackgroundColor))
         }
     }
 
@@ -462,7 +474,7 @@ struct MainWindowView: View {
                     let available = homeItemAvailable(item)
                     SidebarNavRow(
                         item: item, selected: destination == item, available: available,
-                        theme: theme
+                        theme: theme, selectionNamespace: sidebarSelectionNamespace
                     ) {
                         selectHomeItem(item, available: available)
                     }
@@ -475,7 +487,8 @@ struct MainWindowView: View {
                     .padding(.bottom, 4)
                 ForEach(MainDestination.appItems) { item in
                     SidebarNavRow(
-                        item: item, selected: destination == item, available: true, theme: theme
+                        item: item, selected: destination == item, available: true, theme: theme,
+                        selectionNamespace: sidebarSelectionNamespace
                     ) {
                         mainWindowSection = item.rawValue
                     }
@@ -485,6 +498,8 @@ struct MainWindowView: View {
             .padding(.top, 8)
         }
         .frame(maxHeight: .infinity)
+        .animation(
+            Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: destination)
     }
 
     private func homeItemAvailable(_ item: MainDestination) -> Bool {
@@ -545,7 +560,7 @@ struct MainWindowView: View {
             .foregroundStyle(DashSkin.sage)
             .padding(.horizontal, 9)
             .frame(height: 28)
-            .background(DashSkin.sage.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain)
         .pointerCursor()
@@ -557,13 +572,15 @@ struct MainWindowView: View {
         let tiles = [
             quickActionTile(
                 icon: "keyboard", title: "Clean keys", active: false,
+                trigger: keyboardCleanTrigger,
                 help: "Lock the keyboard so you can wipe it"
             ) {
+                keyboardCleanTrigger += 1
                 IPC.post(IPC.Name.requestKeyboardClean)
             },
             quickActionTile(
                 icon: preventSleep ? "moon.zzz.fill" : "moon.zzz", title: "Keep awake",
-                active: preventSleep,
+                active: preventSleep, trigger: preventSleep ? 1 : 0,
                 help: "Keep this Mac from sleeping until turned off"
             ) {
                 preventSleep.toggle()
@@ -593,6 +610,7 @@ struct MainWindowView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "theatermasks.fill")
                         .font(.system(size: 14))
+                        .symbolEffect(.bounce, value: presenterMode)
                     Text("Presenter mode")
                         .font(.system(size: 10, weight: .medium))
                         .lineLimit(1)
@@ -614,6 +632,7 @@ struct MainWindowView: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
+                    .symbolEffect(.bounce, value: presenterQuickActionsPresented)
                     .frame(width: 30, height: 46)
                     .contentShape(Rectangle())
             }
@@ -626,7 +645,7 @@ struct MainWindowView: View {
         }
         .foregroundStyle(presenterMode ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
         .background(
-            presenterMode ? AnyShapeStyle(theme) : AnyShapeStyle(.primary.opacity(0.05)),
+            presenterMode ? AnyShapeStyle(theme) : AnyShapeStyle(.thinMaterial),
             in: RoundedRectangle(cornerRadius: 9)
         )
         .clipShape(RoundedRectangle(cornerRadius: 9))
@@ -683,12 +702,14 @@ struct MainWindowView: View {
     }
 
     private func quickActionTile(
-        icon: String, title: String, active: Bool, help: String, action: @escaping () -> Void
+        icon: String, title: String, active: Bool, trigger: Int, help: String,
+        action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 14))
+                    .symbolEffect(.bounce, value: trigger)
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
@@ -697,7 +718,7 @@ struct MainWindowView: View {
             .padding(.vertical, 8)
             .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .background(
-                active ? AnyShapeStyle(theme) : AnyShapeStyle(.primary.opacity(0.05)),
+                active ? AnyShapeStyle(theme) : AnyShapeStyle(.thinMaterial),
                 in: RoundedRectangle(cornerRadius: 9)
             )
             .contentShape(Rectangle())

@@ -128,6 +128,7 @@ struct RateLimitsDialsView: View {
     @State private var point: DashLimitPoint?
     @AppStorage("limitsProvider", store: SharedDefaults.store) private var selectedRaw =
         LimitProvider.claude.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var providers: [LimitProvider] { DashLimits.availableProviders() }
     private var selected: LimitProvider {
@@ -187,10 +188,15 @@ struct RateLimitsDialsView: View {
                     .trim(from: 0, to: min(p / 100, 1))
                     .stroke(color(for: p), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.5), value: p)
+                    .animation(
+                        Motion.animation(Motion.settle, reduceMotion: reduceMotion), value: p)
                 Text(pct != nil ? "\(Int(p))%" : "-")
                     .font(DashSkin.serif(30)).foregroundStyle(DashSkin.ink(dark))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(
+                        Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                        value: pct.map { Int($0) })
             }
             .frame(width: 104, height: 104)
             Text(label).font(DashSkin.mono(9)).tracking(1.4)
@@ -265,6 +271,7 @@ struct LimitsCardView: View {
     @State private var selected: Date?
     @AppStorage("limitsProvider", store: SharedDefaults.store) private var selectedProviderRaw =
         LimitProvider.claude.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var providers: [LimitProvider] { DashLimits.availableProviders() }
     private var selectedProvider: LimitProvider {
@@ -377,8 +384,22 @@ struct LimitsCardView: View {
                 HStack(spacing: 10) {
                     Text(point.t.formatted(.dateTime.month().day().hour().minute()))
                         .foregroundStyle(DashSkin.inkFaint(dark))
-                    if let s = point.s { Text("S \(Int(s))%").foregroundStyle(sessionC) }
-                    if let w = point.w { Text("W \(Int(w))%").foregroundStyle(weeklyC) }
+                    if let s = point.s {
+                        Text("S \(Int(s))%")
+                            .foregroundStyle(sessionC)
+                            .contentTransition(.numericText())
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: Int(s))
+                    }
+                    if let w = point.w {
+                        Text("W \(Int(w))%")
+                            .foregroundStyle(weeklyC)
+                            .contentTransition(.numericText())
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: Int(w))
+                    }
                 }
             } else {
                 Text("Drag chart to inspect").foregroundStyle(DashSkin.inkFaint(dark))

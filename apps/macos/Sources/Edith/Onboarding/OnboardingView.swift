@@ -13,6 +13,7 @@ struct OnboardingView: View {
 
     let onFinish: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = Step.welcome
     @State private var transitionDirection = 1.0
     @State private var selectedIDs: Set<String> = []
@@ -21,8 +22,8 @@ struct OnboardingView: View {
     @State private var permissionItems: [OnboardingPermission] = []
 
     private var dark: Bool { colorScheme == .dark }
-    private var spring: Animation {
-        .spring(response: 0.34, dampingFraction: 0.9)
+    private var glide: Animation {
+        Motion.animation(Motion.glide, reduceMotion: reduceMotion)
     }
 
     var body: some View {
@@ -121,7 +122,7 @@ struct OnboardingView: View {
                             ExtensionChoiceCard(
                                 entry: entry, selected: selectedIDs.contains(entry.id), dark: dark
                             ) {
-                                withAnimation(spring) {
+                                withAnimation(glide) {
                                     if selectedIDs.contains(entry.id) {
                                         selectedIDs.remove(entry.id)
                                     } else {
@@ -145,7 +146,7 @@ struct OnboardingView: View {
 
     private var marketplaceCard: some View {
         Button {
-            withAnimation(spring) { showsAllExtensions.toggle() }
+            withAnimation(glide) { showsAllExtensions.toggle() }
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: showsAllExtensions ? "sparkles.rectangle.stack" : "storefront")
@@ -260,7 +261,7 @@ struct OnboardingView: View {
                 Circle()
                     .fill(item == step ? brandAccent : DashSkin.lineStrong(dark))
                     .frame(width: item == step ? 8 : 6, height: item == step ? 8 : 6)
-                    .animation(spring, value: step)
+                    .animation(glide, value: step)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -378,7 +379,7 @@ struct OnboardingView: View {
 
     private func move(to nextStep: Step, direction: Double) {
         transitionDirection = direction
-        withAnimation(spring) { step = nextStep }
+        withAnimation(glide) { step = nextStep }
     }
 
     private func refreshPermissions() {

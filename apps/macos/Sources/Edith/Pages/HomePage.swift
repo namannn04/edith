@@ -827,6 +827,7 @@ private struct LimitsSummaryCard: View {
     @State private var latest: DashLimitPoint?
     @AppStorage("limitsProvider", store: SharedDefaults.store) private var selectedRaw =
         LimitProvider.claude.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var providers: [LimitProvider] { DashLimits.availableProviders() }
     private var selected: LimitProvider {
@@ -903,6 +904,9 @@ private struct LimitsSummaryCard: View {
                     .font(DashSkin.serif(22))
                     .foregroundStyle(value.map(barColor) ?? DashSkin.inkFaint(dark))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(
+                        Motion.animation(Motion.settle, reduceMotion: reduceMotion), value: value)
             }
             .frame(width: 92, height: 92)
             .padding(5)
