@@ -35,6 +35,22 @@ import Testing
         #expect(featuredIdentifiers == ["usage", "system", "notchShelf", "clipboard"])
     }
 
+    @Test func marketplaceFilterMatchesQueryAndCategory() {
+        let titleMatches = ExtensionMarketplaceFilter.filter(
+            entries: ExtensionRegistry.entries, query: "AGENT", category: .all)
+        let subtitleMatches = ExtensionMarketplaceFilter.filter(
+            entries: ExtensionRegistry.entries, query: "schedule", category: .all)
+        let categoryMatches = ExtensionMarketplaceFilter.filter(
+            entries: ExtensionRegistry.entries, query: "", category: .utilities)
+        let combinedMatches = ExtensionMarketplaceFilter.filter(
+            entries: ExtensionRegistry.entries, query: "screen", category: .utilities)
+
+        #expect(titleMatches.map(\.id) == ["usage"])
+        #expect(subtitleMatches.map(\.id) == ["calendar"])
+        #expect(categoryMatches.allSatisfy { $0.group == .utilities })
+        #expect(combinedMatches.map(\.id) == ["presenter"])
+    }
+
     @Test func permissionTiersMatchFeatureRequirements() {
         let required: [String: [ExtensionPermission]] = [
             "usage": [],

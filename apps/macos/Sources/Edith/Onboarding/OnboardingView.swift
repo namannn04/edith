@@ -17,6 +17,7 @@ struct OnboardingView: View {
     @State private var step = Step.welcome
     @State private var transitionDirection = 1.0
     @State private var selectedIDs = OnboardingFlow.initialSelectedIDs
+    @State private var icloudBackup = OnboardingFlow.initialICloudBackup
     @State private var showsAllExtensions = false
     @State private var grantedPermissions = OnboardingFlow.grantedPermissions()
     @State private var permissionItems: [OnboardingPermission] = []
@@ -238,6 +239,19 @@ struct OnboardingView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(DashSkin.inkSoft(dark))
                 .padding(.top, 7)
+            Toggle("Back up my settings to iCloud", isOn: $icloudBackup)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(DashSkin.ink(dark))
+                .padding(.horizontal, 12)
+                .frame(height: 38)
+                .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10).strokeBorder(DashSkin.line(dark))
+                }
+                .pointerCursor()
+                .padding(.top, 18)
             HStack(spacing: 14) {
                 Text(hotKeyLabel)
                     .font(DashSkin.mono(20, weight: .semibold))
@@ -252,12 +266,12 @@ struct OnboardingView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(DashSkin.inkSoft(dark))
             }
-            .padding(.top, 24)
-            Button("Start using Edith", action: onFinish)
+            .padding(.top, 18)
+            Button("Start using Edith", action: completeOnboarding)
                 .buttonStyle(OnboardingPrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)
                 .frame(width: 210)
-                .padding(.top, 28)
+                .padding(.top, 22)
             Spacer(minLength: 28)
         }
         .padding(.horizontal, 48)
@@ -377,8 +391,12 @@ struct OnboardingView: View {
 
     private func finishSelection() {
         grantedPermissions = OnboardingFlow.grantedPermissions()
-        OnboardingFlow.finish(selectedIDs: selectedIDs)
         move(to: .ready, direction: 1)
+    }
+
+    private func completeOnboarding() {
+        OnboardingFlow.finish(selectedIDs: selectedIDs, icloudBackup: icloudBackup)
+        onFinish()
     }
 
     private func goBack() {
@@ -414,7 +432,7 @@ private struct ExtensionChoiceCard: View {
         VStack(alignment: .leading, spacing: 9) {
             Button(action: action) {
                 VStack(alignment: .leading, spacing: 9) {
-                    FeaturePreview(entry: entry, dark: dark)
+                    ExtensionPreview(entry: entry, dark: dark)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
                         .background(

@@ -12,7 +12,9 @@ public struct OnboardingPermission: Equatable, Sendable {
 
 public enum OnboardingFlow {
     public static let completionKey = "onboardingCompleted"
+    public static let iCloudBackupKey = "icloudBackup"
     public static let initialSelectedIDs: Set<String> = []
+    public static let initialICloudBackup = false
 
     public static func shouldShowOnboarding(defaults: UserDefaults = SharedDefaults.store) -> Bool {
         !defaults.bool(forKey: completionKey)
@@ -74,6 +76,7 @@ public enum OnboardingFlow {
 
     public static func finish(
         selectedIDs: Set<String>,
+        icloudBackup: Bool = initialICloudBackup,
         entries: [ExtensionRegistryEntry] = ExtensionRegistry.entries,
         defaults: UserDefaults = SharedDefaults.store
     ) {
@@ -81,6 +84,7 @@ public enum OnboardingFlow {
             defaults.set(true, forKey: entry.defaultsKey)
             defaults.set(true, forKey: seenKey(for: entry))
         }
+        defaults.set(icloudBackup, forKey: iCloudBackupKey)
         defaults.set(true, forKey: completionKey)
     }
 

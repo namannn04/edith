@@ -143,6 +143,10 @@ final class SettingsBackup: ObservableObject {
     private var backupOn: Bool {
         SharedDefaults.store.bool(forKey: "icloudBackup") && AppData.cloudAvailable
     }
+    private var musicBackupOn: Bool {
+        SharedDefaults.store.bool(forKey: "icloudBackup")
+            && SharedDefaults.store.bool(forKey: "musicBackup") && AppData.cloudAvailable
+    }
 
     func start() {
         importFromCloudIfNewer()
@@ -153,10 +157,10 @@ final class SettingsBackup: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.scheduleExport() }
         }
-        if SharedDefaults.store.bool(forKey: "musicBackup"), !restoreMusic() {
+        if musicBackupOn, !restoreMusic() {
             backupMusic()
         }
-        if SharedDefaults.store.bool(forKey: "clipboardBackup"), !restoreClipboard() {
+        if clipboardBackupOn, !restoreClipboard() {
             backupClipboard()
         }
         NotificationCenter.default.addObserver(
@@ -177,7 +181,7 @@ final class SettingsBackup: ObservableObject {
     }
 
     func backupMusic() {
-        guard !musicBackupRunning, AppData.cloudAvailable,
+        guard !musicBackupRunning, musicBackupOn,
             FileManager.default.fileExists(atPath: Repo.musicDir.path)
         else { return }
         musicBackupRunning = true
@@ -205,7 +209,7 @@ final class SettingsBackup: ObservableObject {
 
     @discardableResult
     func restoreMusic() -> Bool {
-        guard AppData.cloudAvailable else { return false }
+        guard musicBackupOn else { return false }
         let source = AppData.cloudDir.appendingPathComponent("music")
         let fm = FileManager.default
         func hasAudio(_ dir: URL) -> Bool {
@@ -237,7 +241,8 @@ final class SettingsBackup: ObservableObject {
     private var clipboardDebounce: Timer?
 
     private var clipboardBackupOn: Bool {
-        SharedDefaults.store.bool(forKey: "clipboardBackup") && AppData.cloudAvailable
+        SharedDefaults.store.bool(forKey: "icloudBackup")
+            && SharedDefaults.store.bool(forKey: "clipboardBackup") && AppData.cloudAvailable
     }
 
     func scheduleClipboardBackup() {
@@ -284,7 +289,7 @@ final class SettingsBackup: ObservableObject {
 
     @discardableResult
     func restoreClipboard(attempts: Int = 3) -> Bool {
-        guard AppData.cloudAvailable else { return false }
+        guard clipboardBackupOn else { return false }
         let fm = FileManager.default
         let cloudIndex = cloudClipboardDir.appendingPathComponent("index.jsonl")
         let localIndex = localClipboardDir.appendingPathComponent("index.jsonl")
@@ -401,9 +406,9 @@ final class SettingsBackup: ObservableObject {
     }
 
     private func importFromCloudIfNewer() {
+        guard backupOn else { return }
         let fm = FileManager.default
         let firstRun = !fm.fileExists(atPath: localFile.path)
-        guard firstRun || SharedDefaults.store.bool(forKey: "icloudBackup") else { return }
         guard
             let cloudDate = (try? fm.attributesOfItem(atPath: cloudFile.path))?[.modificationDate]
                 as? Date

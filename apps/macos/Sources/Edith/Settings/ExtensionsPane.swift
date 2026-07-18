@@ -42,24 +42,41 @@ struct ExtensionsPane: View {
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
         false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
-    @State private var expanded: Set<String> = []
+    @State private var query = ""
+    @State private var category = ExtensionMarketplaceCategory.all
+    @State private var selectedEntry: ExtensionRegistryEntry?
     @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
     @State private var permissionRequest: ExtensionPermissionRequest?
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Form {
-            ForEach(Array(ExtensionRegistry.entries.enumerated()), id: \.element.id) {
-                index, entry in
-                header(entry, group: groupTitle(at: index))
-                if expanded.contains(entry.id) {
-                    detailRows(for: entry)
+        VStack(spacing: 12) {
+            searchField
+            categoryRow
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVGrid(columns: gridColumns, spacing: 14) {
+                        ForEach(filteredEntries) { entry in
+                            ExtensionMarketplaceCard(
+                                entry: entry,
+                                enabled: permissionAwareBinding(for: entry),
+                                dark: colorScheme == .dark,
+                                open: { openSettings(for: entry) }
+                            )
+                            .id(entry.id)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
                 }
+                .scrollIndicators(.never)
+                .onAppear { handleDeepLink(using: proxy) }
             }
         }
-        .formStyle(.grouped)
+        .padding(.top, 16)
         .navigationTitle("Extensions")
-        .animation(Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: expanded)
+        .animation(Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: category)
         .onChange(of: systemEnabled) {
             if !systemEnabled { preventSleep = false }
         }
@@ -70,10 +87,9 @@ struct ExtensionsPane: View {
             refreshPermissionState()
             IPC.post(IPC.Name.requestPermissionsRefresh)
             markEnabledExtensionsSeen()
-            if let id = SharedDefaults.store.string(forKey: "extensionsExpand") {
-                expanded.insert(id)
-                SharedDefaults.store.removeObject(forKey: "extensionsExpand")
-            }
+        }
+        .sheet(item: $selectedEntry) { entry in
+            ExtensionSettingsSheet(entry: entry)
         }
         .sheet(item: $permissionRequest) { request in
             ExtensionPermissionSheet(
@@ -81,6 +97,86 @@ struct ExtensionsPane: View {
                 grant: { IPC.post($0) }, cancel: { permissionRequest = nil },
                 enable: { enableRequestedExtension(request) },
                 refresh: requestPermissionRefresh)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search extensions", text: $query)
+                .textFieldStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .background(
+            Color(nsColor: .controlBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.5))
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var categoryRow: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(ExtensionMarketplaceCategory.allCases, id: \.self) { item in
+                    Button {
+                        withAnimation(Motion.animation(Motion.snap, reduceMotion: reduceMotion)) {
+                            category = item
+                        }
+                    } label: {
+                        Text(item.rawValue)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(category == item ? Color.white : Color.secondary)
+                            .padding(.horizontal, 12)
+                            .frame(height: 28)
+                            .background(category == item ? Color.accentColor : Color.clear)
+                            .clipShape(Capsule())
+                            .overlay {
+                                if category != item {
+                                    Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.65))
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .scrollIndicators(.never)
+    }
+
+    private var filteredEntries: [ExtensionRegistryEntry] {
+        ExtensionMarketplaceFilter.filter(
+            entries: ExtensionRegistry.entries, query: query, category: category)
+    }
+
+    private var gridColumns: [GridItem] {
+        [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+    }
+
+    private func openSettings(for entry: ExtensionRegistryEntry) {
+        guard entry.id != "calendar" else { return }
+        selectedEntry = entry
+    }
+
+    private func handleDeepLink(using proxy: ScrollViewProxy) {
+        guard let id = SharedDefaults.store.string(forKey: "extensionsExpand"),
+            let entry = ExtensionRegistry.entries.first(where: { $0.id == id })
+        else { return }
+        SharedDefaults.store.removeObject(forKey: "extensionsExpand")
+        query = ""
+        category = .all
+        DispatchQueue.main.async {
+            withAnimation(Motion.animation(Motion.snap, reduceMotion: reduceMotion)) {
+                proxy.scrollTo(entry.id, anchor: .center)
+            }
+            openSettings(for: entry)
         }
     }
 
@@ -106,14 +202,6 @@ struct ExtensionsPane: View {
         codexEnabled = state.codexEnabled
         limitsInMenuBar = state.menuBarEnabled
         notifyMaster = state.alertsEnabled
-    }
-
-    private func groupTitle(at index: Int) -> String? {
-        let entry = ExtensionRegistry.entries[index]
-        guard index == 0 || ExtensionRegistry.entries[index - 1].group != entry.group else {
-            return nil
-        }
-        return entry.group.rawValue
     }
 
     private func enabledBinding(for entry: ExtensionRegistryEntry) -> Binding<Bool> {
@@ -205,8 +293,118 @@ struct ExtensionsPane: View {
         permissionRequest = nil
     }
 
-    @ViewBuilder
-    private func detailRows(for entry: ExtensionRegistryEntry) -> some View {
+}
+
+private struct ExtensionMarketplaceCard: View {
+    let entry: ExtensionRegistryEntry
+    @Binding var enabled: Bool
+    let dark: Bool
+    let open: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Button(action: open) {
+                ExtensionPreview(entry: entry, dark: dark)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(
+                        enabled ? brandAccent.opacity(0.1) : DashSkin.paper(dark),
+                        in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+            HStack(spacing: 7) {
+                Button(action: open) {
+                    HStack(spacing: 7) {
+                        Image(systemName: entry.symbolName)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(enabled ? brandAccent : DashSkin.inkSoft(dark))
+                        Text(entry.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(DashSkin.ink(dark))
+                            .lineLimit(1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                if !permissions.isEmpty {
+                    PermissionInfoButton(permissions: permissions)
+                }
+                Spacer(minLength: 0)
+                Toggle("", isOn: $enabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .tint(brandAccent)
+                    .pointerCursor()
+            }
+            Button(action: open) {
+                Text(entry.subtitle)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(DashSkin.paper2(dark))
+                Button(action: open) {
+                    Color.clear
+                        .contentShape(RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    enabled ? brandAccent : DashSkin.line(dark),
+                    lineWidth: enabled || hovering ? 1.5 : 1)
+        }
+        .shadow(color: .black.opacity(hovering ? 0.1 : 0), radius: 8, y: 3)
+        .onHover { hovering = $0 }
+    }
+
+    private var permissions: [ExtensionPermission] {
+        entry.requiredPermissions + entry.optionalPermissions
+    }
+}
+
+private struct ExtensionSettingsSheet: View {
+    let entry: ExtensionRegistryEntry
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                ExtensionDetailRows(entry: entry)
+            }
+            .formStyle(.grouped)
+            .navigationTitle(entry.title)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .keyboardShortcut(.defaultAction)
+                        .pointerCursor()
+                }
+            }
+        }
+        .frame(width: 640, height: 620)
+    }
+}
+
+private struct ExtensionDetailRows: View {
+    let entry: ExtensionRegistryEntry
+
+    @ViewBuilder var body: some View {
         switch entry.id {
         case "usage": UsageRows()
         case "system": SystemRows()
@@ -219,84 +417,6 @@ struct ExtensionsPane: View {
         case "presenter": PresenterRows()
         case "colorPicker": ColorPickerRows()
         default: EmptyView()
-        }
-    }
-
-    private func permissionGranted(_ permission: ExtensionPermission) -> Bool {
-        grantedPermissions[permission] == true
-    }
-
-    private func chipStyle(
-        for entry: ExtensionRegistryEntry, missing: [ExtensionPermission]
-    ) -> (label: String, color: Color) {
-        if entry.requiredPermissions.isEmpty {
-            if entry.optionalPermissions.isEmpty {
-                return ("No permissions", Color(nsColor: .secondaryLabelColor))
-            }
-            let names = entry.optionalPermissions.map(\.displayName).joined(separator: ", ")
-            return ("Optional: \(names)", Color(nsColor: .secondaryLabelColor))
-        }
-        if missing.isEmpty { return ("granted", .green) }
-        return (missing.map(\.displayName).joined(separator: ", "), .orange)
-    }
-
-    @ViewBuilder
-    private func permissionChip(for entry: ExtensionRegistryEntry) -> some View {
-        let missing = entry.requiredPermissions.filter { !permissionGranted($0) }
-        let (label, color) = chipStyle(for: entry, missing: missing)
-        if missing.isEmpty {
-            Text(label)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(color)
-                .lineLimit(1)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(color.opacity(0.12), in: Capsule())
-        } else {
-            PermissionInfoButton(permissions: missing, label: label, color: color)
-        }
-    }
-
-    private func header(_ entry: ExtensionRegistryEntry, group: String?) -> some View {
-        let expandable = entry.id != "calendar"
-        return Section {
-            HStack(spacing: 12) {
-                Image(systemName: entry.symbolName)
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.title)
-                    Text(entry.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-                permissionChip(for: entry)
-                Toggle("", isOn: permissionAwareBinding(for: entry))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .pointerCursor()
-                if expandable {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(expanded.contains(entry.id) ? 90 : 0))
-                }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                guard expandable else { return }
-                if expanded.contains(entry.id) {
-                    expanded.remove(entry.id)
-                } else {
-                    expanded.insert(entry.id)
-                }
-            }
-            .pointerCursor()
-        } header: {
-            if let group { Text(group) }
         }
     }
 }

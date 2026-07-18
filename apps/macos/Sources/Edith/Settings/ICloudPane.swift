@@ -15,7 +15,7 @@ struct ICloudPane: View {
     @AppStorage("lastClipboardBackupAt", store: SharedDefaults.store)
     private var lastClipboardBackupAt = 0.0
 
-    private var cloudAvailable: Bool { AppData.cloudAvailable }
+    private var cloudAvailable: Bool { icloudBackup && AppData.cloudAvailable }
 
     var body: some View {
         Form {
@@ -29,12 +29,11 @@ struct ICloudPane: View {
                     }
                 }
                 .pointerCursor()
-                .disabled(!cloudAvailable)
                 Text(backupSubtitle).font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("iCloud backup")
             } footer: {
-                if !cloudAvailable {
+                if icloudBackup, !cloudAvailable {
                     Text("iCloud Drive is not available on this Mac.")
                 }
             }
@@ -69,7 +68,7 @@ struct ICloudPane: View {
             Section {
                 Toggle("Music folder", isOn: $musicBackup)
                     .pointerCursor()
-                    .disabled(!cloudAvailable)
+                    .disabled(!icloudBackup || !cloudAvailable)
                 Text(musicSubtitle).font(.caption).foregroundStyle(.secondary)
                 Toggle(isOn: $clipboardBackup) {
                     HStack(spacing: 6) {
@@ -80,7 +79,7 @@ struct ICloudPane: View {
                     }
                 }
                 .pointerCursor()
-                .disabled(!cloudAvailable)
+                .disabled(!icloudBackup || !cloudAvailable)
                 Text(clipboardSubtitle).font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("Extensions")
@@ -93,7 +92,7 @@ struct ICloudPane: View {
                     }
                     .pointerCursor()
                 }
-                if cloudAvailable {
+                if icloudBackup, cloudAvailable {
                     LabeledContent("iCloud folder") {
                         Button("Open") {
                             try? FileManager.default.createDirectory(
@@ -112,8 +111,8 @@ struct ICloudPane: View {
     }
 
     private var backupSubtitle: String {
-        if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if !icloudBackup { return "Syncs via iCloud Drive; newest copy wins across Macs" }
+        if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if lastBackupAt > 0 {
             let at = Date(timeIntervalSince1970: lastBackupAt)
             return "Backed up \(at.formatted(date: .abbreviated, time: .shortened))"
@@ -122,6 +121,7 @@ struct ICloudPane: View {
     }
 
     private var musicSubtitle: String {
+        if !icloudBackup { return "Turn on iCloud backup to back up your music folder" }
         if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if musicBackup, lastMusicBackupAt > 0 {
             let at = Date(timeIntervalSince1970: lastMusicBackupAt)
@@ -131,6 +131,7 @@ struct ICloudPane: View {
     }
 
     private var clipboardSubtitle: String {
+        if !icloudBackup { return "Turn on iCloud backup to back up clipboard history" }
         if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if clipboardBackup, lastClipboardBackupAt > 0 {
             let at = Date(timeIntervalSince1970: lastClipboardBackupAt)

@@ -127,7 +127,6 @@ struct TitlebarChrome: View {
 private struct SidebarNavRow: View {
     let item: MainDestination
     let selected: Bool
-    let available: Bool
     let theme: Color
     let selectionNamespace: Namespace.ID
     let action: () -> Void
@@ -138,27 +137,16 @@ private struct SidebarNavRow: View {
             HStack(spacing: 11) {
                 Image(systemName: item.icon)
                     .font(.system(size: 14, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(
-                        available ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary)
-                    )
+                    .foregroundStyle(.primary)
                     .frame(width: 22)
                 Text(item.title)
                     .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(available ? .primary : .secondary)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                if !available {
-                    Text("off")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.secondary.opacity(0.12), in: Capsule())
-                }
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
-            .opacity(available ? 1 : 0.55)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -470,13 +458,12 @@ struct MainWindowView: View {
     private var sidebarList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(MainDestination.homeItems) { item in
-                    let available = homeItemAvailable(item)
+                ForEach(visibleHomeItems) { item in
                     SidebarNavRow(
-                        item: item, selected: destination == item, available: available,
-                        theme: theme, selectionNamespace: sidebarSelectionNamespace
+                        item: item, selected: destination == item, theme: theme,
+                        selectionNamespace: sidebarSelectionNamespace
                     ) {
-                        selectHomeItem(item, available: available)
+                        mainWindowSection = item.rawValue
                     }
                 }
                 Text("App")
@@ -487,7 +474,7 @@ struct MainWindowView: View {
                     .padding(.bottom, 4)
                 ForEach(MainDestination.appItems) { item in
                     SidebarNavRow(
-                        item: item, selected: destination == item, available: true, theme: theme,
+                        item: item, selected: destination == item, theme: theme,
                         selectionNamespace: sidebarSelectionNamespace
                     ) {
                         mainWindowSection = item.rawValue
@@ -502,31 +489,16 @@ struct MainWindowView: View {
             Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: destination)
     }
 
-    private func homeItemAvailable(_ item: MainDestination) -> Bool {
-        switch item {
-        case .dashboard: usageEnabled
-        case .music: musicEnabled
-        case .calendar: calendarEnabled
-        case .system: systemEnabled
-        default: true
+    private var visibleHomeItems: [MainDestination] {
+        MainDestination.homeItems.filter { item in
+            switch item {
+            case .dashboard: usageEnabled
+            case .music: musicEnabled
+            case .calendar: calendarEnabled
+            case .system: systemEnabled
+            default: true
+            }
         }
-    }
-
-    private func selectHomeItem(_ item: MainDestination, available: Bool) {
-        guard !available else {
-            mainWindowSection = item.rawValue
-            return
-        }
-        let registryID: String
-        switch item {
-        case .dashboard: registryID = "usage"
-        case .music: registryID = "music"
-        case .calendar: registryID = "calendar"
-        case .system: registryID = "system"
-        default: return
-        }
-        SharedDefaults.store.set(registryID, forKey: "extensionsExpand")
-        mainWindowSection = MainDestination.extensions.rawValue
     }
 
     private var sidebarFooter: some View {

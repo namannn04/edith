@@ -119,6 +119,40 @@ public enum ExtensionGroup: String, CaseIterable, Equatable, Sendable {
     case utilities = "Utilities"
 }
 
+public enum ExtensionMarketplaceCategory: String, CaseIterable, Hashable, Sendable {
+    case all = "All"
+    case agent = "Agent"
+    case system = "System"
+    case media = "Media"
+    case utilities = "Utilities"
+
+    public var group: ExtensionGroup? {
+        switch self {
+        case .all: nil
+        case .agent: .agent
+        case .system: .system
+        case .media: .media
+        case .utilities: .utilities
+        }
+    }
+}
+
+public enum ExtensionMarketplaceFilter {
+    public static func filter(
+        entries: [ExtensionRegistryEntry], query: String,
+        category: ExtensionMarketplaceCategory
+    ) -> [ExtensionRegistryEntry] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return entries.filter { entry in
+            let matchesCategory = category.group == nil || entry.group == category.group
+            let matchesQuery =
+                trimmedQuery.isEmpty || entry.title.localizedCaseInsensitiveContains(trimmedQuery)
+                || entry.subtitle.localizedCaseInsensitiveContains(trimmedQuery)
+            return matchesCategory && matchesQuery
+        }
+    }
+}
+
 public struct ExtensionRegistryEntry: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String

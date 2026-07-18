@@ -1,7 +1,7 @@
 import EdithKit
 import SwiftUI
 
-struct FeaturePreview: View {
+struct ExtensionPreview: View {
     let entry: ExtensionRegistryEntry
     let dark: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

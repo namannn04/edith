@@ -91,6 +91,7 @@ import Testing
         OnboardingFlow.skip(defaults: defaults)
 
         #expect(defaults.bool(forKey: OnboardingFlow.completionKey))
+        #expect(defaults.object(forKey: OnboardingFlow.iCloudBackupKey) == nil)
         for entry in ExtensionRegistry.entries {
             #expect(defaults.object(forKey: entry.defaultsKey) == nil)
             #expect(defaults.object(forKey: OnboardingFlow.seenKey(for: entry)) == nil)
@@ -105,6 +106,8 @@ import Testing
         OnboardingFlow.finish(selectedIDs: selectedIDs, defaults: defaults)
 
         #expect(defaults.bool(forKey: OnboardingFlow.completionKey))
+        #expect(!OnboardingFlow.initialICloudBackup)
+        #expect(defaults.object(forKey: OnboardingFlow.iCloudBackupKey) as? Bool == false)
         for entry in ExtensionRegistry.entries {
             if selectedIDs.contains(entry.id) {
                 #expect(defaults.object(forKey: entry.defaultsKey) as? Bool == true)
@@ -115,6 +118,15 @@ import Testing
                 #expect(defaults.object(forKey: OnboardingFlow.seenKey(for: entry)) == nil)
             }
         }
+    }
+
+    @Test func finishWritesICloudOptIn() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        OnboardingFlow.finish(selectedIDs: [], icloudBackup: true, defaults: defaults)
+
+        #expect(defaults.object(forKey: OnboardingFlow.iCloudBackupKey) as? Bool == true)
     }
 
     private func makeDefaults() -> (UserDefaults, String) {
