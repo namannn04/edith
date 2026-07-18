@@ -14,6 +14,27 @@ public enum FeatureGates {
     }
 }
 
+public enum ExtensionShortcut: String, CaseIterable, Hashable, Sendable {
+    case clipboard
+    case focusDim
+    case presenter
+    case colorPicker
+}
+
+public enum ExtensionShortcutVisibility {
+    public static func visible(
+        clipboard: Bool, focusDim: Bool, presenter: Bool, colorPicker: Bool
+    ) -> [ExtensionShortcut] {
+        let states: [(ExtensionShortcut, Bool)] = [
+            (.clipboard, clipboard),
+            (.focusDim, focusDim),
+            (.presenter, presenter),
+            (.colorPicker, colorPicker),
+        ]
+        return states.compactMap { shortcut, enabled in enabled ? shortcut : nil }
+    }
+}
+
 public struct AgentUsageSettingsState: Equatable, Sendable {
     public var enabled: Bool
     public var claudeEnabled: Bool
