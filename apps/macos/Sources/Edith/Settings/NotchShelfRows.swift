@@ -20,7 +20,7 @@ struct NotchShelfRows: View {
     @AppStorage("notchAlertPower", store: SharedDefaults.store) private var alertPower = true
     @AppStorage("notchAlertBattery", store: SharedDefaults.store) private var alertBattery = true
     @AppStorage("notchAlertBluetooth", store: SharedDefaults.store) private var alertBluetooth =
-        true
+        false
     @AppStorage("notchAudioMixerEnabled", store: SharedDefaults.store) private var audioMixer =
         false
 

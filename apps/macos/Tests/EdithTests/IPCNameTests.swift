@@ -16,6 +16,7 @@ import Testing
         IPC.Name.grantInputMonitoring,
         IPC.Name.grantFullDisk,
         IPC.Name.grantScreenRecording,
+        IPC.Name.grantCamera,
         IPC.Name.requestTestNotification,
         IPC.Name.clipboardChanged,
         IPC.Name.presenterAutoActiveChanged,

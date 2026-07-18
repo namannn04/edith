@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import EdithKit
 import SwiftUI
 
@@ -26,20 +27,9 @@ struct ExtensionsPane: View {
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
         false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
-    @AppStorage("permCalendarGranted", store: SharedDefaults.store) private var calendarGranted =
-        false
-    @AppStorage("permNotificationsGranted", store: SharedDefaults.store)
-    private var notificationsGranted = false
-    @AppStorage("permAccessibilityGranted", store: SharedDefaults.store)
-    private var accessibilityGranted = false
-    @AppStorage("permInputMonitoringGranted", store: SharedDefaults.store)
-    private var inputMonitoringGranted = false
-    @AppStorage("permFullDiskGranted", store: SharedDefaults.store) private var fullDiskGranted =
-        false
-    @AppStorage("permScreenRecordingGranted", store: SharedDefaults.store)
-    private var screenRecordingGranted = false
-    @AppStorage("permCameraGranted", store: SharedDefaults.store) private var cameraGranted = false
     @State private var expanded: Set<String> = []
+    @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
+    @State private var permissionRequest: ExtensionPermissionRequest?
 
     var body: some View {
         Form {
@@ -57,11 +47,24 @@ struct ExtensionsPane: View {
         .onChange(of: systemEnabled) {
             if !systemEnabled { preventSleep = false }
         }
+        .onChange(of: grantedPermissions) {
+            enableRequestedExtensionIfReady()
+        }
         .onAppear {
+            refreshPermissionState()
+            IPC.post(IPC.Name.requestPermissionsRefresh)
+            markEnabledExtensionsSeen()
             if let id = SharedDefaults.store.string(forKey: "extensionsExpand") {
                 expanded.insert(id)
                 SharedDefaults.store.removeObject(forKey: "extensionsExpand")
             }
+        }
+        .sheet(item: $permissionRequest) { request in
+            ExtensionPermissionSheet(
+                request: request, grantedPermissions: grantedPermissions,
+                grant: { IPC.post($0) }, cancel: { permissionRequest = nil },
+                enable: { enableRequestedExtension(request) },
+                refresh: requestPermissionRefresh)
         }
     }
 
@@ -114,6 +117,91 @@ struct ExtensionsPane: View {
         }
     }
 
+    private func permissionAwareBinding(for entry: ExtensionRegistryEntry) -> Binding<Bool> {
+        let enabled = enabledBinding(for: entry)
+        return Binding(
+            get: { enabled.wrappedValue },
+            set: { newValue in
+                guard newValue else {
+                    if enabled.wrappedValue { markPermissionsSeen(for: entry) }
+                    enabled.wrappedValue = false
+                    return
+                }
+                let granted = Self.readGrantedPermissions()
+                grantedPermissions = granted
+                let decision = ExtensionPermissionFlow.decision(
+                    for: entry, granted: granted,
+                    hasSeenPermissions: hasSeenPermissions(for: entry))
+                switch decision {
+                case .enableDirectly:
+                    enabled.wrappedValue = true
+                    markPermissionsSeen(for: entry)
+                case .showSheet(let required, let optional):
+                    enabled.wrappedValue = false
+                    permissionRequest = ExtensionPermissionRequest(
+                        entry: entry, required: required, optional: optional)
+                }
+            })
+    }
+
+    private static func seenKey(for entry: ExtensionRegistryEntry) -> String {
+        "extensionPermissionsSeen.\(entry.id)"
+    }
+
+    private func hasSeenPermissions(for entry: ExtensionRegistryEntry) -> Bool {
+        SharedDefaults.store.bool(forKey: Self.seenKey(for: entry))
+    }
+
+    private func markPermissionsSeen(for entry: ExtensionRegistryEntry) {
+        SharedDefaults.store.set(true, forKey: Self.seenKey(for: entry))
+    }
+
+    private func markEnabledExtensionsSeen() {
+        for entry in ExtensionRegistry.entries
+        where SharedDefaults.store.bool(forKey: entry.defaultsKey) {
+            markPermissionsSeen(for: entry)
+        }
+    }
+
+    private static func readGrantedPermissions() -> [ExtensionPermission: Bool] {
+        Dictionary(
+            uniqueKeysWithValues: ExtensionPermission.allCases.map { permission in
+                let granted: Bool
+                if let key = permission.grantedDefaultsKey {
+                    granted = SharedDefaults.store.bool(forKey: key)
+                } else {
+                    granted = false
+                }
+                return (permission, granted)
+            })
+    }
+
+    private func refreshPermissionState() {
+        grantedPermissions = Self.readGrantedPermissions()
+    }
+
+    private func requestPermissionRefresh() {
+        IPC.post(IPC.Name.requestPermissionsRefresh)
+        refreshPermissionState()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            guard permissionRequest != nil else { return }
+            refreshPermissionState()
+        }
+    }
+
+    private func enableRequestedExtensionIfReady() {
+        guard let request = permissionRequest, !request.required.isEmpty,
+            request.entry.requiredPermissions.allSatisfy({ grantedPermissions[$0] == true })
+        else { return }
+        enableRequestedExtension(request)
+    }
+
+    private func enableRequestedExtension(_ request: ExtensionPermissionRequest) {
+        enabledBinding(for: request.entry).wrappedValue = true
+        markPermissionsSeen(for: request.entry)
+        permissionRequest = nil
+    }
+
     @ViewBuilder
     private func detailRows(for entry: ExtensionRegistryEntry) -> some View {
         switch entry.id {
@@ -132,16 +220,7 @@ struct ExtensionsPane: View {
     }
 
     private func permissionGranted(_ permission: ExtensionPermission) -> Bool {
-        switch permission {
-        case .calendar: calendarGranted
-        case .notifications: notificationsGranted
-        case .accessibility: accessibilityGranted
-        case .inputMonitoring: inputMonitoringGranted
-        case .fullDisk: fullDiskGranted
-        case .screenRecording: screenRecordingGranted
-        case .camera: cameraGranted
-        case .bluetooth, .automation: false
-        }
+        grantedPermissions[permission] == true
     }
 
     private func permissionChip(for entry: ExtensionRegistryEntry) -> some View {
@@ -188,7 +267,7 @@ struct ExtensionsPane: View {
                 }
                 Spacer(minLength: 8)
                 permissionChip(for: entry)
-                Toggle("", isOn: enabledBinding(for: entry))
+                Toggle("", isOn: permissionAwareBinding(for: entry))
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.small)
@@ -212,6 +291,172 @@ struct ExtensionsPane: View {
             .pointerCursor()
         } header: {
             if let group { Text(group) }
+        }
+    }
+}
+
+private struct ExtensionPermissionRequest: Identifiable {
+    let entry: ExtensionRegistryEntry
+    let required: [ExtensionPermission]
+    let optional: [ExtensionPermission]
+
+    var id: String { entry.id }
+}
+
+private struct ExtensionPermissionSheet: View {
+    let request: ExtensionPermissionRequest
+    let grantedPermissions: [ExtensionPermission: Bool]
+    let grant: (Notification.Name) -> Void
+    let cancel: () -> Void
+    let enable: () -> Void
+    let refresh: () -> Void
+
+    private var requiredGranted: Bool {
+        request.entry.requiredPermissions.allSatisfy { grantedPermissions[$0] == true }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 14) {
+                Image(systemName: request.entry.symbolName)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.tint)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Color.accentColor.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Enable \(request.entry.title)")
+                        .font(.title2.weight(.semibold))
+                    Text(request.entry.subtitle)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            VStack(spacing: 10) {
+                ForEach(request.required, id: \.self) { permission in
+                    permissionCard(permission, required: true)
+                }
+                ForEach(request.optional, id: \.self) { permission in
+                    permissionCard(permission, required: false)
+                }
+            }
+            HStack(spacing: 10) {
+                Spacer()
+                Button("Cancel", action: cancel)
+                    .keyboardShortcut(.cancelAction)
+                    .pointerCursor()
+                if request.required.isEmpty {
+                    Button("Enable anyway", action: enable)
+                        .keyboardShortcut(.defaultAction)
+                        .pointerCursor()
+                } else {
+                    Button("Enable when granted", action: enable)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!requiredGranted)
+                        .pointerCursor()
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 540)
+        .onAppear(perform: refresh)
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+            refresh()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            refresh()
+        }
+    }
+
+    private func permissionCard(_ permission: ExtensionPermission, required: Bool) -> some View {
+        let isGranted = grantedPermissions[permission] == true
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: permission.symbolName)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(isGranted ? .green : .secondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    (isGranted ? Color.green : Color.secondary).opacity(0.1),
+                    in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(permission.displayName)
+                        .fontWeight(.medium)
+                    Text(required ? "Required" : "Optional")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(required ? .orange : .secondary)
+                }
+                Text(permission.reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let firstUseExplanation = permission.firstUseExplanation {
+                    Text(firstUseExplanation)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 12)
+            if isGranted {
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.green)
+            } else if let request = permission.grantRequest {
+                Button("Grant") { grant(request) }
+                    .controlSize(.small)
+                    .pointerCursor()
+            }
+        }
+        .padding(14)
+        .background(
+            Color(nsColor: .controlBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.45))
+        }
+    }
+}
+
+private extension ExtensionPermission {
+    var symbolName: String {
+        switch self {
+        case .calendar: "calendar"
+        case .notifications: "bell.badge"
+        case .accessibility: "figure.wave"
+        case .inputMonitoring: "keyboard"
+        case .fullDisk: "externaldrive"
+        case .screenRecording: "rectangle.inset.filled.badge.record"
+        case .camera: "camera"
+        case .bluetooth: "wave.3.right"
+        case .automation: "gearshape.2"
+        }
+    }
+
+    var grantRequest: Notification.Name? {
+        switch self {
+        case .calendar: IPC.Name.grantCalendar
+        case .notifications: IPC.Name.grantNotifications
+        case .accessibility: IPC.Name.grantAccessibility
+        case .inputMonitoring: IPC.Name.grantInputMonitoring
+        case .fullDisk: IPC.Name.grantFullDisk
+        case .screenRecording: IPC.Name.grantScreenRecording
+        case .camera: IPC.Name.grantCamera
+        case .bluetooth, .automation: nil
+        }
+    }
+
+    var firstUseExplanation: String? {
+        switch self {
+        case .bluetooth:
+            "macOS will ask for Bluetooth access when connection alerts first run."
+        case .automation:
+            "macOS will ask for Automation access when Music first controls playback."
+        default: nil
         }
     }
 }

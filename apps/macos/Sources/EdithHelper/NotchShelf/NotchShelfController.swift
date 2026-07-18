@@ -102,6 +102,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     func syncAlerts() {
         if alertsEnabled {
             startAlertsIfEnabled()
+            alertDetectors?.syncBluetooth()
         } else if let detectors = alertDetectors {
             detectors.stop()
             alertDetectors = nil

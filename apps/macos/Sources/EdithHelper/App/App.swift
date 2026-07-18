@@ -483,7 +483,7 @@ struct RootView: View {
                 .buttonStyle(HoverButtonStyle())
                 .help("Focus dim (\(FocusDimHotKey.label))")
                 Button {
-                    mainWindowSection = "permissions"
+                    mainWindowSection = "extensions"
                     MainApp.openDashboard()
                     dismissPanel()
                 } label: {

@@ -23,6 +23,10 @@ final class NotchAlertDetectors {
         SharedDefaults.store.object(forKey: key) as? Bool ?? true
     }
 
+    private var bluetoothEnabled: Bool {
+        SharedDefaults.store.object(forKey: "notchAlertBluetooth") as? Bool == true
+    }
+
     func start() {
         lastOutputDevice = Self.defaultOutputDevice()
         let snapshot = Self.readPower()
@@ -30,7 +34,7 @@ final class NotchAlertDetectors {
         lastCapacity = snapshot.capacity
         startAudio()
         startPower()
-        startBluetooth()
+        syncBluetooth()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.warmingUp = false
         }
@@ -56,8 +60,9 @@ final class NotchAlertDetectors {
     }
 
     private func startBluetooth() {
+        guard bluetoothEnabled, bluetoothWatcher == nil else { return }
         let watcher = BluetoothWatcher { [weak self] name, connected in
-            guard let self, !self.warmingUp, self.enabled("notchAlertBluetooth") else { return }
+            guard let self, !self.warmingUp, self.bluetoothEnabled else { return }
             self.post(
                 NotchAlert(
                     id: "bluetooth.\(connected ? "connected" : "disconnected")",
@@ -68,6 +73,15 @@ final class NotchAlertDetectors {
         }
         watcher.start()
         bluetoothWatcher = watcher
+    }
+
+    func syncBluetooth() {
+        if bluetoothEnabled {
+            startBluetooth()
+        } else {
+            bluetoothWatcher?.stop()
+            bluetoothWatcher = nil
+        }
     }
 
     private func startAudio() {

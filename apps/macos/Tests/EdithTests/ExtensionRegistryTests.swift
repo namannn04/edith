@@ -35,6 +35,50 @@ import Testing
         #expect(featuredIdentifiers == ["usage", "system", "notchShelf", "clipboard"])
     }
 
+    @Test func missingRequiredPermissionsShowSheet() {
+        let entry = ExtensionRegistry.entries.first { $0.id == "system" }!
+        let decision = ExtensionPermissionFlow.decision(
+            for: entry, granted: [.accessibility: true, .inputMonitoring: false],
+            hasSeenPermissions: true)
+        #expect(
+            decision
+                == .showSheet(
+                    required: [.inputMonitoring], optional: []))
+    }
+
+    @Test func grantedRequiredPermissionsEnableDirectly() {
+        let entry = ExtensionRegistry.entries.first { $0.id == "system" }!
+        let decision = ExtensionPermissionFlow.decision(
+            for: entry, granted: [.accessibility: true, .inputMonitoring: true],
+            hasSeenPermissions: false)
+        #expect(decision == .enableDirectly)
+    }
+
+    @Test func unseenMissingOptionalPermissionsShowSheet() {
+        let entry = ExtensionRegistry.entries.first { $0.id == "notchShelf" }!
+        let decision = ExtensionPermissionFlow.decision(
+            for: entry, granted: [.bluetooth: false, .camera: true],
+            hasSeenPermissions: false)
+        #expect(
+            decision
+                == .showSheet(required: [], optional: [.bluetooth]))
+    }
+
+    @Test func seenOptionalPermissionsEnableDirectly() {
+        let entry = ExtensionRegistry.entries.first { $0.id == "notchShelf" }!
+        let decision = ExtensionPermissionFlow.decision(
+            for: entry, granted: [.bluetooth: false, .camera: false],
+            hasSeenPermissions: true)
+        #expect(decision == .enableDirectly)
+    }
+
+    @Test func grantedOptionalPermissionsEnableDirectlyWithoutPriorEnable() {
+        let entry = ExtensionRegistry.entries.first { $0.id == "clipboard" }!
+        let decision = ExtensionPermissionFlow.decision(
+            for: entry, granted: [.accessibility: true], hasSeenPermissions: false)
+        #expect(decision == .enableDirectly)
+    }
+
     @Test func freshInstallLeavesExtensionsOff() {
         let (defaults, suiteName) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

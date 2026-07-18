@@ -91,5 +91,6 @@ import Testing
         }
         #expect(MainDestination.resolve("nonsense", visibleHome: visible) == .home)
         #expect(MainDestination.resolve("usage", visibleHome: visible) == .home)
+        #expect(MainDestination.resolve("permissions", visibleHome: visible) == .home)
     }
 }

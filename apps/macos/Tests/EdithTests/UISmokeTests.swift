@@ -42,6 +42,8 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
             SharedDefaults.store.set(destination.rawValue, forKey: "mainWindowSection")
             #expect(renders(MainWindowView()), "\(destination.rawValue) failed to render")
         }
+        SharedDefaults.store.set("permissions", forKey: "mainWindowSection")
+        #expect(renders(MainWindowView()), "legacy permissions destination failed to render")
     }
 
     @Test func extensionsPaneRenders() {

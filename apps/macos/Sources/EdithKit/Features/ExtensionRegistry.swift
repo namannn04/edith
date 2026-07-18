@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ExtensionPermission: String, CaseIterable, Equatable, Sendable {
+public enum ExtensionPermission: String, CaseIterable, Hashable, Sendable {
     case calendar
     case notifications
     case accessibility
@@ -50,6 +50,25 @@ public enum ExtensionPermission: String, CaseIterable, Equatable, Sendable {
         case .camera: "permCameraGranted"
         case .bluetooth, .automation: nil
         }
+    }
+}
+
+public enum ExtensionEnableDecision: Equatable, Sendable {
+    case enableDirectly
+    case showSheet(required: [ExtensionPermission], optional: [ExtensionPermission])
+}
+
+public enum ExtensionPermissionFlow {
+    public static func decision(
+        for entry: ExtensionRegistryEntry, granted: [ExtensionPermission: Bool],
+        hasSeenPermissions: Bool
+    ) -> ExtensionEnableDecision {
+        let missingRequired = entry.requiredPermissions.filter { granted[$0] != true }
+        let missingOptional = entry.optionalPermissions.filter { granted[$0] != true }
+        if !missingRequired.isEmpty || !missingOptional.isEmpty && !hasSeenPermissions {
+            return .showSheet(required: missingRequired, optional: missingOptional)
+        }
+        return .enableDirectly
     }
 }
 

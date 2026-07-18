@@ -4,7 +4,7 @@ import SwiftUI
 
 enum MainDestination: String, CaseIterable, Identifiable {
     case home, dashboard, music, calendar, system
-    case extensions, shortcuts, settings, permissions, about
+    case extensions, shortcuts, settings, about
 
     var id: String { rawValue }
 
@@ -18,7 +18,6 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .extensions: return "Extensions"
         case .shortcuts: return "Shortcuts"
         case .settings: return "Settings"
-        case .permissions: return "Permissions"
         case .about: return "About"
         }
     }
@@ -33,14 +32,13 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .extensions: return "puzzlepiece.extension"
         case .shortcuts: return "command"
         case .settings: return "gearshape"
-        case .permissions: return "checkmark.shield"
         case .about: return "info.circle"
         }
     }
 
     static let homeItems: [MainDestination] = [.home, .dashboard, .music, .calendar, .system]
     static let appItems: [MainDestination] = [
-        .settings, .extensions, .permissions, .shortcuts, .about,
+        .settings, .extensions, .shortcuts, .about,
     ]
 
     static func visibleHomeItems(
@@ -719,7 +717,7 @@ struct MainWindowView: View {
 
     private var permissionsPill: some View {
         Button {
-            mainWindowSection = MainDestination.permissions.rawValue
+            mainWindowSection = MainDestination.extensions.rawValue
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -747,7 +745,6 @@ struct MainWindowView: View {
         case .extensions: ExtensionsPane()
         case .shortcuts: ShortcutsPane()
         case .settings: SettingsPane(updater: updater)
-        case .permissions: MainPermissionsPane()
         case .about: AboutPane()
         }
     }
