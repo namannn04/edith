@@ -4,6 +4,10 @@ import Testing
 @testable import EdithKit
 
 @Suite struct OnboardingTests {
+    @Test func noExtensionsArePreselected() {
+        #expect(OnboardingFlow.initialSelectedIDs.isEmpty)
+    }
+
     @Test func freshInstallShowsOnboarding() {
         let (defaults, suiteName) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -52,15 +56,32 @@ import Testing
         #expect(!OnboardingFlow.shouldShowOnboarding(defaults: defaults))
     }
 
-    @Test func permissionsDedupeAndExcludeGrantedValues() {
-        let selectedIDs: Set<String> = ["system", "clipboard"]
+    @Test func permissionStepAggregatesOnlyMissingRequiredValues() {
+        let selectedIDs: Set<String> = [
+            "calendar", "presenter", "colorPicker", "system", "clipboard", "usage",
+        ]
         let permissions = OnboardingFlow.missingPermissions(
             selectedIDs: selectedIDs,
-            granted: [.accessibility: false, .inputMonitoring: true])
+            granted: [
+                .calendar: true,
+                .screenRecording: false,
+                .accessibility: false,
+                .inputMonitoring: false,
+                .notifications: false,
+            ])
 
         #expect(
             permissions
-                == [OnboardingPermission(permission: .accessibility, required: true)])
+                == [OnboardingPermission(permission: .screenRecording, required: true)])
+        #expect(OnboardingFlow.hasOptionalPermissions(selectedIDs: selectedIDs))
+    }
+
+    @Test func optionalOnlySelectionsSkipPermissionStep() {
+        let selectedIDs: Set<String> = ["system", "clipboard", "usage", "notchShelf"]
+
+        #expect(
+            OnboardingFlow.missingPermissions(selectedIDs: selectedIDs, granted: [:]).isEmpty)
+        #expect(OnboardingFlow.hasOptionalPermissions(selectedIDs: selectedIDs))
     }
 
     @Test func skipEnablesNothing() {

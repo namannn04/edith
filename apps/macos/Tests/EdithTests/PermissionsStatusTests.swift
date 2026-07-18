@@ -22,14 +22,9 @@ import Testing
         #expect(needsAttention(calendarTab: true, calendar: false))
     }
 
-    @Test func systemTabWarnsWhenEitherKeyboardPermissionMissing() {
-        #expect(needsAttention(systemTab: true, accessibility: false))
-        #expect(needsAttention(systemTab: true, inputMonitoring: false))
-        #expect(!needsAttention(systemTab: true))
-    }
-
-    @Test func systemTabOffIgnoresKeyboardPermissions() {
-        #expect(!needsAttention(systemTab: false, accessibility: false, inputMonitoring: false))
+    @Test func systemTabDoesNotRequireKeyboardCleaningPermissions() {
+        #expect(!needsAttention(systemTab: true, accessibility: false))
+        #expect(!needsAttention(systemTab: true, inputMonitoring: false))
     }
 
     @Test func notificationsWarnOnlyWhenMasterIsOn() {

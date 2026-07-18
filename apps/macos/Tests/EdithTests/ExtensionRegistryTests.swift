@@ -35,33 +35,74 @@ import Testing
         #expect(featuredIdentifiers == ["usage", "system", "notchShelf", "clipboard"])
     }
 
+    @Test func permissionTiersMatchFeatureRequirements() {
+        let required: [String: [ExtensionPermission]] = [
+            "usage": [],
+            "system": [],
+            "systemStats": [],
+            "micMute": [],
+            "music": [],
+            "calendar": [.calendar],
+            "notchShelf": [],
+            "clipboard": [],
+            "focusDim": [],
+            "presenter": [.screenRecording],
+            "colorPicker": [.screenRecording],
+        ]
+        let optional: [String: [ExtensionPermission]] = [
+            "usage": [.notifications],
+            "system": [.accessibility, .inputMonitoring],
+            "systemStats": [],
+            "micMute": [],
+            "music": [.automation],
+            "calendar": [],
+            "notchShelf": [.bluetooth, .camera],
+            "clipboard": [.accessibility],
+            "focusDim": [],
+            "presenter": [],
+            "colorPicker": [],
+        ]
+
+        let identifiers = Set(ExtensionRegistry.entries.map(\.id))
+        #expect(Set(required.keys) == identifiers)
+        #expect(Set(optional.keys) == identifiers)
+        for entry in ExtensionRegistry.entries {
+            #expect(entry.requiredPermissions == required[entry.id, default: []])
+            #expect(entry.optionalPermissions == optional[entry.id, default: []])
+        }
+    }
+
     @Test func missingRequiredPermissionsShowSheet() {
-        let entry = ExtensionRegistry.entries.first { $0.id == "system" }!
+        let entry = ExtensionRegistry.entries.first { $0.id == "presenter" }!
         let decision = ExtensionPermissionFlow.decision(
-            for: entry, granted: [.accessibility: true, .inputMonitoring: false],
-            hasSeenPermissions: true)
+            for: entry, granted: [.screenRecording: false], hasSeenPermissions: true)
         #expect(
             decision
                 == .showSheet(
-                    required: [.inputMonitoring], optional: []))
+                    required: [.screenRecording], optional: []))
     }
 
     @Test func grantedRequiredPermissionsEnableDirectly() {
+        let entry = ExtensionRegistry.entries.first { $0.id == "presenter" }!
+        let decision = ExtensionPermissionFlow.decision(
+            for: entry, granted: [.screenRecording: true], hasSeenPermissions: false)
+        #expect(decision == .enableDirectly)
+    }
+
+    @Test func unseenSystemPermissionsAreOptional() {
         let entry = ExtensionRegistry.entries.first { $0.id == "system" }!
         let decision = ExtensionPermissionFlow.decision(
-            for: entry, granted: [.accessibility: true, .inputMonitoring: true],
+            for: entry, granted: [.accessibility: true, .inputMonitoring: false],
             hasSeenPermissions: false)
         #expect(decision == .enableDirectly)
     }
 
-    @Test func unseenMissingOptionalPermissionsShowSheet() {
+    @Test func unseenMissingOptionalPermissionsEnableDirectly() {
         let entry = ExtensionRegistry.entries.first { $0.id == "notchShelf" }!
         let decision = ExtensionPermissionFlow.decision(
             for: entry, granted: [.bluetooth: false, .camera: true],
             hasSeenPermissions: false)
-        #expect(
-            decision
-                == .showSheet(required: [], optional: [.bluetooth]))
+        #expect(decision == .enableDirectly)
     }
 
     @Test func seenOptionalPermissionsEnableDirectly() {
@@ -77,6 +118,13 @@ import Testing
         let decision = ExtensionPermissionFlow.decision(
             for: entry, granted: [.accessibility: true], hasSeenPermissions: false)
         #expect(decision == .enableDirectly)
+    }
+
+    @Test func everyPermissionReasonIsUserFacing() {
+        for permission in ExtensionPermission.allCases {
+            #expect(!permission.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            #expect(!permission.reason.localizedCaseInsensitiveContains("helper"))
+        }
     }
 
     @Test func freshInstallLeavesExtensionsOff() {

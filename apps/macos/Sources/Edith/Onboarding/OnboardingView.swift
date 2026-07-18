@@ -16,7 +16,7 @@ struct OnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = Step.welcome
     @State private var transitionDirection = 1.0
-    @State private var selectedIDs: Set<String> = []
+    @State private var selectedIDs = OnboardingFlow.initialSelectedIDs
     @State private var showsAllExtensions = false
     @State private var grantedPermissions = OnboardingFlow.grantedPermissions()
     @State private var permissionItems: [OnboardingPermission] = []
@@ -200,6 +200,14 @@ struct OnboardingView: View {
                             }
                         }
                     }
+                    if OnboardingFlow.hasOptionalPermissions(selectedIDs: selectedIDs) {
+                        Text(
+                            "Some features ask for more access the first time you use them, with an explanation."
+                        )
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                        .lineLimit(1)
+                    }
                 }
                 .padding(.horizontal, 2)
                 .padding(.bottom, 4)
@@ -279,7 +287,7 @@ struct OnboardingView: View {
             }
             Spacer()
             if step == .picks {
-                Button("Continue", action: continueFromPicks)
+                Button(continueLabel, action: continueFromPicks)
                     .buttonStyle(OnboardingPrimaryButtonStyle(compact: true))
                     .keyboardShortcut(.defaultAction)
             } else if step == .permissions {
@@ -327,6 +335,10 @@ struct OnboardingView: View {
 
     private var hotKeyLabel: String {
         SharedDefaults.store.string(forKey: "hotKeyLabel") ?? "⌥⌘E"
+    }
+
+    private var continueLabel: String {
+        selectedIDs.isEmpty ? "Continue" : "Continue (\(selectedIDs.count))"
     }
 
     private var readySummary: String {
@@ -399,49 +411,61 @@ private struct ExtensionChoiceCard: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 9) {
-                FeaturePreview(entry: entry, dark: dark)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(
-                        selected ? brandAccent.opacity(0.1) : DashSkin.paper(dark),
-                        in: RoundedRectangle(cornerRadius: 10))
-                HStack(spacing: 8) {
-                    Image(systemName: entry.symbolName)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(selected ? brandAccent : DashSkin.inkSoft(dark))
-                    Text(entry.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(DashSkin.ink(dark))
+        VStack(alignment: .leading, spacing: 9) {
+            Button(action: action) {
+                VStack(alignment: .leading, spacing: 9) {
+                    FeaturePreview(entry: entry, dark: dark)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(
+                            selected ? brandAccent.opacity(0.1) : DashSkin.paper(dark),
+                            in: RoundedRectangle(cornerRadius: 10))
+                    HStack(spacing: 8) {
+                        Image(systemName: entry.symbolName)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(selected ? brandAccent : DashSkin.inkSoft(dark))
+                        Text(entry.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(DashSkin.ink(dark))
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(selected ? brandAccent : DashSkin.inkFaint(dark))
+                    }
+                    Text(entry.subtitle)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(DashSkin.inkSoft(dark))
                         .lineLimit(1)
-                    Spacer(minLength: 0)
-                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(selected ? brandAccent : DashSkin.inkFaint(dark))
                 }
-                Text(entry.subtitle)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(DashSkin.inkSoft(dark))
-                    .lineLimit(1)
-                Text(permissionNote)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(selected ? brandAccent : DashSkin.inkFaint(dark))
-                    .lineLimit(1)
+                .contentShape(Rectangle())
             }
-            .padding(11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(
-                        selected ? brandAccent : DashSkin.line(dark),
-                        lineWidth: selected ? 1.5 : 1)
+            .buttonStyle(.plain)
+            .pointerCursor()
+            .accessibilityLabel("\(entry.title), \(selected ? "selected" : "not selected")")
+            HStack(spacing: 4) {
+                Button(action: action) {
+                    Text(permissionNote)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(selected ? brandAccent : DashSkin.inkFaint(dark))
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                if !permissions.isEmpty {
+                    PermissionInfoButton(permissions: permissions)
+                }
             }
         }
-        .buttonStyle(.plain)
-        .pointerCursor()
-        .accessibilityLabel("\(entry.title), \(selected ? "selected" : "not selected")")
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    selected ? brandAccent : DashSkin.line(dark),
+                    lineWidth: selected ? 1.5 : 1)
+        }
     }
 
     private var permissionNote: String {
@@ -450,6 +474,10 @@ private struct ExtensionChoiceCard: View {
         if !required.isEmpty { return "Needs \(required.joined(separator: ", "))" }
         if !optional.isEmpty { return "Optional: \(optional.joined(separator: ", "))" }
         return "No permissions needed"
+    }
+
+    private var permissions: [ExtensionPermission] {
+        entry.requiredPermissions + entry.optionalPermissions
     }
 }
 
@@ -473,6 +501,7 @@ private struct OnboardingPermissionCard: View {
                     Text(item.permission.displayName)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(DashSkin.ink(dark))
+                    PermissionInfoButton(item.permission)
                     Text(item.required ? "Required" : "Optional")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(item.required ? DashSkin.warn : DashSkin.inkFaint(dark))

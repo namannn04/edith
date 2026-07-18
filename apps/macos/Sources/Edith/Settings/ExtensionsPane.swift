@@ -226,32 +226,35 @@ struct ExtensionsPane: View {
         grantedPermissions[permission] == true
     }
 
-    private func permissionChip(for entry: ExtensionRegistryEntry) -> some View {
-        let missing = entry.requiredPermissions.filter { !permissionGranted($0) }
-        let label: String
-        let color: Color
+    private func chipStyle(
+        for entry: ExtensionRegistryEntry, missing: [ExtensionPermission]
+    ) -> (label: String, color: Color) {
         if entry.requiredPermissions.isEmpty {
             if entry.optionalPermissions.isEmpty {
-                label = "No permissions"
-            } else {
-                let names = entry.optionalPermissions.map(\.displayName).joined(separator: ", ")
-                label = "Optional: \(names)"
+                return ("No permissions", Color(nsColor: .secondaryLabelColor))
             }
-            color = Color(nsColor: .secondaryLabelColor)
-        } else if missing.isEmpty {
-            label = "granted"
-            color = .green
-        } else {
-            label = missing.map(\.displayName).joined(separator: ", ")
-            color = .orange
+            let names = entry.optionalPermissions.map(\.displayName).joined(separator: ", ")
+            return ("Optional: \(names)", Color(nsColor: .secondaryLabelColor))
         }
-        return Text(label)
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(color)
-            .lineLimit(1)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.12), in: Capsule())
+        if missing.isEmpty { return ("granted", .green) }
+        return (missing.map(\.displayName).joined(separator: ", "), .orange)
+    }
+
+    @ViewBuilder
+    private func permissionChip(for entry: ExtensionRegistryEntry) -> some View {
+        let missing = entry.requiredPermissions.filter { !permissionGranted($0) }
+        let (label, color) = chipStyle(for: entry, missing: missing)
+        if missing.isEmpty {
+            Text(label)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(color.opacity(0.12), in: Capsule())
+        } else {
+            PermissionInfoButton(permissions: missing, label: label, color: color)
+        }
     }
 
     private func header(_ entry: ExtensionRegistryEntry, group: String?) -> some View {
@@ -389,6 +392,7 @@ private struct ExtensionPermissionSheet: View {
                 HStack(spacing: 6) {
                     Text(permission.displayName)
                         .fontWeight(.medium)
+                    PermissionInfoButton(permission)
                     Text(required ? "Required" : "Optional")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(required ? .orange : .secondary)
@@ -588,7 +592,7 @@ private struct UsageRows: View {
         .opacity(enabled ? 1 : 0.5)
 
         Section {
-            Toggle("Enable alerts", isOn: $notifyMaster)
+            Toggle("Enable alerts", isOn: alertsBinding)
                 .pointerCursor()
             Group {
                 Toggle(isOn: $trackSession) {
@@ -680,6 +684,17 @@ private struct UsageRows: View {
         .opacity(enabled ? 1 : 0.5)
         .onChange(of: claudeEnabled) { reconcileProviders() }
         .onChange(of: codexEnabled) { reconcileProviders() }
+    }
+
+    private var alertsBinding: Binding<Bool> {
+        Binding(
+            get: { notifyMaster },
+            set: { enabled in
+                notifyMaster = enabled
+                if enabled && !SharedDefaults.store.bool(forKey: "permNotificationsGranted") {
+                    IPC.post(IPC.Name.grantNotifications)
+                }
+            })
     }
 
     private var isCustomColor: Bool {

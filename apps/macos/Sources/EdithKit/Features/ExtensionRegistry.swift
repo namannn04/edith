@@ -27,15 +27,18 @@ public enum ExtensionPermission: String, CaseIterable, Hashable, Sendable {
 
     public var reason: String {
         switch self {
-        case .calendar: "Shows your schedule in the Calendar extension."
-        case .notifications: "Delivers usage limit, pacing, and reset alerts."
-        case .accessibility: "Blocks keys during cleaning and pastes clipboard items in place."
-        case .inputMonitoring: "Detects key presses while the keyboard is locked for cleaning."
-        case .fullDisk: "Reads local service credentials and usage data when enabled."
-        case .screenRecording: "Detects shared content and samples colors from the screen."
-        case .camera: "Shows the camera preview in the Notch Shelf camera tab."
-        case .bluetooth: "Shows device connection alerts around the notch."
-        case .automation: "Controls Music playback and reads the current track."
+        case .calendar: "Required to read and show your schedule in Calendar."
+        case .notifications: "Asked when you enable usage limit, pacing, or reset alerts."
+        case .accessibility:
+            "Asked when you first use Clean keys or clipboard instant paste."
+        case .inputMonitoring:
+            "Asked when you first use Clean keys to block key presses during cleaning."
+        case .fullDisk: "Asked when a feature needs local service credentials or usage data."
+        case .screenRecording:
+            "Required to detect shared content or sample colors from the screen."
+        case .camera: "Asked when you first open the Notch Shelf camera preview."
+        case .bluetooth: "Asked when Notch Shelf first checks for device connections."
+        case .automation: "Asked when Music first controls playback or reads the current track."
         }
     }
 
@@ -98,11 +101,11 @@ public enum ExtensionEnableDecision: Equatable, Sendable {
 public enum ExtensionPermissionFlow {
     public static func decision(
         for entry: ExtensionRegistryEntry, granted: [ExtensionPermission: Bool],
-        hasSeenPermissions: Bool
+        hasSeenPermissions _: Bool
     ) -> ExtensionEnableDecision {
         let missingRequired = entry.requiredPermissions.filter { granted[$0] != true }
         let missingOptional = entry.optionalPermissions.filter { granted[$0] != true }
-        if !missingRequired.isEmpty || !missingOptional.isEmpty && !hasSeenPermissions {
+        if !missingRequired.isEmpty {
             return .showSheet(required: missingRequired, optional: missingOptional)
         }
         return .enableDirectly
@@ -151,13 +154,13 @@ public enum ExtensionRegistry {
             id: "usage", title: "Agent Usage",
             subtitle: "Claude and Codex limits, usage stats, and alerts.",
             symbolName: "chart.bar.fill", group: .agent, featured: true,
-            defaultsKey: "tabUsageEnabled", requiredPermissions: [.notifications]),
+            defaultsKey: "tabUsageEnabled", optionalPermissions: [.notifications]),
         ExtensionRegistryEntry(
             id: "system", title: "System",
             subtitle: "Running apps, prevent sleep, and the keyboard-cleaning lock.",
             symbolName: "switch.2", group: .system, featured: true,
             defaultsKey: "tabSystemEnabled",
-            requiredPermissions: [.accessibility, .inputMonitoring]),
+            optionalPermissions: [.accessibility, .inputMonitoring]),
         ExtensionRegistryEntry(
             id: "systemStats", title: "CPU & Memory in menu bar",
             subtitle: "Live CPU and memory readout as a menu bar item.",

@@ -14,11 +14,10 @@ public enum PermissionsStatus {
     }
 
     public static func needsAttention(
-        calendarTab: Bool, systemTab: Bool, notifyMaster: Bool,
-        calendar: Bool, accessibility: Bool, inputMonitoring: Bool, notifications: Bool
+        calendarTab: Bool, systemTab _: Bool, notifyMaster: Bool,
+        calendar: Bool, accessibility _: Bool, inputMonitoring _: Bool, notifications: Bool
     ) -> Bool {
         if calendarTab, !calendar { return true }
-        if systemTab, !accessibility || !inputMonitoring { return true }
         if notifyMaster, !notifications { return true }
         return false
     }

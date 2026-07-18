@@ -12,6 +12,7 @@ public struct OnboardingPermission: Equatable, Sendable {
 
 public enum OnboardingFlow {
     public static let completionKey = "onboardingCompleted"
+    public static let initialSelectedIDs: Set<String> = []
 
     public static func shouldShowOnboarding(defaults: UserDefaults = SharedDefaults.store) -> Bool {
         !defaults.bool(forKey: completionKey)
@@ -40,15 +41,19 @@ public enum OnboardingFlow {
     ) -> [OnboardingPermission] {
         let selectedEntries = entries.filter { selectedIDs.contains($0.id) }
         let required = Set(selectedEntries.flatMap(\.requiredPermissions))
-        let optional = Set(selectedEntries.flatMap(\.optionalPermissions)).subtracting(required)
         let missingRequired = ExtensionPermission.allCases.filter {
             required.contains($0) && granted[$0] != true
         }
-        let missingOptional = ExtensionPermission.allCases.filter {
-            optional.contains($0) && granted[$0] != true
-        }
         return missingRequired.map { OnboardingPermission(permission: $0, required: true) }
-            + missingOptional.map { OnboardingPermission(permission: $0, required: false) }
+    }
+
+    public static func hasOptionalPermissions(
+        selectedIDs: Set<String>,
+        entries: [ExtensionRegistryEntry] = ExtensionRegistry.entries
+    ) -> Bool {
+        entries.contains {
+            selectedIDs.contains($0.id) && !$0.optionalPermissions.isEmpty
+        }
     }
 
     public static func grantedPermissionCount(
