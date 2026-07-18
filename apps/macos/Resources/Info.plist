@@ -35,7 +35,7 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/pulkitxm/edith/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string></string>
+	<string>LzTwqzMep0oPKe7/jBHswPsGEqLvPTt8ud8owrn5M2w=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 </dict>

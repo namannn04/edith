@@ -6,6 +6,7 @@ final class UpdaterModel: NSObject, ObservableObject,
     @preconcurrency SPUStandardUserDriverDelegate
 {
     @Published private(set) var updateReady: String?
+    @Published private(set) var updaterAvailable = false
     @Published private(set) var canCheckForUpdates = false
     @Published private(set) var lastUpdateCheckDate: Date?
     @Published var automaticallyChecksForUpdates = true {
@@ -40,9 +41,16 @@ final class UpdaterModel: NSObject, ObservableObject,
         super.init()
         guard startingUpdater else { return }
         let updaterController = SPUStandardUpdaterController(
-            startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+            startingUpdater: false, updaterDelegate: nil, userDriverDelegate: self)
         self.updaterController = updaterController
         let updater = updaterController.updater
+        do {
+            try updater.start()
+            updaterAvailable = true
+        } catch {
+            updaterAvailable = false
+            return
+        }
         if UserDefaults.standard.object(forKey: "SUAutomaticallyUpdate") == nil {
             updater.automaticallyDownloadsUpdates = true
         }
@@ -80,6 +88,7 @@ final class UpdaterModel: NSObject, ObservableObject,
     var supportsGentleScheduledUpdateReminders: Bool { true }
 
     func checkForUpdates() {
+        guard updaterAvailable else { return }
         updaterController?.checkForUpdates(nil)
     }
 

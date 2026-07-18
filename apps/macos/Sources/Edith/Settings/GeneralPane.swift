@@ -74,41 +74,49 @@ private struct UpdatesPane: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                LabeledContent("Current version") {
-                    Text(currentVersion)
-                        .foregroundStyle(.secondary)
-                }
-                LabeledContent("Last checked") {
-                    if let date = updater.lastUpdateCheckDate {
-                        Text(date, format: .dateTime.year().month().day().hour().minute())
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Never")
-                            .foregroundStyle(.secondary)
+        Group {
+            if updater.updaterAvailable {
+                Form {
+                    Section {
+                        LabeledContent("Current version") {
+                            Text(currentVersion)
+                                .foregroundStyle(.secondary)
+                        }
+                        LabeledContent("Last checked") {
+                            if let date = updater.lastUpdateCheckDate {
+                                Text(date, format: .dateTime.year().month().day().hour().minute())
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Never")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Button("Check for Updates") {
+                            updater.checkForUpdates()
+                        }
+                        .disabled(!updater.canCheckForUpdates)
+                        .pointerCursor()
+                    } header: {
+                        Text("Version")
+                    }
+
+                    Section {
+                        Toggle("Automatic updates", isOn: automaticDownloads)
+                            .pointerCursor()
+                    } header: {
+                        Text("Updates")
+                    } footer: {
+                        Text(updater.installOnQuitInfo)
+                            .font(.caption)
                     }
                 }
-                Button("Check for Updates") {
-                    updater.checkForUpdates()
-                }
-                .disabled(!updater.canCheckForUpdates)
-                .pointerCursor()
-            } header: {
-                Text("Version")
-            }
-
-            Section {
-                Toggle("Automatic updates", isOn: automaticDownloads)
-                    .pointerCursor()
-            } header: {
-                Text("Updates")
-            } footer: {
-                Text(updater.installOnQuitInfo)
-                    .font(.caption)
+                .formStyle(.grouped)
+            } else {
+                Text("Updates are unavailable in this build")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .formStyle(.grouped)
         .navigationTitle("Updates")
     }
 }
