@@ -80,13 +80,16 @@ fi
 APP="dist/Edith.app"
 LOGIN_ITEMS="$APP/Contents/Library/LoginItems"
 HELPER="$LOGIN_ITEMS/Edith.app"
+SPARKLE_FRAMEWORK="$(find .build/artifacts -type d -name Sparkle.framework -print -quit)"
+[ -n "$SPARKLE_FRAMEWORK" ] || { echo "Sparkle.framework not found in SwiftPM artifacts" >&2; exit 1; }
 rm -rf dist
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 rm -rf "$LOGIN_ITEMS/Edith"Helper.app
 cp .build/release/Edith "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cp -R .build/release/Edith_EdithKit.bundle "$APP/Contents/Resources/"
+cp -R "$SPARKLE_FRAMEWORK" "$APP/Contents/Frameworks/"
 
 mkdir -p "$HELPER/Contents/MacOS" "$HELPER/Contents/Resources"
 cp .build/release/EdithHelper "$HELPER/Contents/MacOS/Edith"

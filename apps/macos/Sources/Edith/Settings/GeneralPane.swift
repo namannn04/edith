@@ -5,17 +5,19 @@ import SwiftUI
 
 struct SettingsPane: View {
     enum Tab: String, CaseIterable {
-        case general, menubar, usage, icloud
+        case general, menubar, usage, icloud, updates
         var label: String {
             switch self {
             case .general: return "General"
             case .menubar: return "Menu bar"
             case .usage: return "Usage"
             case .icloud: return "iCloud"
+            case .updates: return "Updates"
             }
         }
     }
 
+    @ObservedObject var updater: UpdaterModel
     @AppStorage("settingsTab", store: SharedDefaults.store) private var tab = Tab.general
 
     var body: some View {
@@ -36,6 +38,7 @@ struct SettingsPane: View {
                 case .menubar: MenuBarPane()
                 case .usage: UsagePane()
                 case .icloud: ICloudPane()
+                case .updates: UpdatesPane(updater: updater)
                 }
             }
             .scrollContentBackground(.hidden)
@@ -43,6 +46,59 @@ struct SettingsPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle("Settings")
+    }
+}
+
+private struct UpdatesPane: View {
+    @ObservedObject var updater: UpdaterModel
+
+    private var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
+    }
+
+    private var automaticDownloads: Binding<Bool> {
+        Binding(
+            get: { updater.automaticallyDownloadsUpdates },
+            set: { updater.automaticallyDownloadsUpdates = $0 })
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Current version") {
+                    Text(currentVersion)
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Last checked") {
+                    if let date = updater.lastUpdateCheckDate {
+                        Text(date, format: .dateTime.year().month().day().hour().minute())
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Never")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Button("Check for Updates") {
+                    updater.checkForUpdates()
+                }
+                .disabled(!updater.canCheckForUpdates)
+                .pointerCursor()
+            } header: {
+                Text("Version")
+            }
+
+            Section {
+                Toggle("Automatic updates", isOn: automaticDownloads)
+                    .pointerCursor()
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text(updater.installOnQuitInfo)
+                    .font(.caption)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Updates")
     }
 }
 

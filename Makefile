@@ -52,6 +52,14 @@ release:
 	  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(V)" $$p; \
 	  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $$BUILD" $$p; \
 	done
+	@KEY=$$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' apps/macos/Resources/Info.plist 2>/dev/null); \
+	test -n "$$KEY" || { echo "release blocked: set SUPublicEDKey in apps/macos/Resources/Info.plist"; exit 1; }
+	@mkdir -p apps/macos/dist/appcast; \
+	if command -v generate_appcast >/dev/null 2>&1; then \
+	  generate_appcast apps/macos/dist/appcast; \
+	else \
+	  echo "Sparkle tools not found. Install them and generate apps/macos/dist/appcast/appcast.xml before uploading."; \
+	fi
 	git commit -m "Bump version to $(V)" apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist
 	git tag "v$(V)"
 	git push origin HEAD "v$(V)"

@@ -188,6 +188,7 @@ private struct NavStack {
 }
 
 struct MainWindowView: View {
+    @ObservedObject var updater = UpdaterModel()
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.home.rawValue
     @AppStorage("settingsTab", store: SharedDefaults.store) private var settingsTab = "general"
@@ -412,7 +413,7 @@ struct MainWindowView: View {
     }
 
     private var footerVisible: Bool {
-        systemEnabled || presenterEnabled || permissionsNeedAttention
+        systemEnabled || presenterEnabled || permissionsNeedAttention || updater.updateReady != nil
     }
 
     private func sidebar(_ bandHeight: CGFloat) -> some View {
@@ -463,6 +464,9 @@ struct MainWindowView: View {
 
     private var sidebarFooter: some View {
         VStack(spacing: 8) {
+            if let version = updater.updateReady {
+                updateReadyPill(version)
+            }
             if systemEnabled || presenterEnabled {
                 quickActions
             }
@@ -471,6 +475,29 @@ struct MainWindowView: View {
             }
         }
         .padding(10)
+    }
+
+    private func updateReadyPill(_ version: String) -> some View {
+        Button {
+            updater.checkForUpdates()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill")
+                Text("Update ready")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text("v\(version)")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .opacity(0.75)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(DashSkin.sage)
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(DashSkin.sage.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .help("Show update options")
     }
 
     @ViewBuilder
@@ -719,7 +746,7 @@ struct MainWindowView: View {
         case .system: SystemPage()
         case .extensions: ExtensionsPane()
         case .shortcuts: ShortcutsPane()
-        case .settings: SettingsPane()
+        case .settings: SettingsPane(updater: updater)
         case .permissions: MainPermissionsPane()
         case .about: AboutPane()
         }
