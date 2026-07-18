@@ -422,45 +422,6 @@ private struct ExtensionPermissionSheet: View {
     }
 }
 
-private extension ExtensionPermission {
-    var symbolName: String {
-        switch self {
-        case .calendar: "calendar"
-        case .notifications: "bell.badge"
-        case .accessibility: "figure.wave"
-        case .inputMonitoring: "keyboard"
-        case .fullDisk: "externaldrive"
-        case .screenRecording: "rectangle.inset.filled.badge.record"
-        case .camera: "camera"
-        case .bluetooth: "wave.3.right"
-        case .automation: "gearshape.2"
-        }
-    }
-
-    var grantRequest: Notification.Name? {
-        switch self {
-        case .calendar: IPC.Name.grantCalendar
-        case .notifications: IPC.Name.grantNotifications
-        case .accessibility: IPC.Name.grantAccessibility
-        case .inputMonitoring: IPC.Name.grantInputMonitoring
-        case .fullDisk: IPC.Name.grantFullDisk
-        case .screenRecording: IPC.Name.grantScreenRecording
-        case .camera: IPC.Name.grantCamera
-        case .bluetooth, .automation: nil
-        }
-    }
-
-    var firstUseExplanation: String? {
-        switch self {
-        case .bluetooth:
-            "macOS will ask for Bluetooth access when connection alerts first run."
-        case .automation:
-            "macOS will ask for Automation access when Music first controls playback."
-        default: nil
-        }
-    }
-}
-
 private struct UsageRows: View {
     @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var enabled = false
     @AppStorage("limitsInMenuBar", store: SharedDefaults.store) private var limitsInMenuBar = true

@@ -162,6 +162,16 @@ struct GeneralPane: View {
                 Text("Features are turned on and off from the Extensions page.")
                     .font(.caption)
             }
+
+            Section {
+                Button("Show welcome tour") {
+                    SharedDefaults.store.removeObject(forKey: OnboardingFlow.completionKey)
+                    OnboardingWindow.open()
+                }
+                .pointerCursor()
+            } header: {
+                Text("Welcome tour")
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("General")

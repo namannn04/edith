@@ -17,7 +17,11 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
         launchHelperIfNeeded()
         Task { await DashboardModel.shared.load() }
-        MainWindow.open()
+        if OnboardingFlow.shouldShowOnboarding() {
+            OnboardingWindow.open()
+        } else {
+            MainWindow.open()
+        }
         quitObserver = IPC.observe(IPC.Name.quitMainApp) {
             NSApp.terminate(nil)
         }
