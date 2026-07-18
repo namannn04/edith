@@ -3,18 +3,22 @@ import Testing
 
 @Suite struct PermissionsStatusTests {
     func needsAttention(
-        calendarTab: Bool = false, systemTab: Bool = false, notifyMaster: Bool = false,
+        usageTab: Bool = false, calendarTab: Bool = false, systemTab: Bool = false,
+        notifyMaster: Bool = false,
         calendar: Bool = true, accessibility: Bool = true, inputMonitoring: Bool = true,
         notifications: Bool = true
     ) -> Bool {
         PermissionsStatus.needsAttention(
-            calendarTab: calendarTab, systemTab: systemTab, notifyMaster: notifyMaster,
+            usageTab: usageTab, calendarTab: calendarTab, systemTab: systemTab,
+            notifyMaster: notifyMaster,
             calendar: calendar, accessibility: accessibility, inputMonitoring: inputMonitoring,
             notifications: notifications)
     }
 
     @Test func allGrantedNeedsNothing() {
-        #expect(!needsAttention(calendarTab: true, systemTab: true, notifyMaster: true))
+        #expect(
+            !needsAttention(
+                usageTab: true, calendarTab: true, systemTab: true, notifyMaster: true))
     }
 
     @Test func missingPermissionOnlyWarnsWhenFeatureIsOn() {
@@ -29,6 +33,7 @@ import Testing
 
     @Test func notificationsWarnOnlyWhenMasterIsOn() {
         #expect(!needsAttention(notifyMaster: false, notifications: false))
-        #expect(needsAttention(notifyMaster: true, notifications: false))
+        #expect(needsAttention(usageTab: true, notifyMaster: true, notifications: false))
+        #expect(!needsAttention(usageTab: false, notifyMaster: true, notifications: false))
     }
 }

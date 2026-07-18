@@ -15,10 +15,11 @@ final class MicMuteEngine: NSObject, ObservableObject, FeatureModule {
         muted = SharedDefaults.store.bool(forKey: "micMuted")
         if muted { apply(true) }
         observeDeviceList()
-        updateStatusItemPresence()
+        syncSettings()
     }
 
     func shutdown() {
+        MicHotKey.unregister()
         if muted { apply(false) }
         if let listener = deviceListListener {
             var address = Self.deviceListAddress
@@ -31,6 +32,11 @@ final class MicMuteEngine: NSObject, ObservableObject, FeatureModule {
     }
 
     func toggle() { setMuted(!muted) }
+
+    func syncSettings() {
+        MicHotKey.register()
+        updateStatusItemPresence()
+    }
 
     func setMuted(_ on: Bool) {
         guard on != muted else { return }

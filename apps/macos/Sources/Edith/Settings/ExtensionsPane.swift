@@ -389,15 +389,34 @@ private struct ExtensionSettingsSheet: View {
             }
             .formStyle(.grouped)
             .navigationTitle(entry.title)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .keyboardShortcut(.defaultAction)
-                        .pointerCursor()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack {
+                        Spacer()
+                        Button("Done") { dismiss() }
+                            .keyboardShortcut(.defaultAction)
+                            .pointerCursor()
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(.bar)
                 }
             }
         }
-        .frame(width: 640, height: 620)
+        .frame(
+            minWidth: 520, idealWidth: 560, maxWidth: 560, minHeight: 260,
+            idealHeight: idealHeight, maxHeight: 620)
+    }
+
+    private var idealHeight: CGFloat {
+        switch entry.id {
+        case "micMute", "music", "systemStats": 300
+        case "focusDim", "colorPicker": 430
+        case "system": 500
+        case "notchShelf", "presenter": 580
+        default: 620
+        }
     }
 }
 

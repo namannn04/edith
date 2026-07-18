@@ -39,6 +39,7 @@ final class FocusDimEngine: FeatureModule {
     private var screenObserver: NSObjectProtocol?
 
     init() {
+        FocusDimHotKey.register()
         loadSettings()
         rebuildOverlays()
         reposition(animateIn: true)
@@ -64,6 +65,7 @@ final class FocusDimEngine: FeatureModule {
     }
 
     func shutdown() {
+        FocusDimHotKey.unregister()
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         if let activationObserver { workspaceCenter.removeObserver(activationObserver) }
         if let spaceObserver { workspaceCenter.removeObserver(spaceObserver) }
@@ -85,6 +87,7 @@ final class FocusDimEngine: FeatureModule {
     }
 
     func applySettings() {
+        FocusDimHotKey.register()
         let previousMode = displayMode
         loadSettings()
         if displayMode != previousMode {

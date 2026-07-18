@@ -8,10 +8,15 @@ struct ShortcutsSettingsPane: View {
         false
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =
         false
+    @AppStorage("focusDimEnabled", store: SharedDefaults.store) private var focusDimEnabled = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
         false
-    @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
-        MainDestination.dashboard.rawValue
+
+    private var extensionShortcuts: [ExtensionShortcut] {
+        ExtensionShortcutVisibility.visible(
+            clipboard: clipboardEnabled, focusDim: focusDimEnabled, presenter: presenterEnabled,
+            colorPicker: colorPickerEnabled)
+    }
 
     var body: some View {
         Form {
@@ -24,24 +29,15 @@ struct ShortcutsSettingsPane: View {
             }
 
             Section {
-                shortcutRow(
-                    "Clipboard history", subtitle: "Opens the clipboard history popup",
-                    keyPrefix: "clipboardHotKey", defaultLabel: "⌃⇧C",
-                    offExtension: !clipboardEnabled
-                        ? (id: "clipboard", message: "Clipboard extension is off") : nil)
-                shortcutRow(
-                    "Focus dim", subtitle: "Toggles background-window dimming",
-                    keyPrefix: "focusDimHotKey", defaultLabel: "⌥⌘F")
-                shortcutRow(
-                    "Presenter mode", subtitle: "Forces presenter blur on or off",
-                    keyPrefix: "presenterHotKey", defaultLabel: "⇧⌥⌘P",
-                    offExtension: !presenterEnabled
-                        ? (id: "presenter", message: "Presenter extension is off") : nil)
-                shortcutRow(
-                    "Pick a color", subtitle: "Summons the color picker loupe",
-                    keyPrefix: "colorPickerHotKey", defaultLabel: "⌃⌥⌘C",
-                    offExtension: !colorPickerEnabled
-                        ? (id: "colorPicker", message: "Color Picker extension is off") : nil)
+                if extensionShortcuts.isEmpty {
+                    Text("Extensions with shortcuts appear here when enabled.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(extensionShortcuts, id: \.self) { shortcut in
+                        extensionShortcutRow(shortcut)
+                    }
+                }
             } header: {
                 Text("Extensions")
             }
@@ -79,32 +75,39 @@ struct ShortcutsSettingsPane: View {
     }
 
     private func shortcutRow(
-        _ title: String, subtitle: String, keyPrefix: String, defaultLabel: String,
-        offExtension: (id: String, message: String)? = nil
+        _ title: String, subtitle: String, keyPrefix: String, defaultLabel: String
     ) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                if let offExtension {
-                    Button {
-                        SharedDefaults.store.set(offExtension.id, forKey: "extensionsExpand")
-                        mainWindowSection = MainDestination.extensions.rawValue
-                    } label: {
-                        Text("\(offExtension.message) - turn it on ›")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    .buttonStyle(.plain)
-                    .pointerCursor()
-                } else {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             HotKeyRecorderControl(keyPrefix: keyPrefix, defaultLabel: defaultLabel)
-                .opacity(offExtension == nil ? 1 : 0.5)
+        }
+    }
+
+    @ViewBuilder
+    private func extensionShortcutRow(_ shortcut: ExtensionShortcut) -> some View {
+        switch shortcut {
+        case .clipboard:
+            shortcutRow(
+                "Clipboard history", subtitle: "Opens the clipboard history popup",
+                keyPrefix: "clipboardHotKey", defaultLabel: "⌃⇧C")
+        case .focusDim:
+            shortcutRow(
+                "Focus dim", subtitle: "Toggles background-window dimming",
+                keyPrefix: "focusDimHotKey", defaultLabel: "⌥⌘F")
+        case .presenter:
+            shortcutRow(
+                "Presenter mode", subtitle: "Forces presenter blur on or off",
+                keyPrefix: "presenterHotKey", defaultLabel: "⇧⌥⌘P")
+        case .colorPicker:
+            shortcutRow(
+                "Pick a color", subtitle: "Summons the color picker loupe",
+                keyPrefix: "colorPickerHotKey", defaultLabel: "⌃⌥⌘C")
         }
     }
 }

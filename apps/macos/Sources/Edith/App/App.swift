@@ -16,7 +16,11 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         let showDockIcon = SharedDefaults.store.object(forKey: "showDockIcon") as? Bool ?? true
         NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
         launchHelperIfNeeded()
-        Task { await DashboardModel.shared.load() }
+        let dashboard = DashboardModel.shared
+        dashboard.syncExtensionState()
+        if SharedDefaults.store.bool(forKey: "tabUsageEnabled") {
+            Task { await dashboard.load() }
+        }
         if OnboardingFlow.shouldShowOnboarding() {
             OnboardingWindow.open()
         } else {
@@ -29,7 +33,10 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
             forName: UserDefaults.didChangeNotification, object: SharedDefaults.store,
             queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.scheduleSettingsChangedBroadcast() }
+            MainActor.assumeIsolated {
+                DashboardModel.shared.syncExtensionState()
+                self?.scheduleSettingsChangedBroadcast()
+            }
         }
     }
 

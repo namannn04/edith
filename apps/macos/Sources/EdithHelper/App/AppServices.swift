@@ -78,12 +78,18 @@ final class AppServices: ObservableObject {
             store.shutdown()
             colorPicker = nil
         }
+        colorPicker?.registerHotKey()
 
         let clipboardOn = SharedDefaults.store.object(forKey: "clipboardEnabled") as? Bool ?? false
-        if clipboardOn, clipboard == nil { clipboard = ClipboardStore() }
-        if !clipboardOn, let store = clipboard {
-            store.shutdown()
-            clipboard = nil
+        if clipboardOn {
+            if clipboard == nil { clipboard = ClipboardStore() }
+            ClipboardHotKey.register()
+        } else {
+            ClipboardHotKey.unregister()
+            if let store = clipboard {
+                store.shutdown()
+                clipboard = nil
+            }
         }
         ClipboardPanel.shared.store = clipboard
         notchShelf?.attachClipboard(clipboard)
@@ -98,8 +104,15 @@ final class AppServices: ObservableObject {
             focusDim = nil
         }
 
+        let presenterExtensionOn = Self.extensionEnabled("presenterEnabled")
+        PresenterState.shared.syncEnabled(presenterExtensionOn)
+        if presenterExtensionOn {
+            PresenterHotKey.register()
+        } else {
+            PresenterHotKey.unregister()
+        }
         let presenterOn = FeatureGates.presenterDetectorWanted(
-            presenterEnabled: Self.extensionEnabled("presenterEnabled"),
+            presenterEnabled: presenterExtensionOn,
             autoEnabled: Self.extensionEnabled("presenterAutoEnabled"))
         if presenterOn, presenter == nil { presenter = PresenterDetector() }
         if !presenterOn, let detector = presenter {
@@ -113,6 +126,7 @@ final class AppServices: ObservableObject {
             engine.shutdown()
             micMute = nil
         }
+        micMute?.syncSettings()
 
         let statsOn = Self.extensionEnabled("menuBarSystemStats")
         if statsOn, systemStats == nil { systemStats = SystemStatsStatusItem() }
@@ -120,6 +134,14 @@ final class AppServices: ObservableObject {
             stats.shutdown()
             systemStats = nil
         }
+
+        usage?.syncStatusItem()
+        usage?.refreshMenuBarItem()
+        usage?.notifier.clearStateIfMasterOff()
+        notchShelf?.syncAlerts()
+        system?.syncPreventSleep()
+        focusDim?.applySettings()
+        presenter?.applySettings()
     }
 
     private static func reconcileAgentUsageSettings() -> AgentUsageSettingsState {

@@ -77,6 +77,21 @@ final class MusicRemote: ObservableObject {
         }
     }
 
+    func stop() {
+        if let stateObserver {
+            IPC.stopObserving(stateObserver)
+            self.stateObserver = nil
+        }
+        if let folderObserver {
+            NotificationCenter.default.removeObserver(folderObserver)
+            self.folderObserver = nil
+        }
+        tracks = []
+        currentFile = nil
+        isPlaying = false
+        duration = 0
+    }
+
     func rescan() {
         tracks = TrackMeta.scanMusicFolder()
     }
@@ -130,7 +145,6 @@ final class MusicRemote: ObservableObject {
 
 struct MusicPage: View {
     @ObservedObject private var remote = MusicRemote.shared
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var enabled = false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
@@ -155,16 +169,10 @@ struct MusicPage: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 18)
                 .padding(.bottom, 12)
-            if !enabled {
-                disabledBanner
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
-            }
             trackList
         }
         .background(DashSkin.paper(dark).ignoresSafeArea(edges: .vertical))
         .navigationTitle("Music")
-        .onAppear { remote.start() }
         .sheet(isPresented: $showDownloader) {
             DownloadSheet()
         }
@@ -219,23 +227,6 @@ struct MusicPage: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 9).strokeBorder(DashSkin.line(dark), lineWidth: 1))
         }
-    }
-
-    private var disabledBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "speaker.slash")
-                .foregroundStyle(.orange)
-            Text("The music player is turned off - playback controls won't respond.")
-                .font(.system(size: 12))
-            Spacer()
-            Toggle("Enable", isOn: $enabled)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .pointerCursor()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
     }
 
     @ViewBuilder private var trackList: some View {

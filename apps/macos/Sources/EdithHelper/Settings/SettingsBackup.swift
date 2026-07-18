@@ -145,7 +145,8 @@ final class SettingsBackup: ObservableObject {
     }
     private var musicBackupOn: Bool {
         SharedDefaults.store.bool(forKey: "icloudBackup")
-            && SharedDefaults.store.bool(forKey: "musicBackup") && AppData.cloudAvailable
+            && SharedDefaults.store.bool(forKey: "musicBackup")
+            && SharedDefaults.store.bool(forKey: "tabMusicEnabled") && AppData.cloudAvailable
     }
 
     func start() {
@@ -242,11 +243,16 @@ final class SettingsBackup: ObservableObject {
 
     private var clipboardBackupOn: Bool {
         SharedDefaults.store.bool(forKey: "icloudBackup")
-            && SharedDefaults.store.bool(forKey: "clipboardBackup") && AppData.cloudAvailable
+            && SharedDefaults.store.bool(forKey: "clipboardBackup")
+            && SharedDefaults.store.bool(forKey: "clipboardEnabled") && AppData.cloudAvailable
     }
 
     func scheduleClipboardBackup() {
-        guard clipboardBackupOn else { return }
+        guard clipboardBackupOn else {
+            clipboardDebounce?.invalidate()
+            clipboardDebounce = nil
+            return
+        }
         clipboardDebounce?.invalidate()
         clipboardDebounce = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { _ in
             Task { @MainActor in SettingsBackup.shared.backupClipboard() }
@@ -361,7 +367,9 @@ final class SettingsBackup: ObservableObject {
     }
 
     func syncLimits() {
-        guard backupOn, flag("backupLimits") else { return }
+        guard SharedDefaults.store.bool(forKey: "tabUsageEnabled"), backupOn,
+            flag("backupLimits")
+        else { return }
         let fm = FileManager.default
         let localText = (try? String(contentsOf: localLimits, encoding: .utf8)) ?? ""
         var cloudText = ""
@@ -385,7 +393,9 @@ final class SettingsBackup: ObservableObject {
     }
 
     func syncUsage() {
-        guard backupOn, flag("backupUsage") else { return }
+        guard SharedDefaults.store.bool(forKey: "tabUsageEnabled"), backupOn,
+            flag("backupUsage")
+        else { return }
         let fm = FileManager.default
         try? fm.createDirectory(
             at: cloudUsage.deletingLastPathComponent(), withIntermediateDirectories: true)

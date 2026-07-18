@@ -643,6 +643,10 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     func attachClipboard(_ store: ClipboardStore?) {
         clipboardStore = store
+        if store == nil, activeTab == .clipboard {
+            activeTab = .home
+            if isExpanded { syncFrames() }
+        }
     }
 
     func attachUsage(_ store: UsageStore?) {

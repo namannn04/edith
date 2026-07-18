@@ -68,7 +68,9 @@ struct HomePage: View {
             .environment(\.compactLayout, compact)
         }
         .navigationTitle("Home")
-        .task { await model.load() }
+        .task(id: usageEnabled) {
+            if usageEnabled { await model.load() }
+        }
     }
 
     private var background: some View {

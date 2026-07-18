@@ -120,12 +120,17 @@ struct ExtensionPreview: View {
     }
 
     private var staticPreview: some View {
-        Image(systemName: entry.symbolName)
-            .font(.system(size: 22, weight: .medium))
-            .foregroundStyle(brandAccent)
-            .frame(width: 42, height: 42)
-            .background(brandAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(brandAccent.opacity(0.1))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(brandAccent.opacity(0.18))
+            Image(systemName: entry.symbolName)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(brandAccent)
+        }
+        .frame(width: 46, height: 42)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

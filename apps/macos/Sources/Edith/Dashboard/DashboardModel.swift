@@ -351,10 +351,11 @@ final class DashboardModel: ObservableObject {
 
     init(preferences: UserDefaults = SharedDefaults.store) {
         self.preferences = preferences
-        watchDataDir()
+        syncExtensionState()
     }
 
     private func watchDataDir() {
+        guard extensionEnabled, dataDirWatch == nil else { return }
         let fd = open(Repo.dataDir.path, O_EVTONLY)
         guard fd >= 0 else { return }
         let source = DispatchSource.makeFileSystemObjectSource(
@@ -367,7 +368,23 @@ final class DashboardModel: ObservableObject {
         dataDirWatch = source
     }
 
+    func syncExtensionState() {
+        if extensionEnabled {
+            watchDataDir()
+        } else {
+            reloadDebounce?.cancel()
+            reloadDebounce = nil
+            dataDirWatch?.cancel()
+            dataDirWatch = nil
+        }
+    }
+
+    private var extensionEnabled: Bool {
+        preferences.object(forKey: "tabUsageEnabled") as? Bool ?? false
+    }
+
     private func scheduleReload() {
+        guard extensionEnabled else { return }
         reloadDebounce?.cancel()
         reloadDebounce = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -394,6 +411,8 @@ final class DashboardModel: ObservableObject {
     }
 
     func load() async {
+        syncExtensionState()
+        guard extensionEnabled else { return }
         let url = Repo.usageJSON
         defer { loadAttempted = true }
         for attempt in 0..<4 {

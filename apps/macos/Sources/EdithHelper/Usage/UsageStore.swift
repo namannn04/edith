@@ -213,6 +213,7 @@ final class UsageStore: ObservableObject, FeatureModule {
             self.sleepObserver = nil
         }
         process?.terminate()
+        process = nil
         daily = []
         stats = []
         calendarDays = []

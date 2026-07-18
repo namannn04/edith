@@ -70,10 +70,6 @@ struct EdithApp: App {
             dismissPanel()
         }
         HotKey.register()
-        ClipboardHotKey.register()
-        FocusDimHotKey.register()
-        PresenterHotKey.register()
-        MicHotKey.register()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             SettingsBackup.shared.start()
         }
@@ -81,23 +77,10 @@ struct EdithApp: App {
         let services = services
         _ = IPC.observe(IPC.Name.settingsChanged) {
             HotKey.register()
-            ClipboardHotKey.register()
             SettingsBackup.shared.scheduleExport()
             SettingsBackup.shared.scheduleClipboardBackup()
-            FocusDimHotKey.register()
-            PresenterHotKey.register()
-            MicHotKey.register()
             applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
             services.sync()
-            services.usage?.syncStatusItem()
-            services.usage?.refreshMenuBarItem()
-            services.micMute?.updateStatusItemPresence()
-            services.notchShelf?.syncAlerts()
-            services.system?.syncPreventSleep()
-            services.usage?.notifier.clearStateIfMasterOff()
-            services.colorPicker?.registerHotKey()
-            services.focusDim?.applySettings()
-            services.presenter?.applySettings()
         }
         _ = IPC.observe(IPC.Name.presenterAutoActiveChanged) {
             services.usage?.refreshMenuBarItem()
@@ -245,6 +228,10 @@ enum ClipboardHotKey {
         }
     }
 
+    static func unregister() {
+        GlobalHotKey.clear(id: GlobalHotKey.ID.clipboard)
+    }
+
     static func save(code: Int, mods: Int, label: String) {
         SharedDefaults.store.set(code, forKey: "clipboardHotKeyCode")
         SharedDefaults.store.set(mods, forKey: "clipboardHotKeyMods")
@@ -274,6 +261,10 @@ enum MicHotKey {
         }
     }
 
+    static func unregister() {
+        GlobalHotKey.clear(id: GlobalHotKey.ID.micMute)
+    }
+
     static func save(code: Int, mods: Int, label: String) {
         SharedDefaults.store.set(code, forKey: "micHotKeyCode")
         SharedDefaults.store.set(mods, forKey: "micHotKeyMods")
@@ -293,9 +284,17 @@ enum FocusDimHotKey {
     }
 
     static func register() {
+        guard SharedDefaults.store.bool(forKey: "focusDimEnabled") else {
+            unregister()
+            return
+        }
         GlobalHotKey.set(id: GlobalHotKey.ID.focusDim, keyCode: code, modifiers: mods) {
             toggleFocusDim()
         }
+    }
+
+    static func unregister() {
+        GlobalHotKey.clear(id: GlobalHotKey.ID.focusDim)
     }
 }
 
@@ -393,6 +392,8 @@ struct RootView: View {
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
         false
     @AppStorage("focusDimEnabled", store: SharedDefaults.store) private var focusDimEnabled = false
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        false
     @AppStorage("tabOrder", store: SharedDefaults.store) private var tabOrderRaw =
         "usage,music,system"
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
@@ -473,15 +474,17 @@ struct RootView: View {
                         }
                     }
                 }
-                Button {
-                    toggleFocusDim()
-                } label: {
-                    Image(systemName: focusDimEnabled ? "circle.lefthalf.filled" : "circle.dashed")
-                        .font(.system(size: 13))
-                        .foregroundStyle(focusDimEnabled ? .primary : .secondary)
+                if focusDimEnabled {
+                    Button {
+                        toggleFocusDim()
+                    } label: {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(HoverButtonStyle())
+                    .help("Focus dim (\(FocusDimHotKey.label))")
                 }
-                .buttonStyle(HoverButtonStyle())
-                .help("Focus dim (\(FocusDimHotKey.label))")
                 Button {
                     mainWindowSection = "extensions"
                     MainApp.openDashboard()
@@ -527,7 +530,7 @@ struct RootView: View {
                 .buttonStyle(HoverButtonStyle())
                 .help("Quit options")
             }
-            if presenterState.autoActive {
+            if presenterEnabled, presenterState.autoActive {
                 presenterBanner
             }
             if let player = services.music, player.current != nil {

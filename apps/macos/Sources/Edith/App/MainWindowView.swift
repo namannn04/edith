@@ -247,7 +247,14 @@ struct MainWindowView: View {
     }
 
     private var destination: MainDestination {
-        MainDestination.resolve(navigationSelection.mainWindowSection)
+        let requested = MainDestination.resolve(navigationSelection.mainWindowSection)
+        return switch requested {
+        case .dashboard: usageEnabled ? requested : .home
+        case .music: musicEnabled ? requested : .home
+        case .calendar: calendarEnabled ? requested : .home
+        case .system: systemEnabled ? requested : .home
+        default: requested
+        }
     }
 
     private var navigationSelection: MainNavigationSelection {
@@ -305,12 +312,17 @@ struct MainWindowView: View {
         }
         .onAppear {
             applyNavigationFallback()
-            MusicRemote.shared.start()
+            syncMusicResources()
+            PresenterState.shared.syncEnabled(presenterEnabled)
             refreshPermissionsPill()
-            installMusicKeys()
             if nav.entries.isEmpty { nav.record(currentLocation) }
         }
-        .onDisappear { removeMusicKeys() }
+        .onChange(of: musicEnabled) { _, _ in syncMusicResources() }
+        .onChange(of: presenterEnabled) { _, on in PresenterState.shared.syncEnabled(on) }
+        .onDisappear {
+            removeMusicKeys()
+            MusicRemote.shared.stop()
+        }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: NSApplication.didBecomeActiveNotification)
@@ -351,6 +363,16 @@ struct MainWindowView: View {
                         volumeBy: { remote.nudgeVolume($0) }))
             }
             return handled ? nil : event
+        }
+    }
+
+    private func syncMusicResources() {
+        if musicEnabled {
+            MusicRemote.shared.start()
+            installMusicKeys()
+        } else {
+            removeMusicKeys()
+            MusicRemote.shared.stop()
         }
     }
 

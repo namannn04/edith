@@ -8,7 +8,6 @@ final class ColorPickerStore: ObservableObject, FeatureModule {
 
     init() {
         history = ColorHistoryStore.load()
-        registerHotKey()
     }
 
     func shutdown() {
