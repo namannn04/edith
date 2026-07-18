@@ -5,12 +5,11 @@ import SwiftUI
 
 struct SettingsPane: View {
     enum Tab: String, CaseIterable {
-        case general, menubar, usage, icloud, updates
+        case general, shortcuts, icloud, updates
         var label: String {
             switch self {
             case .general: return "General"
-            case .menubar: return "Menu bar"
-            case .usage: return "Usage"
+            case .shortcuts: return "Shortcuts"
             case .icloud: return "iCloud"
             case .updates: return "Updates"
             }
@@ -18,11 +17,18 @@ struct SettingsPane: View {
     }
 
     @ObservedObject var updater: UpdaterModel
-    @AppStorage("settingsTab", store: SharedDefaults.store) private var tab = Tab.general
+    @AppStorage("settingsTab", store: SharedDefaults.store) private var tabRaw =
+        Tab.general.rawValue
+
+    private var tab: Binding<Tab> {
+        Binding(
+            get: { Tab(rawValue: tabRaw) ?? .general },
+            set: { tabRaw = $0.rawValue })
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $tab) {
+            Picker("", selection: tab) {
                 ForEach(Tab.allCases, id: \.self) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -33,10 +39,9 @@ struct SettingsPane: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
             Group {
-                switch tab {
+                switch tab.wrappedValue {
                 case .general: GeneralPane()
-                case .menubar: MenuBarPane()
-                case .usage: UsagePane()
+                case .shortcuts: ShortcutsSettingsPane()
                 case .icloud: ICloudPane()
                 case .updates: UpdatesPane(updater: updater)
                 }
@@ -46,6 +51,12 @@ struct SettingsPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle("Settings")
+        .onAppear {
+            tabRaw =
+                MainNavigationFallback.resolve(
+                    mainWindowSection: MainDestination.settings.rawValue, settingsTab: tabRaw
+                ).settingsTab
+        }
     }
 }
 
@@ -108,6 +119,9 @@ struct GeneralPane: View {
     @AppStorage("lastPaletteTheme", store: SharedDefaults.store) private var lastPaletteTheme =
         "blue"
     @AppStorage("showDockIcon", store: SharedDefaults.store) private var showDockIcon = true
+    @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
+        MainDestination.home.rawValue
+    @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
 
     var body: some View {
         Form {
@@ -164,6 +178,21 @@ struct GeneralPane: View {
             }
 
             Section {
+                Button {
+                    mainWindowSection = MainDestination.extensions.rawValue
+                } label: {
+                    LabeledContent("Permissions") {
+                        Text(permissionSummary)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+            } header: {
+                Text("Access")
+            }
+
+            Section {
                 Button("Show welcome tour") {
                     SharedDefaults.store.removeObject(forKey: OnboardingFlow.completionKey)
                     OnboardingWindow.open()
@@ -175,6 +204,33 @@ struct GeneralPane: View {
         }
         .formStyle(.grouped)
         .navigationTitle("General")
+        .onAppear(perform: refreshPermissionState)
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            refreshPermissionState()
+        }
+    }
+
+    private var enabledExtensionPermissions: Set<ExtensionPermission> {
+        let enabledEntries = ExtensionRegistry.entries.filter {
+            SharedDefaults.store.bool(forKey: $0.defaultsKey)
+        }
+        return Set(
+            enabledEntries.flatMap { $0.requiredPermissions + $0.optionalPermissions })
+    }
+
+    private var permissionSummary: String {
+        let permissions = enabledExtensionPermissions
+        guard !permissions.isEmpty else { return "No enabled extension needs access" }
+        let granted = permissions.filter { grantedPermissions[$0] == true }.count
+        return "\(granted) of \(permissions.count) granted"
+    }
+
+    private func refreshPermissionState() {
+        grantedPermissions = ExtensionPermissionState.readGrantedPermissions()
+        IPC.post(IPC.Name.requestPermissionsRefresh)
     }
 
     private func swatch(_ name: String, color: Color) -> some View {

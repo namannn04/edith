@@ -31,11 +31,17 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
 
     @Test func mainWindowRendersEveryDestination() {
         let saved = SharedDefaults.store.string(forKey: "mainWindowSection")
+        let savedSettingsTab = SharedDefaults.store.string(forKey: "settingsTab")
         defer {
             if let saved {
                 SharedDefaults.store.set(saved, forKey: "mainWindowSection")
             } else {
                 SharedDefaults.store.removeObject(forKey: "mainWindowSection")
+            }
+            if let savedSettingsTab {
+                SharedDefaults.store.set(savedSettingsTab, forKey: "settingsTab")
+            } else {
+                SharedDefaults.store.removeObject(forKey: "settingsTab")
             }
         }
         for destination in MainDestination.allCases {
@@ -44,14 +50,26 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
         }
         SharedDefaults.store.set("permissions", forKey: "mainWindowSection")
         #expect(renders(MainWindowView()), "legacy permissions destination failed to render")
+        SharedDefaults.store.set("general", forKey: "settingsTab")
+        SharedDefaults.store.set("shortcuts", forKey: "mainWindowSection")
+        #expect(renders(MainWindowView()), "legacy shortcuts destination failed to render")
     }
 
     @Test func extensionsPaneRenders() {
         #expect(renders(ExtensionsPane()))
     }
 
-    @Test func shortcutsPaneRenders() {
-        #expect(renders(ShortcutsPane()))
+    @Test func shortcutsSettingsTabRenders() {
+        let saved = SharedDefaults.store.string(forKey: "settingsTab")
+        defer {
+            if let saved {
+                SharedDefaults.store.set(saved, forKey: "settingsTab")
+            } else {
+                SharedDefaults.store.removeObject(forKey: "settingsTab")
+            }
+        }
+        SharedDefaults.store.set("shortcuts", forKey: "settingsTab")
+        #expect(renders(SettingsPane(updater: UpdaterModel())))
     }
 
     @Test func calendarPageRenders() {

@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import EdithKit
 import SwiftUI
 
-struct ShortcutsPane: View {
+struct ShortcutsSettingsPane: View {
     @AppStorage("clipboardEnabled", store: SharedDefaults.store) private var clipboardEnabled =
         false
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =

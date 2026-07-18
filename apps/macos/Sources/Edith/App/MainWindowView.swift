@@ -4,7 +4,7 @@ import SwiftUI
 
 enum MainDestination: String, CaseIterable, Identifiable {
     case home, dashboard, music, calendar, system
-    case extensions, shortcuts, settings, about
+    case extensions, settings, about
 
     var id: String { rawValue }
 
@@ -16,7 +16,6 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .calendar: return "Calendar"
         case .system: return "System"
         case .extensions: return "Extensions"
-        case .shortcuts: return "Shortcuts"
         case .settings: return "Settings"
         case .about: return "About"
         }
@@ -30,7 +29,6 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .calendar: return "calendar"
         case .system: return "cpu"
         case .extensions: return "puzzlepiece.extension"
-        case .shortcuts: return "command"
         case .settings: return "gearshape"
         case .about: return "info.circle"
         }
@@ -38,30 +36,35 @@ enum MainDestination: String, CaseIterable, Identifiable {
 
     static let homeItems: [MainDestination] = [.home, .dashboard, .music, .calendar, .system]
     static let appItems: [MainDestination] = [
-        .settings, .extensions, .shortcuts, .about,
+        .extensions, .settings, .about,
     ]
 
-    static func visibleHomeItems(
-        usage: Bool, music: Bool, calendar: Bool, system: Bool
-    ) -> [MainDestination] {
-        homeItems.filter { item in
-            switch item {
-            case .dashboard: return usage
-            case .music: return music
-            case .calendar: return calendar
-            case .system: return system
-            default: return true
-            }
-        }
-    }
-
-    static func resolve(_ raw: String, visibleHome: [MainDestination]) -> MainDestination {
-        let destination = MainDestination(rawValue: raw) ?? .home
-        return visibleHome.contains(destination) || appItems.contains(destination)
-            ? destination : .home
+    static func resolve(_ raw: String) -> MainDestination {
+        MainDestination(rawValue: raw) ?? .home
     }
 
     var usesPaperBackground: Bool { Self.homeItems.contains(self) }
+}
+
+struct MainNavigationSelection: Equatable {
+    let mainWindowSection: String
+    let settingsTab: String
+}
+
+enum MainNavigationFallback {
+    static func resolve(
+        mainWindowSection: String, settingsTab: String
+    ) -> MainNavigationSelection {
+        if mainWindowSection == "shortcuts" {
+            return MainNavigationSelection(mainWindowSection: "settings", settingsTab: "shortcuts")
+        }
+        let section = MainDestination(rawValue: mainWindowSection)?.rawValue ?? "home"
+        let validSettingsTabs = ["general", "shortcuts", "icloud", "updates"]
+        let resolvedSettingsTab =
+            validSettingsTabs.contains(settingsTab) ? settingsTab : "general"
+        return MainNavigationSelection(
+            mainWindowSection: section, settingsTab: resolvedSettingsTab)
+    }
 }
 
 enum Brand {
@@ -124,6 +127,7 @@ struct TitlebarChrome: View {
 private struct SidebarNavRow: View {
     let item: MainDestination
     let selected: Bool
+    let available: Bool
     let theme: Color
     let action: () -> Void
     @State private var hovering = false
@@ -139,16 +143,29 @@ private struct SidebarNavRow: View {
             HStack(spacing: 11) {
                 Image(systemName: item.icon)
                     .font(.system(size: 14, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? AnyShapeStyle(theme) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(
+                        selected && available
+                            ? AnyShapeStyle(theme)
+                            : AnyShapeStyle(.secondary)
+                    )
                     .frame(width: 22)
                 Text(item.title)
                     .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(available ? .primary : .secondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if !available {
+                    Text("off")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.secondary.opacity(0.12), in: Capsule())
+                }
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
+            .opacity(available ? 1 : 0.55)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -233,17 +250,18 @@ struct MainWindowView: View {
     }
 
     private var destination: MainDestination {
-        MainDestination.resolve(mainWindowSection, visibleHome: visibleHomeItems)
+        MainDestination.resolve(navigationSelection.mainWindowSection)
     }
 
-    private var visibleHomeItems: [MainDestination] {
-        MainDestination.visibleHomeItems(
-            usage: usageEnabled, music: musicEnabled, calendar: calendarEnabled,
-            system: systemEnabled)
+    private var navigationSelection: MainNavigationSelection {
+        MainNavigationFallback.resolve(
+            mainWindowSection: mainWindowSection, settingsTab: settingsTab)
     }
 
     private var currentLocation: String {
-        destination == .settings ? "settings/\(settingsTab)" : mainWindowSection
+        destination == .settings
+            ? "settings/\(navigationSelection.settingsTab)"
+            : navigationSelection.mainWindowSection
     }
 
     private func navigate(to location: String) {
@@ -289,6 +307,7 @@ struct MainWindowView: View {
             }
         }
         .onAppear {
+            applyNavigationFallback()
             MusicRemote.shared.start()
             refreshPermissionsPill()
             installMusicKeys()
@@ -301,6 +320,12 @@ struct MainWindowView: View {
         ) { _ in
             refreshPermissionsPill()
         }
+    }
+
+    private func applyNavigationFallback() {
+        let resolved = navigationSelection
+        mainWindowSection = resolved.mainWindowSection
+        settingsTab = resolved.settingsTab
     }
 
     private var historyShortcuts: some View {
@@ -433,11 +458,13 @@ struct MainWindowView: View {
     private var sidebarList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(visibleHomeItems) { item in
+                ForEach(MainDestination.homeItems) { item in
+                    let available = homeItemAvailable(item)
                     SidebarNavRow(
-                        item: item, selected: destination == item, theme: theme
+                        item: item, selected: destination == item, available: available,
+                        theme: theme
                     ) {
-                        mainWindowSection = item.rawValue
+                        selectHomeItem(item, available: available)
                     }
                 }
                 Text("App")
@@ -448,7 +475,7 @@ struct MainWindowView: View {
                     .padding(.bottom, 4)
                 ForEach(MainDestination.appItems) { item in
                     SidebarNavRow(
-                        item: item, selected: destination == item, theme: theme
+                        item: item, selected: destination == item, available: true, theme: theme
                     ) {
                         mainWindowSection = item.rawValue
                     }
@@ -458,6 +485,33 @@ struct MainWindowView: View {
             .padding(.top, 8)
         }
         .frame(maxHeight: .infinity)
+    }
+
+    private func homeItemAvailable(_ item: MainDestination) -> Bool {
+        switch item {
+        case .dashboard: usageEnabled
+        case .music: musicEnabled
+        case .calendar: calendarEnabled
+        case .system: systemEnabled
+        default: true
+        }
+    }
+
+    private func selectHomeItem(_ item: MainDestination, available: Bool) {
+        guard !available else {
+            mainWindowSection = item.rawValue
+            return
+        }
+        let registryID: String
+        switch item {
+        case .dashboard: registryID = "usage"
+        case .music: registryID = "music"
+        case .calendar: registryID = "calendar"
+        case .system: registryID = "system"
+        default: return
+        }
+        SharedDefaults.store.set(registryID, forKey: "extensionsExpand")
+        mainWindowSection = MainDestination.extensions.rawValue
     }
 
     private var sidebarFooter: some View {
@@ -743,7 +797,6 @@ struct MainWindowView: View {
         case .calendar: CalendarPage()
         case .system: SystemPage()
         case .extensions: ExtensionsPane()
-        case .shortcuts: ShortcutsPane()
         case .settings: SettingsPane(updater: updater)
         case .about: AboutPane()
         }
