@@ -26,7 +26,9 @@ function getDatabaseState(): DatabaseState {
     throw new Error("DATABASE_URL is required");
   }
 
-  const client = postgres(databaseUrl, { prepare: false });
+  const url = new URL(databaseUrl);
+  url.searchParams.delete("channel_binding");
+  const client = postgres(url.toString(), { prepare: false });
   const database = drizzle(client, { schema });
   databaseState = { client, database };
   return databaseState;
