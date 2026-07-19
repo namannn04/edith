@@ -77,8 +77,7 @@ struct EdithApp: App {
         let services = services
         _ = IPC.observe(IPC.Name.settingsChanged) {
             HotKey.register()
-            SettingsBackup.shared.scheduleExport()
-            SettingsBackup.shared.scheduleClipboardBackup()
+            SettingsBackup.shared.settingsDidChange()
             applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
             services.sync()
         }

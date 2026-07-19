@@ -403,6 +403,7 @@ struct OnboardingView: View {
 
     private func completeOnboarding() {
         OnboardingFlow.finish(selectedIDs: selectedIDs, icloudBackup: icloudBackup)
+        IPC.post(IPC.Name.settingsChanged)
         onFinish()
     }
 

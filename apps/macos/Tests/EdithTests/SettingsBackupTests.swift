@@ -35,4 +35,24 @@ import Testing
         #expect(expected.isSubset(of: Set(SettingsBackup.backedKeys)))
         #expect(expected.isSubset(of: SettingsBackup.sharedKeys))
     }
+
+    @Test func transferDecisionMatrix() {
+        for dataClass in SettingsBackupDataClass.allCases {
+            for masterEnabled in [false, true] {
+                for subToggleEnabled in [false, true] {
+                    for extensionEnabled in [false, true] {
+                        let decision = settingsBackupTransferDecision(
+                            for: dataClass,
+                            masterEnabled: masterEnabled,
+                            subToggleEnabled: subToggleEnabled,
+                            extensionEnabled: extensionEnabled)
+                        let shouldRestore = masterEnabled && subToggleEnabled
+                        #expect(decision.shouldRestore == shouldRestore)
+                        #expect(
+                            decision.shouldExport == (shouldRestore && extensionEnabled))
+                    }
+                }
+            }
+        }
+    }
 }
