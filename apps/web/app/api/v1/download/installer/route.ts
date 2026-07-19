@@ -22,7 +22,16 @@ export async function GET(): Promise<Response> {
     );
 
     if (!asset) {
-      return apiJson({ error: "not_found" }, 404);
+      return new Response(
+        "<!doctype html><meta charset=\"utf-8\"><title>Edith</title><body style=\"margin:0;display:grid;place-items:center;min-height:100vh;background:#0d0c0b;color:#efe9df;font-family:-apple-system,system-ui,sans-serif\"><div style=\"text-align:center;padding:24px\"><p style=\"font-size:22px;margin:0\">The Edith installer is almost ready.</p><p style=\"color:#8a8177;margin-top:10px\">Downloads open shortly. <a href=\"/\" style=\"color:#d97757\">Back to edith.pulkit.page</a></p></div>",
+        {
+          status: 503,
+          headers: apiHeaders({
+            "content-type": "text/html; charset=utf-8",
+            "retry-after": "3600",
+          }),
+        },
+      );
     }
 
     const upstream = await fetchReleaseAsset(asset);
