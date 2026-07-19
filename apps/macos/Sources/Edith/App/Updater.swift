@@ -39,7 +39,8 @@ final class UpdaterModel: NSObject, ObservableObject,
         super.init()
         guard startingUpdater else { return }
         guard
-            (try? licenseState.gateDecision()) == .proceed,
+            let decision = try? licenseState.gateDecision(),
+            decision != .gate,
             let key = try? licenseState.licenseKey(),
             let machine = hardwareUUID()
         else { return }

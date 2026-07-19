@@ -21,7 +21,10 @@ import Testing
     @Test func activationDecodesSuccessWithoutPersisting() async throws {
         let transport = StubLicenseTransport(
             statusCode: 200,
-            body: #"{"ok":true,"label":"Personal","machinesUsed":1,"maxMachines":3}"#
+            body: """
+                {"ok":true,"label":"Personal","machinesUsed":1,
+                "maxMachines":3,"receipt":"signed-receipt"}
+                """
         )
         let client = LicenseClient(
             transport: transport,
@@ -37,6 +40,7 @@ import Testing
         #expect(response.label == "Personal")
         #expect(response.machinesUsed == 1)
         #expect(response.maxMachines == 3)
+        #expect(response.receipt == "signed-receipt")
         let request = try #require(transport.request)
         #expect(request.url?.absoluteString == "https://license.test/api/v1/activate")
         let body = try #require(request.httpBody)
@@ -50,9 +54,21 @@ import Testing
         let transport = StubLicenseTransport(statusCode: 200, body: #"{"ok":false}"#)
         let client = LicenseClient(transport: transport)
 
-        let verified = try await client.verify(key: "key", hardwareUuid: "machine")
+        let response = try await client.verify(key: "key", hardwareUuid: "machine")
 
-        #expect(!verified)
+        #expect(!response.ok)
+        #expect(response.receipt == nil)
+    }
+
+    @Test func verifyDecodesReceipt() async throws {
+        let transport = StubLicenseTransport(
+            statusCode: 200, body: #"{"ok":true,"receipt":"signed-receipt"}"#)
+        let client = LicenseClient(transport: transport)
+
+        let response = try await client.verify(key: "key", hardwareUuid: "machine")
+
+        #expect(response.ok)
+        #expect(response.receipt == "signed-receipt")
     }
 
     @Test func activationMapsSeatLimitError() async {
@@ -104,7 +120,7 @@ import Testing
     }
 
     @Test func gateProceedsOnlyWithKeyAndActivatedMirror() {
-        #expect(licenseGateDecision(hasKey: true, licenseActivated: true) == .proceed)
+        #expect(licenseGateDecision(hasKey: true, licenseActivated: true) == .proceedNeedsRefresh)
         #expect(licenseGateDecision(hasKey: false, licenseActivated: true) == .gate)
         #expect(licenseGateDecision(hasKey: true, licenseActivated: false) == .gate)
         #expect(licenseGateDecision(hasKey: false, licenseActivated: false) == .gate)
@@ -138,6 +154,7 @@ private final class StubLicenseTransport: LicenseTransport {
 
 private final class InMemoryLicenseKeyStore: LicenseKeyStoring {
     private var key: String?
+    private var receipt: String?
 
     func readKey() throws -> String? {
         key
@@ -149,5 +166,17 @@ private final class InMemoryLicenseKeyStore: LicenseKeyStoring {
 
     func deleteKey() throws {
         key = nil
+    }
+
+    func readReceipt() throws -> String? {
+        receipt
+    }
+
+    func writeReceipt(_ receipt: String) throws {
+        self.receipt = receipt
+    }
+
+    func deleteReceipt() throws {
+        receipt = nil
     }
 }

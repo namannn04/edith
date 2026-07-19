@@ -134,7 +134,8 @@ struct ActivationView: View {
                     activating = false
                     return
                 }
-                try licenseState.activate(key: formattedKey, label: response.label)
+                try licenseState.activate(
+                    key: formattedKey, label: response.label, receipt: response.receipt)
                 onActivated()
             } catch LicenseClientError.seatLimitReached {
                 errorMessage = "This key has reached its Mac limit."

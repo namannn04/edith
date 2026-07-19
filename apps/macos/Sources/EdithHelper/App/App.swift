@@ -60,9 +60,9 @@ private func anEarlierInstanceIsRunning() -> Bool {
 @main
 struct EdithApp: App {
     @NSApplicationDelegateAdaptor(MenuBarAppDelegate.self) private var appDelegate
-    private let services = AppState.services
 
     init() {
+        guard LicenseState().currentReceiptValid() else { exit(0) }
         _ = ProcessUptime.launchedAt
 
         NotificationCenter.default.addObserver(
@@ -75,7 +75,7 @@ struct EdithApp: App {
             SettingsBackup.shared.start()
         }
         applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
-        let services = services
+        let services = AppState.services
         _ = IPC.observe(IPC.Name.settingsChanged) {
             HotKey.register()
             SettingsBackup.shared.settingsDidChange()
