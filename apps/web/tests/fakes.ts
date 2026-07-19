@@ -11,17 +11,15 @@ import {
   type CredentialRecord,
   type DeviceInput,
   type DeviceRecord,
-  type LicenseAccessV2,
-  type LicenseStoreV2,
-  type LicenseV2Record,
-  type MachineInput,
+  type LicenseAccess,
+  type LicenseStore,
+  type LicenseRecord,
   type NewLicenseInput,
   type PaymentEventRecord,
-  productHardwareDigest,
   type SecurityEventInput,
 } from "@/lib/license";
 
-export type StoredLicense = LicenseV2Record & {
+export type StoredLicense = LicenseRecord & {
   key: string;
   keyDigest: string;
 };
@@ -43,9 +41,8 @@ export type StoredPlan = {
   maxMachines: number;
 };
 
-export class FakeStoreV2 implements LicenseStoreV2 {
+export class FakeStore implements LicenseStore {
   readonly licensesById = new Map<string, StoredLicense>();
-  readonly machines = new Map<string, MachineInput>();
   readonly devices = new Map<string, StoredDevice>();
   readonly challenges = new Map<string, StoredChallenge>();
   readonly credentials: StoredCredential[] = [];
@@ -55,7 +52,6 @@ export class FakeStoreV2 implements LicenseStoreV2 {
 
   reset(): void {
     this.licensesById.clear();
-    this.machines.clear();
     this.devices.clear();
     this.challenges.clear();
     this.credentials.length = 0;
@@ -93,16 +89,9 @@ export class FakeStoreV2 implements LicenseStoreV2 {
 
   async runExclusive<T>(
     _key: string,
-    operation: (access: LicenseAccessV2) => Promise<T>,
+    operation: (access: LicenseAccess) => Promise<T>,
   ): Promise<T> {
     return operation(this);
-  }
-
-  async getLicenseByKey(key: string) {
-    const license = [...this.licensesById.values()].find(
-      (record) => record.key === key,
-    );
-    return license ?? null;
   }
 
   async getLicenseByKeyDigest(digest: string, key: string) {
@@ -163,34 +152,6 @@ export class FakeStoreV2 implements LicenseStoreV2 {
     return event?.licenseId ?? null;
   }
 
-  async getMachine(licenseId: string, hardwareUuid: string) {
-    const machine = this.machines.get(`${licenseId}:${hardwareUuid}`);
-    return machine ? { licenseId, hardwareUuid } : null;
-  }
-
-  async countMachines(licenseId: string) {
-    return [...this.machines.values()].filter(
-      (machine) => machine.licenseId === licenseId,
-    ).length;
-  }
-
-  async upsertMachine(input: MachineInput) {
-    this.machines.set(`${input.licenseId}:${input.hardwareUuid}`, input);
-  }
-
-  async deleteMachine(licenseId: string, hardwareUuid: string) {
-    this.machines.delete(`${licenseId}:${hardwareUuid}`);
-  }
-
-  async listMachines(licenseId: string) {
-    return [...this.machines.values()]
-      .filter((machine) => machine.licenseId === licenseId)
-      .map((machine) => ({
-        licenseId: machine.licenseId,
-        hardwareUuid: machine.hardwareUuid,
-      }));
-  }
-
   async setDeviceHardwareDigest(deviceId: string, digest: string) {
     const device = this.devices.get(deviceId);
 
@@ -221,15 +182,6 @@ export class FakeStoreV2 implements LicenseStoreV2 {
           deviceId: device.id,
           actor: "system",
         });
-      }
-    }
-
-    for (const [key, machine] of this.machines.entries()) {
-      if (
-        machine.licenseId === licenseId &&
-        productHardwareDigest(machine.hardwareUuid) === hardwareUuidDigest
-      ) {
-        this.machines.delete(key);
       }
     }
   }
@@ -267,10 +219,9 @@ export class FakeStoreV2 implements LicenseStoreV2 {
   ) {}
 
   async countActiveSeats(licenseId: string) {
-    const activeDevices = [...this.devices.values()].filter(
+    return [...this.devices.values()].filter(
       (device) => device.licenseId === licenseId && device.status === "active",
     ).length;
-    return activeDevices + (await this.countMachines(licenseId));
   }
 
   async insertChallenge(input: ChallengeInput) {
@@ -426,7 +377,7 @@ export function makeDeviceKey() {
 }
 
 export async function issueChallenge(
-  store: FakeStoreV2,
+  store: FakeStore,
   purpose: string,
   binding: { licenseId?: string; deviceId?: string },
   expiresAt = new Date(Date.now() + 300_000),

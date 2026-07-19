@@ -8,24 +8,24 @@ describe("appcast enclosure rewriting", () => {
     const result = rewriteAppcastEnclosureUrls(input);
 
     expect(result).toContain(
-      `url="https://edith.pulkit.page/api/v1/download/dmg" length="12"`,
+      `url="https://edith.pulkit.page/api/download/dmg" length="12"`,
     );
     expect(result).toContain(
-      `url='https://edith.pulkit.page/api/v1/download/dmg'`,
+      `url='https://edith.pulkit.page/api/download/dmg'`,
     );
     expect(result).toContain("<link>https://github.com/pulkitxm/edith</link>");
     expect(result).not.toContain("cdn.example.com");
   });
 
   test("rewrites bare-filename and feed-relative enclosure URLs", () => {
-    const input = `<rss><channel><item><enclosure url="Edith-v0.0.2.dmg" length="8215056" sparkle:edSignature="sig" /></item><item><enclosure url="https://edith.pulkit.page/api/v1/Edith-v0.0.2.dmg" /></item></channel></rss>`;
+    const input = `<rss><channel><item><enclosure url="Edith-v0.0.2.dmg" length="8215056" sparkle:edSignature="sig" /></item><item><enclosure url="https://edith.pulkit.page/api/Edith-v0.0.2.dmg" /></item></channel></rss>`;
 
     const result = rewriteAppcastEnclosureUrls(input);
 
     expect(result).toContain(
-      `url="https://edith.pulkit.page/api/v1/download/dmg" length="8215056" sparkle:edSignature="sig"`,
+      `url="https://edith.pulkit.page/api/download/dmg" length="8215056" sparkle:edSignature="sig"`,
     );
-    expect(result).not.toContain("api/v1/Edith-v0.0.2.dmg");
+    expect(result).not.toContain("api/Edith-v0.0.2.dmg");
   });
 });
 

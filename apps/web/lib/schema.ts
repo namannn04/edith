@@ -4,7 +4,6 @@ import {
   pgTable,
   text,
   timestamp,
-  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -49,21 +48,6 @@ export const licenses = pgTable("licenses", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
-
-export const machines = pgTable(
-  "machines",
-  {
-    id: uuid("id").primaryKey(),
-    licenseId: uuid("license_id")
-      .notNull()
-      .references(() => licenses.id),
-    hardwareUuid: text("hardware_uuid").notNull(),
-    hostname: text("hostname"),
-    firstSeen: timestamp("first_seen", { withTimezone: true }).defaultNow(),
-    lastSeen: timestamp("last_seen", { withTimezone: true }).defaultNow(),
-  },
-  (table) => [unique().on(table.licenseId, table.hardwareUuid)],
-);
 
 export const devices = pgTable("devices", {
   id: text("id").primaryKey(),

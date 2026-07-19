@@ -86,10 +86,6 @@ final class InstallerModel: ObservableObject {
 
     func activate() {
         guard phase == .license, canActivate, !activating else { return }
-        guard let machine = hardwareUUID() else {
-            errorMessage = "This Mac could not be identified."
-            return
-        }
         errorMessage = nil
         seatLimitHit = false
         activating = true
@@ -97,15 +93,11 @@ final class InstallerModel: ObservableObject {
         Task {
             defer { activating = false }
             do {
-                let response = try await client.activate(
-                    key: formattedKey,
-                    hardwareUuid: machine
-                )
-                guard response.ok else {
-                    errorMessage = "That license key is invalid or inactive."
-                    return
-                }
-                startDownload(key: formattedKey, machine: machine)
+                let session = LicenseSession(
+                    client: client, credentialStore: InMemoryLicenseCredentialStore())
+                let response = try await session.activate(
+                    licenseKey: formattedKey, deviceName: Host.current().localizedName)
+                startDownload(token: response.accessToken)
             } catch LicenseClientError.seatLimitReached {
                 errorMessage = "This key has reached its Mac limit."
                 seatLimitHit = true
@@ -137,14 +129,13 @@ final class InstallerModel: ObservableObject {
         activate()
     }
 
-    private func startDownload(key: String, machine: String) {
+    private func startDownload(token: String) {
         phase = .downloading
         downloadProgress = nil
         let downloader = InstallerDownloader()
         self.downloader = downloader
         downloader.start(
-            key: key,
-            machine: machine,
+            token: token,
             onProgress: { [weak self] progress in
                 Task { @MainActor in
                     self?.downloadProgress = progress
@@ -206,8 +197,7 @@ final class InstallerDownloader: NSObject, URLSessionDownloadDelegate, @unchecke
     private var completed = false
 
     func start(
-        key: String,
-        machine: String,
+        token: String,
         onProgress: @escaping (Double?) -> Void,
         completion: @escaping (Result<URL, InstallerDownloadError>) -> Void
     ) {
@@ -217,9 +207,8 @@ final class InstallerDownloader: NSObject, URLSessionDownloadDelegate, @unchecke
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
         self.session = session
         var request = URLRequest(
-            url: URL(string: "https://edith.pulkit.page/api/v1/download/dmg")!)
-        request.setValue(key, forHTTPHeaderField: "x-edith-license")
-        request.setValue(machine, forHTTPHeaderField: "x-edith-machine")
+            url: URL(string: "https://edith.pulkit.page/api/download/dmg")!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         session.downloadTask(with: request).resume()
     }
 

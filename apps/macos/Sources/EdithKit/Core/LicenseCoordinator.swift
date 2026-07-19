@@ -6,7 +6,6 @@ public enum LicenseRiskState: Equatable {
     case graceActive(remainingDays: Int, warn: Bool)
     case recovery
     case revoked
-    case legacyV1(needsMigration: Bool)
 }
 
 public struct LicenseCoordinator {
@@ -15,7 +14,6 @@ public struct LicenseCoordinator {
 
     private let store: any LicenseCredentialStoring
     private let verifier: EntitlementVerifier
-    private let legacyValidation: () -> LicenseReceiptValidation?
     private let graceDays: Int
     private let uptime: () -> TimeInterval
     private let bootSessionId: () -> String
@@ -23,34 +21,15 @@ public struct LicenseCoordinator {
     public init(
         store: any LicenseCredentialStoring,
         verifier: EntitlementVerifier = EntitlementVerifier(),
-        legacyValidation: @escaping () -> LicenseReceiptValidation? = { nil },
         graceDays: Int = LicenseCoordinator.defaultGraceDays,
         uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         bootSessionId: @escaping () -> String = TrustedTime.currentBootSessionId
     ) {
         self.store = store
         self.verifier = verifier
-        self.legacyValidation = legacyValidation
         self.graceDays = graceDays
         self.uptime = uptime
         self.bootSessionId = bootSessionId
-    }
-
-    public static func legacyReceiptValidation(
-        keyStore: any LicenseKeyStoring = FileLicenseKeyStore(),
-        verifier: LicenseReceiptVerifier = LicenseReceiptVerifier(),
-        machineIdentifier: @escaping () -> String? = hardwareUUID,
-        defaults: UserDefaults = SharedDefaults.store
-    ) -> () -> LicenseReceiptValidation? {
-        {
-            guard ((try? keyStore.readKey()) ?? nil) != nil else { return nil }
-            guard let receipt = ((try? keyStore.readReceipt()) ?? nil),
-                let machine = machineIdentifier()
-            else {
-                return defaults.bool(forKey: LicenseState.activatedKey) ? .expired : nil
-            }
-            return verifier.validation(receipt: receipt, expectedMachine: machine)
-        }
     }
 
     public func riskState(deviceId: String, deviceKeyThumbprint: String, now: Date = Date())
@@ -58,7 +37,7 @@ public struct LicenseCoordinator {
     {
         guard let entitlement = ((try? store.read(.entitlement)) ?? nil), !entitlement.isEmpty
         else {
-            return legacyState()
+            return .noLicense
         }
         let trustedTime = TrustedTime.load(from: store)
         let effectiveNow = effectiveNow(now: now, trustedTime: trustedTime)
@@ -95,14 +74,5 @@ public struct LicenseCoordinator {
         let remaining = graceDays - elapsedDays
         guard remaining > 0 else { return .recovery }
         return .graceActive(remainingDays: remaining, warn: remaining <= Self.warnWindowDays)
-    }
-
-    private func legacyState() -> LicenseRiskState {
-        switch legacyValidation() {
-        case .valid, .expired:
-            return .legacyV1(needsMigration: true)
-        default:
-            return .noLicense
-        }
     }
 }

@@ -47,7 +47,7 @@ const structuredData = {
       image: "https://edith.pulkit.page/app-icon-512.png",
       applicationCategory: "UtilitiesApplication",
       operatingSystem: "macOS 13+",
-      downloadUrl: "https://edith.pulkit.page/api/v1/download/installer",
+      downloadUrl: "https://edith.pulkit.page/api/download/installer",
       description:
         "A native macOS menu bar app for Claude and Codex rate-limit tracking, usage analytics, a local music player, and system tools.",
       featureList: [
@@ -100,7 +100,7 @@ export default function HomePage() {
             <a href="#features">Features</a>
             <a href="#performance">Performance</a>
           </nav>
-          <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-4! px-6 py-1.5! py-3 font-medium text-[13px]! text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
+          <a href="/api/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-4! px-6 py-1.5! py-3 font-medium text-[13px]! text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
             Download
           </a>
         </div>
@@ -128,7 +128,7 @@ export default function HomePage() {
               tracking, usage analytics, local music, and system tools.
             </p>
             <div className="mt-10 flex animate-hero-rise flex-wrap gap-3 [animation-delay:320ms] motion-reduce:animate-none">
-              <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-6 py-3 font-medium text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
+              <a href="/api/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-6 py-3 font-medium text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
                 <svg className="size-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M16.365 1.43c0 1.14-.42 2.23-1.24 3.05-.83.83-2.19 1.45-3.31 1.36-.14-1.1.43-2.24 1.2-2.98.85-.83 2.32-1.42 3.35-1.43zM20.5 17.29c-.57 1.31-.85 1.9-1.59 3.06-1.03 1.61-2.48 3.62-4.28 3.63-1.6.01-2.01-1.05-4.18-1.04-2.17.01-2.62 1.06-4.22 1.05-1.8-.02-3.18-1.83-4.21-3.44C-.36 16.72-1.02 10.6 2.87 8.4c1.4-.8 2.86-1.24 4.24-1.26 1.61-.03 3.13 1.09 4.19 1.09 1.05 0 2.87-1.35 4.85-1.15.83.03 3.16.33 4.66 2.52-.12.08-2.78 1.62-2.75 4.82.03 3.83 3.36 5.1 3.4 5.11-.03.09-.53 1.82-1.96 3.76z" />
                 </svg>
@@ -1112,7 +1112,7 @@ export default function HomePage() {
 
         <section id="download" className="mx-auto w-full max-w-280 border-line border-t px-6 pt-24 pb-28 text-center [&>a]:mt-8 [&>h2]:mx-auto [&>h2]:max-w-160 [&>p]:mt-3" data-reveal-group="">
           <h2>Try Edith on your Mac.</h2>
-          <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-accent px-6 py-3 font-medium text-[14px] text-accent-fg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
+          <a href="/api/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-accent px-6 py-3 font-medium text-[14px] text-accent-fg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
             <svg className="size-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M16.365 1.43c0 1.14-.42 2.23-1.24 3.05-.83.83-2.19 1.45-3.31 1.36-.14-1.1.43-2.24 1.2-2.98.85-.83 2.32-1.42 3.35-1.43zM20.5 17.29c-.57 1.31-.85 1.9-1.59 3.06-1.03 1.61-2.48 3.62-4.28 3.63-1.6.01-2.01-1.05-4.18-1.04-2.17.01-2.62 1.06-4.22 1.05-1.8-.02-3.18-1.83-4.21-3.44C-.36 16.72-1.02 10.6 2.87 8.4c1.4-.8 2.86-1.24 4.24-1.26 1.61-.03 3.13 1.09 4.19 1.09 1.05 0 2.87-1.35 4.85-1.15.83.03 3.16.33 4.66 2.52-.12.08-2.78 1.62-2.75 4.82.03 3.83 3.36 5.1 3.4 5.11-.03.09-.53 1.82-1.96 3.76z" />
             </svg>

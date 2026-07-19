@@ -23,39 +23,8 @@ public enum LicenseClientError: Error, Equatable {
     case server(statusCode: Int)
 }
 
-public struct LicenseActivationResponse: Codable, Equatable {
-    public let ok: Bool
-    public let label: String
-    public let name: String?
-    public let machinesUsed: Int
-    public let maxMachines: Int
-    public let receipt: String?
-
-    public init(
-        ok: Bool, label: String, name: String? = nil, machinesUsed: Int, maxMachines: Int,
-        receipt: String? = nil
-    ) {
-        self.ok = ok
-        self.label = label
-        self.name = name
-        self.machinesUsed = machinesUsed
-        self.maxMachines = maxMachines
-        self.receipt = receipt
-    }
-}
-
-public struct LicenseVerificationResponse: Codable, Equatable {
-    public let ok: Bool
-    public let receipt: String?
-
-    public init(ok: Bool, receipt: String? = nil) {
-        self.ok = ok
-        self.receipt = receipt
-    }
-}
-
 public struct LicenseClient {
-    public static let baseURL = URL(string: "https://edith.pulkit.page/api/v1")!
+    public static let baseURL = URL(string: "https://edith.pulkit.page/api")!
 
     private let transport: any LicenseTransport
     private let baseURL: URL
@@ -68,42 +37,6 @@ public struct LicenseClient {
     ) {
         self.transport = transport
         self.baseURL = baseURL
-    }
-
-    public func activate(key: String, hardwareUuid: String, hostname: String? = nil) async throws
-        -> LicenseActivationResponse
-    {
-        let payload = ActivationPayload(key: key, hardwareUuid: hardwareUuid, hostname: hostname)
-        let (data, response) = try await send(path: "activate", payload: payload)
-        try validate(response: response, data: data)
-        do {
-            return try decoder.decode(LicenseActivationResponse.self, from: data)
-        } catch {
-            throw LicenseClientError.invalidResponse
-        }
-    }
-
-    public func verify(key: String, hardwareUuid: String) async throws
-        -> LicenseVerificationResponse
-    {
-        let payload = VerificationPayload(key: key, hardwareUuid: hardwareUuid)
-        let (data, response) = try await send(path: "verify", payload: payload)
-        try validate(response: response, data: data)
-        do {
-            return try decoder.decode(LicenseVerificationResponse.self, from: data)
-        } catch {
-            throw LicenseClientError.invalidResponse
-        }
-    }
-
-    private func send<Payload: Encodable>(path: String, payload: Payload) async throws
-        -> (Data, HTTPURLResponse)
-    {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try encoder.encode(payload)
-        return try await transport.data(for: request)
     }
 
     private func validate(response: HTTPURLResponse, data: Data) throws {
@@ -140,7 +73,7 @@ public struct LicenseChallengeResponse: Codable, Equatable {
     }
 }
 
-public struct LicenseV2ActivationResponse: Codable, Equatable {
+public struct LicenseActivationResponse: Codable, Equatable {
     public let ok: Bool
     public let planId: String
     public let machinesUsed: Int
@@ -165,7 +98,7 @@ public struct LicenseV2ActivationResponse: Codable, Equatable {
     }
 }
 
-public struct LicenseV2RefreshResponse: Codable, Equatable {
+public struct LicenseRefreshResponse: Codable, Equatable {
     public let ok: Bool
     public let entitlement: String
     public let refreshCredential: String
@@ -184,7 +117,7 @@ public struct LicenseV2RefreshResponse: Codable, Equatable {
     }
 }
 
-public struct LicenseV2DeactivationResponse: Codable, Equatable {
+public struct LicenseDeactivationResponse: Codable, Equatable {
     public let ok: Bool
 
     public init(ok: Bool) {
@@ -196,73 +129,59 @@ extension LicenseClient {
     public func activationChallenge(
         licenseKey: String, deviceId: String, devicePublicKey: String, purpose: String? = nil
     ) async throws -> LicenseChallengeResponse {
-        try await requestV2(
+        try await request(
             path: "activation/challenge",
             payload: ActivationChallengePayload(
                 licenseKey: licenseKey, deviceId: deviceId, devicePublicKey: devicePublicKey,
                 purpose: purpose))
     }
 
-    public func activateV2(
+    public func activate(
         licenseKey: String, challengeId: String, nonce: String, deviceId: String,
         devicePublicKey: String, signature: String, appVersion: String, deviceName: String? = nil,
         hardwareUuidDigest: String? = nil
-    ) async throws -> LicenseV2ActivationResponse {
-        try await requestV2(
+    ) async throws -> LicenseActivationResponse {
+        try await request(
             path: "activation",
-            payload: ActivationV2Payload(
+            payload: ActivationPayload(
                 licenseKey: licenseKey, challengeId: challengeId, nonce: nonce, deviceId: deviceId,
                 devicePublicKey: devicePublicKey, signature: signature, appVersion: appVersion,
                 deviceName: deviceName, hardwareUuidDigest: hardwareUuidDigest))
     }
 
-    public func migrateV2(
-        licenseKey: String, hardwareUuid: String, deviceId: String, devicePublicKey: String,
-        challengeId: String, nonce: String, signature: String, appVersion: String,
-        deviceName: String? = nil, hardwareUuidDigest: String? = nil
-    ) async throws -> LicenseV2ActivationResponse {
-        try await requestV2(
-            path: "devices/migrate",
-            payload: MigrationV2Payload(
-                licenseKey: licenseKey, hardwareUuid: hardwareUuid, deviceId: deviceId,
-                devicePublicKey: devicePublicKey, challengeId: challengeId, nonce: nonce,
-                signature: signature, appVersion: appVersion, deviceName: deviceName,
-                hardwareUuidDigest: hardwareUuidDigest))
-    }
-
     public func refreshChallenge(
         deviceId: String, refreshCredential: String, purpose: String? = nil
     ) async throws -> LicenseChallengeResponse {
-        try await requestV2(
+        try await request(
             path: "devices/refresh/challenge",
             payload: RefreshChallengePayload(
                 deviceId: deviceId, refreshCredential: refreshCredential, purpose: purpose))
     }
 
-    public func refreshV2(
+    public func refresh(
         deviceId: String, challengeId: String, nonce: String, signature: String,
         appVersion: String
-    ) async throws -> LicenseV2RefreshResponse {
-        try await requestV2(
+    ) async throws -> LicenseRefreshResponse {
+        try await request(
             path: "devices/refresh",
-            payload: RefreshV2Payload(
+            payload: RefreshPayload(
                 deviceId: deviceId, challengeId: challengeId, nonce: nonce, signature: signature,
                 appVersion: appVersion))
     }
 
-    public func deactivateV2(
+    public func deactivate(
         deviceId: String, challengeId: String, nonce: String, signature: String
-    ) async throws -> LicenseV2DeactivationResponse {
-        try await requestV2(
+    ) async throws -> LicenseDeactivationResponse {
+        try await request(
             path: "devices/deactivate",
-            payload: DeactivationV2Payload(
+            payload: DeactivationPayload(
                 deviceId: deviceId, challengeId: challengeId, nonce: nonce, signature: signature))
     }
 
-    private func requestV2<Payload: Encodable, Response: Decodable>(
+    private func request<Payload: Encodable, Response: Decodable>(
         path: String, payload: Payload
     ) async throws -> Response {
-        var request = URLRequest(url: v2URL(path))
+        var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(payload)
@@ -274,11 +193,6 @@ extension LicenseClient {
             throw LicenseClientError.invalidResponse
         }
     }
-
-    private func v2URL(_ path: String) -> URL {
-        baseURL.deletingLastPathComponent().appendingPathComponent("v2")
-            .appendingPathComponent(path)
-    }
 }
 
 private struct ActivationChallengePayload: Codable {
@@ -288,25 +202,12 @@ private struct ActivationChallengePayload: Codable {
     let purpose: String?
 }
 
-private struct ActivationV2Payload: Codable {
+private struct ActivationPayload: Codable {
     let licenseKey: String
     let challengeId: String
     let nonce: String
     let deviceId: String
     let devicePublicKey: String
-    let signature: String
-    let appVersion: String
-    let deviceName: String?
-    let hardwareUuidDigest: String?
-}
-
-private struct MigrationV2Payload: Codable {
-    let licenseKey: String
-    let hardwareUuid: String
-    let deviceId: String
-    let devicePublicKey: String
-    let challengeId: String
-    let nonce: String
     let signature: String
     let appVersion: String
     let deviceName: String?
@@ -319,7 +220,7 @@ private struct RefreshChallengePayload: Codable {
     let purpose: String?
 }
 
-private struct RefreshV2Payload: Codable {
+private struct RefreshPayload: Codable {
     let deviceId: String
     let challengeId: String
     let nonce: String
@@ -327,22 +228,11 @@ private struct RefreshV2Payload: Codable {
     let appVersion: String
 }
 
-private struct DeactivationV2Payload: Codable {
+private struct DeactivationPayload: Codable {
     let deviceId: String
     let challengeId: String
     let nonce: String
     let signature: String
-}
-
-private struct ActivationPayload: Codable {
-    let key: String
-    let hardwareUuid: String
-    let hostname: String?
-}
-
-private struct VerificationPayload: Codable {
-    let key: String
-    let hardwareUuid: String
 }
 
 private struct APIErrorPayload: Codable {
@@ -415,27 +305,6 @@ public struct FileLicenseKeyStore: LicenseKeyStoring {
     }
 }
 
-public enum LicenseGateDecision: Equatable {
-    case proceed
-    case proceedNeedsRefresh
-    case gate
-}
-
-public func licenseGateDecision(hasKey: Bool, licenseActivated: Bool) -> LicenseGateDecision {
-    hasKey && licenseActivated ? .proceedNeedsRefresh : .gate
-}
-
-public enum OfflineLicenseStatus: Equatable {
-    case valid
-    case needsRefresh
-    case noKey
-    case invalid
-}
-
-public enum LicenseStateError: Error, Equatable {
-    case invalidReceipt
-}
-
 public final class LicenseState {
     public static let activatedKey = "licenseActivated"
     public static let labelKey = "licenseLabel"
@@ -443,19 +312,13 @@ public final class LicenseState {
 
     private let keyStore: any LicenseKeyStoring
     private let defaults: UserDefaults
-    private let receiptVerifier: LicenseReceiptVerifier
-    private let machineIdentifier: () -> String?
 
     public init(
         keyStore: any LicenseKeyStoring = FileLicenseKeyStore(),
-        defaults: UserDefaults = SharedDefaults.store,
-        receiptVerifier: LicenseReceiptVerifier = LicenseReceiptVerifier(),
-        machineIdentifier: @escaping () -> String? = hardwareUUID
+        defaults: UserDefaults = SharedDefaults.store
     ) {
         self.keyStore = keyStore
         self.defaults = defaults
-        self.receiptVerifier = receiptVerifier
-        self.machineIdentifier = machineIdentifier
     }
 
     public var isActivated: Bool { defaults.bool(forKey: Self.activatedKey) }
@@ -466,69 +329,13 @@ public final class LicenseState {
         try keyStore.readKey()
     }
 
-    public func currentReceiptValid() -> Bool {
-        guard (try? keyStore.readKey()) != nil,
-            let receipt = try? keyStore.readReceipt(),
-            let machine = machineIdentifier()
-        else {
-            return false
-        }
-        return receiptVerifier.verify(receipt: receipt, expectedMachine: machine)
-    }
-
-    public func offlineStatus() throws -> OfflineLicenseStatus {
-        guard try keyStore.readKey() != nil else { return .noKey }
-        guard let receipt = try keyStore.readReceipt() else {
-            return isActivated ? .needsRefresh : .invalid
-        }
-        guard let machine = machineIdentifier() else { return .invalid }
-        switch receiptVerifier.validation(receipt: receipt, expectedMachine: machine) {
-        case .valid:
-            return .valid
-        case .expired:
-            return .needsRefresh
-        case .invalid:
-            return .invalid
-        }
-    }
-
-    public func gateDecision() throws -> LicenseGateDecision {
-        switch try offlineStatus() {
-        case .valid:
-            return .proceed
-        case .needsRefresh:
-            return .proceedNeedsRefresh
-        case .noKey, .invalid:
-            return .gate
-        }
-    }
-
-    public func activate(key: String, label: String, name: String? = nil, receipt: String? = nil)
-        throws
-    {
-        if let receipt {
-            _ = try verifiedReceipt(receipt)
-        }
+    public func activate(key: String, label: String, name: String? = nil) throws {
         try keyStore.writeKey(key)
-        if let receipt {
-            try keyStore.writeReceipt(receipt)
-        } else {
-            try keyStore.deleteReceipt()
-        }
         defaults.set(label, forKey: Self.labelKey)
         if let name, !name.isEmpty {
             defaults.set(name, forKey: Self.nameKey)
         } else {
             defaults.removeObject(forKey: Self.nameKey)
-        }
-        defaults.set(true, forKey: Self.activatedKey)
-    }
-
-    public func recordSuccessfulVerification(receipt: String?) throws {
-        if let receipt {
-            let payload = try verifiedReceipt(receipt)
-            try keyStore.writeReceipt(receipt)
-            defaults.set(payload.label, forKey: Self.labelKey)
         }
         defaults.set(true, forKey: Self.activatedKey)
     }
@@ -549,16 +356,6 @@ public final class LicenseState {
         defaults.removeObject(forKey: Self.labelKey)
         defaults.removeObject(forKey: Self.nameKey)
         if let deletionError { throw deletionError }
-    }
-
-    private func verifiedReceipt(_ receipt: String) throws -> LicenseReceipt {
-        guard let machine = machineIdentifier(),
-            let payload = receiptVerifier.verifiedReceipt(
-                receipt: receipt, expectedMachine: machine)
-        else {
-            throw LicenseStateError.invalidReceipt
-        }
-        return payload
     }
 }
 

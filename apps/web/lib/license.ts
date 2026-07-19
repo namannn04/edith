@@ -17,45 +17,6 @@ import {
 export type LicenseRecord = {
   id: string;
   label: string | null;
-  name?: string | null;
-  maxMachines: number;
-  customMaxMachines: number | null;
-  active: boolean;
-  status?: string;
-};
-
-export type MachineRecord = {
-  licenseId: string;
-  hardwareUuid: string;
-};
-
-export type MachineInput = {
-  licenseId: string;
-  hardwareUuid: string;
-  hostname: string | null;
-};
-
-export interface LicenseAccess {
-  getLicenseByKey(key: string): Promise<LicenseRecord | null>;
-  getMachine(
-    licenseId: string,
-    hardwareUuid: string,
-  ): Promise<MachineRecord | null>;
-  countMachines(licenseId: string): Promise<number>;
-  countActiveSeats(licenseId: string): Promise<number>;
-  upsertMachine(input: MachineInput): Promise<void>;
-}
-
-export interface LicenseStore extends LicenseAccess {
-  runExclusive<T>(
-    key: string,
-    operation: (access: LicenseAccess) => Promise<T>,
-  ): Promise<T>;
-}
-
-export type LicenseV2Record = {
-  id: string;
-  label: string | null;
   planId: string | null;
   status: string;
   active: boolean;
@@ -172,17 +133,18 @@ export function productHardwareDigest(rawUuid: string): string {
   return createHash("sha256").update(`edith:${rawUuid}`, "utf8").digest("hex");
 }
 
-export interface LicenseAccessV2 extends LicenseAccess {
+export interface LicenseAccess {
   getLicenseByKeyDigest(
     digest: string,
     key: string,
-  ): Promise<LicenseV2Record | null>;
-  getLicenseById(licenseId: string): Promise<LicenseV2Record | null>;
+  ): Promise<LicenseRecord | null>;
+  getLicenseById(licenseId: string): Promise<LicenseRecord | null>;
   updateLicenseStatus(
     licenseId: string,
     status: string,
     reason: string | null,
   ): Promise<void>;
+  countActiveSeats(licenseId: string): Promise<number>;
   getDevice(deviceId: string): Promise<DeviceRecord | null>;
   insertDevice(input: DeviceInput): Promise<void>;
   updateDeviceStatus(
@@ -195,9 +157,7 @@ export interface LicenseAccessV2 extends LicenseAccess {
     appVersion: string | null,
     now: Date,
   ): Promise<void>;
-  deleteMachine(licenseId: string, hardwareUuid: string): Promise<void>;
   setDeviceHardwareDigest(deviceId: string, digest: string): Promise<void>;
-  listMachines(licenseId: string): Promise<MachineRecord[]>;
   reclaimSeatsByHardwareDigest(
     licenseId: string,
     hardwareUuidDigest: string,
@@ -236,107 +196,11 @@ export interface LicenseAccessV2 extends LicenseAccess {
   insertSecurityEvent(input: SecurityEventInput): Promise<void>;
 }
 
-export interface LicenseStoreV2 extends LicenseAccessV2 {
+export interface LicenseStore extends LicenseAccess {
   runExclusive<T>(
     key: string,
-    operation: (access: LicenseAccessV2) => Promise<T>,
+    operation: (access: LicenseAccess) => Promise<T>,
   ): Promise<T>;
-}
-
-export type ActivationInput = {
-  key: string;
-  hardwareUuid: string;
-  hostname?: string;
-};
-
-export type ActivationResult =
-  | {
-      ok: true;
-      label: string | null;
-      name: string | null;
-      machinesUsed: number;
-      maxMachines: number;
-    }
-  | {
-      ok: false;
-      error: "invalid_license" | "license_limit_reached";
-    };
-
-function isUsableLicense(
-  license: LicenseRecord | null,
-): license is LicenseRecord {
-  return (
-    license !== null &&
-    license.active &&
-    (license.status ?? "active") === "active"
-  );
-}
-
-export async function activateLicense(
-  store: LicenseStore,
-  input: ActivationInput,
-): Promise<ActivationResult> {
-  return store.runExclusive(input.key, async (access) => {
-    const license = await access.getLicenseByKey(input.key);
-
-    if (!isUsableLicense(license)) {
-      return { ok: false, error: "invalid_license" };
-    }
-
-    const existingMachine = await access.getMachine(
-      license.id,
-      input.hardwareUuid,
-    );
-
-    const maxMachines = effectiveAllowance(license);
-
-    if (!existingMachine) {
-      const machinesUsed = await access.countActiveSeats(license.id);
-
-      if (machinesUsed >= maxMachines) {
-        return { ok: false, error: "license_limit_reached" };
-      }
-    }
-
-    await access.upsertMachine({
-      licenseId: license.id,
-      hardwareUuid: input.hardwareUuid,
-      hostname: input.hostname ?? null,
-    });
-
-    const machinesUsed = await access.countActiveSeats(license.id);
-
-    return {
-      ok: true,
-      label: license.label,
-      name: license.name ?? null,
-      machinesUsed,
-      maxMachines,
-    };
-  });
-}
-
-export async function verifyLicense(
-  store: LicenseAccess,
-  key: string,
-  hardwareUuid: string,
-): Promise<boolean> {
-  return (await getVerifiedLicense(store, key, hardwareUuid)) !== null;
-}
-
-export async function getVerifiedLicense(
-  store: LicenseAccess,
-  key: string,
-  hardwareUuid: string,
-): Promise<LicenseRecord | null> {
-  const license = await store.getLicenseByKey(key);
-
-  if (!isUsableLicense(license)) {
-    return null;
-  }
-
-  const machine = await store.getMachine(license.id, hardwareUuid);
-  return machine ? license : null;
 }
 
 export type DeviceSessionSuccess = {
@@ -358,7 +222,7 @@ export type DeviceFailure =
       maxMachines: number;
     };
 
-export type ActivateDeviceV2Input = {
+export type ActivateDeviceInput = {
   licenseKey: string;
   challengeId: string;
   nonce: string;
@@ -370,11 +234,7 @@ export type ActivateDeviceV2Input = {
   hardwareUuidDigest?: string;
 };
 
-export type MigrateMachineV2Input = ActivateDeviceV2Input & {
-  hardwareUuid: string;
-};
-
-export type RefreshDeviceV2Input = {
+export type RefreshDeviceInput = {
   deviceId: string;
   challengeId: string;
   nonce: string;
@@ -382,7 +242,7 @@ export type RefreshDeviceV2Input = {
   appVersion: string;
 };
 
-export type DeactivateDeviceV2Input = {
+export type DeactivateDeviceInput = {
   deviceId: string;
   challengeId: string;
   nonce: string;
@@ -394,14 +254,14 @@ const invalidCredentials: DeviceFailure = {
   error: "invalid_credentials",
 };
 
-function isActiveV2License(
-  license: LicenseV2Record | null,
-): license is LicenseV2Record {
+function isActiveLicense(
+  license: LicenseRecord | null,
+): license is LicenseRecord {
   return license !== null && license.active && license.status === "active";
 }
 
 async function consumeVerifiedChallenge(
-  access: LicenseAccessV2,
+  access: LicenseAccess,
   input: { challengeId: string; nonce: string; signature: string },
   purpose: string,
   publicKey: string,
@@ -428,7 +288,7 @@ async function consumeVerifiedChallenge(
 }
 
 async function issueCredential(
-  access: LicenseAccessV2,
+  access: LicenseAccess,
   device: { id: string; credentialGeneration: number },
   now: Date,
 ): Promise<string> {
@@ -455,8 +315,8 @@ async function issueCredential(
 }
 
 async function sessionSuccess(
-  access: LicenseAccessV2,
-  license: LicenseV2Record,
+  access: LicenseAccess,
+  license: LicenseRecord,
   thumbprint: string,
   refreshCredential: string,
 ): Promise<DeviceSessionSuccess> {
@@ -471,9 +331,9 @@ async function sessionSuccess(
   };
 }
 
-export async function activateDeviceV2(
-  store: LicenseStoreV2,
-  input: ActivateDeviceV2Input,
+export async function activateDevice(
+  store: LicenseStore,
+  input: ActivateDeviceInput,
   now = new Date(),
 ): Promise<DeviceSessionSuccess | DeviceFailure> {
   if (!validateDevicePublicKey(input.devicePublicKey)) {
@@ -485,7 +345,7 @@ export async function activateDeviceV2(
   return store.runExclusive(digest, async (access) => {
     const license = await access.getLicenseByKeyDigest(digest, key);
 
-    if (!isActiveV2License(license)) {
+    if (!isActiveLicense(license)) {
       return invalidCredentials;
     }
 
@@ -610,87 +470,9 @@ export async function activateDeviceV2(
   });
 }
 
-export async function migrateMachineV2(
-  store: LicenseStoreV2,
-  input: MigrateMachineV2Input,
-  now = new Date(),
-): Promise<DeviceSessionSuccess | DeviceFailure> {
-  if (!validateDevicePublicKey(input.devicePublicKey)) {
-    return invalidCredentials;
-  }
-
-  const key = normalizeLicenseKey(input.licenseKey);
-  const digest = keyLookupDigest(key);
-  return store.runExclusive(digest, async (access) => {
-    const license = await access.getLicenseByKeyDigest(digest, key);
-
-    if (!isActiveV2License(license)) {
-      return invalidCredentials;
-    }
-
-    const machine = await access.getMachine(license.id, input.hardwareUuid);
-
-    if (!machine) {
-      return invalidCredentials;
-    }
-
-    const challenge = await consumeVerifiedChallenge(
-      access,
-      input,
-      "migrate",
-      input.devicePublicKey,
-      now,
-    );
-
-    if (
-      !challenge ||
-      challenge.deviceId !== input.deviceId ||
-      (challenge.licenseId ?? license.id) !== license.id
-    ) {
-      return invalidCredentials;
-    }
-
-    if (await access.getDevice(input.deviceId)) {
-      return invalidCredentials;
-    }
-
-    const hardwareUuidDigest = productHardwareDigest(input.hardwareUuid);
-    await access.reclaimSeatsByHardwareDigest(
-      license.id,
-      hardwareUuidDigest,
-      input.deviceId,
-      now,
-    );
-
-    const thumbprint = publicKeyThumbprint(input.devicePublicKey);
-    await access.insertDevice({
-      id: input.deviceId,
-      licenseId: license.id,
-      publicKey: input.devicePublicKey,
-      publicKeyThumbprint: thumbprint,
-      hardwareUuidDigest,
-      deviceName: input.deviceName ?? null,
-      appVersion: input.appVersion,
-    });
-    await access.deleteMachine(license.id, input.hardwareUuid);
-    const credential = await issueCredential(
-      access,
-      { id: input.deviceId, credentialGeneration: 0 },
-      now,
-    );
-    await access.insertSecurityEvent({
-      eventType: "machine_migrated",
-      licenseId: license.id,
-      deviceId: input.deviceId,
-      actor: "customer",
-    });
-    return sessionSuccess(access, license, thumbprint, credential);
-  });
-}
-
-export async function refreshDeviceV2(
-  store: LicenseStoreV2,
-  input: RefreshDeviceV2Input,
+export async function refreshDevice(
+  store: LicenseStore,
+  input: RefreshDeviceInput,
   now = new Date(),
 ): Promise<DeviceSessionSuccess | DeviceFailure> {
   return store.runExclusive(input.deviceId, async (access) => {
@@ -702,7 +484,7 @@ export async function refreshDeviceV2(
 
     const license = await access.getLicenseById(device.licenseId);
 
-    if (!isActiveV2License(license)) {
+    if (!isActiveLicense(license)) {
       return invalidCredentials;
     }
 
@@ -729,9 +511,9 @@ export async function refreshDeviceV2(
   });
 }
 
-export async function deactivateDeviceV2(
-  store: LicenseStoreV2,
-  input: DeactivateDeviceV2Input,
+export async function deactivateDevice(
+  store: LicenseStore,
+  input: DeactivateDeviceInput,
   now = new Date(),
 ): Promise<{ ok: true } | DeviceFailure> {
   return store.runExclusive(input.deviceId, async (access) => {
@@ -766,7 +548,7 @@ export async function deactivateDeviceV2(
 }
 
 export async function verifyDeviceRefreshCredential(
-  store: LicenseAccessV2,
+  store: LicenseAccess,
   deviceId: string,
   credential: string,
   now = new Date(),

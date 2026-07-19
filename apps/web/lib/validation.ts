@@ -4,23 +4,6 @@ export const licenseKeySchema = z
   .string()
   .regex(/^EDITH-[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/);
 
-export const hardwareUuidSchema = z.string().trim().min(1).max(255);
-
-export const activationBodySchema = z
-  .object({
-    key: licenseKeySchema,
-    hardwareUuid: hardwareUuidSchema,
-    hostname: z.string().trim().min(1).max(255).optional(),
-  })
-  .strict();
-
-export const verificationBodySchema = z
-  .object({
-    key: licenseKeySchema,
-    hardwareUuid: hardwareUuidSchema,
-  })
-  .strict();
-
 const base64UrlSchema = z
   .string()
   .min(1)
@@ -39,11 +22,11 @@ export const activationChallengeBodySchema = z
     licenseKey: licenseKeySchema,
     deviceId: deviceIdSchema,
     devicePublicKey: base64UrlSchema,
-    purpose: z.enum(["activate", "migrate"]).optional(),
+    purpose: z.enum(["activate"]).optional(),
   })
   .strict();
 
-export const activationV2BodySchema = z
+export const activationBodySchema = z
   .object({
     licenseKey: licenseKeySchema,
     challengeId: challengeIdSchema,
@@ -57,10 +40,6 @@ export const activationV2BodySchema = z
   })
   .strict();
 
-export const migrateV2BodySchema = activationV2BodySchema
-  .extend({ hardwareUuid: hardwareUuidSchema })
-  .strict();
-
 export const refreshChallengeBodySchema = z
   .object({
     deviceId: deviceIdSchema,
@@ -72,7 +51,7 @@ export const refreshChallengeBodySchema = z
   })
   .strict();
 
-export const refreshV2BodySchema = z
+export const refreshBodySchema = z
   .object({
     deviceId: deviceIdSchema,
     challengeId: challengeIdSchema,
@@ -82,7 +61,7 @@ export const refreshV2BodySchema = z
   })
   .strict();
 
-export const deactivateV2BodySchema = z
+export const deactivateBodySchema = z
   .object({
     deviceId: deviceIdSchema,
     challengeId: challengeIdSchema,
@@ -100,21 +79,4 @@ export function parseBearerToken(headers: Headers): string | null {
 
   const match = /^Bearer\s+(\S+)$/i.exec(header.trim());
   return match ? match[1] : null;
-}
-
-const licenseHeadersSchema = z.object({
-  key: licenseKeySchema,
-  hardwareUuid: hardwareUuidSchema,
-});
-
-export function parseLicenseHeaders(
-  headers: Headers,
-): z.SafeParseReturnType<
-  z.input<typeof licenseHeadersSchema>,
-  z.output<typeof licenseHeadersSchema>
-> {
-  return licenseHeadersSchema.safeParse({
-    key: headers.get("x-edith-license"),
-    hardwareUuid: headers.get("x-edith-machine"),
-  });
 }

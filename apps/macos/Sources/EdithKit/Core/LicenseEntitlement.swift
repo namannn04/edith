@@ -49,8 +49,10 @@ public enum EntitlementValidation: Equatable {
 }
 
 public struct EntitlementVerifier {
+    public static let signingPublicKeyBase64 = "fUAon12NuznWmJArye1CMLnfozHkyoNQGDaqYziUSSo="
+
     public static let productionKeys = [
-        "edith-2026-07": LicenseReceiptVerifier.signingPublicKeyBase64
+        "edith-2026-07": EntitlementVerifier.signingPublicKeyBase64
     ]
 
     private let trustedKeys: [String: Curve25519.Signing.PublicKey]

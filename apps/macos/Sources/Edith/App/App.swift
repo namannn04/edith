@@ -11,7 +11,6 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     private var settingsChangeDebounce: Timer?
     private var licenseVerificationTimer: Timer?
     private var licenseVerificationTask: Task<Void, Never>?
-    private var licenseMigrationTask: Task<Void, Never>?
     private let licenseState = LicenseState()
     private let licenseClient = LicenseClient()
     private let licenseCredentialStore = FileLicenseCredentialStore()
@@ -22,9 +21,6 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         switch currentLaunchDecision() {
         case .start:
             startLicensedApp()
-        case .startAndMigrate:
-            startLicensedApp()
-            migrateLegacyLicense()
         case .gate:
             terminateHelper()
             presentActivationGate()
@@ -36,17 +32,8 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
             .launchDecision
     }
 
-    private func licenseV2Session() -> LicenseV2Session {
-        LicenseV2Session(client: licenseClient, credentialStore: licenseCredentialStore)
-    }
-
-    private func migrateLegacyLicense() {
-        guard licenseMigrationTask == nil else { return }
-        licenseMigrationTask = Task { [weak self] in
-            guard let self else { return }
-            defer { licenseMigrationTask = nil }
-            _ = try? await licenseV2Session().migrateFromV1()
-        }
+    private func licenseSession() -> LicenseSession {
+        LicenseSession(client: licenseClient, credentialStore: licenseCredentialStore)
     }
 
     private func startLicensedApp() {
@@ -113,43 +100,14 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         licenseVerificationTask = Task { [weak self] in
             guard let self else { return }
             defer { licenseVerificationTask = nil }
-            if ((try? licenseCredentialStore.read(.refreshCredential)) ?? nil) != nil {
-                try? await licenseV2Session().refresh()
-                guard !Task.isCancelled else { return }
-                if currentLaunchDecision() == .gate {
-                    invalidateLicenseAndRegate()
-                }
+            guard ((try? licenseCredentialStore.read(.refreshCredential)) ?? nil) != nil else {
                 return
             }
-            await verifyLegacyLicense()
-        }
-    }
-
-    private func verifyLegacyLicense() async {
-        guard let key = try? licenseState.licenseKey(), let machine = hardwareUUID() else {
-            return
-        }
-        do {
-            let response = try await licenseClient.verify(key: key, hardwareUuid: machine)
+            try? await licenseSession().refresh()
             guard !Task.isCancelled else { return }
-            guard response.ok else {
+            if currentLaunchDecision() == .gate {
                 invalidateLicenseAndRegate()
-                return
             }
-            do {
-                try licenseState.recordSuccessfulVerification(receipt: response.receipt)
-            } catch LicenseStateError.invalidReceipt {
-                invalidateLicenseAndRegate()
-                return
-            }
-            if response.receipt != nil {
-                launchHelperIfNeeded()
-            }
-            migrateLegacyLicense()
-        } catch LicenseClientError.invalidKey {
-            invalidateLicenseAndRegate()
-        } catch {
-            return
         }
     }
 
@@ -180,8 +138,6 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     private func stopLicensedApp() {
         licenseVerificationTask?.cancel()
         licenseVerificationTask = nil
-        licenseMigrationTask?.cancel()
-        licenseMigrationTask = nil
         licenseVerificationTimer?.invalidate()
         licenseVerificationTimer = nil
         settingsChangeDebounce?.invalidate()
@@ -230,8 +186,6 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         licenseVerificationTask?.cancel()
         licenseVerificationTask = nil
-        licenseMigrationTask?.cancel()
-        licenseMigrationTask = nil
         licenseVerificationTimer?.invalidate()
         licenseVerificationTimer = nil
         settingsChangeDebounce?.invalidate()

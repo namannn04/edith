@@ -34,14 +34,12 @@ final class UpdaterModel: NSObject, ObservableObject,
     private var automaticChecksObservation: NSKeyValueObservation?
     private var automaticDownloadsObservation: NSKeyValueObservation?
     private var updater: SPUUpdater? { updaterController?.updater }
-    private let licenseState: LicenseState
     private let licenseCredentialStore: any LicenseCredentialStoring
 
     init(
-        startingUpdater: Bool = false, licenseState: LicenseState = LicenseState(),
+        startingUpdater: Bool = false,
         licenseCredentialStore: any LicenseCredentialStoring = FileLicenseCredentialStore()
     ) {
-        self.licenseState = licenseState
         self.licenseCredentialStore = licenseCredentialStore
         super.init()
         guard startingUpdater else { return }
@@ -109,9 +107,7 @@ final class UpdaterModel: NSObject, ObservableObject,
 
     private func currentLicenseHeaders() -> [String: String] {
         licenseUpdaterHeaders(
-            accessToken: StoredAccessToken.load(from: licenseCredentialStore),
-            legacyKey: ((try? licenseState.licenseKey()) ?? nil),
-            machine: hardwareUUID())
+            accessToken: StoredAccessToken.load(from: licenseCredentialStore))
     }
 
     private func refreshLicenseHeaders() {
@@ -124,7 +120,7 @@ final class UpdaterModel: NSObject, ObservableObject,
             hasRefreshCredential: ((try? licenseCredentialStore.read(.refreshCredential)) ?? nil)
                 != nil)
         {
-            try? await LicenseV2Session(credentialStore: licenseCredentialStore).refresh()
+            try? await LicenseSession(credentialStore: licenseCredentialStore).refresh()
         }
         refreshLicenseHeaders()
     }

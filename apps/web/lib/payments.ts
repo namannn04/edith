@@ -6,8 +6,8 @@ import {
   keyLookupDigest,
 } from "@/lib/license-key";
 import type {
-  LicenseAccessV2,
-  LicenseStoreV2,
+  LicenseAccess,
+  LicenseStore,
   PaymentEventRecord,
 } from "@/lib/license";
 import { readCeilings, validatePlanAllowance } from "@/lib/plans";
@@ -88,7 +88,7 @@ function isUniqueViolation(error: unknown): boolean {
 type ParsedEnvelope = z.infer<typeof webhookEnvelopeSchema>;
 
 async function handleEvent(
-  access: LicenseAccessV2,
+  access: LicenseAccess,
   providerEventId: string,
   envelope: ParsedEnvelope,
 ): Promise<WebhookResult> {
@@ -197,7 +197,7 @@ async function handleEvent(
 }
 
 export async function processLemonSqueezyWebhook(
-  store: LicenseStoreV2,
+  store: LicenseStore,
   payload: unknown,
 ): Promise<WebhookResult> {
   const parsed = webhookEnvelopeSchema.safeParse(payload);

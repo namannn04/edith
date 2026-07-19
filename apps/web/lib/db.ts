@@ -1,33 +1,17 @@
 import { randomUUID } from "node:crypto";
-import {
-  and,
-  countDistinct,
-  eq,
-  gt,
-  inArray,
-  isNull,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, countDistinct, eq, gt, isNull, ne, or, sql } from "drizzle-orm";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import {
-  type LicenseAccessV2,
-  type LicenseStoreV2,
-  productHardwareDigest,
-} from "@/lib/license";
+import type { LicenseAccess, LicenseStore } from "@/lib/license";
 import * as schema from "@/lib/schema";
 import {
   activationChallenges,
   deviceCredentials,
   devices,
   licenses,
-  machines,
   paymentEvents,
   plans,
   securityEvents,
-  users,
 } from "@/lib/schema";
 
 type Database = PostgresJsDatabase<typeof schema>;
@@ -71,7 +55,7 @@ export async function closeDatabase(): Promise<void> {
   databaseState = undefined;
 }
 
-const licenseV2Columns = {
+const licenseColumns = {
   id: licenses.id,
   label: licenses.label,
   planId: licenses.planId,
@@ -101,29 +85,11 @@ const paymentEventColumns = {
   error: paymentEvents.error,
 };
 
-function createAccess(database: Database): LicenseAccessV2 {
+function createAccess(database: Database): LicenseAccess {
   return {
-    async getLicenseByKey(key) {
-      const [license] = await database
-        .select({
-          id: licenses.id,
-          label: licenses.label,
-          name: users.name,
-          maxMachines: licenses.maxMachines,
-          customMaxMachines: licenses.customMaxMachines,
-          active: licenses.active,
-          status: licenses.status,
-        })
-        .from(licenses)
-        .leftJoin(users, eq(licenses.userId, users.id))
-        .where(eq(licenses.key, key))
-        .limit(1);
-
-      return license ?? null;
-    },
     async getLicenseByKeyDigest(digest, key) {
       const [license] = await database
-        .select(licenseV2Columns)
+        .select(licenseColumns)
         .from(licenses)
         .where(or(eq(licenses.keyDigest, digest), eq(licenses.key, key)))
         .limit(1);
@@ -132,7 +98,7 @@ function createAccess(database: Database): LicenseAccessV2 {
     },
     async getLicenseById(licenseId) {
       const [license] = await database
-        .select(licenseV2Columns)
+        .select(licenseColumns)
         .from(licenses)
         .where(eq(licenses.id, licenseId))
         .limit(1);
@@ -149,67 +115,6 @@ function createAccess(database: Database): LicenseAccessV2 {
           updatedAt: new Date(),
         })
         .where(eq(licenses.id, licenseId));
-    },
-    async getMachine(licenseId, hardwareUuid) {
-      const [machine] = await database
-        .select({
-          licenseId: machines.licenseId,
-          hardwareUuid: machines.hardwareUuid,
-        })
-        .from(machines)
-        .where(
-          sql`${machines.licenseId} = ${licenseId} and ${machines.hardwareUuid} = ${hardwareUuid}`,
-        )
-        .limit(1);
-
-      return machine ?? null;
-    },
-    async countMachines(licenseId) {
-      const [result] = await database
-        .select({ value: countDistinct(machines.hardwareUuid) })
-        .from(machines)
-        .where(eq(machines.licenseId, licenseId));
-
-      return result?.value ?? 0;
-    },
-    async upsertMachine(input) {
-      const now = new Date();
-
-      await database
-        .insert(machines)
-        .values({
-          id: randomUUID(),
-          licenseId: input.licenseId,
-          hardwareUuid: input.hardwareUuid,
-          hostname: input.hostname,
-          lastSeen: now,
-        })
-        .onConflictDoUpdate({
-          target: [machines.licenseId, machines.hardwareUuid],
-          set: {
-            hostname: input.hostname,
-            lastSeen: now,
-          },
-        });
-    },
-    async deleteMachine(licenseId, hardwareUuid) {
-      await database
-        .delete(machines)
-        .where(
-          and(
-            eq(machines.licenseId, licenseId),
-            eq(machines.hardwareUuid, hardwareUuid),
-          ),
-        );
-    },
-    async listMachines(licenseId) {
-      return database
-        .select({
-          licenseId: machines.licenseId,
-          hardwareUuid: machines.hardwareUuid,
-        })
-        .from(machines)
-        .where(eq(machines.licenseId, licenseId));
     },
     async setDeviceHardwareDigest(deviceId, digest) {
       await database
@@ -252,22 +157,6 @@ function createAccess(database: Database): LicenseAccessV2 {
           deviceId: device.id,
           actor: "system",
         });
-      }
-
-      const rows = await database
-        .select({ id: machines.id, hardwareUuid: machines.hardwareUuid })
-        .from(machines)
-        .where(eq(machines.licenseId, licenseId));
-      const matchingIds = rows
-        .filter(
-          (row) => productHardwareDigest(row.hardwareUuid) === hardwareUuidDigest,
-        )
-        .map((row) => row.id);
-
-      if (matchingIds.length > 0) {
-        await database
-          .delete(machines)
-          .where(inArray(machines.id, matchingIds));
       }
     },
     async getDevice(deviceId) {
@@ -315,12 +204,8 @@ function createAccess(database: Database): LicenseAccessV2 {
         .where(
           and(eq(devices.licenseId, licenseId), eq(devices.status, "active")),
         );
-      const [machineCount] = await database
-        .select({ value: countDistinct(machines.hardwareUuid) })
-        .from(machines)
-        .where(eq(machines.licenseId, licenseId));
 
-      return (deviceCount?.value ?? 0) + (machineCount?.value ?? 0);
+      return deviceCount?.value ?? 0;
     },
     async insertChallenge(input) {
       await database.insert(activationChallenges).values({
@@ -534,10 +419,7 @@ function createAccess(database: Database): LicenseAccessV2 {
   };
 }
 
-export const licenseStore: LicenseStoreV2 = {
-  async getLicenseByKey(key) {
-    return createAccess(getDb()).getLicenseByKey(key);
-  },
+export const licenseStore: LicenseStore = {
   async getLicenseByKeyDigest(digest, key) {
     return createAccess(getDb()).getLicenseByKeyDigest(digest, key);
   },
@@ -546,21 +428,6 @@ export const licenseStore: LicenseStoreV2 = {
   },
   async updateLicenseStatus(licenseId, status, reason) {
     return createAccess(getDb()).updateLicenseStatus(licenseId, status, reason);
-  },
-  async getMachine(licenseId, hardwareUuid) {
-    return createAccess(getDb()).getMachine(licenseId, hardwareUuid);
-  },
-  async countMachines(licenseId) {
-    return createAccess(getDb()).countMachines(licenseId);
-  },
-  async upsertMachine(input) {
-    return createAccess(getDb()).upsertMachine(input);
-  },
-  async deleteMachine(licenseId, hardwareUuid) {
-    return createAccess(getDb()).deleteMachine(licenseId, hardwareUuid);
-  },
-  async listMachines(licenseId) {
-    return createAccess(getDb()).listMachines(licenseId);
   },
   async setDeviceHardwareDigest(deviceId, digest) {
     return createAccess(getDb()).setDeviceHardwareDigest(deviceId, digest);

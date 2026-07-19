@@ -91,7 +91,7 @@ export async function fetchReleaseAsset(asset: GitHubAsset): Promise<Response> {
 
 export function rewriteAppcastEnclosureUrls(
   appcast: string,
-  downloadUrl = "https://edith.pulkit.page/api/v1/download/dmg",
+  downloadUrl = "https://edith.pulkit.page/api/download/dmg",
 ): string {
   const enclosureUrl = /(<enclosure\b[^>]*?\burl\s*=\s*)(["'])[^"']*\2/gi;
 

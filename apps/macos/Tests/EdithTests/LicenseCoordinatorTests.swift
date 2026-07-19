@@ -10,76 +10,10 @@ import Testing
     private let thumbprint = "thumb-1"
     private let expiresAt: Int64 = 1_750_000_000
 
-    @Test func noEntitlementAndNoLegacyReceiptIsNoLicense() {
+    @Test func noEntitlementIsNoLicense() {
         let coordinator = makeCoordinator(store: InMemoryLicenseCredentialStore())
 
         #expect(state(coordinator, now: expiresAt) == .noLicense)
-    }
-
-    @Test func validLegacyReceiptFallsBackToLegacyV1() {
-        let coordinator = makeCoordinator(
-            store: InMemoryLicenseCredentialStore(), legacyValidation: { .valid })
-
-        #expect(state(coordinator, now: expiresAt) == .legacyV1(needsMigration: true))
-    }
-
-    @Test func expiredLegacyReceiptFallsBackToLegacyV1() {
-        let expired = makeCoordinator(
-            store: InMemoryLicenseCredentialStore(), legacyValidation: { .expired })
-
-        #expect(state(expired, now: expiresAt) == .legacyV1(needsMigration: true))
-    }
-
-    @Test func invalidLegacyReceiptIsNoLicense() {
-        let invalid = makeCoordinator(
-            store: InMemoryLicenseCredentialStore(), legacyValidation: { .invalid })
-
-        #expect(state(invalid, now: expiresAt) == .noLicense)
-    }
-
-    @Test func missingReceiptWithActivatedFlagFallsBackToLegacyV1() throws {
-        let (defaults, suiteName) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(true, forKey: LicenseState.activatedKey)
-        let keyStore = CoordinatorKeyStore(key: "EDITH-ABCD-1234-EFGH-5678")
-        let coordinator = makeCoordinator(
-            store: InMemoryLicenseCredentialStore(),
-            legacyValidation: LicenseCoordinator.legacyReceiptValidation(
-                keyStore: keyStore, machineIdentifier: { "machine-1" }, defaults: defaults))
-
-        #expect(state(coordinator, now: expiresAt) == .legacyV1(needsMigration: true))
-    }
-
-    @Test func missingReceiptWithoutActivatedFlagIsNoLicense() throws {
-        let (defaults, suiteName) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let keyStore = CoordinatorKeyStore(key: "EDITH-ABCD-1234-EFGH-5678")
-        let coordinator = makeCoordinator(
-            store: InMemoryLicenseCredentialStore(),
-            legacyValidation: LicenseCoordinator.legacyReceiptValidation(
-                keyStore: keyStore, machineIdentifier: { "machine-1" }, defaults: defaults))
-
-        #expect(state(coordinator, now: expiresAt) == .noLicense)
-    }
-
-    @Test func missingKeyIsNoLicenseEvenWithActivatedFlag() throws {
-        let (defaults, suiteName) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(true, forKey: LicenseState.activatedKey)
-        let coordinator = makeCoordinator(
-            store: InMemoryLicenseCredentialStore(),
-            legacyValidation: LicenseCoordinator.legacyReceiptValidation(
-                keyStore: CoordinatorKeyStore(), machineIdentifier: { "machine-1" },
-                defaults: defaults))
-
-        #expect(state(coordinator, now: expiresAt) == .noLicense)
-    }
-
-    @Test func entitlementTakesPrecedenceOverLegacyReceipt() throws {
-        let store = try storeWithEntitlement()
-        let coordinator = makeCoordinator(store: store, legacyValidation: { .valid })
-
-        #expect(state(coordinator, now: expiresAt - 1_000) == .valid(makePayload()))
     }
 
     @Test func unexpiredEntitlementWithPlausibleTimeIsValid() throws {
@@ -236,7 +170,6 @@ import Testing
 
     private func makeCoordinator(
         store: any LicenseCredentialStoring,
-        legacyValidation: @escaping () -> LicenseReceiptValidation? = { nil },
         graceDays: Int = 30,
         uptime: @escaping () -> TimeInterval = { 0 },
         bootSessionId: @escaping () -> String = { "test-boot" }
@@ -246,7 +179,6 @@ import Testing
             verifier: EntitlementVerifier(trustedKeys: [
                 "test-key": signingKey.publicKey.rawRepresentation.base64EncodedString()
             ]),
-            legacyValidation: legacyValidation,
             graceDays: graceDays,
             uptime: uptime,
             bootSessionId: bootSessionId)
@@ -261,13 +193,6 @@ import Testing
         try store.write(try sign(makePayload()), item: .entitlement)
         try trustedTime?.save(to: store)
         return store
-    }
-
-    private func makeDefaults() -> (UserDefaults, String) {
-        let suiteName = "LicenseCoordinatorTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return (defaults, suiteName)
     }
 
     private func makePayload(
@@ -285,39 +210,5 @@ import Testing
         let data = try JSONEncoder().encode(payload)
         let signature = try signingKey.signature(for: data)
         return "\(Base64URL.encode(data)).\(Base64URL.encode(signature))"
-    }
-}
-
-private final class CoordinatorKeyStore: LicenseKeyStoring {
-    private var key: String?
-    private var receipt: String?
-
-    init(key: String? = nil, receipt: String? = nil) {
-        self.key = key
-        self.receipt = receipt
-    }
-
-    func readKey() throws -> String? {
-        key
-    }
-
-    func writeKey(_ key: String) throws {
-        self.key = key
-    }
-
-    func deleteKey() throws {
-        key = nil
-    }
-
-    func readReceipt() throws -> String? {
-        receipt
-    }
-
-    func writeReceipt(_ receipt: String) throws {
-        self.receipt = receipt
-    }
-
-    func deleteReceipt() throws {
-        receipt = nil
     }
 }

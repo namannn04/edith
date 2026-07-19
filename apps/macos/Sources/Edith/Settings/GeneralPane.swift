@@ -308,7 +308,7 @@ struct GeneralPane: View {
         Task {
             defer { deactivating = false }
             do {
-                try await LicenseV2Session(credentialStore: licenseCredentialStore).deactivate()
+                try await LicenseSession(credentialStore: licenseCredentialStore).deactivate()
             } catch {
                 licenseError =
                     "This Mac could not be released, so nothing was removed. "

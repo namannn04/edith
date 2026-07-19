@@ -135,37 +135,14 @@ struct ActivationView: View {
         let trimmedName = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
             do {
-                try await LicenseV2Session(client: client).activate(
+                try await LicenseSession(client: client).activate(
                     licenseKey: formattedKey,
                     deviceName: trimmedName.isEmpty ? nil : trimmedName)
+                try? licenseState.activate(key: formattedKey, label: "Licensed")
                 onActivated()
-            } catch LicenseClientError.server(statusCode: 404) {
-                await activateLegacy(key: formattedKey)
             } catch {
                 handleActivationError(error)
             }
-        }
-    }
-
-    private func activateLegacy(key formattedKey: String) async {
-        guard let machine = hardwareUUID() else {
-            errorMessage = "This Mac could not be identified."
-            activating = false
-            return
-        }
-        do {
-            let response = try await client.activate(key: formattedKey, hardwareUuid: machine)
-            guard response.ok else {
-                errorMessage = "That license key is invalid or inactive."
-                activating = false
-                return
-            }
-            try licenseState.activate(
-                key: formattedKey, label: response.label, name: response.name,
-                receipt: response.receipt)
-            onActivated()
-        } catch {
-            handleActivationError(error)
         }
     }
 
