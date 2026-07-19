@@ -33,12 +33,10 @@ struct DriveInfo: Identifiable, Sendable {
     let id: String
     let name: String
     let totalBytes: Int64
-    let usedBytes: Int64
-    let isExternal: Bool
+    let isRemovable: Bool
+    let isInternal: Bool
 
-    var usedFraction: Double {
-        totalBytes > 0 ? Double(usedBytes) / Double(totalBytes) : 0
-    }
+    var isExternal: Bool { isRemovable || !isInternal }
 }
 
 enum JunkCatalog {
@@ -162,25 +160,31 @@ enum JunkScanner {
 
     static func drives() -> [DriveInfo] {
         let keys: [URLResourceKey] = [
-            .volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
-            .volumeIsInternalKey, .volumeIsBrowsableKey,
+            .volumeNameKey, .volumeTotalCapacityKey, .volumeIsRemovableKey,
+            .volumeIsInternalKey,
         ]
         guard
             let volumes = FileManager.default.mountedVolumeURLs(
                 includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes])
         else { return [] }
-        return volumes.compactMap { url in
-            guard let values = try? url.resourceValues(forKeys: Set(keys)),
-                values.volumeIsBrowsable == true,
-                let total = values.volumeTotalCapacity, total > 0
-            else { return nil }
-            let available = values.volumeAvailableCapacity ?? 0
+        return volumes.map { url in
+            let values = try? url.resourceValues(forKeys: Set(keys))
+            let isSystemVolume = url.path == "/"
             return DriveInfo(
-                id: url.path, name: values.volumeName ?? url.lastPathComponent,
-                totalBytes: Int64(total), usedBytes: Int64(total - available),
-                isExternal: !(values.volumeIsInternal ?? true))
+                id: url.path,
+                name: values?.volumeName ?? (isSystemVolume ? "/" : url.lastPathComponent),
+                totalBytes: Int64(values?.volumeTotalCapacity ?? 0),
+                isRemovable: values?.volumeIsRemovable ?? !isSystemVolume,
+                isInternal: values?.volumeIsInternal ?? isSystemVolume)
         }
         .sorted { $0.isExternal == $1.isExternal ? $0.totalBytes > $1.totalBytes : !$0.isExternal }
+    }
+
+    static func drivesForScanning(
+        _ drives: [DriveInfo], selectedDriveIDs: Set<String>?
+    ) -> [DriveInfo] {
+        let selection = selectedDriveIDs ?? ["/"]
+        return drives.filter { selection.contains($0.id) }
     }
 
     static func clean(_ items: [JunkItem]) -> Int64 {

@@ -71,6 +71,26 @@ import Testing
         #expect(drives.contains { !$0.isExternal && $0.totalBytes > 0 })
     }
 
+    @Test func driveScanningDefaultsToSystemVolumeAndRequiresExternalSelection() {
+        let drives = [
+            DriveInfo(
+                id: "/", name: "Macintosh HD", totalBytes: 1, isRemovable: false,
+                isInternal: true),
+            DriveInfo(
+                id: "/Volumes/Backup", name: "Backup", totalBytes: 1, isRemovable: true,
+                isInternal: false),
+            DriveInfo(
+                id: "/Volumes/Archive", name: "Archive", totalBytes: 1, isRemovable: false,
+                isInternal: false),
+        ]
+
+        #expect(JunkScanner.drivesForScanning(drives, selectedDriveIDs: nil).map(\.id) == ["/"])
+        #expect(
+            JunkScanner.drivesForScanning(
+                drives, selectedDriveIDs: ["/", "/Volumes/Backup"]
+            ).map(\.id) == ["/", "/Volumes/Backup"])
+    }
+
     @Test func formatIsHumanReadable() {
         #expect(JunkScanner.format(1_500_000).contains("MB"))
     }
