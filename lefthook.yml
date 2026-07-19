@@ -5,7 +5,7 @@ pre-push:
       glob: "*.{swift,js,mjs,ts,tsx,css,json,yaml,yml,html}"
       run: make ci-comments
     lint:
-      glob: "{scripts/**,apps/landing/**}"
+      glob: "{scripts/**,apps/web/**}"
       run: make ci-lint
     scripts:
       glob: "scripts/**"

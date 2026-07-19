@@ -9,16 +9,25 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     private var quitObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
     private var settingsChangeDebounce: Timer?
+    private var licenseVerificationTimer: Timer?
+    private var licenseVerificationTask: Task<Void, Never>?
     private let licenseState = LicenseState()
     private let licenseClient = LicenseClient()
     private var licensedAppStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
-        if (try? licenseState.gateDecision()) == .proceed {
+        switch try? licenseState.offlineStatus() {
+        case .valid:
             startLicensedApp()
-            verifyLicenseInBackground()
-        } else {
+        case .needsRefresh:
+            startLicensedApp()
+        case .invalid:
+            try? licenseState.deactivate()
+            terminateHelper()
+            presentActivationGate()
+        case .noKey, nil:
+            terminateHelper()
             presentActivationGate()
         }
     }
@@ -29,6 +38,7 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         licensedAppStarted = true
+        scheduleLicenseVerification()
         ExtensionDefaultsMigration.migrate()
         Repo.prepareStoredPaths()
         applyConfiguredActivationPolicy()
@@ -51,6 +61,7 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
                 self?.scheduleSettingsChangedBroadcast()
             }
         }
+        verifyLicenseInBackground()
     }
 
     private func applyConfiguredActivationPolicy() {
@@ -77,20 +88,75 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func verifyLicenseInBackground() {
+        guard licenseVerificationTask == nil else { return }
+        guard let decision = try? licenseState.gateDecision(), decision != .gate else {
+            invalidateLicenseAndRegate()
+            return
+        }
         guard let key = try? licenseState.licenseKey(), let machine = hardwareUUID() else {
             return
         }
-        Task { [weak self] in
+        licenseVerificationTask = Task { [weak self] in
             guard let self else { return }
+            defer { licenseVerificationTask = nil }
             do {
-                let valid = try await licenseClient.verify(key: key, hardwareUuid: machine)
-                guard !valid else { return }
-                licenseState.markVerificationFailed()
-                presentActivationGate()
+                let response = try await licenseClient.verify(key: key, hardwareUuid: machine)
+                guard !Task.isCancelled else { return }
+                guard response.ok else {
+                    invalidateLicenseAndRegate()
+                    return
+                }
+                do {
+                    try licenseState.recordSuccessfulVerification(receipt: response.receipt)
+                } catch LicenseStateError.invalidReceipt {
+                    invalidateLicenseAndRegate()
+                    return
+                }
+                if response.receipt != nil {
+                    launchHelperIfNeeded()
+                }
+            } catch LicenseClientError.invalidKey {
+                invalidateLicenseAndRegate()
             } catch {
                 return
             }
         }
+    }
+
+    private func scheduleLicenseVerification() {
+        guard licenseVerificationTimer == nil else { return }
+        licenseVerificationTimer = Timer.scheduledTimer(
+            withTimeInterval: 12 * 60 * 60, repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.verifyLicenseInBackground()
+            }
+        }
+    }
+
+    private func invalidateLicenseAndRegate() {
+        try? licenseState.deactivate()
+        stopLicensedApp()
+        presentActivationGate()
+    }
+
+    private func stopLicensedApp() {
+        licenseVerificationTask?.cancel()
+        licenseVerificationTask = nil
+        licenseVerificationTimer?.invalidate()
+        licenseVerificationTimer = nil
+        settingsChangeDebounce?.invalidate()
+        settingsChangeDebounce = nil
+        if let quitObserver {
+            NotificationCenter.default.removeObserver(quitObserver)
+            self.quitObserver = nil
+        }
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+            self.settingsObserver = nil
+        }
+        terminateHelper()
+        licensedAppStarted = false
     }
 
     private func scheduleSettingsChangedBroadcast() {
@@ -101,8 +167,8 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        guard (try? licenseState.gateDecision()) == .proceed else {
-            presentActivationGate()
+        guard let decision = try? licenseState.gateDecision(), decision != .gate else {
+            invalidateLicenseAndRegate()
             return true
         }
         if !licensedAppStarted {
@@ -111,6 +177,24 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
             showInitialWindow()
         }
         return true
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard licensedAppStarted else { return }
+        guard let decision = try? licenseState.gateDecision(), decision != .gate else {
+            invalidateLicenseAndRegate()
+            return
+        }
+        verifyLicenseInBackground()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        licenseVerificationTask?.cancel()
+        licenseVerificationTask = nil
+        licenseVerificationTimer?.invalidate()
+        licenseVerificationTimer = nil
+        settingsChangeDebounce?.invalidate()
+        settingsChangeDebounce = nil
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -147,6 +231,14 @@ private func launchHelperIfNeeded() {
     }
     NSWorkspace.shared.openApplication(
         at: helperURL, configuration: NSWorkspace.OpenConfiguration())
+}
+
+private func terminateHelper() {
+    for helper in NSRunningApplication.runningApplications(
+        withBundleIdentifier: helperBundleIdentifier
+    ) {
+        helper.forceTerminate()
+    }
 }
 
 private func helperInstalledDate(_ helperURL: URL) -> Date? {
@@ -192,7 +284,7 @@ private struct SettingsRedirect: View {
                     {
                         window.close()
                     }
-                    if (try? LicenseState().gateDecision()) == .proceed {
+                    if let decision = try? LicenseState().gateDecision(), decision != .gate {
                         MainWindow.open()
                     }
                 }

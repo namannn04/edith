@@ -3,8 +3,8 @@
   "files": {
     "includes": [
       "scripts/**",
-      "apps/landing/app.js",
-      "apps/landing/styles.css",
+      "apps/web/app/landing-behavior.tsx",
+      "apps/web/app/globals.css",
       "!**/.claude",
       "!extras"
     ]
@@ -12,7 +12,8 @@
   "formatter": { "indentStyle": "space" },
   "overrides": [
     {
-      "includes": ["apps/landing/styles.css"],
+      "includes": ["apps/web/app/globals.css"],
+      "css": { "parser": { "tailwindDirectives": true } },
       "linter": {
         "rules": {
           "complexity": { "noImportantStyles": "off" },
