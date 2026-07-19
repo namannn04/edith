@@ -85,7 +85,7 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <header className="sticky top-0 z-40 border-line border-b bg-[color-mix(in_oklab,var(--color-bg)_72%,transparent)] backdrop-blur-[16px]">
-        <div className="mx-auto flex h-14 w-full max-w-[1120px] items-center justify-between px-6">
+        <div className="mx-auto flex h-14 w-full max-w-280 items-center justify-between px-6">
           <a href="#top" className="flex items-center gap-2 font-semibold text-[15px]">
             <img
               src="/app-icon-512.png"
@@ -109,7 +109,7 @@ export default function HomePage() {
       <main id="top">
         <section className="relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_8%,color-mix(in_oklab,var(--color-accent)_20%,transparent),transparent_70%),radial-gradient(50%_40%_at_82%_26%,color-mix(in_oklab,var(--color-accent)_9%,transparent),transparent_70%)]" aria-hidden="true"></div>
-          <div className="relative mx-auto w-full max-w-[1120px] px-6 pt-24 pb-18 md:pt-36 md:pb-24 [&>h1]:mt-6 [&>h1]:animate-hero-rise [&>h1]:[animation-delay:160ms] motion-reduce:[&>h1]:animate-none [&>p:first-of-type]:mb-6 [&>p:first-of-type]:animate-hero-rise [&>p:first-of-type]:[animation-delay:80ms] [&>p:nth-of-type(3)]:mt-4 [&>p:nth-of-type(3)]:animate-hero-rise [&>p:nth-of-type(3)]:[animation-delay:380ms] motion-reduce:[&>p]:animate-none">
+          <div className="relative mx-auto w-full max-w-280 px-6 pt-24 pb-18 md:pt-36 md:pb-24 [&>h1]:mt-6 [&>h1]:animate-hero-rise [&>h1]:[animation-delay:160ms] motion-reduce:[&>h1]:animate-none [&>p:first-of-type]:mb-6 [&>p:first-of-type]:animate-hero-rise [&>p:first-of-type]:[animation-delay:80ms] [&>p:nth-of-type(3)]:mt-4 [&>p:nth-of-type(3)]:animate-hero-rise [&>p:nth-of-type(3)]:[animation-delay:380ms] motion-reduce:[&>p]:animate-none">
             <img
               src="/app-icon.png"
               alt="Edith app icon"
@@ -123,7 +123,7 @@ export default function HomePage() {
               <br />
               instead of twelve.
             </h1>
-            <p className="mt-6 max-w-[620px] animate-hero-rise text-balance text-[clamp(18px,2.2vw,22px)] text-muted [animation-delay:240ms] motion-reduce:animate-none">
+            <p className="mt-6 max-w-155 animate-hero-rise text-balance text-[clamp(18px,2.2vw,22px)] text-muted [animation-delay:240ms] motion-reduce:animate-none">
               Edith is a native Mac app for Claude and Codex rate-limit
               tracking, usage analytics, local music, and system tools.
             </p>
@@ -137,7 +137,7 @@ export default function HomePage() {
             </div>
             <p className="text-[12px] text-subtle">Requires macOS. Apple Silicon and Intel.</p>
 
-            <div className="mx-auto mt-16 max-w-[900px] animate-hero-rise [animation-delay:480ms] motion-reduce:animate-none [&>p]:mt-4">
+            <div className="mx-auto mt-16 max-w-225 animate-hero-rise [animation-delay:480ms] motion-reduce:animate-none [&>p]:mt-4">
               <div className="relative overflow-hidden rounded-card border border-line-2 bg-surface shadow-demo [&:has(#presenter:checked)_[data-presenter-icon]]:text-accent [&:has(#presenter:checked)_[data-presenter-toggle]]:border-accent/[40%] [&:has(#presenter:checked)_[data-presenter-toggle]]:bg-accent/[15%] [&:has(#presenter:checked)_[data-sensitive]]:select-none [&:has(#presenter:checked)_[data-sensitive]]:blur-[7px]">
                 <input type="checkbox" id="presenter" className="sr-only" />
                 <div className="flex items-center gap-3 border-line border-b px-5 py-3">
@@ -291,8 +291,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-[1120px] px-6 pt-24 pb-24">
-          <div className="grid gap-10 md:grid-cols-[5fr_7fr] [&>div>p]:mt-6 [&>div>p]:max-w-[560px]" data-reveal-group="">
+        <section className="mx-auto w-full max-w-280 px-6 pt-24 pb-24">
+          <div className="grid gap-10 md:grid-cols-[5fr_7fr] [&>div>p]:mt-6 [&>div>p]:max-w-140" data-reveal-group="">
             <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">The pitch</p>
             <div>
               <h2>
@@ -307,7 +307,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="features" className="mx-auto w-full max-w-[1120px] px-6 pb-24">
+        <section id="features" className="mx-auto w-full max-w-280 px-6 pb-24">
           <div className="overflow-hidden rounded-card border border-line bg-surface" data-reveal-group="">
             <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b bg-surface-2 px-6 py-5 font-medium text-[12px] text-muted uppercase tracking-[0.14em] last:border-b-0">
               <span>The feature</span>
@@ -388,8 +388,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="film" className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24 [&>video]:block [&>video]:h-auto [&>video]:w-full [&>video]:rounded-card [&>video]:border [&>video]:border-line-2 [&>video]:bg-black" data-reveal-group="">
-          <div className="mx-auto mb-10 max-w-[620px] text-center [&>h2]:mt-3">
+        <section id="film" className="mx-auto w-full max-w-280 border-line border-t px-6 py-24 [&>video]:block [&>video]:h-auto [&>video]:w-full [&>video]:rounded-card [&>video]:border [&>video]:border-line-2 [&>video]:bg-black" data-reveal-group="">
+          <div className="mx-auto mb-10 max-w-155 text-center [&>h2]:mt-3">
             <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">The film</p>
             <h2>See the whole app in two minutes.</h2>
           </div>
@@ -406,8 +406,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Rate limits</p>
               <h3>Live rings for session and week.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -422,7 +422,7 @@ export default function HomePage() {
                   <span>Rate limits</span>
                   <span className="font-mono text-subtle tabular-nums">session, weekly</span>
                 </div>
-                <div className="flex gap-5 [&_circle:nth-child(2)]:[stroke-dasharray:238.76] [&_circle:nth-child(2)]:[stroke-width:8] [&_svg+span]:top-[34px] [&_svg+span]:text-[20px] [&_svg]:size-24">
+                <div className="flex gap-5 [&_circle:nth-child(2)]:[stroke-dasharray:238.76] [&_circle:nth-child(2)]:[stroke-width:8] [&_svg+span]:top-8.5 [&_svg+span]:text-[20px] [&_svg]:size-24">
                   <div className="relative flex flex-1 flex-col items-center gap-1.5 [&>svg]:size-20">
                     <svg viewBox="0 0 96 96">
                       <circle className="fill-none stroke-warm-10 [stroke-width:7]" cx="48" cy="48" r="38" />
@@ -456,7 +456,7 @@ export default function HomePage() {
                     <span className="font-mono text-[10px] text-subtle tabular-nums">resets 3d 6h</span>
                   </div>
                 </div>
-                <div className="mt-6 flex h-10 items-end gap-[3px]" data-spark=""></div>
+                <div className="mt-6 flex h-10 items-end gap-0.75" data-spark=""></div>
                 <div className="text-center font-mono text-[12px] text-subtle tabular-nums">24-hour spark</div>
               </div>
             </div>
@@ -464,8 +464,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Codex</p>
               <h3>Claude and Codex, side by side.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -481,7 +481,7 @@ export default function HomePage() {
                   <span className="font-mono text-subtle tabular-nums">both tracked</span>
                 </div>
                 <div className="mb-5 flex flex-col gap-3">
-                  <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-5 rounded-xl border border-line px-[18px] py-3.5 text-[14px]">
+                  <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-5 rounded-xl border border-line px-4.5 py-3.5 text-[14px]">
                     <span className="font-semibold text-[15px]">Claude</span>
                     <span className="font-mono tabular-nums">
                       47% <span className="text-subtle">session</span>
@@ -490,7 +490,7 @@ export default function HomePage() {
                       68% <span className="text-subtle">week</span>
                     </span>
                   </div>
-                  <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-5 rounded-xl border border-line px-[18px] py-3.5 text-[14px]">
+                  <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-5 rounded-xl border border-line px-4.5 py-3.5 text-[14px]">
                     <span className="font-semibold text-[15px]">Codex</span>
                     <span className="font-mono tabular-nums">
                       12% <span className="text-subtle">session</span>
@@ -510,8 +510,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Menu bar</p>
               <h3>Two numbers in your menu bar.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -547,8 +547,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Notifications</p>
               <h3>Alerts that stay out of your way.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -601,8 +601,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Heatmap</p>
               <h3>A year of usage at a glance.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -641,8 +641,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Music</p>
               <h3>Your local music folder, done right.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -690,8 +690,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Privacy</p>
               <h3>Presenter mode for the room.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -736,8 +736,8 @@ export default function HomePage() {
         </section>
 
         <section className="border-line border-t">
-          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
-            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
+          <div className="mx-auto grid w-full max-w-280 items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+            <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-110">
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">System</p>
               <h3>Prevent sleep. Lock the keyboard.</h3>
               <p className="text-[17px] text-muted leading-[1.6]">
@@ -776,16 +776,16 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24">
-          <div className="mx-auto mb-14 max-w-[620px] text-center [&>h2]:mt-3" data-reveal-item="">
+        <section className="mx-auto w-full max-w-280 border-line border-t px-6 py-24">
+          <div className="mx-auto mb-14 max-w-155 text-center [&>h2]:mt-3" data-reveal-item="">
             <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">And the rest of the shelf</p>
             <h2>Everything else you'd otherwise install one by one.</h2>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-reveal-group="">
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="relative size-[38px] shrink-0 rounded-full border-2 border-accent bg-[conic-gradient(var(--color-line-2)_0_25%,transparent_0_50%,var(--color-line-2)_0_75%,transparent_0)_0_0/10px_10px,var(--color-surface)] after:absolute after:inset-1/2 after:m-[-4.5px] after:size-[9px] after:border-[1.5px] after:border-fg after:bg-accent after:content-['']"></span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/[40%]! border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-accent! text-muted tabular-nums">&#35;F5A623</span>
+              <div className="flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="relative size-9.5 shrink-0 rounded-full border-2 border-accent bg-[conic-gradient(var(--color-line-2)_0_25%,transparent_0_50%,var(--color-line-2)_0_75%,transparent_0)_0_0/10px_10px,var(--color-surface)] after:absolute after:inset-1/2 after:m-[-4.5px] after:size-2.25 after:border-[1.5px] after:border-fg after:bg-accent after:content-['']"></span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/[40%]! border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-accent! text-muted tabular-nums">&#35;F5A623</span>
               </div>
               <h4>Color picker</h4>
               <p>
@@ -794,9 +794,9 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="relative flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="h-[46px] w-[72px] translate-x-2.5 -translate-y-1.5 rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] opacity-[0.35]"></span>
-                <span className="h-[46px] w-[72px] -translate-x-2.5 translate-y-1.5 rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] shadow-window"></span>
+              <div className="relative flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="h-11.5 w-18 translate-x-2.5 -translate-y-1.5 rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] opacity-[0.35]"></span>
+                <span className="h-11.5 w-18 -translate-x-2.5 translate-y-1.5 rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] shadow-window"></span>
               </div>
               <h4>Focus dim</h4>
               <p>
@@ -805,12 +805,12 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="-mt-3.5 h-[15px] w-[92px] self-center rounded-b-[10px] border border-line-2 border-t-0 bg-black"></span>
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="-mt-3.5 h-3.75 w-23 self-center rounded-b-[10px] border border-line-2 border-t-0 bg-black"></span>
                 <span className="flex justify-center gap-2">
-                  <span className="h-[27px] w-[22px] rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
-                  <span className="h-[27px] w-[22px] rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
-                  <span className="h-[27px] w-[22px] rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
+                  <span className="h-6.75 w-5.5 rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
+                  <span className="h-6.75 w-5.5 rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
+                  <span className="h-6.75 w-5.5 rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
                 </span>
               </div>
               <h4>Notch shelf</h4>
@@ -820,7 +820,7 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2 rounded-lg border border-line-2 bg-accent/[8%] px-2 py-1 [&>span:first-child]:flex-1 [&>span:first-child]:bg-[color-mix(in_oklab,var(--color-accent)_50%,var(--color-line-2))]">
                   <span className="h-1.5 w-3/5 shrink-0 rounded-full bg-line-2"></span>
                   <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-muted">⌘V</span>
@@ -838,11 +838,11 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <i className="inline-block size-2 rounded-full bg-accent"></i>
                   <span className="truncate text-[11px] text-muted">10:00 Standup</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/[40%]! border-line-2 px-[9px] py-[3px] text-[10.5px] text-accent! text-muted">Join</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/[40%]! border-line-2 px-2.25 py-0.75 text-[10.5px] text-accent! text-muted">Join</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <i className="inline-block size-2 rounded-full bg-sage"></i>
@@ -856,16 +856,16 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">SF 11:59</span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">NY 2:29</span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">LDN 7:29</span>
+              <div className="flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">SF 11:59</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">NY 2:29</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">LDN 7:29</span>
               </div>
               <h4>World clocks</h4>
               <p>Local time plus the offices you care about, at a glance.</p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="inline-flex h-10 h-6 min-w-10 min-w-6 items-center justify-center rounded-[9px] rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-[17px] text-muted">⌥</span>
                 <span className="inline-flex h-10 h-6 min-w-10 min-w-6 items-center justify-center rounded-[9px] rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-[17px] text-muted">⌘</span>
                 <span className="inline-flex h-10 h-6 min-w-10 min-w-6 items-center justify-center rounded-[9px] rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-[17px] text-muted">E</span>
@@ -877,8 +877,8 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="relative mt-[9px] h-[15px] w-5 shrink-0 rounded bg-accent before:absolute before:top-[-9px] before:left-[3px] before:box-border before:h-3 before:w-3.5 before:rounded-t-lg before:border-[2.5px] before:border-muted before:border-b-0 before:content-['']"></span>
+              <div className="flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="relative mt-2.25 h-3.75 w-5 shrink-0 rounded bg-accent before:absolute before:top-[-9px] before:left-0.75 before:box-border before:h-3 before:w-3.5 before:rounded-t-lg before:border-[2.5px] before:border-muted before:border-b-0 before:content-['']"></span>
                 <span className="truncate text-[11px] text-muted">Stays on this Mac</span>
               </div>
               <h4>Local first</h4>
@@ -888,9 +888,9 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="relative h-[19px] w-3 shrink-0 rounded-full bg-muted before:absolute before:-inset-x-[5px] before:-bottom-[5px] before:h-3 before:rounded-b-[11px] before:border-2 before:border-muted before:border-t-0 before:content-[''] after:absolute after:-top-1.5 after:-bottom-2 after:left-1/2 after:w-[2.5px] after:rotate-45 after:rounded-[2px] after:bg-danger after:content-['']"></span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted">
+              <div className="flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="relative h-4.75 w-3 shrink-0 rounded-full bg-muted before:absolute before:-inset-x-1.25 before:-bottom-1.25 before:h-3 before:rounded-b-[11px] before:border-2 before:border-muted before:border-t-0 before:content-[''] after:absolute after:-top-1.5 after:-bottom-2 after:left-1/2 after:w-0.625 after:rotate-45 after:rounded-[2px] after:bg-danger after:content-['']"></span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 text-[10.5px] text-muted">
                   <i className="inline-block size-2 rounded-full bg-danger"></i>All mics muted
                 </span>
               </div>
@@ -901,22 +901,22 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="w-11 shrink-0 truncate text-[11px] text-muted">Safari</span>
-                  <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
+                  <span className="h-1 min-w-7.5 flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "35%" }}></i>
                   </span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="w-11 shrink-0 truncate text-[11px] text-muted">Music</span>
-                  <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
+                  <span className="h-1 min-w-7.5 flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "80%" }}></i>
                   </span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="w-11 shrink-0 truncate text-[11px] text-muted">Zoom</span>
-                  <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
+                  <span className="h-1 min-w-7.5 flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "55%" }}></i>
                   </span>
                 </span>
@@ -928,9 +928,9 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="-mt-3.5 h-[15px] w-[92px] self-center rounded-b-[10px] border border-line-2 border-t-0 bg-black"></span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="-mt-3.5 h-3.75 w-23 self-center rounded-b-[10px] border border-line-2 border-t-0 bg-black"></span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 text-[10.5px] text-muted">
                   <i className="inline-block size-2 rounded-full bg-sage"></i>AirPods connected
                 </span>
               </div>
@@ -941,8 +941,8 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="flex flex-1 items-center justify-between gap-3 rounded-lg border border-line-2 bg-surface px-3 py-[7px] font-mono text-[11px] text-fg tabular-nums">
+              <div className="flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="flex flex-1 items-center justify-between gap-3 rounded-lg border border-line-2 bg-surface px-3 py-1.75 font-mono text-[11px] text-fg tabular-nums">
                   CPU 3% · 6.2 GB<span className="text-subtle">Wed 14:22</span>
                 </span>
               </div>
@@ -953,13 +953,13 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">Build caches</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">8.2 GB</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">8.2 GB</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
+                  <span className="h-1 min-w-7.5 flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "64%" }}></i>
                   </span>
                   <span className="truncate font-mono text-[11px] text-muted tabular-nums">12.4 GB found</span>
@@ -972,16 +972,16 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">Chrome</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">42%</span>
-                  <span className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-md border border-line-2 text-[9px] text-danger">✕</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">42%</span>
+                  <span className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-md border border-line-2 text-[9px] text-danger">✕</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">node</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">31%</span>
-                  <span className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-md border border-line-2 text-[9px] text-danger">✕</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">31%</span>
+                  <span className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-md border border-line-2 text-[9px] text-danger">✕</span>
                 </span>
               </div>
               <h4>Running apps</h4>
@@ -991,12 +991,12 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="block! inline-flex max-w-full items-center gap-1.5 self-start truncate whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="block! inline-flex max-w-full items-center gap-1.5 self-start truncate whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">
                   youtube.com/watch?v=dQw4…
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
+                  <span className="h-1 min-w-7.5 flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "64%" }}></i>
                   </span>
                   <span className="truncate font-mono text-[11px] text-muted tabular-nums">64%</span>
@@ -1009,14 +1009,14 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">▸ edith</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">$412</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">$412</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2 pl-4">
                   <span className="truncate text-[11px] text-muted">notch-motion</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">$268</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-2.25 py-0.75 font-mono text-[10.5px] text-muted tabular-nums">$268</span>
                 </span>
               </div>
               <h4>Project drilldown</h4>
@@ -1026,13 +1026,13 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+              <div className="items-stretch! justify-center! flex h-26 flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <i className="inline-block size-2 rounded-full bg-sage"></i>
                   <span className="truncate text-[11px] text-muted">Spotify · Weightless</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
+                  <span className="h-1 min-w-7.5 flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "42%" }}></i>
                   </span>
                   <span className="truncate font-mono text-[11px] text-muted tabular-nums">-3:34</span>
@@ -1045,10 +1045,10 @@ export default function HomePage() {
               </p>
             </div>
             <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="relative h-[62px] w-[110px] rounded-[10px] border border-line-2 bg-black">
-                  <span className="absolute top-1/2 left-1/2 size-6 -translate-x-1/2 -translate-y-[60%] rounded-full bg-surface-2 after:absolute after:top-[26px] after:left-1/2 after:h-[18px] after:w-[34px] after:-translate-x-1/2 after:rounded-t-[10px] after:bg-surface-2 after:content-['']"></span>
-                  <span className="absolute right-[5px] bottom-[5px] flex size-[18px] items-center justify-center rounded-md bg-white/[12%] text-[10px] text-fg">⟳</span>
+              <div className="flex h-26 items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="relative h-15.5 w-27.5 rounded-[10px] border border-line-2 bg-black">
+                  <span className="absolute top-1/2 left-1/2 size-6 -translate-x-1/2 -translate-y-[60%] rounded-full bg-surface-2 after:absolute after:top-6.5 after:left-1/2 after:h-4.5 after:w-8.5 after:-translate-x-1/2 after:rounded-t-[10px] after:bg-surface-2 after:content-['']"></span>
+                  <span className="absolute right-1.25 bottom-1.25 flex size-4.5 items-center justify-center rounded-md bg-white/[12%] text-[10px] text-fg">⟳</span>
                 </span>
               </div>
               <h4>Camera check</h4>
@@ -1060,8 +1060,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="performance" className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24">
-          <div className="grid gap-12 md:grid-cols-[5fr_7fr] md:items-start [&>div:first-child>h2]:mt-4 [&>div:first-child>p:nth-of-type(2)]:mt-6 [&>div:first-child>p:nth-of-type(2)]:max-w-[440px] [&>div:first-child>p:nth-of-type(3)]:mt-4" data-reveal-group="">
+        <section id="performance" className="mx-auto w-full max-w-280 border-line border-t px-6 py-24">
+          <div className="grid gap-12 md:grid-cols-[5fr_7fr] md:items-start [&>div:first-child>h2]:mt-4 [&>div:first-child>p:nth-of-type(2)]:mt-6 [&>div:first-child>p:nth-of-type(2)]:max-w-110 [&>div:first-child>p:nth-of-type(3)]:mt-4" data-reveal-group="">
             <div>
               <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">24/7, quietly</p>
               <h2>Built to sit in your menu bar forever.</h2>
@@ -1100,17 +1100,17 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24 text-center [&>h2]:mx-auto [&>h2]:mt-4 [&>h2]:max-w-[760px] [&>p:last-child]:mt-6" data-reveal-group="">
+        <section className="mx-auto w-full max-w-280 border-line border-t px-6 py-24 text-center [&>h2]:mx-auto [&>h2]:mt-4 [&>h2]:max-w-190 [&>p:last-child]:mt-6" data-reveal-group="">
           <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Local first</p>
           <h2>Your usage never leaves your Mac.</h2>
-          <p className="mx-auto max-w-[620px] text-[17px] text-muted leading-[1.6]">
+          <p className="mx-auto max-w-155 text-[17px] text-muted leading-[1.6]">
             No account. No telemetry. Optional iCloud backup merges cleanly
             across machines so your history follows you between a MacBook and a
             Mac mini.
           </p>
         </section>
 
-        <section id="download" className="mx-auto w-full max-w-[1120px] border-line border-t px-6 pt-24 pb-28 text-center [&>a]:mt-8 [&>h2]:mx-auto [&>h2]:max-w-[640px] [&>p]:mt-3" data-reveal-group="">
+        <section id="download" className="mx-auto w-full max-w-280 border-line border-t px-6 pt-24 pb-28 text-center [&>a]:mt-8 [&>h2]:mx-auto [&>h2]:max-w-160 [&>p]:mt-3" data-reveal-group="">
           <h2>Try Edith on your Mac.</h2>
           <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-accent px-6 py-3 font-medium text-[14px] text-accent-fg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
             <svg className="size-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
@@ -1123,7 +1123,7 @@ export default function HomePage() {
       </main>
 
       <footer className="border-line border-t">
-        <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 px-6 py-10 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex w-full max-w-280 flex-col gap-6 px-6 py-10 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 font-semibold text-[15px]">
             <img
               src="/app-icon-512.png"

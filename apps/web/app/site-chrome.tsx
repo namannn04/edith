@@ -1,7 +1,7 @@
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-line border-b bg-[color-mix(in_oklab,var(--color-bg)_72%,transparent)] backdrop-blur-[16px]">
-      <div className="mx-auto flex h-14 w-full max-w-[1120px] items-center justify-between px-6">
+      <div className="mx-auto flex h-14 w-full max-w-280 items-center justify-between px-6">
         <a href="/" className="flex items-center gap-2 font-semibold text-[15px]">
           <img
             src="/app-icon-512.png"
@@ -27,7 +27,7 @@ export function SiteHeader() {
 export function SiteFooter() {
   return (
     <footer className="border-line border-t">
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 px-6 py-10 md:flex-row md:items-center md:justify-between">
+      <div className="mx-auto flex w-full max-w-280 flex-col gap-6 px-6 py-10 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2 font-semibold text-[15px]">
           <img
             src="/app-icon-512.png"
