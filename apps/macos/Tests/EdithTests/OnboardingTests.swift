@@ -84,6 +84,33 @@ import Testing
         #expect(OnboardingFlow.hasOptionalPermissions(selectedIDs: selectedIDs))
     }
 
+    @Test func preexistingPermissionIsNotNewlyGranted() {
+        let count = OnboardingFlow.newlyGrantedCount(
+            selectedIDs: ["usage"],
+            baseline: [.notifications: true],
+            current: [.notifications: true])
+
+        #expect(count == 0)
+    }
+
+    @Test func permissionGrantedDuringOnboardingIsNewlyGranted() {
+        let count = OnboardingFlow.newlyGrantedCount(
+            selectedIDs: ["usage"],
+            baseline: [.notifications: false],
+            current: [.notifications: true])
+
+        #expect(count == 1)
+    }
+
+    @Test func unselectedExtensionPermissionIsNotNewlyGranted() {
+        let count = OnboardingFlow.newlyGrantedCount(
+            selectedIDs: ["usage"],
+            baseline: [.screenRecording: false],
+            current: [.screenRecording: true])
+
+        #expect(count == 0)
+    }
+
     @Test func skipEnablesNothing() {
         let (defaults, suiteName) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

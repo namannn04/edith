@@ -12,6 +12,7 @@ struct OnboardingView: View {
     }
 
     let onFinish: () -> Void
+    private let baselineGrantedPermissions: [ExtensionPermission: Bool]
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = Step.welcome
@@ -19,8 +20,15 @@ struct OnboardingView: View {
     @State private var selectedIDs = OnboardingFlow.initialSelectedIDs
     @State private var icloudBackup = OnboardingFlow.initialICloudBackup
     @State private var showsAllExtensions = false
-    @State private var grantedPermissions = OnboardingFlow.grantedPermissions()
+    @State private var grantedPermissions: [ExtensionPermission: Bool]
     @State private var permissionItems: [OnboardingPermission] = []
+
+    init(onFinish: @escaping () -> Void) {
+        let baselineGrantedPermissions = OnboardingFlow.grantedPermissions()
+        self.onFinish = onFinish
+        self.baselineGrantedPermissions = baselineGrantedPermissions
+        _grantedPermissions = State(initialValue: baselineGrantedPermissions)
+    }
 
     private var dark: Bool { colorScheme == .dark }
     private var glide: Animation {
@@ -364,13 +372,15 @@ struct OnboardingView: View {
 
     private var readySummary: String {
         let extensionCount = selectedIDs.count
-        let permissionCount = OnboardingFlow.grantedPermissionCount(
-            selectedIDs: selectedIDs, granted: grantedPermissions)
         let extensionLabel = extensionCount == 1 ? "extension" : "extensions"
+        let extensionSummary = "\(extensionCount) \(extensionLabel) on"
+        let permissionCount = OnboardingFlow.newlyGrantedCount(
+            selectedIDs: selectedIDs,
+            baseline: baselineGrantedPermissions,
+            current: grantedPermissions)
+        guard permissionCount > 0 else { return extensionSummary }
         let permissionLabel = permissionCount == 1 ? "permission" : "permissions"
-        return
-            "\(extensionCount) \(extensionLabel) on, "
-            + "\(permissionCount) \(permissionLabel) granted"
+        return "\(extensionSummary), \(permissionCount) \(permissionLabel) granted"
     }
 
     private func stepHeading(_ title: String, detail: String) -> some View {

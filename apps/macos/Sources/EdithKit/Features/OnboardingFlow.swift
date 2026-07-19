@@ -58,16 +58,17 @@ public enum OnboardingFlow {
         }
     }
 
-    public static func grantedPermissionCount(
+    public static func newlyGrantedCount(
         selectedIDs: Set<String>,
         entries: [ExtensionRegistryEntry] = ExtensionRegistry.entries,
-        granted: [ExtensionPermission: Bool]
+        baseline: [ExtensionPermission: Bool],
+        current: [ExtensionPermission: Bool]
     ) -> Int {
         let permissions = Set(
             entries.filter { selectedIDs.contains($0.id) }.flatMap {
                 $0.requiredPermissions + $0.optionalPermissions
             })
-        return permissions.filter { granted[$0] == true }.count
+        return permissions.filter { baseline[$0] != true && current[$0] == true }.count
     }
 
     public static func seenKey(for entry: ExtensionRegistryEntry) -> String {
