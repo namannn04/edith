@@ -1,6 +1,5 @@
 import Foundation
 import IOKit
-import Security
 
 public protocol LicenseTransport {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
@@ -142,85 +141,58 @@ public protocol LicenseKeyStoring {
     func deleteReceipt() throws
 }
 
-public enum LicenseKeychainError: Error, Equatable {
-    case unexpectedData
-    case status(OSStatus)
-}
+public struct FileLicenseKeyStore: LicenseKeyStoring {
+    public static let keyFilename = "license-key"
+    public static let receiptFilename = "license-receipt"
 
-public struct KeychainLicenseKeyStore: LicenseKeyStoring {
-    public static let service = "com.pulkit.edith.license"
-    public static let keyAccount = "license-key"
-    public static let receiptAccount = "license-receipt"
+    private let keyURL: URL
+    private let receiptURL: URL
 
-    public init() {}
+    public init(directory: URL = AppData.supportDir) {
+        keyURL = directory.appendingPathComponent(Self.keyFilename)
+        receiptURL = directory.appendingPathComponent(Self.receiptFilename)
+    }
 
     public func readKey() throws -> String? {
-        try readValue(account: Self.keyAccount)
+        try read(keyURL)
     }
 
     public func writeKey(_ key: String) throws {
-        try writeValue(key, account: Self.keyAccount)
+        try write(key, to: keyURL)
     }
 
     public func deleteKey() throws {
-        try deleteValue(account: Self.keyAccount)
+        try delete(keyURL)
     }
 
     public func readReceipt() throws -> String? {
-        try readValue(account: Self.receiptAccount)
+        try read(receiptURL)
     }
 
     public func writeReceipt(_ receipt: String) throws {
-        try writeValue(receipt, account: Self.receiptAccount)
+        try write(receipt, to: receiptURL)
     }
 
     public func deleteReceipt() throws {
-        try deleteValue(account: Self.receiptAccount)
+        try delete(receiptURL)
     }
 
-    private func readValue(account: String) throws -> String? {
-        var query = baseQuery(account: account)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess else { throw LicenseKeychainError.status(status) }
-        guard let data = result as? Data, let value = String(data: data, encoding: .utf8) else {
-            throw LicenseKeychainError.unexpectedData
-        }
-        return value
+    private func read(_ url: URL) throws -> String? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try String(contentsOf: url, encoding: .utf8)
     }
 
-    private func writeValue(_ value: String, account: String) throws {
-        let query = baseQuery(account: account)
-        let data = Data(value.utf8)
-        let attributes = [kSecValueData as String: data]
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if updateStatus == errSecSuccess { return }
-        guard updateStatus == errSecItemNotFound else {
-            throw LicenseKeychainError.status(updateStatus)
-        }
-        var item = query
-        item[kSecValueData as String] = data
-        let addStatus = SecItemAdd(item as CFDictionary, nil)
-        guard addStatus == errSecSuccess else { throw LicenseKeychainError.status(addStatus) }
+    private func write(_ value: String, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(value.utf8).write(to: url, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
-    private func deleteValue(account: String) throws {
-        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw LicenseKeychainError.status(status)
-        }
-    }
-
-    private func baseQuery(account: String) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: false,
-        ]
+    private func delete(_ url: URL) throws {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try FileManager.default.removeItem(at: url)
     }
 }
 
@@ -255,7 +227,7 @@ public final class LicenseState {
     private let machineIdentifier: () -> String?
 
     public init(
-        keyStore: any LicenseKeyStoring = KeychainLicenseKeyStore(),
+        keyStore: any LicenseKeyStoring = FileLicenseKeyStore(),
         defaults: UserDefaults = SharedDefaults.store,
         receiptVerifier: LicenseReceiptVerifier = LicenseReceiptVerifier(),
         machineIdentifier: @escaping () -> String? = hardwareUUID

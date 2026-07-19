@@ -119,6 +119,34 @@ import Testing
         #expect(defaults.object(forKey: LicenseState.labelKey) == nil)
     }
 
+    @Test func fileStoreRoundTripsKeyAndReceipt() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LicenseTests.\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = FileLicenseKeyStore(directory: directory)
+
+        #expect(try store.readKey() == nil)
+        #expect(try store.readReceipt() == nil)
+
+        try store.writeKey("EDITH-ABCD-1234-EFGH-5678")
+        try store.writeReceipt("signed-receipt")
+
+        #expect(try store.readKey() == "EDITH-ABCD-1234-EFGH-5678")
+        #expect(try store.readReceipt() == "signed-receipt")
+        let keyPath = directory.appendingPathComponent(FileLicenseKeyStore.keyFilename).path
+        let permissions =
+            try FileManager.default.attributesOfItem(atPath: keyPath)[
+                .posixPermissions] as? Int
+        #expect(permissions == 0o600)
+
+        try store.deleteKey()
+        try store.deleteReceipt()
+        try store.deleteKey()
+
+        #expect(try store.readKey() == nil)
+        #expect(try store.readReceipt() == nil)
+    }
+
     @Test func gateProceedsOnlyWithKeyAndActivatedMirror() {
         #expect(licenseGateDecision(hasKey: true, licenseActivated: true) == .proceedNeedsRefresh)
         #expect(licenseGateDecision(hasKey: false, licenseActivated: true) == .gate)
