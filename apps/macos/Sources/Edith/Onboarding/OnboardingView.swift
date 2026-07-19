@@ -270,6 +270,7 @@ struct OnboardingView: View {
             HStack(spacing: 14) {
                 Text(hotKeyLabel)
                     .font(DashSkin.mono(20, weight: .semibold))
+                    .kerning(2)
                     .foregroundStyle(DashSkin.ink(dark))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)

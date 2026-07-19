@@ -46,6 +46,7 @@ struct ShortcutsSettingsPane: View {
                 LabeledContent("Toggle sidebar") {
                     Text("⌘B")
                         .font(.system(size: 12, weight: .medium))
+                        .kerning(2)
                         .foregroundStyle(.secondary)
                 }
                 LabeledContent("Close panel") {
@@ -56,11 +57,13 @@ struct ShortcutsSettingsPane: View {
                 LabeledContent("Back") {
                     Text("⌘[")
                         .font(.system(size: 12, weight: .medium))
+                        .kerning(2)
                         .foregroundStyle(.secondary)
                 }
                 LabeledContent("Forward") {
                     Text("⌘]")
                         .font(.system(size: 12, weight: .medium))
+                        .kerning(2)
                         .foregroundStyle(.secondary)
                 }
             } header: {
@@ -125,6 +128,7 @@ struct HotKeyRecorderControl: View {
         } label: {
             Text(recording ? "Press shortcut…" : currentLabel)
                 .font(.system(size: 12, weight: .medium))
+                .kerning(recording ? 0 : 2)
                 .padding(.vertical, 2)
                 .padding(.horizontal, 6)
         }
