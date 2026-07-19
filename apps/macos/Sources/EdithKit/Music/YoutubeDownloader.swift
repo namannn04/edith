@@ -152,6 +152,7 @@ public final class YoutubeDownloader: ObservableObject {
         let p = Process()
         p.executableURL = exe
         p.arguments = prefix + ["--version"]
+        p.environment = toolchainEnvironment()
         let outPipe = Pipe()
         let errPipe = Pipe()
         p.standardOutput = outPipe
@@ -186,6 +187,7 @@ public final class YoutubeDownloader: ObservableObject {
         let p = Process()
         p.executableURL = exe
         p.arguments = prefix + ["-U"]
+        p.environment = toolchainEnvironment()
         let outPipe = Pipe()
         let errPipe = Pipe()
         p.standardOutput = outPipe
@@ -418,7 +420,10 @@ public final class YoutubeDownloader: ObservableObject {
     private func toolchainEnvironment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         let toolDirs = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
-        let existing = env["PATH"].map { [$0] } ?? []
+        let existing =
+            env["PATH"]?.split(separator: ":").map(String.init).filter {
+                RestoredPathValidation.verdict(for: $0) == .keep
+            } ?? []
         env["PATH"] = (toolDirs + existing).joined(separator: ":")
         return env
     }

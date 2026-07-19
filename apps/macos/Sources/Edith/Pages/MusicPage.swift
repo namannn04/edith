@@ -60,10 +60,13 @@ final class MusicRemote: ObservableObject {
     var progress: Double { duration > 0 ? min(elapsed / duration, 1) : 0 }
 
     private var folderObserver: NSObjectProtocol?
+    private var folderIPCObserver: NSObjectProtocol?
 
     func start() {
-        rescan()
-        guard stateObserver == nil else { return }
+        if stateObserver != nil {
+            rescan()
+            return
+        }
         stateObserver = IPC.observe(
             IPC.Name.musicState,
             info: { [weak self] info in
@@ -75,6 +78,10 @@ final class MusicRemote: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
         }
+        folderIPCObserver = IPC.observe(IPC.Name.musicFolderChanged) { [weak self] in
+            MainActor.assumeIsolated { self?.rescan() }
+        }
+        rescan()
     }
 
     func stop() {
@@ -85,6 +92,10 @@ final class MusicRemote: ObservableObject {
         if let folderObserver {
             NotificationCenter.default.removeObserver(folderObserver)
             self.folderObserver = nil
+        }
+        if let folderIPCObserver {
+            IPC.stopObserving(folderIPCObserver)
+            self.folderIPCObserver = nil
         }
         tracks = []
         currentFile = nil
@@ -148,6 +159,9 @@ struct MusicPage: View {
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
+    @AppStorage(
+        Repo.musicFolderStaleKey, store: SharedDefaults.store)
+    private var musicFolderStale = false
     @StateObject private var presenterState = PresenterState.shared
     @Environment(\.colorScheme) private var scheme
     @State private var search = ""
@@ -212,6 +226,15 @@ struct MusicPage: View {
                 .buttonStyle(HoverButtonStyle())
                 .help("Download YouTube audio")
             }
+            if musicFolderStale {
+                HStack(spacing: 5) {
+                    Text("A previous external music folder was skipped.")
+                    Button("Choose it again", action: chooseMusicFolder)
+                        .buttonStyle(.link)
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            }
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12))
@@ -257,6 +280,19 @@ struct MusicPage: View {
                 .padding(.bottom, 8)
             }
         }
+    }
+
+    private func chooseMusicFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        panel.message = "Choose your music folder"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Repo.setMusicDirectory(url)
+        remote.rescan()
+        IPC.post(IPC.Name.musicFolderChanged)
     }
 
 }

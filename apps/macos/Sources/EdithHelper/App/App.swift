@@ -34,6 +34,7 @@ func migratedServices() -> AppServices {
     }
     SharedDefaults.migrate()
     ExtensionDefaultsMigration.migrate()
+    Repo.prepareStoredPaths()
     return AppServices()
 }
 

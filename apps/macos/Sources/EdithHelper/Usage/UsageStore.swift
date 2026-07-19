@@ -535,7 +535,9 @@ final class UsageStore: ObservableObject, FeatureModule {
         ]
         if let path = ProcessInfo.processInfo.environment["PATH"] {
             for directory in path.split(separator: ":") {
-                let candidate = URL(fileURLWithPath: String(directory))
+                let directoryPath = String(directory)
+                guard RestoredPathValidation.verdict(for: directoryPath) == .keep else { continue }
+                let candidate = URL(fileURLWithPath: directoryPath)
                     .appendingPathComponent("codex").path
                 if fm.isExecutableFile(atPath: candidate) { return URL(fileURLWithPath: candidate) }
             }

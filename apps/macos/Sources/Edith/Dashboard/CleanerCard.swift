@@ -9,6 +9,7 @@ final class CancelToken: @unchecked Sendable {
 @MainActor
 final class CleanerModel: ObservableObject {
     static let shared = CleanerModel()
+    private static let confirmedExternalPathsKey = "cleanerConfirmedExternalPaths"
 
     @Published private(set) var categories: [JunkCategory] = []
     @Published private(set) var scanning = false
@@ -25,20 +26,32 @@ final class CleanerModel: ObservableObject {
     private var scanToken: CancelToken?
 
     init() {
+        let confirmed = Set(
+            SharedDefaults.store.array(forKey: Self.confirmedExternalPathsKey) as? [String] ?? [])
         if let raw = SharedDefaults.store.array(forKey: "cleanerSelectedDrives") as? [String] {
-            driveSelection = Set(raw)
+            let kept = raw.filter { Self.pathIsAllowed($0, confirmed: confirmed) }
+            driveSelection = Set(kept)
+            if kept != raw {
+                SharedDefaults.store.set(kept, forKey: "cleanerSelectedDrives")
+            }
         }
         if let raw = SharedDefaults.store.array(forKey: "cleanerCustomFolders") as? [String] {
-            customFolders = raw
+            let kept = raw.filter { Self.pathIsAllowed($0, confirmed: confirmed) }
+            customFolders = kept
+            if kept != raw {
+                SharedDefaults.store.set(kept, forKey: "cleanerCustomFolders")
+            }
         }
     }
 
     func addCustomFolder(_ path: String) {
-        guard !customFolders.contains(path) else { return }
-        customFolders.append(path)
+        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        guard !customFolders.contains(standardizedPath) else { return }
+        confirmExternalPathIfNeeded(standardizedPath)
+        customFolders.append(standardizedPath)
         SharedDefaults.store.set(customFolders, forKey: "cleanerCustomFolders")
         var selection = driveSelection ?? ["/"]
-        selection.insert(path)
+        selection.insert(standardizedPath)
         driveSelection = selection
         SharedDefaults.store.set(Array(selection), forKey: "cleanerSelectedDrives")
     }
@@ -50,6 +63,7 @@ final class CleanerModel: ObservableObject {
         if driveSelection != nil {
             SharedDefaults.store.set(Array(driveSelection ?? []), forKey: "cleanerSelectedDrives")
         }
+        removeExternalConfirmation(path)
     }
 
     var reclaimableTotal: Int64 { categories.reduce(0) { $0 + $1.sizeBytes } }
@@ -95,9 +109,35 @@ final class CleanerModel: ObservableObject {
 
     func toggleDrive(_ id: String) {
         var selection = driveSelection ?? ["/"]
-        if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+        if selection.contains(id) {
+            selection.remove(id)
+            if !customFolders.contains(id) { removeExternalConfirmation(id) }
+        } else {
+            confirmExternalPathIfNeeded(id)
+            selection.insert(id)
+        }
         driveSelection = selection
         SharedDefaults.store.set(Array(selection), forKey: "cleanerSelectedDrives")
+    }
+
+    private static func pathIsAllowed(_ path: String, confirmed: Set<String>) -> Bool {
+        RestoredPathValidation.verdict(for: path) == .keep
+            || confirmed.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
+    }
+
+    private func confirmExternalPathIfNeeded(_ path: String) {
+        guard RestoredPathValidation.verdict(for: path) == .drop else { return }
+        var confirmed = Set(
+            SharedDefaults.store.array(forKey: Self.confirmedExternalPathsKey) as? [String] ?? [])
+        confirmed.insert(URL(fileURLWithPath: path).standardizedFileURL.path)
+        SharedDefaults.store.set(Array(confirmed), forKey: Self.confirmedExternalPathsKey)
+    }
+
+    private func removeExternalConfirmation(_ path: String) {
+        var confirmed = Set(
+            SharedDefaults.store.array(forKey: Self.confirmedExternalPathsKey) as? [String] ?? [])
+        confirmed.remove(URL(fileURLWithPath: path).standardizedFileURL.path)
+        SharedDefaults.store.set(Array(confirmed), forKey: Self.confirmedExternalPathsKey)
     }
 
     func scan() {

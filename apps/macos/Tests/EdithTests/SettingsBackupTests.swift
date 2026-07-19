@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import EdithHelper
+@testable import EdithKit
 
 @Suite struct SettingsBackupTests {
     @Test func everyAppStoragePreferenceIsBackedUpOrDeviceLocal() throws {
@@ -53,6 +54,37 @@ import Testing
                     }
                 }
             }
+        }
+    }
+
+    @Test func enableTimeRestoreDecisionMatrix() {
+        let extensionDataClasses: [SettingsBackupDataClass] = [
+            .usage, .limits, .music, .clipboard,
+        ]
+        for dataClass in extensionDataClasses {
+            for cloudDataExists in [false, true] {
+                for masterEnabled in [false, true] {
+                    #expect(
+                        settingsBackupEnableRestoreDecision(
+                            for: dataClass, cloudDataExists: cloudDataExists,
+                            masterEnabled: masterEnabled) == cloudDataExists)
+                }
+            }
+        }
+    }
+
+    @Test func restoredPathValidationMatrix() {
+        let home = URL(fileURLWithPath: "/Users/example")
+        let cases: [(String, RestoredPathVerdict)] = [
+            ("/", .keep),
+            ("/Library/Application Support/Edith", .keep),
+            ("/Users/example", .keep),
+            ("/Users/example/Music", .keep),
+            ("/Volumes/X", .drop),
+            ("/Volumes/X/Music", .drop),
+        ]
+        for (path, expected) in cases {
+            #expect(RestoredPathValidation.verdict(for: path, homeDirectory: home) == expected)
         }
     }
 }

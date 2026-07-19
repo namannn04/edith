@@ -12,6 +12,7 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ExtensionDefaultsMigration.migrate()
+        Repo.prepareStoredPaths()
         applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
         let showDockIcon = SharedDefaults.store.object(forKey: "showDockIcon") as? Bool ?? true
         NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)

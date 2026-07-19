@@ -43,7 +43,9 @@ final class PermissionsModel: ObservableObject {
             IPC.observe(IPC.Name.grantCamera) { [weak self] in self?.grantCamera() },
             NotificationCenter.default.addObserver(
                 forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
-            ) { [weak self] _ in self?.refresh() },
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.refresh() }
+            },
         ]
     }
 

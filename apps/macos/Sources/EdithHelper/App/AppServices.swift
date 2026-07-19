@@ -32,12 +32,19 @@ final class AppServices: ObservableObject {
         let usageOn = usageState.enabled
         let musicOn = Self.extensionEnabled("tabMusicEnabled")
 
-        if usageOn, usage == nil { usage = UsageStore() }
+        if usageOn, usage == nil {
+            SettingsBackup.shared.restoreDataOnEnable(for: .limits)
+            SettingsBackup.shared.restoreDataOnEnable(for: .usage)
+            usage = UsageStore()
+        }
         if !usageOn, let store = usage {
             store.shutdown()
             usage = nil
         }
-        if musicOn, music == nil { music = MusicPlayer() }
+        if musicOn, music == nil {
+            SettingsBackup.shared.restoreDataOnEnable(for: .music)
+            music = MusicPlayer()
+        }
         if !musicOn, let player = music {
             player.shutdown()
             music = nil
@@ -82,7 +89,10 @@ final class AppServices: ObservableObject {
 
         let clipboardOn = SharedDefaults.store.object(forKey: "clipboardEnabled") as? Bool ?? false
         if clipboardOn {
-            if clipboard == nil { clipboard = ClipboardStore() }
+            if clipboard == nil {
+                SettingsBackup.shared.restoreDataOnEnable(for: .clipboard)
+                clipboard = ClipboardStore()
+            }
             ClipboardHotKey.register()
         } else {
             ClipboardHotKey.unregister()
