@@ -29,9 +29,6 @@ final class UpdaterModel: NSObject, ObservableObject,
         }
     }
 
-    let installOnQuitInfo =
-        "Downloaded updates install automatically when you quit or relaunch Edith."
-
     private var updaterController: SPUStandardUpdaterController?
     private var canCheckObservation: NSKeyValueObservation?
     private var automaticChecksObservation: NSKeyValueObservation?

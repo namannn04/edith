@@ -105,9 +105,6 @@ private struct UpdatesPane: View {
                             .pointerCursor()
                     } header: {
                         Text("Updates")
-                    } footer: {
-                        Text(updater.installOnQuitInfo)
-                            .font(.caption)
                     }
                 }
                 .formStyle(.grouped)
