@@ -92,6 +92,36 @@ Node builds a `KeyObject` by wrapping the seed in the fixed PKCS8 DER prefix
 `302e020100300506032b657004220420` and calling `crypto.createPrivateKey`. Signing uses
 `crypto.sign(null, message, key)` (Ed25519 takes no digest algorithm).
 
+### A worked example
+
+Activating the machine `4C4C4544-0037-5A10-8051-B4C04F503733` on a license labeled
+`Pulkit` with key ending `2097` produces this payload (the exact bytes that get signed):
+
+```json
+{"machine":"4C4C4544-0037-5A10-8051-B4C04F503733","label":"Pulkit","issuedAt":1752930000,"expiresAt":1755522000,"keyLast4":"2097"}
+```
+
+That JSON string is base64url-encoded into the first segment, and its Ed25519 signature is
+base64url-encoded into the second. Joined with a `.`, the receipt the server returns and the
+app stores in the Keychain looks like this (one line, 261 characters here):
+
+```
+eyJtYWNoaW5lIjoiNEM0QzQ1NDQtMDAzNy01QTEwLTgwNTEtQjRDMDRGNTAzNzMzIiwibGFiZWwiOiJQdWxraXQiLCJpc3N1ZWRBdCI6MTc1MjkzMDAwMCwiZXhwaXJlc0F0IjoxNzU1NTIyMDAwLCJrZXlMYXN0NCI6IjIwOTcifQ.u87Eb4Gl5t52cG0lsqk8LexJZV3pKVixa3CaIznGkFxZNkV58mUJaEArA6ROzBpXc3PpIzKjeQYduM-_kehcAA
+```
+
+- Segment before the `.` is base64url of the payload above. Decoding it gives back the exact
+  JSON string, which is what the app hashes for verification.
+- Segment after the `.` is the 64-byte Ed25519 signature, base64url-encoded (86 characters,
+  no padding).
+
+At launch the app splits on the `.`, base64url-decodes the first segment back to bytes,
+verifies the second segment is a valid Ed25519 signature of those bytes under the embedded
+public key, then reads `machine` and `expiresAt` from the decoded JSON and checks the machine
+matches this Mac and the receipt has not expired. No network is involved in that check. The
+signature is deterministic for a given payload and key, so re-signing the same payload always
+yields the same string; a different machine, label, key, or timestamp yields a completely
+different signature.
+
 ## What the app does at launch
 
 `apps/macos/Sources/EdithKit/Core/License.swift` stores the key and receipt as two separate
