@@ -6,18 +6,41 @@ const tracks = [
   {
     title: "Weightless",
     artist: "Marconi Union",
-    from: "#e08a6a",
-    to: "#b3543a",
+    from: "var(--color-art-coral)",
+    to: "var(--color-art-rust)",
   },
-  { title: "Nightcall", artist: "Kavinsky", from: "#6a8d9e", to: "#2f4a63" },
-  { title: "Strobe", artist: "deadmau5", from: "#7a9e83", to: "#2f5c3f" },
+  {
+    title: "Nightcall",
+    artist: "Kavinsky",
+    from: "var(--color-art-blue)",
+    to: "var(--color-art-navy)",
+  },
+  {
+    title: "Strobe",
+    artist: "deadmau5",
+    from: "var(--color-art-green)",
+    to: "var(--color-art-forest)",
+  },
   {
     title: "Teardrop",
     artist: "Massive Attack",
-    from: "#9e6a97",
-    to: "#5c2f56",
+    from: "var(--color-art-purple)",
+    to: "var(--color-art-plum)",
   },
-  { title: "Intro", artist: "The xx", from: "#c89b3c", to: "#7a5c14" },
+  {
+    title: "Intro",
+    artist: "The xx",
+    from: "var(--color-track-gold)",
+    to: "var(--color-track-ochre)",
+  },
+];
+
+const heatmapCellClasses = [
+  "block aspect-square rounded-[3px] bg-warm-5",
+  "block aspect-square rounded-[3px] bg-accent/[28%]",
+  "block aspect-square rounded-[3px] bg-accent/[50%]",
+  "block aspect-square rounded-[3px] bg-accent/[72%]",
+  "block aspect-square rounded-[3px] bg-accent",
 ];
 
 function level(index: number) {
@@ -30,20 +53,22 @@ export default function LandingBehavior() {
     const generatedElements: HTMLElement[] = [];
     const intervals: number[] = [];
 
-    document.querySelectorAll<HTMLElement>(".heatmap").forEach((element) => {
-      const rows = Number(element.dataset.rows) || 7;
-      const columns = Number(element.dataset.cols) || 16;
-      const fragment = document.createDocumentFragment();
-      for (let column = 0; column < columns; column += 1) {
-        for (let row = 0; row < rows; row += 1) {
-          const cell = document.createElement("i");
-          cell.className = `l${level(column * rows + row)}`;
-          generatedElements.push(cell);
-          fragment.appendChild(cell);
+    document
+      .querySelectorAll<HTMLElement>("[data-rows][data-cols]")
+      .forEach((element) => {
+        const rows = Number(element.dataset.rows) || 7;
+        const columns = Number(element.dataset.cols) || 16;
+        const fragment = document.createDocumentFragment();
+        for (let column = 0; column < columns; column += 1) {
+          for (let row = 0; row < rows; row += 1) {
+            const cell = document.createElement("i");
+            cell.className = heatmapCellClasses[level(column * rows + row)];
+            generatedElements.push(cell);
+            fragment.appendChild(cell);
+          }
         }
-      }
-      element.appendChild(fragment);
-    });
+        element.appendChild(fragment);
+      });
 
     document
       .querySelectorAll<HTMLElement>("[data-spark]")
@@ -54,6 +79,7 @@ export default function LandingBehavior() {
         ];
         for (const height of heights) {
           const bar = document.createElement("i");
+          bar.className = "block flex-1 rounded-[2px] bg-accent/[55%]";
           bar.style.height = `${height}%`;
           generatedElements.push(bar);
           element.appendChild(bar);
@@ -89,7 +115,7 @@ export default function LandingBehavior() {
     }
 
     const revealTargets = document.querySelectorAll<HTMLElement>(
-      ".pitch-grid > *, .replaces .tr, .film > *, .feature-copy, .feature-media, .more-head, .mcard, .perf-grid > *, .local > *, .download > *",
+      "[data-reveal-item], [data-reveal-group] > *",
     );
     let observer: IntersectionObserver | undefined;
     if ("IntersectionObserver" in window && revealTargets.length) {
@@ -98,7 +124,7 @@ export default function LandingBehavior() {
         const parent = element.parentElement;
         const index = groups.get(parent) ?? 0;
         groups.set(parent, index + 1);
-        element.classList.add("reveal");
+        element.dataset.reveal = "pending";
         element.style.setProperty(
           "--reveal-delay",
           `${Math.min(index * 0.07, 0.42)}s`,
@@ -108,7 +134,7 @@ export default function LandingBehavior() {
         (entries) => {
           for (const entry of entries) {
             if (entry.isIntersecting) {
-              entry.target.classList.add("in");
+              (entry.target as HTMLElement).dataset.reveal = "visible";
               observer?.unobserve(entry.target);
             }
           }
@@ -128,14 +154,15 @@ export default function LandingBehavior() {
       const note = presenterDemo.querySelector<HTMLElement>("[data-pnote]");
       if (badge && note) {
         const flip = () => {
-          const enabled = presenterDemo.classList.toggle("on");
+          const enabled = presenterDemo.dataset.presenterState !== "on";
+          presenterDemo.dataset.presenterState = enabled ? "on" : "off";
           badge.textContent = enabled ? "Presenter on" : "Presenter off";
           badge.style.opacity = enabled ? "1" : "0.5";
           note.textContent = enabled
             ? "Spend and track names hidden for the room."
             : "Everything visible to you.";
         };
-        presenterDemo.classList.remove("on");
+        presenterDemo.dataset.presenterState = "off";
         flip();
         intervals.push(window.setInterval(flip, 2200));
       }
