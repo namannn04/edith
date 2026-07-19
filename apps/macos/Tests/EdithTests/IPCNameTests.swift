@@ -10,6 +10,7 @@ import Testing
         IPC.Name.quitMainApp,
         IPC.Name.settingsChanged,
         IPC.Name.requestPermissionsRefresh,
+        IPC.Name.permissionsRefreshed,
         IPC.Name.grantCalendar,
         IPC.Name.grantNotifications,
         IPC.Name.grantAccessibility,

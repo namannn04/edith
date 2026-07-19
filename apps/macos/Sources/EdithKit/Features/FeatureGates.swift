@@ -14,6 +14,14 @@ public enum FeatureGates {
     }
 }
 
+public enum ContextualPermissionGate {
+    public static func shouldStartMonitor(
+        isEnabled: Bool, wasEnabled: Bool, isGranted: Bool
+    ) -> Bool {
+        isEnabled && (isGranted || !wasEnabled)
+    }
+}
+
 public enum ExtensionShortcut: String, CaseIterable, Hashable, Sendable {
     case clipboard
     case focusDim

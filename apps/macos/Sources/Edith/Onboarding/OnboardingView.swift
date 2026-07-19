@@ -55,6 +55,13 @@ struct OnboardingView: View {
             refreshPermissions()
         }
         .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            guard step == .permissions else { return }
+            grantedPermissions = OnboardingFlow.grantedPermissions()
+        }
+        .onReceive(
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
         ) { _ in
             guard step == .permissions else { return }

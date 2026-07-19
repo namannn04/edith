@@ -27,6 +27,21 @@ import Testing
         #expect(!FeatureGates.preventSleepPersisted(systemOn: true, current: false))
     }
 
+    @Test func optionalMonitorStartsOnlyWhenGrantedOrContextuallyEnabled() {
+        #expect(
+            !ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: true, wasEnabled: true, isGranted: false))
+        #expect(
+            ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: true, wasEnabled: false, isGranted: false))
+        #expect(
+            ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: true, wasEnabled: true, isGranted: true))
+        #expect(
+            !ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: false, wasEnabled: true, isGranted: true))
+    }
+
     @Test func extensionShortcutsOnlyIncludeEnabledOwners() {
         #expect(
             ExtensionShortcutVisibility.visible(

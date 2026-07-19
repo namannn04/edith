@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import EdithKit
 import SwiftUI
 
 struct NotchCameraTab: View {
@@ -23,12 +24,20 @@ struct NotchCameraTab: View {
                     AVCaptureDevice.requestAccess(for: .video) { granted in
                         Task { @MainActor in
                             status = granted ? .authorized : .denied
+                            IPC.post(IPC.Name.requestPermissionsRefresh)
                         }
                     }
                 }
             default:
                 denied
             }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            status = AVCaptureDevice.authorizationStatus(for: .video)
+            IPC.post(IPC.Name.requestPermissionsRefresh)
         }
     }
 

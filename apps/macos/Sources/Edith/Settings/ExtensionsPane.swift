@@ -88,6 +88,12 @@ struct ExtensionsPane: View {
             IPC.post(IPC.Name.requestPermissionsRefresh)
             markEnabledExtensionsSeen()
         }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            refreshPermissionState()
+        }
         .sheet(item: $selectedEntry) { entry in
             ExtensionSettingsSheet(entry: entry)
         }
@@ -385,6 +391,7 @@ private struct ExtensionSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                RequiredPermissionRows(permissions: entry.requiredPermissions)
                 ExtensionDetailRows(entry: entry)
             }
             .formStyle(.grouped)
@@ -416,6 +423,50 @@ private struct ExtensionSettingsSheet: View {
         case "system": 500
         case "notchShelf", "presenter": 580
         default: 620
+        }
+    }
+}
+
+private struct RequiredPermissionRows: View {
+    let permissions: [ExtensionPermission]
+    @State private var grantedPermissions = ExtensionPermissionState.readGrantedPermissions()
+
+    var body: some View {
+        Group {
+            if !permissions.isEmpty {
+                Section {
+                    ForEach(permissions, id: \.self) { permission in
+                        HStack(spacing: 8) {
+                            Image(
+                                systemName: grantedPermissions[permission] == true
+                                    ? "checkmark.circle.fill" : "circle"
+                            )
+                            .foregroundStyle(
+                                grantedPermissions[permission] == true ? .green : .secondary)
+                            Text(permission.displayName)
+                            Spacer()
+                            if grantedPermissions[permission] != true,
+                                let request = permission.grantRequest
+                            {
+                                Button("Grant...") { IPC.post(request) }
+                                    .pointerCursor()
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Required Access")
+                }
+            }
+        }
+        .onAppear {
+            IPC.post(IPC.Name.requestPermissionsRefresh)
+            grantedPermissions = ExtensionPermissionState.readGrantedPermissions()
+        }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            grantedPermissions = ExtensionPermissionState.readGrantedPermissions()
         }
     }
 }

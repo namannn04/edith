@@ -1,3 +1,5 @@
+import AppKit
+import CoreBluetooth
 import EdithKit
 import SwiftUI
 
@@ -23,6 +25,7 @@ struct NotchShelfRows: View {
         false
     @AppStorage("notchAudioMixerEnabled", store: SharedDefaults.store) private var audioMixer =
         false
+    @State private var bluetoothAuthorization = CBManager.authorization
 
     var body: some View {
         Group {
@@ -94,6 +97,19 @@ struct NotchShelfRows: View {
                         .pointerCursor()
                     Toggle("Bluetooth connect / disconnect", isOn: $alertBluetooth)
                         .pointerCursor()
+                    if alertBluetooth,
+                        bluetoothAuthorization == .denied
+                            || bluetoothAuthorization == .restricted
+                    {
+                        Button("Open Bluetooth Privacy Settings...") {
+                            NSWorkspace.shared.open(
+                                URL(
+                                    string:
+                                        "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth"
+                                )!)
+                        }
+                        .pointerCursor()
+                    }
                 }
                 Toggle("Per-app volume mixer (beta)", isOn: $audioMixer)
                     .pointerCursor()
@@ -112,6 +128,12 @@ struct NotchShelfRows: View {
             }
             .disabled(!enabled)
             .opacity(enabled ? 1 : 0.5)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            bluetoothAuthorization = CBManager.authorization
         }
     }
 }

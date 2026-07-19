@@ -167,7 +167,7 @@ struct CalendarView: View {
                 Text("Calendars")
                     .font(.system(size: 12))
                 Spacer()
-                Button("Grant…") { store.requestAccess() }
+                Button("Grant…") { IPC.post(IPC.Name.grantCalendar) }
                     .buttonStyle(HoverButtonStyle())
                     .font(.system(size: 11))
                     .foregroundStyle(theme)

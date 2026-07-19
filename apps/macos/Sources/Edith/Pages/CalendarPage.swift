@@ -41,6 +41,12 @@ struct CalendarPage: View {
         .background(DashSkin.paper(dark).ignoresSafeArea(edges: .vertical))
         .navigationTitle("Calendar")
         .onAppear { store.refreshAuthStatus() }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            store.refreshAuthStatus()
+        }
     }
 
     private var pageHeader: some View {
@@ -194,7 +200,7 @@ struct CalendarPage: View {
                 Text("Calendars")
                     .font(.system(size: 12))
                 Spacer()
-                Button("Grant…") { store.requestAccess() }
+                Button("Grant…") { IPC.post(IPC.Name.grantCalendar) }
                     .buttonStyle(HoverButtonStyle())
                     .font(.system(size: 11))
                     .foregroundStyle(theme)

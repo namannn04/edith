@@ -15,6 +15,8 @@ public enum IPC {
         public static let settingsChanged = Notification.Name("com.pulkit.edith.settingsChanged")
         public static let requestPermissionsRefresh = Notification.Name(
             "com.pulkit.edith.requestPermissionsRefresh")
+        public static let permissionsRefreshed = Notification.Name(
+            "com.pulkit.edith.permissionsRefreshed")
         public static let grantCalendar = Notification.Name("com.pulkit.edith.grantCalendar")
         public static let grantNotifications = Notification.Name(
             "com.pulkit.edith.grantNotifications")

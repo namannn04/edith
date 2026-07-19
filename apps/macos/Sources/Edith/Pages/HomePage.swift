@@ -612,6 +612,12 @@ private struct MeetingsCard: View {
             }
         }
         .onAppear { store.refreshAuthStatus() }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            store.refreshAuthStatus()
+        }
     }
 
     private var note: String {
@@ -663,7 +669,7 @@ private struct MeetingsCard: View {
                 .font(.system(size: 12))
                 .foregroundStyle(DashSkin.inkSoft(dark))
             Spacer()
-            Button("Grant…") { store.requestAccess() }
+            Button("Grant…") { IPC.post(IPC.Name.grantCalendar) }
                 .buttonStyle(HoverButtonStyle())
                 .font(.system(size: 11))
                 .foregroundStyle(theme)

@@ -329,6 +329,12 @@ struct MainWindowView: View {
         ) { _ in
             refreshPermissionsPill()
         }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            permissionsNeedAttention = PermissionsStatus.current
+        }
     }
 
     private func applyNavigationFallback() {

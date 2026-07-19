@@ -38,7 +38,7 @@ public enum ExtensionPermission: String, CaseIterable, Hashable, Sendable {
             "Required to detect shared content or sample colors from the screen."
         case .camera: "Asked when you first open the Notch Shelf camera preview."
         case .bluetooth: "Asked when Notch Shelf first checks for device connections."
-        case .automation: "Asked when Music first controls playback or reads the current track."
+        case .automation: "Asked when Notch Shelf first controls external playback."
         }
     }
 
@@ -87,7 +87,7 @@ public enum ExtensionPermission: String, CaseIterable, Hashable, Sendable {
         case .bluetooth:
             "macOS will ask for Bluetooth access when connection alerts first run."
         case .automation:
-            "macOS will ask for Automation access when Music first controls playback."
+            "macOS will ask for Automation access when Notch Shelf first controls playback."
         default: nil
         }
     }
@@ -209,7 +209,7 @@ public enum ExtensionRegistry {
             id: "music", title: "Music",
             subtitle: "Plays your local music folder, with media keys.",
             symbolName: "music.note", group: .media, featured: false,
-            defaultsKey: "tabMusicEnabled", optionalPermissions: [.automation]),
+            defaultsKey: "tabMusicEnabled"),
         ExtensionRegistryEntry(
             id: "calendar", title: "Calendar",
             subtitle: "Shows your schedule in the panel and the app.",
@@ -219,7 +219,8 @@ public enum ExtensionRegistry {
             id: "notchShelf", title: "Notch Shelf",
             subtitle: "File shelf, now playing, camera, and alerts around the notch.",
             symbolName: "tray.and.arrow.down", group: .media, featured: true,
-            defaultsKey: "notchShelfEnabled", optionalPermissions: [.bluetooth, .camera]),
+            defaultsKey: "notchShelfEnabled",
+            optionalPermissions: [.bluetooth, .camera, .automation]),
         ExtensionRegistryEntry(
             id: "clipboard", title: "Clipboard",
             subtitle: "Clipboard history with instant paste.",
@@ -229,7 +230,7 @@ public enum ExtensionRegistry {
             id: "focusDim", title: "Focus Dim",
             subtitle: "Dims everything behind your active app.",
             symbolName: "circle.lefthalf.filled", group: .utilities, featured: false,
-            defaultsKey: "focusDimEnabled"),
+            defaultsKey: "focusDimEnabled", requiredPermissions: [.screenRecording]),
         ExtensionRegistryEntry(
             id: "presenter", title: "Presenter",
             subtitle: "Blurs sensitive numbers while sharing your screen.",

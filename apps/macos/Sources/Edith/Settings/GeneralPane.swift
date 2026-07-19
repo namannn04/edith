@@ -219,6 +219,12 @@ struct GeneralPane: View {
         ) { _ in
             refreshPermissionState()
         }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            grantedPermissions = ExtensionPermissionState.readGrantedPermissions()
+        }
     }
 
     private var enabledExtensionPermissions: Set<ExtensionPermission> {

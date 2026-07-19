@@ -47,14 +47,6 @@ public final class CalendarStore: ObservableObject, FeatureModule {
         wakeObserver = nil
     }
 
-    public func requestAccess() {
-        Task { @MainActor in
-            _ = try? await store.requestFullAccessToEvents()
-            refreshAuthStatus()
-        }
-        openCalendarSettings()
-    }
-
     public func refreshAuthStatus() {
         let status = EKEventStore.authorizationStatus(for: .event)
         guard status != authStatus else { return }
@@ -78,10 +70,4 @@ public final class CalendarStore: ObservableObject, FeatureModule {
         refresh()
     }
 
-    public func openCalendarSettings() {
-        NSWorkspace.shared.open(
-            URL(
-                string:
-                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
-    }
 }

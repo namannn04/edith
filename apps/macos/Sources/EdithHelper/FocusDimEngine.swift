@@ -90,6 +90,10 @@ final class FocusDimEngine: FeatureModule {
         FocusDimHotKey.register()
         let previousMode = displayMode
         loadSettings()
+        guard CGPreflightScreenCaptureAccess() else {
+            overlays.values.forEach { $0.alphaValue = 0 }
+            return
+        }
         if displayMode != previousMode {
             reposition(animateIn: false)
         } else {
@@ -128,6 +132,10 @@ final class FocusDimEngine: FeatureModule {
     }
 
     private func reposition(animateIn: Bool) {
+        guard CGPreflightScreenCaptureAccess() else {
+            overlays.values.forEach { $0.alphaValue = 0 }
+            return
+        }
         let windows = Self.onScreenWindows()
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
         var targets: [(FocusDimOverlayWindow, Int?)] = []

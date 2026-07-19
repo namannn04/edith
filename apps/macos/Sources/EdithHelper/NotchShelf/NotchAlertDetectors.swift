@@ -1,4 +1,5 @@
 import CoreAudio
+import CoreBluetooth
 import EdithKit
 import Foundation
 import IOBluetooth
@@ -14,6 +15,7 @@ final class NotchAlertDetectors {
     private var lastOnAC: Bool?
     private var lastCapacity: Int?
     private var warmingUp = true
+    private var bluetoothPreferenceWasEnabled = false
 
     init(post: @escaping (NotchAlert) -> Void) {
         self.post = post
@@ -34,7 +36,10 @@ final class NotchAlertDetectors {
         lastCapacity = snapshot.capacity
         startAudio()
         startPower()
-        syncBluetooth()
+        bluetoothPreferenceWasEnabled = bluetoothEnabled
+        if bluetoothEnabled, CBManager.authorization == .allowedAlways {
+            startBluetooth()
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.warmingUp = false
         }
@@ -76,9 +81,15 @@ final class NotchAlertDetectors {
     }
 
     func syncBluetooth() {
-        if bluetoothEnabled {
+        let isEnabled = bluetoothEnabled
+        let wasEnabled = bluetoothPreferenceWasEnabled
+        bluetoothPreferenceWasEnabled = isEnabled
+        if ContextualPermissionGate.shouldStartMonitor(
+            isEnabled: isEnabled, wasEnabled: wasEnabled,
+            isGranted: CBManager.authorization == .allowedAlways)
+        {
             startBluetooth()
-        } else {
+        } else if !isEnabled {
             bluetoothWatcher?.stop()
             bluetoothWatcher = nil
         }
