@@ -11,13 +11,20 @@ center built to run 24/7 on near-zero resources.
 - **Activity heatmap** - GitHub-style daily spend calendar across your full history.
 - **Token & cost stats** - today / week / billing cycle, filterable by agent (Claude Code, Codex, OpenCode…).
 - **Full dashboard** - a native window with KPIs, per-day / model / source / project / hourly charts, a sortable model table and an activity heatmap, all interactive; refreshed by a self-contained collector bundled in the app.
-- **Music player** - plays your local music folder with thumbnails, drag-to-seek, fades, auto-advance and media keys.
-- **System tools** - prevent-sleep toggle and a keyboard-cleaning lock with a 60s auto-restore.
+- **Notch shelf** - the notch becomes a hover-to-open shelf with drag-and-drop file staging, now-playing controls, a camera check tab and morphing inline alerts.
+- **Clipboard history** - a global paste panel with search and synthesized paste-in-place.
+- **Color picker** - system-wide eyedropper on a global hotkey, with swatch history.
+- **Music player** - plays your local music folder with thumbnails, drag-to-seek, fades, auto-advance and media keys; also picks up Spotify / Apple Music playback.
+- **Audio mixer** - per-app volume control.
+- **Mic mute** - system-wide microphone kill switch with hotkey and menu bar indicator.
+- **Focus dim** - dims every screen except the window you are working in.
+- **Calendar** - EventKit agenda grouped by day, blur-aware in presenter mode.
+- **System tools** - prevent-sleep toggle, system stats readout and a keyboard-cleaning lock with a 60s auto-restore.
+- **Presenter mode** - blurs track names, calendar entries and spend figures for screen sharing, with automatic screen-share detection.
 - **Global shortcut** - toggle the panel from anywhere (default ⌥⌘E), re-recordable.
-- **Presenter mode** - blurs track names and spend figures for screen sharing.
 - **Local-first** - usage data never leaves your Mac; optional iCloud backup that merges across machines.
 
-## Resource use
+## Benchmarks
 
 Built to idle cheaply. Measured on an Apple M4 Pro - CPU as a share of one core
 (the convention Activity Monitor uses), memory as physical footprint:
@@ -29,10 +36,21 @@ Built to idle cheaply. Measured on an Apple M4 Pro - CPU as a share of one core
 | Music playing, panel open (visualizer on screen) | ~29% | ~42 MB |
 | Paused | <1% | ~40 MB |
 
-Work stops when it isn't seen: disabling a tab tears down its timers, observers
-and background jobs entirely, and per-frame UI (the music visualizer and
-scrubber) only redraws while the panel is open and playing - so listening in the
-background costs just the audio decode.
+Numbers from the 2026-07 optimization pass (`ps -o %cpu,rss,cputime` sampled
+once per second for 180s per state, comparing cputime deltas):
+
+| Metric | Before | After |
+| --- | --- | --- |
+| Menu bar process, idle | 2.22% CPU / 121 MB | ~0.0% CPU / 89 MB |
+| Main window process, idle | 0.23% CPU / 131 MB | ~0.0% CPU / 108 MB |
+| Music playing (window visible) | 20-40% CPU | 0.7-1.6% CPU |
+| Music paused or window hidden | up to 17% CPU | 0.0% CPU |
+| Usage collector walk phase | ~75s per 5-min run | incremental cache, sub-second when unchanged |
+
+How it stays there: disabling a tab tears down its timers, observers and
+background jobs entirely; per-frame UI (the music visualizer and scrubber) only
+redraws while the panel is open and playing; and the usage collector caches
+per-transcript parses so a refresh only touches files that changed.
 
 ## Build & install
 
@@ -59,6 +77,63 @@ Assistant → Create a Certificate…, name it "Edith Dev", Identity Type
 EDITH_SIGN_IDENTITY="Edith Dev" ./build.sh --install
 ```
 
+## Makefile commands
+
+<details>
+<summary>All <code>make</code> targets, explained</summary>
+
+### CI
+
+| Target | What it does |
+| --- | --- |
+| `make ci` | Full local CI: `bun install --frozen-lockfile`, then comments, secrets, lint, script tests, web, promo-video and Swift checks. |
+| `make ci-comments` | Self-tests the comment stripper, then fails on any disallowed comment in tracked source. |
+| `make ci-secrets` | Scans every tracked file for leaked secrets. |
+| `make ci-lint` | Biome format + lint for the JS/TS surface. |
+| `make ci-scripts` | Runs the `bun test` suite for `scripts/`. |
+| `make ci-web` | Runs the web app tests and a `tsc --noEmit` type check in `apps/web`. |
+| `make ci-promo` | `npm ci` + type check for the Remotion promo video. |
+| `make ci-swift-check` | `swift format lint --strict`, `swift build` and the test suite in `apps/macos`. |
+| `make ci-swift` | `ci-swift-check` plus a full `build.sh` run with bundle-layout and codesign assertions on the produced app. |
+
+### macOS app
+
+| Target | What it does |
+| --- | --- |
+| `make build` | Builds the app and runs it from `dist/`. Accepts `PR=<n>` or `BRANCH=<name>` to build that ref. |
+| `make install` | Builds and copies to `/Applications`, then launches. Same `PR` / `BRANCH` flags. |
+| `make reset` | Runs `reset.sh`: clears app state for a clean-slate run. |
+| `make reinstall` | `reset` followed by `install`. |
+| `make release V=1.8.0` | Full release: bumps plist versions, commits, tags, builds the DMG + installer + Sparkle appcast, pushes and creates the GitHub release. Blocks unless `gh` is authenticated and the Sparkle key is set. |
+
+### Web & database
+
+| Target | What it does |
+| --- | --- |
+| `make web-dev` | Starts the Next.js dev server in `apps/web`. |
+| `make db-generate` | Generates Drizzle migrations from the schema. |
+| `make db-push` | Pushes the schema straight to the database. |
+| `make db-studio` | Opens Drizzle Studio. |
+| `make db-migrate FILE=...` | Applies one SQL migration file with `psql`, using `DATABASE_URL` from `apps/web/.env` (with `channel_binding` stripped). |
+
+### Environment & licensing
+
+| Target | What it does |
+| --- | --- |
+| `make env-check` | Verifies `apps/web/.env` contains every required variable. |
+| `make env-generate` | Generates values for missing env vars. |
+| `make env-rotate` | Rotates secrets; dry-run by default, pass `CONFIRM=1` to apply. |
+| `make env-sync` | `env-check`, then syncs env vars to the deployment; dry-run unless `CONFIRM=1`. |
+| `make license MACHINES=3 LABEL=... NAME=... EMAIL=... PHONE=...` | Mints a license for the given machine count and licensee. |
+
+### Misc
+
+| Target | What it does |
+| --- | --- |
+| `make loc` | Lines-of-code report for tracked files via `cloc`. |
+
+</details>
+
 ## Release & updates
 
 Bump `CFBundleShortVersionString` in `apps/macos/Resources/Info.plist` and
@@ -70,6 +145,9 @@ git tag v1.8.0 && git push origin v1.8.0
 
 The Release workflow builds `Edith-v1.8.0.dmg` (drag-to-Applications layout)
 and attaches it to the GitHub release.
+
+`make release V=1.8.0` automates the whole sequence, including the Sparkle
+appcast and installer DMG.
 
 ### Signing the release (so permissions survive reinstalls)
 
