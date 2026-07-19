@@ -70,6 +70,7 @@ release:
 	git tag "v$(V)"; \
 	(cd apps/macos && ./build.sh --no-open); \
 	rm -rf apps/macos/dmg-root; \
+	rm -f "apps/macos/Edith-v$(V).dmg"; \
 	mkdir apps/macos/dmg-root; \
 	cp -R apps/macos/dist/Edith.app apps/macos/dmg-root/; \
 	ln -s /Applications apps/macos/dmg-root/Applications; \
