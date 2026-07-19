@@ -8,3 +8,4 @@ drizzle/generated/
 drizzle/meta/
 drizzle/*.json
 next-env.d.ts
+.vercel
