@@ -97,12 +97,20 @@ export async function verifyLicense(
   key: string,
   hardwareUuid: string,
 ): Promise<boolean> {
+  return (await getVerifiedLicense(store, key, hardwareUuid)) !== null;
+}
+
+export async function getVerifiedLicense(
+  store: LicenseAccess,
+  key: string,
+  hardwareUuid: string,
+): Promise<LicenseRecord | null> {
   const license = await store.getLicenseByKey(key);
 
   if (!license?.active) {
-    return false;
+    return null;
   }
 
   const machine = await store.getMachine(license.id, hardwareUuid);
-  return machine !== null;
+  return machine ? license : null;
 }

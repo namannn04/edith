@@ -1,7 +1,8 @@
 import { licenseStore } from "@/lib/db";
 import { apiJson } from "@/lib/http";
-import { verifyLicense } from "@/lib/license";
+import { getVerifiedLicense, type LicenseRecord } from "@/lib/license";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+import { signReceipt } from "@/lib/receipt";
 import { verificationBodySchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -33,10 +34,10 @@ export async function POST(request: Request): Promise<Response> {
     return apiJson({ error: "invalid_request" }, 400);
   }
 
-  let ok: boolean;
+  let license: LicenseRecord | null;
 
   try {
-    ok = await verifyLicense(
+    license = await getVerifiedLicense(
       licenseStore,
       parsed.data.key,
       parsed.data.hardwareUuid,
@@ -45,5 +46,19 @@ export async function POST(request: Request): Promise<Response> {
     return apiJson({ error: "internal" }, 500);
   }
 
-  return apiJson({ ok });
+  if (!license) {
+    return apiJson({ ok: false });
+  }
+
+  try {
+    const receipt = signReceipt({
+      machine: parsed.data.hardwareUuid,
+      label: license.label ?? "",
+      keyLast4: parsed.data.key.slice(-4),
+      now: Math.floor(Date.now() / 1000),
+    });
+    return apiJson({ ok: true, receipt });
+  } catch {
+    return apiJson({ error: "internal" }, 500);
+  }
 }
