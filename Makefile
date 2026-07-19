@@ -74,6 +74,7 @@ release:
 	cp -R apps/macos/dist/Edith.app apps/macos/dmg-root/; \
 	ln -s /Applications apps/macos/dmg-root/Applications; \
 	hdiutil create -volname Edith -srcfolder apps/macos/dmg-root -format UDZO "apps/macos/Edith-v$(V).dmg"; \
+	rm -rf apps/macos/dmg-root; \
 	rm -rf apps/macos/dist/appcast; \
 	mkdir apps/macos/dist/appcast; \
 	cp "apps/macos/Edith-v$(V).dmg" apps/macos/dist/appcast/; \

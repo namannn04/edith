@@ -20,3 +20,5 @@ apps/promo-video/out/
 .env
 .env.local
 apps/macos/*.dmg
+apps/macos/dmg-root/
+apps/macos/dist/
