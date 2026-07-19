@@ -80,6 +80,7 @@ release:
 	mkdir apps/macos/dist/appcast; \
 	cp "apps/macos/Edith-v$(V).dmg" apps/macos/dist/appcast/; \
 	"$$GENERATE_APPCAST" apps/macos/dist/appcast; \
+	test -f apps/macos/dist/appcast/appcast.xml || mv apps/macos/dist/appcast/appcast apps/macos/dist/appcast/appcast.xml; \
 	test -f apps/macos/dist/appcast/appcast.xml || { echo "release blocked: generate_appcast did not create apps/macos/dist/appcast/appcast.xml" >&2; exit 1; }; \
 	(cd apps/macos && ./build-installer.sh); \
 	git push origin HEAD "v$(V)"; \
