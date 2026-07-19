@@ -9,6 +9,9 @@ import Testing
             LicenseKeyFormatting.format("edith-abcd1234 efgh-5678")
                 == "EDITH-ABCD-1234-EFGH-5678")
         #expect(LicenseKeyFormatting.format("abcd1234efgh5678extra") == "EDITH-ABCD-1234-EFGH-5678")
+        #expect(
+            LicenseKeyFormatting.format("EDITH-EDITH-0ADA-AE18-6FB9-2097")
+                == "EDITH-0ADA-AE18-6FB9-2097")
         #expect(LicenseKeyFormatting.isComplete("EDITH-ABCD-1234-EFGH-5678"))
     }
 

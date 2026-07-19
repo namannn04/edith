@@ -336,7 +336,10 @@ public final class LicenseState {
 public enum LicenseKeyFormatting {
     public static func format(_ input: String) -> String {
         let compact = input.uppercased().filter { $0.isLetter || $0.isNumber }
-        let body = compact.hasPrefix("EDITH") ? String(compact.dropFirst(5)) : compact
+        var body = compact
+        while body.hasPrefix("EDITH") {
+            body = String(body.dropFirst(5))
+        }
         let limited = String(body.prefix(16))
         let groups = stride(from: 0, to: limited.count, by: 4).map { start in
             let lower = limited.index(limited.startIndex, offsetBy: start)
