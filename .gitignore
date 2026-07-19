@@ -10,7 +10,7 @@ apps/dashboard/data/
 apps/dashboard/dashboard.html
 
 # design notes stay local - deleted from the remote on purpose
-docs/
+docs/screenshots/
 extras/
 
 # promo-video: track source, not build output

@@ -1,0 +1,162 @@
+# Licensing and signed receipts
+
+How Edith is licensed, how a machine is activated, and how the app proves it stays
+licensed offline. This covers the whole path: the website APIs, the Postgres schema,
+the signed receipt format, and the checks the macOS app and helper run.
+
+## The pieces
+
+- **edith.pulkit.page** (`apps/web`, Next.js on Vercel): the public site and a set of
+  hidden `/api/v1` endpoints. It owns the Postgres database of licenses and machines,
+  signs receipts, and proxies the private release DMG and Sparkle appcast.
+- **Edith.app** (`apps/macos`, target `Edith`): the product. Gated behind activation at
+  launch; verifies its receipt offline on every start.
+- **Edith Installer.app** (`apps/macos`, target `EdithInstaller`): the small public
+  download. Takes a key, activates the machine, downloads the real DMG through the
+  licensed endpoint, opens it, and quits.
+- **The signing keypair**: an Ed25519 pair. The private key lives only in the server env
+  (`LICENSE_SIGNING_PRIVATE_KEY`) and never leaves it. The public key is compiled into the
+  app and the helper. The server signs receipts; the app verifies them.
+
+## Data model
+
+Two Postgres tables (`apps/web/lib/schema.ts`, migration `apps/web/drizzle/0000_init.sql`):
+
+- `licenses`: `id`, `key` (format `EDITH-XXXX-XXXX-XXXX-XXXX`, unique), `label` (who it was
+  issued to), `max_machines` (default 1), `active` (default true), `created_at`.
+- `machines`: `id`, `license_id`, `hardware_uuid`, `hostname`, `first_seen`, `last_seen`,
+  with a unique constraint on `(license_id, hardware_uuid)`.
+
+A seat is one distinct `hardware_uuid` under a license. Keys are minted by hand for now
+with `bun scripts/create-license.ts --machines N --label "name"`; billing can create them
+later.
+
+## Machine identity
+
+Every device is identified by its `IOPlatformUUID` (read via IOKit, no permission prompt).
+It is stable across OS reinstalls, which is the property the whole seat model depends on:
+a wiped and reinstalled Mac reports the same UUID, so re-activation updates the existing
+row instead of consuming another seat.
+
+## Endpoints
+
+All under `apps/web/app/api/v1/`. None are linked from any page; responses are
+`cache-control: no-store` and `x-robots-tag: noindex`, and `/api` is disallowed in
+`robots.txt`. This keeps them undiscoverable from the website; they are meant to be called
+only by the apps.
+
+- `POST activate` `{key, hardwareUuid, hostname?}`: verifies the license is active, upserts
+  the machine on `(license_id, hardware_uuid)` updating `last_seen`. Rejects with
+  `403 {error: "license_limit_reached"}` only when the license already has `max_machines`
+  distinct hardware UUIDs and this is a new one. Concurrent activations are serialized with
+  a Postgres advisory lock so the seat count cannot be raced. On success returns
+  `{ok: true, label, machinesUsed, maxMachines, receipt}`.
+- `POST verify` `{key, hardwareUuid}`: returns `{ok: true, receipt}` only when the license
+  is active and that machine is registered; otherwise `{ok: false}` with no receipt.
+- `GET download/dmg`: header-authenticated (`x-edith-license`, `x-edith-machine`); on a
+  valid, registered pair it streams the latest `Edith-v*.dmg` asset from the private GitHub
+  release using the server's `GITHUB_TOKEN`. 403 when unlicensed.
+- `GET appcast`: same header auth; streams the Sparkle feed and rewrites the DMG enclosure
+  URLs to point back at `download/dmg`, so updates also flow through the licensed endpoint.
+- `GET download/installer`: no license required; streams `EdithInstaller.dmg` from the
+  latest release. This is what the website Download button links to. Returns a friendly
+  holding page (503) when the asset is not published yet.
+
+## The signed receipt
+
+A receipt is the app's proof that the server said "this key, this machine, is good", which
+the app can then check offline without calling home every launch.
+
+Format (`apps/web/lib/receipt.ts`):
+
+```
+receipt = base64url(payloadJSON) + "." + base64url(ed25519_signature)
+```
+
+The payload is a JSON string with a fixed key order:
+
+```json
+{"machine":"<hardwareUuid>","label":"<license label>","issuedAt":<unix seconds>,"expiresAt":<unix seconds>,"keyLast4":"<last 4 of key>"}
+```
+
+`expiresAt` is `issuedAt + 30 days`. The server signs the exact UTF-8 bytes of that JSON
+string with the Ed25519 private key, and base64url-encodes those same bytes as the first
+segment. The app treats that first segment as the source of truth: it verifies the
+signature against the bytes it decodes, so the two sides never disagree over serialization.
+
+The server includes a fresh `receipt` in every successful `activate` and `verify`. The full
+key is never logged, and only the last four characters go into the payload.
+
+Signing key handling: the private key is stored as base64 of the 32 raw Ed25519 seed bytes.
+Node builds a `KeyObject` by wrapping the seed in the fixed PKCS8 DER prefix
+`302e020100300506032b657004220420` and calling `crypto.createPrivateKey`. Signing uses
+`crypto.sign(null, message, key)` (Ed25519 takes no digest algorithm).
+
+## What the app does at launch
+
+`apps/macos/Sources/EdithKit/Core/License.swift` stores the key and receipt as two separate
+generic-password items in the login Keychain (service `com.pulkit.edith.license`, accounts
+`license-key` and `license-receipt`, not iCloud-synced). `LicenseReceipt.swift` verifies a
+receipt with CryptoKit `Curve25519.Signing.PublicKey` and the embedded public key, checking
+three things: the signature is valid, the payload's `machine` equals this Mac's hardware
+UUID, and `now < expiresAt`.
+
+The gate (`MainAppDelegate.applicationDidFinishLaunching`) reads the offline status:
+
+| Keychain state | Receipt check | Action |
+|---|---|---|
+| Key + receipt | valid | Start the app; routine background re-verify |
+| Key + receipt | expired, or key present but receipt missing (transition) | Start the app; refresh the receipt in the background |
+| Key + receipt | tampered / machine mismatch | Clear state, terminate helper, show activation |
+| No key | n/a | Terminate helper, show activation |
+
+Re-gating happens only on a definitive failure: a tampered receipt, or a server response
+that explicitly says the license is invalid. A network error or a merely expired receipt
+(with a key still present) never locks the user out; the app runs and refreshes in the
+background. Re-verification runs on a 12-hour timer and when the app becomes active.
+
+## The helper
+
+The menu-bar helper (`apps/macos/Sources/EdithHelper`) runs its own gate at startup and
+`exit(0)`s before initializing any feature engine, hotkey, observer, or IPC bridge if the
+receipt is not valid. It verifies the receipt offline with the same embedded public key and
+makes no network calls. The main app launches and relaunches it after activation, so an
+unlicensed copy runs nothing at all.
+
+## The installer flow
+
+1. A visitor clicks Download; the site serves `EdithInstaller.dmg`.
+2. The installer asks for a key, sends `activate` with this Mac's hardware UUID.
+3. On success it downloads the real DMG through `download/dmg` (license headers), saves it
+   to `~/Downloads`, opens it, and quits. It does not write the Keychain; Edith itself
+   re-activates idempotently on first launch with the same UUID, so no extra seat is used.
+
+## Updates
+
+Sparkle in the main app is pointed at `edith.pulkit.page/api/v1/appcast` and sends the
+license headers via `SPUUpdater.httpHeaders`. Only a licensed app can read the feed or
+download an update, and the DMG is verified by Sparkle's own EdDSA signature (separate from
+the license receipt keypair) before install-on-quit. See the release flow in the root
+`Makefile` `release` target, which builds the DMG, signs the appcast, builds the installer
+DMG, and uploads all three assets to the GitHub release.
+
+## What this does and does not protect
+
+It makes casual sharing useless: a shared DMG sits at the activation screen, an unregistered
+machine is refused, and a leaked key burns one of its finite seats the moment it is used.
+Because the receipt is signed and machine-bound, a local flag cannot simply be flipped to
+fake activation; the binary itself would have to be patched. This is client-side enforcement,
+so a determined attacker who patches and stays offline can still run a cracked copy; the
+defense is raising the effort past where casual piracy happens, not making it impossible.
+
+## Operations
+
+- Server env vars (Vercel, Production and Preview): `DATABASE_URL`, `GITHUB_TOKEN`
+  (read access to the private release repo), `GITHUB_REPO=pulkitxm/edith`, and
+  `LICENSE_SIGNING_PRIVATE_KEY` (base64 of the 32-byte Ed25519 seed). If the signing key is
+  missing, the activate and verify routes throw by design rather than issuing unsigned
+  receipts.
+- The public verification key is compiled into the app and helper. Rotating the keypair
+  means shipping a new app build with the new public key and setting the new private key in
+  the server at the same time.
+- Mint a key: `cd apps/web && bun scripts/create-license.ts --machines N --label "name"`.
