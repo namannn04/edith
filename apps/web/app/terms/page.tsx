@@ -1,0 +1,100 @@
+import type { Metadata } from "next";
+import { SiteFooter, SiteHeader } from "../site-chrome";
+
+export const metadata: Metadata = {
+  title: "Terms of Service · Edith",
+  description: "Terms of service for Edith, the macOS menu bar app.",
+  alternates: {
+    canonical: "/terms",
+  },
+};
+
+export default function TermsPage() {
+  return (
+    <>
+      <SiteHeader />
+      <main className="legal">
+        <h1>Terms of Service</h1>
+        <p className="updated">Last updated: July 11, 2026</p>
+
+        <p>
+          These terms govern your purchase and use of the Edith macOS
+          application (&quot;the app&quot;) and the edith.app website. By buying
+          or using the app you agree to them.
+        </p>
+
+        <h2>License</h2>
+        <p>
+          Your one-time purchase grants you a personal, non-exclusive,
+          non-transferable license to install and use the app on Macs that you
+          own or control, for as long as you like. This is a license, not a sale
+          of the software itself.
+        </p>
+        <ul>
+          <li>
+            One license covers one person, on any number of their own Macs.
+          </li>
+          <li>Team or company use requires one license per person.</li>
+          <li>
+            You may not resell, sublicense, or redistribute the app or your
+            license key.
+          </li>
+        </ul>
+
+        <h2>Updates</h2>
+        <p>
+          Your license includes app updates for as long as they ship. Updates
+          may add, change, or remove features. We are not obligated to maintain
+          any particular feature indefinitely, including features that depend on
+          third-party APIs.
+        </p>
+
+        <h2>Third-party services</h2>
+        <p>
+          Some features read data from, or send requests to, services you
+          already use, such as your AI provider&apos;s rate-limit API, iCloud,
+          or media sources. Those services belong to their providers, are
+          governed by their terms, and can change or break without notice. The
+          app&apos;s integrations are provided as-is.
+        </p>
+
+        <h2>Refunds</h2>
+        <p>
+          If the app doesn&apos;t work for you, email us within 14 days of
+          purchase and we&apos;ll refund your order.
+        </p>
+
+        <h2>Acceptable use</h2>
+        <p>
+          Don&apos;t use the app to violate any law, and don&apos;t attempt to
+          circumvent license checks or redistribute builds. You may inspect and
+          build the source where it is publicly available; distributing paid
+          builds to others is not permitted.
+        </p>
+
+        <h2>Disclaimer and liability</h2>
+        <p>
+          The app is provided &quot;as is&quot;, without warranty of any kind.
+          To the maximum extent permitted by law, we are not liable for any
+          indirect, incidental, or consequential damages arising from your use
+          of the app. Our total liability for any claim is limited to the amount
+          you paid for your license.
+        </p>
+
+        <h2>Changes to these terms</h2>
+        <p>
+          We may update these terms from time to time. The current version
+          always lives at this page, with the date above. Continued use of the
+          app after a change means you accept the updated terms.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions? Email{" "}
+          <a href="mailto:support@edith.app">support@edith.app</a>.
+        </p>
+      </main>
+      <SiteFooter />
+    </>
+  );
+}

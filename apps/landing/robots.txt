@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://edith.app/sitemap.xml
