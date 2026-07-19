@@ -14,6 +14,45 @@ Do not write comments in code. This repo is kept comment-free and CI enforces it
 Write code clear enough not to need comments. If a name or a block needs
 explaining, improve the name or the structure instead of adding prose.
 
+## Delegating to Codex (make jobs finish fast)
+
+Codex runs in a sandbox that HANGS on any command over ~10 minutes: `swift build`,
+`./build.sh`, `bun run build`, `./test.sh`, full test runs. A hung job burns hours of
+wall-clock while consuming almost no tokens (the tell: low token count + long elapsed +
+its log going silent right after "File changes completed" or looping on `git diff`). To
+avoid this:
+
+- Give Codex WRITE-ONLY tasks. Every prompt says: "no `swift build`/`swift test`/
+  `./test.sh`/`./build.sh` or any command over 60 seconds; `swift format lint --strict`
+  and fast static checks only." The reviewer (main session) compiles, tests, and commits.
+- Put a startup delay before polling a new job's status (it takes a few seconds to
+  register; polling too early reports 0 running and fires waiters prematurely).
+- If a job is quiet for a long stretch, treat it as wedged: cancel it and verify the
+  changes it already applied to the working tree, rather than waiting.
+- Codex processes have NO Screen Recording / Accessibility TCC grants; drive any UI
+  screenshotting or synthetic-input testing from the main session, not Codex.
+
+## Recurring integration fixes (apply before building)
+
+- A Swift `switch` used as an expression in a function that returns a value needs an
+  explicit `return switch ... { }`; Codex often omits it.
+- Never leave `#Preview { }` macros in SwiftUI files: they fail the command-line SwiftPM
+  build ("PreviewsMacros plugin not found").
+- `apps/web/next-env.d.ts` is regenerated with stock comments that fail `check-comments`;
+  it is gitignored, keep it that way.
+- postgres-js cannot connect through `channel_binding` params or IPv6-only routes; the db
+  client strips `channel_binding`, and local scripts may need `psql` (IPv4) when bun times
+  out reaching Neon.
+
+## Committing around protected work-in-progress
+
+The tree often holds unrelated uncommitted work. Stage explicit paths, never `git add -A`;
+after each Codex task, commit only that task's files. Committing a file DELETION (e.g. a
+replaced stylesheet) is required or the `check-comments` pre-push hook ENOENTs on the still-
+tracked path. The lefthook pre-push runs the full swift build + tests + comment check; when
+it fails only because of another in-flight job's tree state, push with `--no-verify` AFTER
+running build/tests/comment-check yourself on the staged files.
+
 ## Checks
 
 - `bun run check-comments` - no disallowed comments (all tracked source).
