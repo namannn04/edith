@@ -9,6 +9,7 @@ struct OnboardingView: View {
         case picks
         case permissions
         case ready
+        case provisioning
     }
 
     let onFinish: () -> Void
@@ -88,6 +89,8 @@ struct OnboardingView: View {
             permissionsStep
         case .ready:
             readyStep
+        case .provisioning:
+            provisioningStep
         }
     }
 
@@ -283,7 +286,7 @@ struct OnboardingView: View {
                     .foregroundStyle(DashSkin.inkSoft(dark))
             }
             .padding(.top, 18)
-            Button("Start using Edith", action: completeOnboarding)
+            Button("Start using Edith", action: completeOrProvisionOnboarding)
                 .buttonStyle(OnboardingPrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)
                 .frame(width: 210)
@@ -291,6 +294,14 @@ struct OnboardingView: View {
             Spacer(minLength: 28)
         }
         .padding(.horizontal, 48)
+    }
+
+    private var provisioningStep: some View {
+        ToolProvisioningPanel(
+            title: "Setting up your extensions", tools: selectedTools,
+            continueAction: onFinish
+        )
+        .padding(.horizontal, 32)
     }
 
     private var stepIndicator: some View {
@@ -384,6 +395,14 @@ struct OnboardingView: View {
         return "\(extensionSummary), \(permissionCount) \(permissionLabel) granted"
     }
 
+    private var selectedTools: [CLIToolSpec] {
+        var seen = Set<String>()
+        return ExtensionRegistry.entries
+            .filter { selectedIDs.contains($0.id) }
+            .flatMap(\.requiredTools)
+            .filter { $0.requirement.isActive() && seen.insert($0.id).inserted }
+    }
+
     private func stepHeading(_ title: String, detail: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
@@ -412,10 +431,14 @@ struct OnboardingView: View {
         move(to: .ready, direction: 1)
     }
 
-    private func completeOnboarding() {
+    private func completeOrProvisionOnboarding() {
         OnboardingFlow.finish(selectedIDs: selectedIDs, icloudBackup: icloudBackup)
         IPC.post(IPC.Name.settingsChanged)
-        onFinish()
+        if selectedTools.isEmpty {
+            onFinish()
+        } else {
+            move(to: .provisioning, direction: 1)
+        }
     }
 
     private func goBack() {

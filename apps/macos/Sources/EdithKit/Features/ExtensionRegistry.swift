@@ -163,12 +163,13 @@ public struct ExtensionRegistryEntry: Identifiable, Equatable, Sendable {
     public let defaultsKey: String
     public let requiredPermissions: [ExtensionPermission]
     public let optionalPermissions: [ExtensionPermission]
+    public let requiredTools: [CLIToolSpec]
 
     public init(
         id: String, title: String, subtitle: String, symbolName: String,
         group: ExtensionGroup, featured: Bool, defaultsKey: String,
         requiredPermissions: [ExtensionPermission] = [],
-        optionalPermissions: [ExtensionPermission] = []
+        optionalPermissions: [ExtensionPermission] = [], requiredTools: [CLIToolSpec] = []
     ) {
         self.id = id
         self.title = title
@@ -179,6 +180,7 @@ public struct ExtensionRegistryEntry: Identifiable, Equatable, Sendable {
         self.defaultsKey = defaultsKey
         self.requiredPermissions = requiredPermissions
         self.optionalPermissions = optionalPermissions
+        self.requiredTools = requiredTools
     }
 }
 
@@ -188,7 +190,8 @@ public enum ExtensionRegistry {
             id: "usage", title: "Agent Usage",
             subtitle: "Claude and Codex limits, usage stats, and alerts.",
             symbolName: "chart.bar.fill", group: .agent, featured: true,
-            defaultsKey: "tabUsageEnabled", optionalPermissions: [.notifications]),
+            defaultsKey: "tabUsageEnabled", optionalPermissions: [.notifications],
+            requiredTools: [.claudeCode, .codex]),
         ExtensionRegistryEntry(
             id: "system", title: "System",
             subtitle: "Running apps, prevent sleep, and the keyboard-cleaning lock.",
@@ -209,7 +212,7 @@ public enum ExtensionRegistry {
             id: "music", title: "Music",
             subtitle: "Plays your local music folder, with media keys.",
             symbolName: "music.note", group: .media, featured: false,
-            defaultsKey: "tabMusicEnabled"),
+            defaultsKey: "tabMusicEnabled", requiredTools: [.youtubeDownloader]),
         ExtensionRegistryEntry(
             id: "calendar", title: "Calendar",
             subtitle: "Shows your schedule in the panel and the app.",

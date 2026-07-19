@@ -47,6 +47,7 @@ struct ExtensionsPane: View {
     @State private var selectedEntry: ExtensionRegistryEntry?
     @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
     @State private var permissionRequest: ExtensionPermissionRequest?
+    @State private var provisioningEntry: ExtensionRegistryEntry?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -103,6 +104,9 @@ struct ExtensionsPane: View {
                 grant: { IPC.post($0) }, cancel: { permissionRequest = nil },
                 enable: { enableRequestedExtension(request) },
                 refresh: requestPermissionRefresh)
+        }
+        .sheet(item: $provisioningEntry) { entry in
+            ToolProvisioningSheet(entry: entry)
         }
     }
 
@@ -246,6 +250,7 @@ struct ExtensionsPane: View {
                 case .enableDirectly:
                     enabled.wrappedValue = true
                     markPermissionsSeen(for: entry)
+                    showProvisioning(for: entry)
                 case .showSheet(let required, let optional):
                     enabled.wrappedValue = false
                     permissionRequest = ExtensionPermissionRequest(
@@ -297,6 +302,22 @@ struct ExtensionsPane: View {
         enabledBinding(for: request.entry).wrappedValue = true
         markPermissionsSeen(for: request.entry)
         permissionRequest = nil
+        DispatchQueue.main.async {
+            showProvisioning(for: request.entry)
+        }
+    }
+
+    private func showProvisioning(for entry: ExtensionRegistryEntry) {
+        let tools = entry.requiredTools.filter { $0.requirement.isActive() }
+        guard !tools.isEmpty else { return }
+        Task {
+            for tool in tools { await ToolProvisioner.shared.check(tool).value }
+            let hasMissingTool = tools.contains {
+                if case .failed = ToolProvisioner.shared.state(for: $0) { return true }
+                return false
+            }
+            if hasMissingTool { provisioningEntry = entry }
+        }
     }
 
 }
@@ -418,7 +439,8 @@ private struct ExtensionSettingsSheet: View {
 
     private var idealHeight: CGFloat {
         switch entry.id {
-        case "micMute", "music", "systemStats": 300
+        case "micMute", "systemStats": 300
+        case "music": 400
         case "focusDim", "colorPicker": 430
         case "system": 500
         case "notchShelf", "presenter": 580
@@ -665,6 +687,10 @@ private struct UsageRows: View {
     private var hasProvider: Bool { claudeEnabled || codexEnabled }
 
     var body: some View {
+        CLIToolStatusSection(
+            tools: ExtensionRegistry.entries.first { $0.id == "usage" }?.requiredTools ?? [],
+            extensionEnabled: enabled)
+
         Section {
             Group {
                 Toggle("Claude limits", isOn: $claudeEnabled)
@@ -873,7 +899,10 @@ private struct UsageRows: View {
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.5)
         .onChange(of: claudeEnabled) { reconcileProviders() }
-        .onChange(of: codexEnabled) { reconcileProviders() }
+        .onChange(of: codexEnabled) {
+            if enabled && codexEnabled { ToolProvisioner.shared.provision(.codex) }
+            reconcileProviders()
+        }
     }
 
     private var alertsBinding: Binding<Bool> {
@@ -944,6 +973,8 @@ private struct MusicRows: View {
     @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var enabled = false
 
     var body: some View {
+        CLIToolStatusSection(tools: [.youtubeDownloader], extensionEnabled: enabled)
+
         Section {
             LabeledContent("Music folder") {
                 Button("Open in Finder") {

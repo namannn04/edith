@@ -83,6 +83,7 @@ public final class YoutubeDownloader: ObservableObject {
     private var currentProcess: Process?
     private var currentItemID: UUID?
     private var ytdlpExecutableCache: (url: URL, prefix: [String])?
+    private var provisioningObserver: NSObjectProtocol?
 
     public struct DownloadItem: Identifiable, Equatable {
         public let id = UUID()
@@ -119,6 +120,13 @@ public final class YoutubeDownloader: ObservableObject {
             NotificationCenter.default.post(name: .musicFolderChanged, object: nil)
             IPC.post(IPC.Name.musicFolderChanged)
         }
+        provisioningObserver = NotificationCenter.default.addObserver(
+            forName: .cliToolProvisioned, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard notification.userInfo?["toolID"] as? String == CLIToolSpec.youtubeDownloader.id
+            else { return }
+            Task { @MainActor in self?.checkAvailability() }
+        }
     }
 
     private func save() {
@@ -152,7 +160,7 @@ public final class YoutubeDownloader: ObservableObject {
         let p = Process()
         p.executableURL = exe
         p.arguments = prefix + ["--version"]
-        p.environment = toolchainEnvironment()
+        p.environment = CLIToolEnvironment.sanitized()
         let outPipe = Pipe()
         let errPipe = Pipe()
         p.standardOutput = outPipe
@@ -167,13 +175,13 @@ public final class YoutubeDownloader: ObservableObject {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             } else {
                 unavailableReason =
-                    "yt-dlp is not installed. Install it with Homebrew:\nbrew install yt-dlp"
+                    "yt-dlp is not installed. Open Music extension settings to install it."
                 ytdlpVersion = nil
                 ytdlpExecutableCache = nil
             }
         } catch {
             unavailableReason =
-                "yt-dlp is not installed. Install it with Homebrew:\nbrew install yt-dlp"
+                "yt-dlp is not installed. Open Music extension settings to install it."
             ytdlpVersion = nil
             ytdlpExecutableCache = nil
         }
@@ -187,7 +195,7 @@ public final class YoutubeDownloader: ObservableObject {
         let p = Process()
         p.executableURL = exe
         p.arguments = prefix + ["-U"]
-        p.environment = toolchainEnvironment()
+        p.environment = CLIToolEnvironment.sanitized()
         let outPipe = Pipe()
         let errPipe = Pipe()
         p.standardOutput = outPipe
@@ -396,7 +404,7 @@ public final class YoutubeDownloader: ObservableObject {
             }
         }
 
-        p.environment = toolchainEnvironment()
+        p.environment = CLIToolEnvironment.sanitized()
         currentProcess = p
         do {
             try p.run()
@@ -417,38 +425,12 @@ public final class YoutubeDownloader: ObservableObject {
         items.firstIndex(where: { $0.id == id })
     }
 
-    private func toolchainEnvironment() -> [String: String] {
-        var env = ProcessInfo.processInfo.environment
-        let toolDirs = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
-        let existing =
-            env["PATH"]?.split(separator: ":").map(String.init).filter {
-                RestoredPathValidation.verdict(for: $0) == .keep
-            } ?? []
-        env["PATH"] = (toolDirs + existing).joined(separator: ":")
-        return env
-    }
-
     private func ytdlpExecutable() -> (url: URL, prefix: [String]) {
         if let cached = ytdlpExecutableCache { return cached }
-
-        let candidates = [
-            "/opt/homebrew/bin/yt-dlp",
-            "/usr/local/bin/yt-dlp",
-            "/usr/bin/yt-dlp",
-        ]
-        let fm = FileManager.default
-        for path in candidates where fm.fileExists(atPath: path) {
-            let result = (URL(fileURLWithPath: path), [String]())
+        if let executable = CLIToolEnvironment.executable(named: "yt-dlp") {
+            let result = (executable, [String]())
             ytdlpExecutableCache = result
             return result
-        }
-        if let home = ProcessInfo.processInfo.environment["HOME"] {
-            let localBin = (home as NSString).appendingPathComponent(".local/bin/yt-dlp")
-            if fm.fileExists(atPath: localBin) {
-                let result = (URL(fileURLWithPath: localBin), [String]())
-                ytdlpExecutableCache = result
-                return result
-            }
         }
         let result = (URL(fileURLWithPath: "/usr/bin/env"), ["yt-dlp"])
         ytdlpExecutableCache = result

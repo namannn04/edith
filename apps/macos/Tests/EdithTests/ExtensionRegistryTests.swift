@@ -35,6 +35,18 @@ import Testing
         #expect(featuredIdentifiers == ["usage", "system", "notchShelf", "clipboard"])
     }
 
+    @Test func toolRequirementsMatchExtensionDependencies() {
+        let music = ExtensionRegistry.entries.first { $0.id == "music" }!
+        let usage = ExtensionRegistry.entries.first { $0.id == "usage" }!
+
+        #expect(music.requiredTools == [.youtubeDownloader])
+        #expect(usage.requiredTools == [.claudeCode, .codex])
+        #expect(CLIToolSpec.claudeCode.requirement == .always)
+        #expect(
+            CLIToolSpec.codex.requirement
+                == .whenPreferenceEnabled(key: "codexLimitsEnabled", defaultValue: true))
+    }
+
     @Test func marketplaceFilterMatchesQueryAndCategory() {
         let titleMatches = ExtensionMarketplaceFilter.filter(
             entries: ExtensionRegistry.entries, query: "AGENT", category: .all)
