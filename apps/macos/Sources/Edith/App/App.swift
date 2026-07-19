@@ -9,24 +9,36 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     private var quitObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
     private var settingsChangeDebounce: Timer?
+    private let licenseState = LicenseState()
+    private let licenseClient = LicenseClient()
+    private var licensedAppStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
+        if (try? licenseState.gateDecision()) == .proceed {
+            startLicensedApp()
+            verifyLicenseInBackground()
+        } else {
+            presentActivationGate()
+        }
+    }
+
+    private func startLicensedApp() {
+        guard !licensedAppStarted else {
+            showInitialWindow()
+            return
+        }
+        licensedAppStarted = true
         ExtensionDefaultsMigration.migrate()
         Repo.prepareStoredPaths()
-        applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
-        let showDockIcon = SharedDefaults.store.object(forKey: "showDockIcon") as? Bool ?? true
-        NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
+        applyConfiguredActivationPolicy()
         launchHelperIfNeeded()
         let dashboard = DashboardModel.shared
         dashboard.syncExtensionState()
         if SharedDefaults.store.bool(forKey: "tabUsageEnabled") {
             Task { await dashboard.load() }
         }
-        if OnboardingFlow.shouldShowOnboarding() {
-            OnboardingWindow.open()
-        } else {
-            MainWindow.open()
-        }
+        showInitialWindow()
         quitObserver = IPC.observe(IPC.Name.quitMainApp) {
             NSApp.terminate(nil)
         }
@@ -41,6 +53,46 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func applyConfiguredActivationPolicy() {
+        let showDockIcon = SharedDefaults.store.object(forKey: "showDockIcon") as? Bool ?? true
+        NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
+    }
+
+    private func showInitialWindow() {
+        if OnboardingFlow.shouldShowOnboarding() {
+            OnboardingWindow.open()
+        } else {
+            MainWindow.open()
+        }
+    }
+
+    private func presentActivationGate() {
+        NSApp.setActivationPolicy(.regular)
+        for window in NSApp.windows where window.identifier != ActivationWindow.identifier {
+            window.orderOut(nil)
+        }
+        ActivationWindow.open(licenseState: licenseState, client: licenseClient) { [weak self] in
+            self?.startLicensedApp()
+        }
+    }
+
+    private func verifyLicenseInBackground() {
+        guard let key = try? licenseState.licenseKey(), let machine = hardwareUUID() else {
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let valid = try await licenseClient.verify(key: key, hardwareUuid: machine)
+                guard !valid else { return }
+                licenseState.markVerificationFailed()
+                presentActivationGate()
+            } catch {
+                return
+            }
+        }
+    }
+
     private func scheduleSettingsChangedBroadcast() {
         settingsChangeDebounce?.invalidate()
         settingsChangeDebounce = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
@@ -49,7 +101,15 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if !hasVisibleWindows { MainWindow.open() }
+        guard (try? licenseState.gateDecision()) == .proceed else {
+            presentActivationGate()
+            return true
+        }
+        if !licensedAppStarted {
+            startLicensedApp()
+        } else if !hasVisibleWindows {
+            showInitialWindow()
+        }
         return true
     }
 
@@ -132,7 +192,9 @@ private struct SettingsRedirect: View {
                     {
                         window.close()
                     }
-                    MainWindow.open()
+                    if (try? LicenseState().gateDecision()) == .proceed {
+                        MainWindow.open()
+                    }
                 }
             }
     }

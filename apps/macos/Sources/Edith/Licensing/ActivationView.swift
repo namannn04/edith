@@ -1,0 +1,148 @@
+import AppKit
+import EdithKit
+import SwiftUI
+
+struct ActivationView: View {
+    let licenseState: LicenseState
+    let client: LicenseClient
+    let onActivated: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @FocusState private var keyFieldFocused: Bool
+    @State private var key = "EDITH-"
+    @State private var activating = false
+    @State private var errorMessage: String?
+
+    private var dark: Bool { colorScheme == .dark }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 34)
+            appIcon
+                .frame(width: 72, height: 72)
+                .shadow(color: .black.opacity(dark ? 0.3 : 0.14), radius: 14, y: 7)
+            Text("Activate Edith")
+                .font(DashSkin.serif(30, weight: .bold))
+                .foregroundStyle(DashSkin.ink(dark))
+                .padding(.top, 18)
+            Text("Enter your license key")
+                .font(.system(size: 14))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .padding(.top, 5)
+            TextField("EDITH-XXXX-XXXX-XXXX-XXXX", text: $key)
+                .textFieldStyle(.plain)
+                .font(DashSkin.mono(15, weight: .medium))
+                .multilineTextAlignment(.center)
+                .focused($keyFieldFocused)
+                .disabled(activating)
+                .padding(.horizontal, 12)
+                .frame(height: 42)
+                .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(
+                            errorMessage == nil ? DashSkin.lineStrong(dark) : DashSkin.danger,
+                            lineWidth: 1
+                        )
+                }
+                .padding(.top, 20)
+                .onChange(of: key) { _, value in
+                    let formatted = LicenseKeyFormatting.format(value)
+                    if formatted != value { key = formatted }
+                    errorMessage = nil
+                }
+                .onSubmit(activate)
+            Button(action: activate) {
+                Group {
+                    if activating {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Text("Activate")
+                    }
+                }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(brandAccent, in: RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .disabled(activating || !LicenseKeyFormatting.isComplete(key))
+            .opacity(LicenseKeyFormatting.isComplete(key) ? 1 : 0.55)
+            .keyboardShortcut(.defaultAction)
+            .pointerCursor()
+            .padding(.top, 12)
+            Text(errorMessage ?? " ")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(DashSkin.danger)
+                .frame(height: 17)
+                .padding(.top, 8)
+            Spacer(minLength: 18)
+            Divider()
+                .overlay(DashSkin.line(dark))
+            Text("Keys are limited to a number of Macs")
+                .font(.system(size: 10.5))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .frame(height: 42)
+        }
+        .padding(.horizontal, 52)
+        .frame(width: 440, height: 390)
+        .background(DashSkin.paper(dark))
+        .task { keyFieldFocused = true }
+    }
+
+    private var appIcon: some View {
+        Group {
+            if let url = Bundle.module.url(forResource: "appicon", withExtension: "png"),
+                let icon = NSImage(contentsOf: url)
+            {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+            } else {
+                Image(systemName: "waveform.path.ecg.rectangle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(brandAccent)
+            }
+        }
+    }
+
+    private func activate() {
+        guard !activating, LicenseKeyFormatting.isComplete(key) else { return }
+        guard let machine = hardwareUUID() else {
+            errorMessage = "This Mac could not be identified."
+            return
+        }
+        activating = true
+        errorMessage = nil
+        let formattedKey = LicenseKeyFormatting.format(key)
+        Task {
+            do {
+                let response = try await client.activate(
+                    key: formattedKey,
+                    hardwareUuid: machine,
+                    hostname: Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+                )
+                guard response.ok else {
+                    errorMessage = "That license key is invalid or inactive."
+                    activating = false
+                    return
+                }
+                try licenseState.activate(key: formattedKey, label: response.label)
+                onActivated()
+            } catch LicenseClientError.seatLimitReached {
+                errorMessage = "This key has reached its Mac limit."
+                activating = false
+            } catch LicenseClientError.invalidKey {
+                errorMessage = "That license key is invalid or inactive."
+                activating = false
+            } catch {
+                errorMessage = "Could not activate. Check your connection and try again."
+                activating = false
+            }
+        }
+    }
+}

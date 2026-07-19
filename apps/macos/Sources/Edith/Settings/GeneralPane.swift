@@ -122,6 +122,7 @@ private struct UpdatesPane: View {
 }
 
 struct GeneralPane: View {
+    private let licenseState = LicenseState()
     @AppStorage("appearance", store: SharedDefaults.store) private var appearance = "system"
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("lastPaletteTheme", store: SharedDefaults.store) private var lastPaletteTheme =
@@ -130,6 +131,9 @@ struct GeneralPane: View {
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.home.rawValue
     @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
+    @State private var licenseLabel = "Licensed"
+    @State private var maskedLicenseKey = "EDITH-****-****-****-****"
+    @State private var licenseError: String?
 
     var body: some View {
         Form {
@@ -209,10 +213,37 @@ struct GeneralPane: View {
             } header: {
                 Text("Welcome tour")
             }
+
+            Section {
+                LabeledContent("License") {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(licenseLabel)
+                            .foregroundStyle(.secondary)
+                        Text(maskedLicenseKey)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                Button("Deactivate", role: .destructive, action: deactivateLicense)
+                    .pointerCursor()
+                if let licenseError {
+                    Text(licenseError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            } header: {
+                Text("License")
+            } footer: {
+                Text("Deactivation takes effect the next time Edith launches.")
+                    .font(.caption)
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("General")
-        .onAppear(perform: refreshPermissionState)
+        .onAppear {
+            refreshPermissionState()
+            refreshLicenseState()
+        }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: NSApplication.didBecomeActiveNotification)
@@ -245,6 +276,24 @@ struct GeneralPane: View {
     private func refreshPermissionState() {
         grantedPermissions = ExtensionPermissionState.readGrantedPermissions()
         IPC.post(IPC.Name.requestPermissionsRefresh)
+    }
+
+    private func refreshLicenseState() {
+        licenseLabel = licenseState.label ?? "Licensed"
+        if let key = try? licenseState.licenseKey() {
+            maskedLicenseKey = LicenseKeyFormatting.masked(key)
+        }
+    }
+
+    private func deactivateLicense() {
+        do {
+            try licenseState.deactivate()
+            licenseLabel = "Deactivated"
+            maskedLicenseKey = "EDITH-****-****-****-****"
+            licenseError = nil
+        } catch {
+            licenseError = "The license could not be removed from Keychain."
+        }
     }
 
     private func swatch(_ name: String, color: Color) -> some View {

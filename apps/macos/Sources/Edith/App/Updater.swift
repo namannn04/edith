@@ -1,3 +1,4 @@
+import EdithKit
 import Sparkle
 import SwiftUI
 
@@ -37,13 +38,22 @@ final class UpdaterModel: NSObject, ObservableObject,
     private var automaticDownloadsObservation: NSKeyValueObservation?
     private var updater: SPUUpdater? { updaterController?.updater }
 
-    init(startingUpdater: Bool = false) {
+    init(startingUpdater: Bool = false, licenseState: LicenseState = LicenseState()) {
         super.init()
         guard startingUpdater else { return }
+        guard
+            (try? licenseState.gateDecision()) == .proceed,
+            let key = try? licenseState.licenseKey(),
+            let machine = hardwareUUID()
+        else { return }
         let updaterController = SPUStandardUpdaterController(
             startingUpdater: false, updaterDelegate: nil, userDriverDelegate: self)
         self.updaterController = updaterController
         let updater = updaterController.updater
+        updater.httpHeaders = [
+            "x-edith-license": key,
+            "x-edith-machine": machine,
+        ]
         do {
             try updater.start()
             updaterAvailable = true
