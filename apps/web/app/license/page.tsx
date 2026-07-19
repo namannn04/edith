@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
+import { SiteFooter, SiteHeader } from "../site-chrome";
 
 export const metadata: Metadata = {
-  title: "License | Edith for Mac",
+  title: "License · Edith",
   description: "How Edith licenses work across your Macs.",
+  alternates: {
+    canonical: "/license",
+  },
 };
 
 export default function LicensePage() {
   return (
-    <main className="prose-shell">
-      <a className="back-link" href="/">
-        Edith
-      </a>
-      <section className="prose-card">
+    <>
+      <SiteHeader />
+      <main className="legal">
         <p className="eyebrow">License</p>
         <h1>One key, your Macs.</h1>
         <p>
@@ -22,7 +24,8 @@ export default function LicensePage() {
           Reinstalling Edith on the same Mac does not use another seat. Edith
           recognizes the Mac and keeps it on the existing activation.
         </p>
-      </section>
-    </main>
+      </main>
+      <SiteFooter />
+    </>
   );
 }
