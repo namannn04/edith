@@ -11,13 +11,22 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     private var settingsChangeDebounce: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ExtensionDefaultsMigration.migrate()
+        Repo.prepareStoredPaths()
         applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
         let showDockIcon = SharedDefaults.store.object(forKey: "showDockIcon") as? Bool ?? true
         NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
         launchHelperIfNeeded()
-        Task { await DashboardModel.shared.load() }
-        nudgePermissionsOnFirstLaunch()
-        MainWindow.open()
+        let dashboard = DashboardModel.shared
+        dashboard.syncExtensionState()
+        if SharedDefaults.store.bool(forKey: "tabUsageEnabled") {
+            Task { await dashboard.load() }
+        }
+        if OnboardingFlow.shouldShowOnboarding() {
+            OnboardingWindow.open()
+        } else {
+            MainWindow.open()
+        }
         quitObserver = IPC.observe(IPC.Name.quitMainApp) {
             NSApp.terminate(nil)
         }
@@ -25,7 +34,10 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
             forName: UserDefaults.didChangeNotification, object: SharedDefaults.store,
             queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.scheduleSettingsChangedBroadcast() }
+            MainActor.assumeIsolated {
+                DashboardModel.shared.syncExtensionState()
+                self?.scheduleSettingsChangedBroadcast()
+            }
         }
     }
 
@@ -33,15 +45,6 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         settingsChangeDebounce?.invalidate()
         settingsChangeDebounce = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
             IPC.post(IPC.Name.settingsChanged)
-        }
-    }
-
-    private func nudgePermissionsOnFirstLaunch() {
-        let store = SharedDefaults.store
-        guard store.object(forKey: "hasPromptedPermissions") == nil else { return }
-        store.set(true, forKey: "hasPromptedPermissions")
-        if PermissionsStatus.current {
-            store.set(MainDestination.permissions.rawValue, forKey: "mainWindowSection")
         }
     }
 
@@ -71,7 +74,7 @@ private func launchHelperIfNeeded() {
         try? service.register()
     }
     let helperURL = Bundle.main.bundleURL
-        .appendingPathComponent("Contents/Library/LoginItems/EdithHelper.app")
+        .appendingPathComponent("Contents/Library/LoginItems/Edith.app")
     if let running = NSRunningApplication.runningApplications(
         withBundleIdentifier: helperBundleIdentifier
     ).first {
@@ -87,7 +90,7 @@ private func launchHelperIfNeeded() {
 }
 
 private func helperInstalledDate(_ helperURL: URL) -> Date? {
-    let exec = helperURL.appendingPathComponent("Contents/MacOS/EdithHelper")
+    let exec = helperURL.appendingPathComponent("Contents/MacOS/Edith")
     return (try? FileManager.default.attributesOfItem(atPath: exec.path)[.modificationDate])
         as? Date
 }

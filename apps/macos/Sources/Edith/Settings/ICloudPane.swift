@@ -14,8 +14,12 @@ struct ICloudPane: View {
     @AppStorage("clipboardBackup", store: SharedDefaults.store) private var clipboardBackup = false
     @AppStorage("lastClipboardBackupAt", store: SharedDefaults.store)
     private var lastClipboardBackupAt = 0.0
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
+    @AppStorage("clipboardEnabled", store: SharedDefaults.store) private var clipboardEnabled =
+        false
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
 
-    private var cloudAvailable: Bool { AppData.cloudAvailable }
+    private var cloudAvailable: Bool { icloudBackup && AppData.cloudAvailable }
 
     var body: some View {
         Form {
@@ -29,12 +33,11 @@ struct ICloudPane: View {
                     }
                 }
                 .pointerCursor()
-                .disabled(!cloudAvailable)
                 Text(backupSubtitle).font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("iCloud backup")
             } footer: {
-                if !cloudAvailable {
+                if icloudBackup, !cloudAvailable {
                     Text("iCloud Drive is not available on this Mac.")
                 }
             }
@@ -43,20 +46,20 @@ struct ICloudPane: View {
                 Toggle("Settings", isOn: $backupSettings)
                     .pointerCursor()
                     .disabled(!icloudBackup)
-                Text(
-                    "Every preference in this app: toggles, colors, shortcuts, layouts, and your Agent Usage filters."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-                Toggle("Usage data", isOn: $backupUsage)
-                    .pointerCursor()
-                    .disabled(!icloudBackup)
-                Text("The Claude token and cost history behind the Agent Usage charts.")
+                Text("Every preference in this app: toggles, colors, shortcuts, and layouts.")
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle("Session history", isOn: $backupLimits)
-                    .pointerCursor()
-                    .disabled(!icloudBackup)
-                Text("Rate-limit snapshots that draw the session and weekly limit charts.")
-                    .font(.caption).foregroundStyle(.secondary)
+                if usageEnabled {
+                    Toggle("Usage data", isOn: $backupUsage)
+                        .pointerCursor()
+                        .disabled(!icloudBackup)
+                    Text("The token and cost history behind the Agent Usage charts.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Session history", isOn: $backupLimits)
+                        .pointerCursor()
+                        .disabled(!icloudBackup)
+                    Text("Rate-limit snapshots that draw the session and weekly limit charts.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             } header: {
                 Text("App data")
             } footer: {
@@ -66,24 +69,30 @@ struct ICloudPane: View {
                 .font(.caption)
             }
 
-            Section {
-                Toggle("Music folder", isOn: $musicBackup)
-                    .pointerCursor()
-                    .disabled(!cloudAvailable)
-                Text(musicSubtitle).font(.caption).foregroundStyle(.secondary)
-                Toggle(isOn: $clipboardBackup) {
-                    HStack(spacing: 6) {
-                        Text("Clipboard history")
-                        InfoDot(
-                            "Text history only, items up to 1 MB each - larger copies stay on this Mac."
-                        )
+            if musicEnabled || clipboardEnabled {
+                Section {
+                    if musicEnabled {
+                        Toggle("Music folder", isOn: $musicBackup)
+                            .pointerCursor()
+                            .disabled(!icloudBackup || !cloudAvailable)
+                        Text(musicSubtitle).font(.caption).foregroundStyle(.secondary)
                     }
+                    if clipboardEnabled {
+                        Toggle(isOn: $clipboardBackup) {
+                            HStack(spacing: 6) {
+                                Text("Clipboard history")
+                                InfoDot(
+                                    "Text history only, items up to 1 MB each - larger copies stay on this Mac."
+                                )
+                            }
+                        }
+                        .pointerCursor()
+                        .disabled(!icloudBackup || !cloudAvailable)
+                        Text(clipboardSubtitle).font(.caption).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Extensions")
                 }
-                .pointerCursor()
-                .disabled(!cloudAvailable)
-                Text(clipboardSubtitle).font(.caption).foregroundStyle(.secondary)
-            } header: {
-                Text("Extensions")
             }
 
             Section {
@@ -93,7 +102,7 @@ struct ICloudPane: View {
                     }
                     .pointerCursor()
                 }
-                if cloudAvailable {
+                if icloudBackup, cloudAvailable {
                     LabeledContent("iCloud folder") {
                         Button("Open") {
                             try? FileManager.default.createDirectory(
@@ -112,8 +121,8 @@ struct ICloudPane: View {
     }
 
     private var backupSubtitle: String {
-        if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if !icloudBackup { return "Syncs via iCloud Drive; newest copy wins across Macs" }
+        if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if lastBackupAt > 0 {
             let at = Date(timeIntervalSince1970: lastBackupAt)
             return "Backed up \(at.formatted(date: .abbreviated, time: .shortened))"
@@ -122,6 +131,7 @@ struct ICloudPane: View {
     }
 
     private var musicSubtitle: String {
+        if !icloudBackup { return "Turn on iCloud backup to back up your music folder" }
         if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if musicBackup, lastMusicBackupAt > 0 {
             let at = Date(timeIntervalSince1970: lastMusicBackupAt)
@@ -131,6 +141,7 @@ struct ICloudPane: View {
     }
 
     private var clipboardSubtitle: String {
+        if !icloudBackup { return "Turn on iCloud backup to back up clipboard history" }
         if !cloudAvailable { return "iCloud Drive is not available on this Mac" }
         if clipboardBackup, lastClipboardBackupAt > 0 {
             let at = Date(timeIntervalSince1970: lastClipboardBackupAt)

@@ -9,6 +9,7 @@ final class CancelToken: @unchecked Sendable {
 @MainActor
 final class CleanerModel: ObservableObject {
     static let shared = CleanerModel()
+    private static let confirmedExternalPathsKey = "cleanerConfirmedExternalPaths"
 
     @Published private(set) var categories: [JunkCategory] = []
     @Published private(set) var scanning = false
@@ -25,19 +26,34 @@ final class CleanerModel: ObservableObject {
     private var scanToken: CancelToken?
 
     init() {
+        let confirmed = Set(
+            SharedDefaults.store.array(forKey: Self.confirmedExternalPathsKey) as? [String] ?? [])
         if let raw = SharedDefaults.store.array(forKey: "cleanerSelectedDrives") as? [String] {
-            driveSelection = Set(raw)
+            let kept = raw.filter { Self.pathIsAllowed($0, confirmed: confirmed) }
+            driveSelection = Set(kept)
+            if kept != raw {
+                SharedDefaults.store.set(kept, forKey: "cleanerSelectedDrives")
+            }
         }
         if let raw = SharedDefaults.store.array(forKey: "cleanerCustomFolders") as? [String] {
-            customFolders = raw
+            let kept = raw.filter { Self.pathIsAllowed($0, confirmed: confirmed) }
+            customFolders = kept
+            if kept != raw {
+                SharedDefaults.store.set(kept, forKey: "cleanerCustomFolders")
+            }
         }
     }
 
     func addCustomFolder(_ path: String) {
-        guard !customFolders.contains(path) else { return }
-        customFolders.append(path)
+        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        guard !customFolders.contains(standardizedPath) else { return }
+        confirmExternalPathIfNeeded(standardizedPath)
+        customFolders.append(standardizedPath)
         SharedDefaults.store.set(customFolders, forKey: "cleanerCustomFolders")
-        if driveSelection != nil { driveSelection?.insert(path) }
+        var selection = driveSelection ?? ["/"]
+        selection.insert(standardizedPath)
+        driveSelection = selection
+        SharedDefaults.store.set(Array(selection), forKey: "cleanerSelectedDrives")
     }
 
     func removeCustomFolder(_ path: String) {
@@ -47,6 +63,7 @@ final class CleanerModel: ObservableObject {
         if driveSelection != nil {
             SharedDefaults.store.set(Array(driveSelection ?? []), forKey: "cleanerSelectedDrives")
         }
+        removeExternalConfirmation(path)
     }
 
     var reclaimableTotal: Int64 { categories.reduce(0) { $0 + $1.sizeBytes } }
@@ -87,14 +104,40 @@ final class CleanerModel: ObservableObject {
     }
 
     func isDriveSelected(_ id: String) -> Bool {
-        driveSelection?.contains(id) ?? true
+        driveSelection?.contains(id) ?? (id == "/")
     }
 
     func toggleDrive(_ id: String) {
-        var selection = driveSelection ?? Set(driveOptions.map(\.id))
-        if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+        var selection = driveSelection ?? ["/"]
+        if selection.contains(id) {
+            selection.remove(id)
+            if !customFolders.contains(id) { removeExternalConfirmation(id) }
+        } else {
+            confirmExternalPathIfNeeded(id)
+            selection.insert(id)
+        }
         driveSelection = selection
         SharedDefaults.store.set(Array(selection), forKey: "cleanerSelectedDrives")
+    }
+
+    private static func pathIsAllowed(_ path: String, confirmed: Set<String>) -> Bool {
+        RestoredPathValidation.verdict(for: path) == .keep
+            || confirmed.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
+    }
+
+    private func confirmExternalPathIfNeeded(_ path: String) {
+        guard RestoredPathValidation.verdict(for: path) == .drop else { return }
+        var confirmed = Set(
+            SharedDefaults.store.array(forKey: Self.confirmedExternalPathsKey) as? [String] ?? [])
+        confirmed.insert(URL(fileURLWithPath: path).standardizedFileURL.path)
+        SharedDefaults.store.set(Array(confirmed), forKey: Self.confirmedExternalPathsKey)
+    }
+
+    private func removeExternalConfirmation(_ path: String) {
+        var confirmed = Set(
+            SharedDefaults.store.array(forKey: Self.confirmedExternalPathsKey) as? [String] ?? [])
+        confirmed.remove(URL(fileURLWithPath: path).standardizedFileURL.path)
+        SharedDefaults.store.set(Array(confirmed), forKey: Self.confirmedExternalPathsKey)
     }
 
     func scan() {
@@ -110,7 +153,7 @@ final class CleanerModel: ObservableObject {
         Task {
             let all = await Task.detached { JunkScanner.drives() }.value
             driveOptions = all
-            drives = all.filter { isDriveSelected($0.id) }
+            drives = JunkScanner.drivesForScanning(all, selectedDriveIDs: driveSelection)
             let choices = overrides
             let categoryChoices = categoryDefaults
             let home = FileManager.default.homeDirectoryForCurrentUser
@@ -523,7 +566,7 @@ private struct DrivePickerSheet: View {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(drive.name).font(.system(size: 13, weight: .medium))
                                     Text(
-                                        "\(JunkScanner.format(drive.usedBytes)) of \(JunkScanner.format(drive.totalBytes))"
+                                        "\(JunkScanner.format(drive.totalBytes)) capacity"
                                     )
                                     .font(.system(size: 10.5, design: .monospaced))
                                     .foregroundStyle(DashSkin.inkFaint(dark))
@@ -766,40 +809,23 @@ private struct DriveRow: View {
     let dark: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: drive.isExternal ? "externaldrive.fill" : "internaldrive.fill")
-                    .font(.system(size: 11)).foregroundStyle(DashSkin.inkFaint(dark))
-                Text(drive.name).font(.system(size: 12, weight: .medium))
-                if drive.isExternal {
-                    Text("EXTERNAL").font(.system(size: 8, weight: .bold)).tracking(0.4)
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(DashSkin.inkFaint(dark).opacity(0.15), in: Capsule())
-                        .foregroundStyle(DashSkin.inkFaint(dark))
-                }
-                Spacer()
-                Text(
-                    "\(JunkScanner.format(drive.usedBytes)) of \(JunkScanner.format(drive.totalBytes))"
-                )
+        HStack(spacing: 6) {
+            Image(systemName: drive.isExternal ? "externaldrive.fill" : "internaldrive.fill")
+                .font(.system(size: 11)).foregroundStyle(DashSkin.inkFaint(dark))
+            Text(drive.name).font(.system(size: 12, weight: .medium))
+            if drive.isExternal {
+                Text("EXTERNAL").font(.system(size: 8, weight: .bold)).tracking(0.4)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(DashSkin.inkFaint(dark).opacity(0.15), in: Capsule())
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+            }
+            Spacer()
+            Text("\(JunkScanner.format(drive.totalBytes)) capacity")
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(
                     DashSkin.inkFaint(dark))
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.primary.opacity(0.1))
-                    Capsule().fill(barColor)
-                        .frame(width: max(3, geo.size.width * drive.usedFraction))
-                }
-            }
-            .frame(height: 5)
         }
         .padding(10)
         .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    private var barColor: Color {
-        drive.usedFraction > 0.9
-            ? DashSkin.danger : DashSkin.accent(dark)
     }
 }
 

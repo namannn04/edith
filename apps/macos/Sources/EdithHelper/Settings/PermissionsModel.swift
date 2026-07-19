@@ -41,6 +41,11 @@ final class PermissionsModel: ObservableObject {
                 self?.grantScreenRecording()
             },
             IPC.observe(IPC.Name.grantCamera) { [weak self] in self?.grantCamera() },
+            NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.refresh() }
+            },
         ]
     }
 
@@ -72,13 +77,15 @@ final class PermissionsModel: ObservableObject {
         setIfChanged(fullDisk, "permFullDiskGranted")
         setIfChanged(screenRecording, "permScreenRecordingGranted")
         setIfChanged(camera, "permCameraGranted")
+        IPC.post(IPC.Name.permissionsRefreshed)
     }
 
     var needsAttention: Bool {
         let d = SharedDefaults.store
-        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? true }
+        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? false }
         return PermissionsStatus.needsAttention(
-            calendarTab: on("tabCalendarEnabled"), systemTab: on("tabSystemEnabled"),
+            usageTab: on("tabUsageEnabled"), calendarTab: on("tabCalendarEnabled"),
+            systemTab: on("tabSystemEnabled"),
             notifyMaster: d.bool(forKey: "notifyMaster"),
             calendar: calendar, accessibility: accessibility,
             inputMonitoring: inputMonitoring, notifications: notifications)
@@ -105,20 +112,24 @@ final class PermissionsModel: ObservableObject {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
         openSecuritySettings("Privacy_Accessibility")
+        refreshAfterGrant()
     }
 
     func grantInputMonitoring() {
         CGRequestListenEventAccess()
         openSecuritySettings("Privacy_ListenEvent")
+        refreshAfterGrant()
     }
 
     func grantFullDisk() {
         openSecuritySettings("Privacy_AllFiles")
+        refreshAfterGrant()
     }
 
     func grantScreenRecording() {
         CGRequestScreenCaptureAccess()
         openSecuritySettings("Privacy_ScreenCapture")
+        refreshAfterGrant()
     }
 
     func grantCamera() {
@@ -129,12 +140,22 @@ final class PermissionsModel: ObservableObject {
             }
         default:
             openSecuritySettings("Privacy_Camera")
+            refreshAfterGrant()
         }
     }
 
     private func openSecuritySettings(_ anchor: String) {
         NSWorkspace.shared.open(
             URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!)
+    }
+
+    private func refreshAfterGrant() {
+        refresh()
+        for delay in [0.5, 2.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.refresh()
+            }
+        }
     }
 
     static func hasFullDiskAccess() -> Bool {

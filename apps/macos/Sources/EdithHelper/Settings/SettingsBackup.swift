@@ -2,6 +2,67 @@ import AppKit
 import EdithKit
 import Foundation
 
+enum SettingsBackupDataClass: String, CaseIterable, Hashable, Sendable {
+    case settings
+    case usage
+    case limits
+    case music
+    case clipboard
+}
+
+func settingsBackupMissingNames(cloudNames: Set<String>, localNames: Set<String>) -> Set<String> {
+    cloudNames.subtracting(localNames)
+}
+
+struct SettingsBackupPendingState: Equatable, Sendable {
+    private(set) var remaining: Set<String>
+
+    init(_ names: Set<String> = []) {
+        remaining = names
+    }
+
+    mutating func complete(_ name: String) {
+        remaining.remove(name)
+    }
+}
+
+private struct SettingsBackupRestoreItem: Sendable {
+    let name: String
+    let source: URL
+    let destination: URL
+}
+
+struct SettingsBackupTransferDecision: Equatable, Sendable {
+    let shouldRestore: Bool
+    let shouldExport: Bool
+}
+
+func settingsBackupTransferDecision(
+    for dataClass: SettingsBackupDataClass,
+    masterEnabled: Bool,
+    subToggleEnabled: Bool,
+    extensionEnabled: Bool
+) -> SettingsBackupTransferDecision {
+    switch dataClass {
+    case .settings, .usage, .limits, .music, .clipboard:
+        let shouldRestore = masterEnabled && subToggleEnabled
+        return SettingsBackupTransferDecision(
+            shouldRestore: shouldRestore,
+            shouldExport: shouldRestore && extensionEnabled)
+    }
+}
+
+func settingsBackupEnableRestoreDecision(
+    for dataClass: SettingsBackupDataClass,
+    cloudDataExists: Bool,
+    masterEnabled: Bool
+) -> Bool {
+    switch (dataClass, cloudDataExists, masterEnabled) {
+    case (.settings, _, _), (_, false, _): return false
+    case (_, true, _): return true
+    }
+}
+
 @MainActor
 final class SettingsBackup: ObservableObject {
     static let shared = SettingsBackup()
@@ -116,9 +177,15 @@ final class SettingsBackup: ObservableObject {
         "lastClipboardBackupAt", "micMuted", "migratedFromControlCenter",
         "notifSessionLevel", "notifSessionPacing", "notifTokenExpiredAt", "notifWeeklyLevel",
         "notifWeeklyPacing", "permAccessibilityGranted", "permCalendarGranted",
-        "permFullDiskGranted", "permInputMonitoringGranted", "permNotificationsGranted",
+        "permCameraGranted", "permFullDiskGranted", "permInputMonitoringGranted",
+        "permNotificationsGranted",
         "permScreenRecordingGranted", "presenterAutoActive", "presenterAutoPaused",
-        "presenterAutoReason", "settingsSection",
+        "presenterAutoReason", "settingsSection", "musicFolderPath", "musicFolderStale",
+        "musicFolderExternalConfirmation", "repoPathExternalConfirmation",
+        "cleanerConfirmedExternalPaths",
+        "restorePending.usage", "restorePending.limits", "restorePending.music",
+        "restorePending.clipboard", "restoreTimedOut.usage", "restoreTimedOut.limits",
+        "restoreTimedOut.music", "restoreTimedOut.clipboard",
     ]
 
     private func store(for key: String) -> UserDefaults {
@@ -135,36 +202,458 @@ final class SettingsBackup: ObservableObject {
     }
     private var localUsage: URL { Repo.usageJSON }
     private var cloudUsage: URL { AppData.cloudDir.appendingPathComponent("data/usage.json") }
+    private var observedICloudBackup = false
+    private var pendingRestoreItems:
+        [SettingsBackupDataClass: [String: SettingsBackupRestoreItem]] =
+            [:]
+    private var pendingRestoreStates: [SettingsBackupDataClass: SettingsBackupPendingState] = [:]
+    private var restoreTasks: [SettingsBackupDataClass: Task<Void, Never>] = [:]
 
     private func flag(_ key: String) -> Bool {
         store(for: key).object(forKey: key) as? Bool ?? true
     }
-    private var backupOn: Bool {
-        SharedDefaults.store.bool(forKey: "icloudBackup") && AppData.cloudAvailable
+
+    private func transferDecision(
+        for dataClass: SettingsBackupDataClass
+    ) -> SettingsBackupTransferDecision {
+        let subToggleEnabled: Bool
+        let extensionEnabled: Bool
+        switch dataClass {
+        case .settings:
+            subToggleEnabled = flag("backupSettings")
+            extensionEnabled = true
+        case .usage:
+            subToggleEnabled = flag("backupUsage")
+            extensionEnabled = SharedDefaults.store.bool(forKey: "tabUsageEnabled")
+        case .limits:
+            subToggleEnabled = flag("backupLimits")
+            extensionEnabled = SharedDefaults.store.bool(forKey: "tabUsageEnabled")
+        case .music:
+            subToggleEnabled = SharedDefaults.store.bool(forKey: "musicBackup")
+            extensionEnabled = SharedDefaults.store.bool(forKey: "tabMusicEnabled")
+        case .clipboard:
+            subToggleEnabled = SharedDefaults.store.bool(forKey: "clipboardBackup")
+            extensionEnabled = SharedDefaults.store.bool(forKey: "clipboardEnabled")
+        }
+        return settingsBackupTransferDecision(
+            for: dataClass,
+            masterEnabled: SharedDefaults.store.bool(forKey: "icloudBackup"),
+            subToggleEnabled: subToggleEnabled,
+            extensionEnabled: extensionEnabled)
+    }
+
+    func restoreDataOnEnable(for dataClass: SettingsBackupDataClass) {
+        guard AppData.cloudAvailable else { return }
+        let dataExists = cloudDataExists(for: dataClass)
+        guard
+            settingsBackupEnableRestoreDecision(
+                for: dataClass, cloudDataExists: dataExists,
+                masterEnabled: SharedDefaults.store.bool(forKey: "icloudBackup"))
+        else { return }
+        let restoreOnly = SettingsBackupTransferDecision(shouldRestore: true, shouldExport: false)
+        switch dataClass {
+        case .settings:
+            return
+        case .usage:
+            restoreArchive(
+                cloudUsage, destination: localUsage, dataClass: dataClass, decision: restoreOnly,
+                requireApplicationSupportDestination: false)
+        case .limits:
+            restoreArchive(
+                cloudLimits, destination: localLimits, dataClass: dataClass, decision: restoreOnly,
+                requireApplicationSupportDestination: false)
+        case .music:
+            restoreMusic(
+                decision: restoreOnly, requireApplicationSupportDestination: false)
+        case .clipboard:
+            restoreClipboard(decision: restoreOnly)
+        }
+    }
+
+    private func cloudDataExists(for dataClass: SettingsBackupDataClass) -> Bool {
+        let fm = FileManager.default
+        switch dataClass {
+        case .settings:
+            return false
+        case .usage:
+            return fm.fileExists(atPath: cloudUsage.path)
+                || fm.fileExists(atPath: placeholderURL(for: cloudUsage).path)
+        case .limits:
+            return fm.fileExists(atPath: cloudLimits.path)
+                || fm.fileExists(atPath: placeholderURL(for: cloudLimits).path)
+        case .music:
+            let directory = AppData.cloudDir.appendingPathComponent("music")
+            return !((try? fm.contentsOfDirectory(atPath: directory.path)) ?? []).isEmpty
+        case .clipboard:
+            let index = cloudClipboardDir.appendingPathComponent("index.jsonl")
+            return fm.fileExists(atPath: index.path)
+                || fm.fileExists(atPath: placeholderURL(for: index).path)
+        }
+    }
+
+    private func placeholderURL(for url: URL) -> URL {
+        url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
+    }
+
+    private func restoreArchive(
+        _ source: URL,
+        destination: URL,
+        dataClass: SettingsBackupDataClass,
+        decision: SettingsBackupTransferDecision,
+        requireApplicationSupportDestination: Bool
+    ) {
+        guard decision.shouldRestore,
+            !requireApplicationSupportDestination || isApplicationSupportURL(destination),
+            cloudFileExists(at: source)
+        else {
+            clearRestoreState(for: dataClass)
+            return
+        }
+        beginProgressiveRestore(
+            [
+                SettingsBackupRestoreItem(
+                    name: source.lastPathComponent, source: source, destination: destination)
+            ],
+            for: dataClass)
+    }
+
+    private func isApplicationSupportURL(_ url: URL) -> Bool {
+        let supportPath = AppData.supportDir.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        return path == supportPath || path.hasPrefix(supportPath + "/")
+    }
+
+    private func cloudFileExists(at url: URL) -> Bool {
+        let fm = FileManager.default
+        return fm.fileExists(atPath: url.path)
+            || fm.fileExists(atPath: placeholderURL(for: url).path)
+    }
+
+    private func missingRestoreItems(from source: URL, to destination: URL)
+        -> [SettingsBackupRestoreItem]
+    {
+        let cloudFiles = filesByRelativeName(in: source, normalizePlaceholders: true)
+        let localNames = Set(filesByRelativeName(in: destination).keys)
+        let missingNames = settingsBackupMissingNames(
+            cloudNames: Set(cloudFiles.keys), localNames: localNames)
+        return missingNames.sorted().compactMap { name in
+            guard let cloudFile = cloudFiles[name] else { return nil }
+            return SettingsBackupRestoreItem(
+                name: name,
+                source: cloudFile,
+                destination: destination.appendingPathComponent(name))
+        }
+    }
+
+    private func filesByRelativeName(
+        in root: URL,
+        normalizePlaceholders: Bool = false
+    ) -> [String: URL] {
+        let fm = FileManager.default
+        guard
+            let enumerator = fm.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsPackageDescendants])
+        else { return [:] }
+        var files: [String: URL] = [:]
+        while let url = enumerator.nextObject() as? URL {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            if values?.isDirectory == true { continue }
+            guard var name = relativeName(of: url, in: root) else { continue }
+            if normalizePlaceholders {
+                name = normalizedPlaceholderName(name)
+            }
+            guard !name.isEmpty, (name as NSString).lastPathComponent != ".DS_Store" else {
+                continue
+            }
+            files[name] = root.appendingPathComponent(name)
+        }
+        return files
+    }
+
+    private func relativeName(of url: URL, in root: URL) -> String? {
+        let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard url.path.hasPrefix(rootPath) else { return nil }
+        return String(url.path.dropFirst(rootPath.count))
+    }
+
+    private func normalizedPlaceholderName(_ name: String) -> String {
+        let path = name as NSString
+        let component = path.lastPathComponent
+        guard component.hasPrefix("."), component.hasSuffix(".icloud") else { return name }
+        let original = String(component.dropFirst().dropLast(".icloud".count))
+        let parent = path.deletingLastPathComponent
+        return parent.isEmpty ? original : (parent as NSString).appendingPathComponent(original)
+    }
+
+    private func beginProgressiveRestore(
+        _ items: [SettingsBackupRestoreItem],
+        for dataClass: SettingsBackupDataClass
+    ) {
+        restoreTasks[dataClass]?.cancel()
+        let itemsByName = Dictionary(
+            items.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        pendingRestoreItems[dataClass] = itemsByName
+        pendingRestoreStates[dataClass] = SettingsBackupPendingState(Set(itemsByName.keys))
+        setRestorePending(itemsByName.count, for: dataClass)
+        setRestoreTimedOut(0, for: dataClass)
+        guard !itemsByName.isEmpty else {
+            pendingRestoreItems.removeValue(forKey: dataClass)
+            pendingRestoreStates.removeValue(forKey: dataClass)
+            restoreTasks.removeValue(forKey: dataClass)
+            return
+        }
+        if dataClass == .music {
+            IPC.post(IPC.Name.musicFolderChanged)
+        }
+        for item in itemsByName.values where !isCloudFileCurrent(item.source) {
+            requestCloudDownload(for: item.source)
+        }
+        processPendingRestore(for: dataClass)
+        guard pendingRestoreStates[dataClass]?.remaining.isEmpty == false else { return }
+        let deadline = Date().addingTimeInterval(600)
+        restoreTasks[dataClass] = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 3_000_000_000)
+                } catch {
+                    return
+                }
+                guard self != nil else { return }
+                if Date() >= deadline {
+                    self?.timeOutRestore(for: dataClass)
+                    return
+                }
+                self?.processPendingRestore(for: dataClass)
+                if self?.pendingRestoreStates[dataClass]?.remaining.isEmpty != false { return }
+            }
+        }
+    }
+
+    private func isCloudFileCurrent(_ url: URL) -> Bool {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return false }
+        let values = try? url.resourceValues(
+            forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey])
+        if values?.isUbiquitousItem == true {
+            return values?.ubiquitousItemDownloadingStatus == .current
+        }
+        return fm.isReadableFile(atPath: url.path)
+    }
+
+    private func requestCloudDownload(for url: URL) {
+        do {
+            try FileManager.default.startDownloadingUbiquitousItem(at: url)
+        } catch {
+            try? FileManager.default.startDownloadingUbiquitousItem(
+                at: url.deletingLastPathComponent())
+        }
+    }
+
+    private func processPendingRestore(for dataClass: SettingsBackupDataClass) {
+        guard var state = pendingRestoreStates[dataClass],
+            let items = pendingRestoreItems[dataClass]
+        else { return }
+        for name in state.remaining.sorted() {
+            guard let item = items[name], restoreIfReady(item, for: dataClass) else { continue }
+            state.complete(name)
+        }
+        pendingRestoreStates[dataClass] = state
+        setRestorePending(state.remaining.count, for: dataClass)
+        if state.remaining.isEmpty {
+            finishRestore(for: dataClass)
+        }
+    }
+
+    private func restoreIfReady(
+        _ item: SettingsBackupRestoreItem,
+        for dataClass: SettingsBackupDataClass
+    ) -> Bool {
+        guard isCloudFileCurrent(item.source) else { return false }
+        switch dataClass {
+        case .settings:
+            return true
+        case .usage:
+            guard (try? Data(contentsOf: item.source)) != nil else { return false }
+            transferUsage(
+                decision: SettingsBackupTransferDecision(shouldRestore: true, shouldExport: false),
+                restore: true, export: false, requireApplicationSupportRestore: false)
+            restoreDidChange(.usage)
+            return true
+        case .limits:
+            guard (try? Data(contentsOf: item.source)) != nil else { return false }
+            transferLimits(
+                decision: SettingsBackupTransferDecision(shouldRestore: true, shouldExport: false),
+                restore: true, export: false, requireApplicationSupportRestore: false)
+            restoreDidChange(.limits)
+            return true
+        case .music, .clipboard:
+            let fm = FileManager.default
+            if fm.fileExists(atPath: item.destination.path) { return true }
+            do {
+                try fm.createDirectory(
+                    at: item.destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true)
+                try fm.copyItem(at: item.source, to: item.destination)
+                restoreDidChange(dataClass)
+                return true
+            } catch {
+                return false
+            }
+        }
+    }
+
+    private func restoreDidChange(_ dataClass: SettingsBackupDataClass) {
+        switch dataClass {
+        case .settings:
+            return
+        case .usage:
+            IPC.post(IPC.Name.usageRefreshFinished)
+        case .limits:
+            IPC.post(IPC.Name.limitsUpdated)
+        case .music:
+            NotificationCenter.default.post(name: .musicFolderChanged, object: nil)
+            IPC.post(IPC.Name.musicFolderChanged)
+        case .clipboard:
+            IPC.post(IPC.Name.clipboardChanged)
+        }
+    }
+
+    private func finishRestore(for dataClass: SettingsBackupDataClass) {
+        restoreTasks[dataClass]?.cancel()
+        restoreTasks.removeValue(forKey: dataClass)
+        pendingRestoreItems.removeValue(forKey: dataClass)
+        pendingRestoreStates.removeValue(forKey: dataClass)
+        setRestorePending(0, for: dataClass)
+        setRestoreTimedOut(0, for: dataClass)
+        if dataClass == .clipboard {
+            ClipboardRepository.pruneEntriesMissingBlobs()
+            IPC.post(IPC.Name.clipboardChanged)
+        }
+    }
+
+    private func timeOutRestore(for dataClass: SettingsBackupDataClass) {
+        let remaining = pendingRestoreStates[dataClass]?.remaining ?? []
+        restoreTasks[dataClass]?.cancel()
+        restoreTasks.removeValue(forKey: dataClass)
+        pendingRestoreItems.removeValue(forKey: dataClass)
+        pendingRestoreStates.removeValue(forKey: dataClass)
+        setRestorePending(0, for: dataClass)
+        setRestoreTimedOut(remaining.count, for: dataClass)
+        if dataClass == .music {
+            IPC.post(IPC.Name.musicFolderChanged)
+        }
+        NSLog(
+            "iCloud restore timed out for %@ with %ld files remaining: %@",
+            dataClass.rawValue, remaining.count, remaining.sorted().joined(separator: ", "))
+    }
+
+    private func clearRestoreState(for dataClass: SettingsBackupDataClass) {
+        let previousPending = SharedDefaults.store.integer(
+            forKey: "restorePending.\(dataClass.rawValue)")
+        restoreTasks[dataClass]?.cancel()
+        restoreTasks.removeValue(forKey: dataClass)
+        pendingRestoreItems.removeValue(forKey: dataClass)
+        pendingRestoreStates.removeValue(forKey: dataClass)
+        setRestorePending(0, for: dataClass)
+        setRestoreTimedOut(0, for: dataClass)
+        if dataClass == .music, previousPending > 0 {
+            IPC.post(IPC.Name.musicFolderChanged)
+        }
+    }
+
+    private func setRestorePending(_ count: Int, for dataClass: SettingsBackupDataClass) {
+        SharedDefaults.store.set(count, forKey: "restorePending.\(dataClass.rawValue)")
+    }
+
+    private func setRestoreTimedOut(_ count: Int, for dataClass: SettingsBackupDataClass) {
+        SharedDefaults.store.set(count, forKey: "restoreTimedOut.\(dataClass.rawValue)")
     }
 
     func start() {
-        importFromCloudIfNewer()
+        for dataClass in SettingsBackupDataClass.allCases
+        where dataClass != .settings && restoreTasks[dataClass] == nil {
+            clearRestoreState(for: dataClass)
+        }
+        observedICloudBackup = SharedDefaults.store.bool(forKey: "icloudBackup")
+        let restored = restoreFromCloud()
         export()
-        syncData()
+        exportLimits()
+        exportUsage()
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.scheduleExport() }
         }
-        if SharedDefaults.store.bool(forKey: "musicBackup"), !restoreMusic() {
+        if !restored.music {
             backupMusic()
         }
-        if SharedDefaults.store.bool(forKey: "clipboardBackup"), !restoreClipboard() {
+        if !restored.clipboard {
             backupClipboard()
         }
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
-        ) { _ in
+        ) { [weak self] _ in
             MainActor.assumeIsolated {
-                SettingsBackup.shared.debounceFlush()
-                SettingsBackup.shared.syncLimits()
+                self?.debounceFlush()
+                self?.syncLimits()
+                self?.shutdown()
             }
+        }
+    }
+
+    func settingsDidChange() {
+        let icloudBackup = SharedDefaults.store.bool(forKey: "icloudBackup")
+        let shouldRestore = icloudBackup && !observedICloudBackup
+        observedICloudBackup = icloudBackup
+        if shouldRestore {
+            _ = restoreFromCloud()
+            observedICloudBackup = SharedDefaults.store.bool(forKey: "icloudBackup")
+        }
+        scheduleExport()
+        scheduleClipboardBackup()
+    }
+
+    @discardableResult
+    private func restoreFromCloud() -> (music: Bool, clipboard: Bool) {
+        guard SharedDefaults.store.bool(forKey: "icloudBackup"), AppData.cloudAvailable else {
+            return (false, false)
+        }
+        importFromCloudIfNewer(decision: transferDecision(for: .settings))
+        let decisions = Dictionary(
+            uniqueKeysWithValues: SettingsBackupDataClass.allCases.map {
+                ($0, transferDecision(for: $0))
+            })
+        if decisions[.limits]!.shouldExport {
+            restoreArchive(
+                cloudLimits, destination: localLimits, dataClass: .limits,
+                decision: decisions[.limits]!, requireApplicationSupportDestination: true)
+        }
+        if decisions[.usage]!.shouldExport {
+            restoreArchive(
+                cloudUsage, destination: localUsage, dataClass: .usage,
+                decision: decisions[.usage]!, requireApplicationSupportDestination: true)
+        }
+        let music = restoreMusic(
+            decision: SettingsBackupTransferDecision(
+                shouldRestore: decisions[.music]!.shouldExport, shouldExport: false),
+            requireApplicationSupportDestination: true)
+        let clipboard = restoreClipboard(
+            decision: SettingsBackupTransferDecision(
+                shouldRestore: decisions[.clipboard]!.shouldExport, shouldExport: false))
+        return (music, clipboard)
+    }
+
+    private func shutdown() {
+        for task in restoreTasks.values {
+            task.cancel()
+        }
+        restoreTasks.removeAll()
+        pendingRestoreItems.removeAll()
+        pendingRestoreStates.removeAll()
+        for dataClass in SettingsBackupDataClass.allCases where dataClass != .settings {
+            setRestorePending(0, for: dataClass)
         }
     }
 
@@ -177,6 +666,7 @@ final class SettingsBackup: ObservableObject {
 
     func backupMusic() {
         guard !musicBackupRunning, AppData.cloudAvailable,
+            transferDecision(for: .music).shouldExport,
             FileManager.default.fileExists(atPath: Repo.musicDir.path)
         else { return }
         musicBackupRunning = true
@@ -203,44 +693,33 @@ final class SettingsBackup: ObservableObject {
     }
 
     @discardableResult
-    func restoreMusic() -> Bool {
-        guard AppData.cloudAvailable else { return false }
-        let source = AppData.cloudDir.appendingPathComponent("music")
-        let fm = FileManager.default
-        func hasAudio(_ dir: URL) -> Bool {
-            let exts: Set<String> = ["mp3", "m4a", "m4b", "aac", "wav", "aiff", "flac"]
-            return ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? [])
-                .contains { exts.contains(($0 as NSString).pathExtension.lowercased()) }
-        }
-        guard hasAudio(source), !hasAudio(Repo.musicDir) else { return false }
-        try? fm.createDirectory(at: Repo.musicDir, withIntermediateDirectories: true)
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/rsync")
-        p.arguments = ["-a", "--exclude", ".DS_Store", source.path + "/", Repo.musicDir.path + "/"]
-        p.qualityOfService = .utility
-        p.terminationHandler = { proc in
-            if proc.terminationStatus == 0 {
-                NotificationCenter.default.post(name: .musicFolderChanged, object: nil)
-            }
-        }
-        do {
-            try p.run()
-            return true
-        } catch {
+    private func restoreMusic(
+        decision: SettingsBackupTransferDecision,
+        requireApplicationSupportDestination: Bool
+    ) -> Bool {
+        let destination = Repo.musicDir
+        guard decision.shouldRestore,
+            !requireApplicationSupportDestination || isApplicationSupportURL(destination)
+        else {
+            clearRestoreState(for: .music)
             return false
         }
+        let source = AppData.cloudDir.appendingPathComponent("music")
+        let items = missingRestoreItems(from: source, to: destination)
+        beginProgressiveRestore(items, for: .music)
+        return !items.isEmpty
     }
 
     private var localClipboardDir: URL { ClipboardPaths.dir }
     private var cloudClipboardDir: URL { AppData.cloudDir.appendingPathComponent("clipboard") }
     private var clipboardDebounce: Timer?
 
-    private var clipboardBackupOn: Bool {
-        SharedDefaults.store.bool(forKey: "clipboardBackup") && AppData.cloudAvailable
-    }
-
     func scheduleClipboardBackup() {
-        guard clipboardBackupOn else { return }
+        guard AppData.cloudAvailable, transferDecision(for: .clipboard).shouldExport else {
+            clipboardDebounce?.invalidate()
+            clipboardDebounce = nil
+            return
+        }
         clipboardDebounce?.invalidate()
         clipboardDebounce = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { _ in
             Task { @MainActor in SettingsBackup.shared.backupClipboard() }
@@ -248,7 +727,8 @@ final class SettingsBackup: ObservableObject {
     }
 
     func backupClipboard() {
-        guard !clipboardBackupRunning, clipboardBackupOn,
+        guard !clipboardBackupRunning, AppData.cloudAvailable,
+            transferDecision(for: .clipboard).shouldExport,
             FileManager.default.fileExists(atPath: localClipboardDir.path)
         else { return }
         clipboardBackupRunning = true
@@ -282,41 +762,16 @@ final class SettingsBackup: ObservableObject {
     }
 
     @discardableResult
-    func restoreClipboard(attempts: Int = 3) -> Bool {
-        guard AppData.cloudAvailable else { return false }
-        let fm = FileManager.default
-        let cloudIndex = cloudClipboardDir.appendingPathComponent("index.jsonl")
-        let localIndex = localClipboardDir.appendingPathComponent("index.jsonl")
-        guard !fm.fileExists(atPath: localIndex.path) else { return false }
-        guard fm.fileExists(atPath: cloudIndex.path) else {
-            let placeholder = cloudClipboardDir.appendingPathComponent(".index.jsonl.icloud")
-            guard attempts > 0, fm.fileExists(atPath: placeholder.path) else { return false }
-            try? fm.startDownloadingUbiquitousItem(at: cloudClipboardDir)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
-                Task { @MainActor in
-                    SettingsBackup.shared.restoreClipboard(attempts: attempts - 1)
-                }
-            }
-            return true
-        }
-        try? fm.startDownloadingUbiquitousItem(at: cloudClipboardDir)
-        try? fm.createDirectory(at: localClipboardDir, withIntermediateDirectories: true)
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/rsync")
-        p.arguments = ["-a", cloudClipboardDir.path + "/", localClipboardDir.path + "/"]
-        p.qualityOfService = .utility
-        p.terminationHandler = { process in
-            if process.terminationStatus == 0 {
-                ClipboardRepository.pruneEntriesMissingBlobs()
-                IPC.post(IPC.Name.clipboardChanged)
-            }
-        }
-        do {
-            try p.run()
-            return true
-        } catch {
+    private func restoreClipboard(
+        decision: SettingsBackupTransferDecision
+    ) -> Bool {
+        guard decision.shouldRestore else {
+            clearRestoreState(for: .clipboard)
             return false
         }
+        let items = missingRestoreItems(from: cloudClipboardDir, to: localClipboardDir)
+        beginProgressiveRestore(items, for: .clipboard)
+        return !items.isEmpty
     }
 
     func scheduleExport() {
@@ -340,7 +795,7 @@ final class SettingsBackup: ObservableObject {
         if (try? Data(contentsOf: localFile)) != data {
             try? data.write(to: localFile)
         }
-        guard backupOn, flag("backupSettings") else { return }
+        guard AppData.cloudAvailable, transferDecision(for: .settings).shouldExport else { return }
         try? FileManager.default.createDirectory(
             at: AppData.cloudDir, withIntermediateDirectories: true)
         if (try? Data(contentsOf: cloudFile)) != data {
@@ -355,7 +810,29 @@ final class SettingsBackup: ObservableObject {
     }
 
     func syncLimits() {
-        guard backupOn, flag("backupLimits") else { return }
+        transferLimits(
+            decision: transferDecision(for: .limits), restore: true, export: true,
+            requireApplicationSupportRestore: false)
+    }
+
+    private func exportLimits() {
+        transferLimits(
+            decision: transferDecision(for: .limits), restore: false, export: true,
+            requireApplicationSupportRestore: false)
+    }
+
+    private func transferLimits(
+        decision: SettingsBackupTransferDecision,
+        restore: Bool,
+        export: Bool,
+        requireApplicationSupportRestore: Bool
+    ) {
+        guard AppData.cloudAvailable else { return }
+        let shouldRestore =
+            restore && decision.shouldRestore
+            && (!requireApplicationSupportRestore || isApplicationSupportURL(localLimits))
+        let shouldExport = export && decision.shouldExport
+        guard shouldRestore || shouldExport else { return }
         let fm = FileManager.default
         let localText = (try? String(contentsOf: localLimits, encoding: .utf8)) ?? ""
         var cloudText = ""
@@ -374,15 +851,39 @@ final class SettingsBackup: ObservableObject {
             at: localLimits.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? fm.createDirectory(
             at: cloudLimits.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if (try? Data(contentsOf: localLimits)) != data { try? data.write(to: localLimits) }
-        if (try? Data(contentsOf: cloudLimits)) != data { try? data.write(to: cloudLimits) }
+        if shouldRestore, (try? Data(contentsOf: localLimits)) != data {
+            try? data.write(to: localLimits)
+        }
+        if shouldExport, (try? Data(contentsOf: cloudLimits)) != data {
+            try? data.write(to: cloudLimits)
+        }
     }
 
     func syncUsage() {
-        guard backupOn, flag("backupUsage") else { return }
+        transferUsage(
+            decision: transferDecision(for: .usage), restore: true, export: true,
+            requireApplicationSupportRestore: false)
+    }
+
+    private func exportUsage() {
+        transferUsage(
+            decision: transferDecision(for: .usage), restore: false, export: true,
+            requireApplicationSupportRestore: false)
+    }
+
+    private func transferUsage(
+        decision: SettingsBackupTransferDecision,
+        restore: Bool,
+        export: Bool,
+        requireApplicationSupportRestore: Bool
+    ) {
+        guard AppData.cloudAvailable else { return }
+        let shouldRestore =
+            restore && decision.shouldRestore
+            && (!requireApplicationSupportRestore || isApplicationSupportURL(localUsage))
+        let shouldExport = export && decision.shouldExport
+        guard shouldRestore || shouldExport else { return }
         let fm = FileManager.default
-        try? fm.createDirectory(
-            at: cloudUsage.deletingLastPathComponent(), withIntermediateDirectories: true)
         let localData = try? Data(contentsOf: localUsage)
         var cloudData: Data?
         if fm.fileExists(atPath: cloudUsage.path) {
@@ -393,16 +894,22 @@ final class SettingsBackup: ObservableObject {
             }
         }
         guard let merged = UsageHistory.merge(local: localData, cloud: cloudData) else { return }
-        try? fm.createDirectory(
-            at: localUsage.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if (try? Data(contentsOf: localUsage)) != merged { try? merged.write(to: localUsage) }
-        if (try? Data(contentsOf: cloudUsage)) != merged { try? merged.write(to: cloudUsage) }
+        if shouldRestore {
+            try? fm.createDirectory(
+                at: localUsage.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if (try? Data(contentsOf: localUsage)) != merged { try? merged.write(to: localUsage) }
+        }
+        if shouldExport {
+            try? fm.createDirectory(
+                at: cloudUsage.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if (try? Data(contentsOf: cloudUsage)) != merged { try? merged.write(to: cloudUsage) }
+        }
     }
 
-    private func importFromCloudIfNewer() {
+    private func importFromCloudIfNewer(decision: SettingsBackupTransferDecision) {
+        guard decision.shouldRestore else { return }
         let fm = FileManager.default
         let firstRun = !fm.fileExists(atPath: localFile.path)
-        guard firstRun || SharedDefaults.store.bool(forKey: "icloudBackup") else { return }
         guard
             let cloudDate = (try? fm.attributesOfItem(atPath: cloudFile.path))?[.modificationDate]
                 as? Date
@@ -418,8 +925,25 @@ final class SettingsBackup: ObservableObject {
             return
         }
         for (key, value) in dict where Self.backedKeys.contains(key) {
-            store(for: key).set(value, forKey: key)
+            switch key {
+            case "repoPath":
+                guard let path = value as? String else { continue }
+                guard RestoredPathValidation.verdict(for: path) == .keep else {
+                    Repo.setDevRootPath(nil)
+                    SharedDefaults.store.set(true, forKey: Repo.musicFolderStaleKey)
+                    continue
+                }
+                store(for: key).set(path, forKey: key)
+            case "cleanerSelectedDrives", "cleanerCustomFolders":
+                guard let paths = value as? [String] else { continue }
+                store(for: key).set(
+                    paths.filter { RestoredPathValidation.verdict(for: $0) == .keep },
+                    forKey: key)
+            default:
+                store(for: key).set(value, forKey: key)
+            }
         }
+        Repo.prepareStoredPaths()
         try? data.write(to: localFile)
         HotKey.register()
     }

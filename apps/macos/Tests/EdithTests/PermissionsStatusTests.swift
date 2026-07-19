@@ -3,18 +3,22 @@ import Testing
 
 @Suite struct PermissionsStatusTests {
     func needsAttention(
-        calendarTab: Bool = false, systemTab: Bool = false, notifyMaster: Bool = false,
+        usageTab: Bool = false, calendarTab: Bool = false, systemTab: Bool = false,
+        notifyMaster: Bool = false,
         calendar: Bool = true, accessibility: Bool = true, inputMonitoring: Bool = true,
         notifications: Bool = true
     ) -> Bool {
         PermissionsStatus.needsAttention(
-            calendarTab: calendarTab, systemTab: systemTab, notifyMaster: notifyMaster,
+            usageTab: usageTab, calendarTab: calendarTab, systemTab: systemTab,
+            notifyMaster: notifyMaster,
             calendar: calendar, accessibility: accessibility, inputMonitoring: inputMonitoring,
             notifications: notifications)
     }
 
     @Test func allGrantedNeedsNothing() {
-        #expect(!needsAttention(calendarTab: true, systemTab: true, notifyMaster: true))
+        #expect(
+            !needsAttention(
+                usageTab: true, calendarTab: true, systemTab: true, notifyMaster: true))
     }
 
     @Test func missingPermissionOnlyWarnsWhenFeatureIsOn() {
@@ -22,18 +26,14 @@ import Testing
         #expect(needsAttention(calendarTab: true, calendar: false))
     }
 
-    @Test func systemTabWarnsWhenEitherKeyboardPermissionMissing() {
-        #expect(needsAttention(systemTab: true, accessibility: false))
-        #expect(needsAttention(systemTab: true, inputMonitoring: false))
-        #expect(!needsAttention(systemTab: true))
-    }
-
-    @Test func systemTabOffIgnoresKeyboardPermissions() {
-        #expect(!needsAttention(systemTab: false, accessibility: false, inputMonitoring: false))
+    @Test func systemTabDoesNotRequireKeyboardCleaningPermissions() {
+        #expect(!needsAttention(systemTab: true, accessibility: false))
+        #expect(!needsAttention(systemTab: true, inputMonitoring: false))
     }
 
     @Test func notificationsWarnOnlyWhenMasterIsOn() {
         #expect(!needsAttention(notifyMaster: false, notifications: false))
-        #expect(needsAttention(notifyMaster: true, notifications: false))
+        #expect(needsAttention(usageTab: true, notifyMaster: true, notifications: false))
+        #expect(!needsAttention(usageTab: false, notifyMaster: true, notifications: false))
     }
 }

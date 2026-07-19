@@ -158,7 +158,7 @@ final class PresenterDetector: FeatureModule {
     private func scanWindows() {
         let titlesAvailable = CGPreflightScreenCaptureAccess()
         windowReason = PresenterRules.firstMatch(
-            in: Self.currentWindows(), titlesAvailable: titlesAvailable)
+            in: titlesAvailable ? Self.currentWindows() : [], titlesAvailable: titlesAvailable)
         windowHit = windowReason != nil
 
         let detectRecording =

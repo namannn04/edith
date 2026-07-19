@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 if ! command -v bun >/dev/null 2>&1; then
   NODE_DIR="$HOME/.nvm/versions/node"
   [ -d "$NODE_DIR" ] && export PATH="$NODE_DIR/$(ls "$NODE_DIR" 2>/dev/null | tail -1)/bin:$PATH"
@@ -379,6 +379,7 @@ if [ -d "$PROJECTS_DIR" ] && [ -s "$TMP/cli.daily.json" ]; then
     name=""
     case "$cwd" in
       */local-agent-mode-sessions/*) name="Cowork" ;;
+      /Volumes | /Volumes/*) name=$(basename "$cwd") ;;
     esac
     if [ -z "$name" ] && [ -d "$cwd" ]; then
       common=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)

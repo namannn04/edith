@@ -213,6 +213,7 @@ final class UsageStore: ObservableObject, FeatureModule {
             self.sleepObserver = nil
         }
         process?.terminate()
+        process = nil
         daily = []
         stats = []
         calendarDays = []
@@ -467,6 +468,7 @@ final class UsageStore: ObservableObject, FeatureModule {
         let process = Process()
         process.executableURL = executable
         process.arguments = ["app-server"]
+        process.environment = CLIToolEnvironment.sanitized()
         let input = Pipe()
         let output = Pipe()
         process.standardInput = input
@@ -526,20 +528,7 @@ final class UsageStore: ObservableObject, FeatureModule {
     }
 
     private nonisolated static func codexExecutable() -> URL? {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        let candidates = [
-            home.appendingPathComponent(".local/bin/codex").path,
-            "/opt/homebrew/bin/codex", "/usr/local/bin/codex", "/usr/bin/codex",
-        ]
-        if let path = ProcessInfo.processInfo.environment["PATH"] {
-            for directory in path.split(separator: ":") {
-                let candidate = URL(fileURLWithPath: String(directory))
-                    .appendingPathComponent("codex").path
-                if fm.isExecutableFile(atPath: candidate) { return URL(fileURLWithPath: candidate) }
-            }
-        }
-        return candidates.first { fm.isExecutableFile(atPath: $0) }.map(URL.init(fileURLWithPath:))
+        CLIToolEnvironment.executable(named: "codex")
     }
 
     private struct OAuthUsage: Decodable {

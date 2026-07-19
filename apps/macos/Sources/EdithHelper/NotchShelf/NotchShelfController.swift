@@ -102,6 +102,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     func syncAlerts() {
         if alertsEnabled {
             startAlertsIfEnabled()
+            alertDetectors?.syncBluetooth()
         } else if let detectors = alertDetectors {
             detectors.stop()
             alertDetectors = nil
@@ -363,7 +364,10 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     private func updateInteractiveShape(_ panel: NSPanel, id: CGDirectDisplayID) {
         guard let catcher = panel.contentView as? ShelfDropCatcherView else { return }
-        catcher.interactiveShapeSize = targetShapeSize(for: id)
+        let shape = targetShapeSize(for: id)
+        guard catcher.interactiveShapeSize != shape else { return }
+        catcher.interactiveShapeSize = shape
+        refreshMouseTransparency()
     }
 
     private func refreshMouseTransparency() {
@@ -479,9 +483,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
                     point: point, collapsedFrame: frames.collapsed,
                     expandedFrame: frames.expanded))
         } else if currentAlert == nil {
-            let near = frames.collapsed
-                .insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
-                .contains(point)
+            let near = NotchGeometry.openFrame(around: frames.collapsed).contains(point)
             hoverChanged(near)
         }
     }
@@ -530,9 +532,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
             lastDragChangeCount = NSPasteboard(name: .drag).changeCount
             internalDragItemIDs = []
             if !isExpanded, currentAlert == nil, let frames = builtinFrames(),
-                frames.collapsed
-                    .insetBy(dx: -NotchGeometry.openMargin, dy: -NotchGeometry.openMargin)
-                    .contains(NSEvent.mouseLocation)
+                NotchGeometry.openFrame(around: frames.collapsed).contains(NSEvent.mouseLocation)
             {
                 expand()
             }
@@ -549,7 +549,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     private func isNearNotch(_ point: CGPoint) -> Bool {
         guard let frames = builtinFrames() else { return false }
-        return frames.collapsed.insetBy(dx: -40, dy: -20).contains(point)
+        return NotchGeometry.interactionFrame(around: frames.collapsed).contains(point)
     }
 
     private func shapeFrame(of panel: NSPanel) -> CGRect {
@@ -643,6 +643,10 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     func attachClipboard(_ store: ClipboardStore?) {
         clipboardStore = store
+        if store == nil, activeTab == .clipboard {
+            activeTab = .home
+            if isExpanded { syncFrames() }
+        }
     }
 
     func attachUsage(_ store: UsageStore?) {
@@ -1006,8 +1010,9 @@ final class ShelfDropCatcherView: NSView {
         let rect = CGRect(
             x: (bounds.width - shape.width) / 2, y: bounds.height - shape.height,
             width: shape.width, height: shape.height
-        ).insetBy(dx: -24, dy: -24)
-        return rect.contains(local) ? .copy : []
+        )
+        let interactionFrame = NotchGeometry.interactionFrame(around: rect)
+        return interactionFrame.contains(local) ? .copy : []
     }
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let windowPoint = convert(sender.draggingLocation, from: nil)

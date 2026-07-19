@@ -265,8 +265,16 @@ struct ClipboardPanelView: View {
 
     @ViewBuilder private func rowContent(_ entry: ClipboardEntry) -> some View {
         switch entry.kind {
-        case .image, .file:
+        case .image:
             ClipboardThumbnailView(entry: entry, maxHeight: 40) {
+                rowTitle(entry)
+            }
+        case .file:
+            HStack(spacing: 6) {
+                ClipboardThumbnailView(entry: entry, maxHeight: 40) {
+                    Image(systemName: "doc")
+                }
+                .frame(width: 40)
                 rowTitle(entry)
             }
         default:
@@ -278,7 +286,7 @@ struct ClipboardPanelView: View {
         Text(title(entry))
             .font(.system(size: 13))
             .lineLimit(1)
-            .truncationMode(.middle)
+            .truncationMode(.tail)
     }
 
     private var footer: some View {
@@ -299,7 +307,7 @@ struct ClipboardPanelView: View {
     }
 
     private func title(_ entry: ClipboardEntry) -> String {
-        (entry.preview ?? "")
+        entry.displayPreview
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")

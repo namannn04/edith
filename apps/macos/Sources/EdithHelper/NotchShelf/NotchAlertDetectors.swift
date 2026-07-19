@@ -1,4 +1,5 @@
 import CoreAudio
+import CoreBluetooth
 import EdithKit
 import Foundation
 import IOBluetooth
@@ -14,6 +15,7 @@ final class NotchAlertDetectors {
     private var lastOnAC: Bool?
     private var lastCapacity: Int?
     private var warmingUp = true
+    private var bluetoothPreferenceWasEnabled = false
 
     init(post: @escaping (NotchAlert) -> Void) {
         self.post = post
@@ -23,6 +25,10 @@ final class NotchAlertDetectors {
         SharedDefaults.store.object(forKey: key) as? Bool ?? true
     }
 
+    private var bluetoothEnabled: Bool {
+        SharedDefaults.store.object(forKey: "notchAlertBluetooth") as? Bool == true
+    }
+
     func start() {
         lastOutputDevice = Self.defaultOutputDevice()
         let snapshot = Self.readPower()
@@ -30,7 +36,10 @@ final class NotchAlertDetectors {
         lastCapacity = snapshot.capacity
         startAudio()
         startPower()
-        startBluetooth()
+        bluetoothPreferenceWasEnabled = bluetoothEnabled
+        if bluetoothEnabled, CBManager.authorization == .allowedAlways {
+            startBluetooth()
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.warmingUp = false
         }
@@ -56,8 +65,9 @@ final class NotchAlertDetectors {
     }
 
     private func startBluetooth() {
+        guard bluetoothEnabled, bluetoothWatcher == nil else { return }
         let watcher = BluetoothWatcher { [weak self] name, connected in
-            guard let self, !self.warmingUp, self.enabled("notchAlertBluetooth") else { return }
+            guard let self, !self.warmingUp, self.bluetoothEnabled else { return }
             self.post(
                 NotchAlert(
                     id: "bluetooth.\(connected ? "connected" : "disconnected")",
@@ -68,6 +78,21 @@ final class NotchAlertDetectors {
         }
         watcher.start()
         bluetoothWatcher = watcher
+    }
+
+    func syncBluetooth() {
+        let isEnabled = bluetoothEnabled
+        let wasEnabled = bluetoothPreferenceWasEnabled
+        bluetoothPreferenceWasEnabled = isEnabled
+        if ContextualPermissionGate.shouldStartMonitor(
+            isEnabled: isEnabled, wasEnabled: wasEnabled,
+            isGranted: CBManager.authorization == .allowedAlways)
+        {
+            startBluetooth()
+        } else if !isEnabled {
+            bluetoothWatcher?.stop()
+            bluetoothWatcher = nil
+        }
     }
 
     private func startAudio() {

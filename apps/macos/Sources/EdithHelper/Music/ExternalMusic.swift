@@ -82,66 +82,6 @@ final class ExternalMusic: ObservableObject {
             }
             observers.append((app, observer))
         }
-        refreshCurrent()
-        for delay in [2.0, 6.0] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, self.current == nil else { return }
-                self.refreshCurrent()
-            }
-        }
-    }
-
-    func refreshCurrent() {
-        let running = ExternalApp.allCases.filter {
-            !NSRunningApplication.runningApplications(withBundleIdentifier: $0.bundleID).isEmpty
-        }
-        guard !running.isEmpty else { return }
-        Task { @MainActor [weak self] in
-            var best: ExternalTrack?
-            for app in running {
-                guard let track = Self.query(app) else { continue }
-                if track.isPlaying {
-                    best = track
-                    break
-                }
-                if best == nil { best = track }
-            }
-            if let best { self?.applyRefreshed(best) }
-        }
-    }
-
-    private func applyRefreshed(_ track: ExternalTrack) {
-        guard current == nil || (current?.isPlaying != true && track.isPlaying) else { return }
-        current = track
-    }
-
-    private nonisolated static func query(_ app: ExternalApp) -> ExternalTrack? {
-        let source = """
-            tell application "System Events"
-                if not (exists process "\(app.processName)") then return "none"
-            end tell
-            tell application "\(app.processName)"
-                set theState to player state as text
-                if theState is "stopped" then return "none"
-                set theName to name of current track
-                set theArtist to artist of current track
-                set theDuration to duration of current track
-                return theState & "|~|" & theName & "|~|" & theArtist & "|~|" & theDuration
-            end tell
-            """
-        var error: NSDictionary?
-        guard
-            let result = NSAppleScript(source: source)?.executeAndReturnError(&error).stringValue,
-            result != "none"
-        else { return nil }
-        let parts = result.components(separatedBy: "|~|")
-        guard parts.count == 4, !parts[1].isEmpty else { return nil }
-        let state = parts[0].lowercased()
-        let rawDuration = Double(parts[3]) ?? 0
-        let duration: TimeInterval = app == .spotify ? rawDuration / 1000 : rawDuration
-        return ExternalTrack(
-            app: app, title: parts[1], artist: parts[2], isPlaying: state == "playing",
-            duration: duration > 0 ? duration : 0)
     }
 
     func stop() {

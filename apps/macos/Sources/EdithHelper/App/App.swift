@@ -33,6 +33,8 @@ func migratedServices() -> AppServices {
         d.set(true, forKey: "migratedFromControlCenter")
     }
     SharedDefaults.migrate()
+    ExtensionDefaultsMigration.migrate()
+    Repo.prepareStoredPaths()
     return AppServices()
 }
 
@@ -69,10 +71,6 @@ struct EdithApp: App {
             dismissPanel()
         }
         HotKey.register()
-        ClipboardHotKey.register()
-        FocusDimHotKey.register()
-        PresenterHotKey.register()
-        MicHotKey.register()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             SettingsBackup.shared.start()
         }
@@ -80,23 +78,9 @@ struct EdithApp: App {
         let services = services
         _ = IPC.observe(IPC.Name.settingsChanged) {
             HotKey.register()
-            ClipboardHotKey.register()
-            SettingsBackup.shared.scheduleExport()
-            SettingsBackup.shared.scheduleClipboardBackup()
-            FocusDimHotKey.register()
-            PresenterHotKey.register()
-            MicHotKey.register()
+            SettingsBackup.shared.settingsDidChange()
             applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
             services.sync()
-            services.usage?.syncStatusItem()
-            services.usage?.refreshMenuBarItem()
-            services.micMute?.updateStatusItemPresence()
-            services.notchShelf?.syncAlerts()
-            services.system?.syncPreventSleep()
-            services.usage?.notifier.clearStateIfMasterOff()
-            services.colorPicker?.registerHotKey()
-            services.focusDim?.applySettings()
-            services.presenter?.applySettings()
         }
         _ = IPC.observe(IPC.Name.presenterAutoActiveChanged) {
             services.usage?.refreshMenuBarItem()
@@ -244,6 +228,10 @@ enum ClipboardHotKey {
         }
     }
 
+    static func unregister() {
+        GlobalHotKey.clear(id: GlobalHotKey.ID.clipboard)
+    }
+
     static func save(code: Int, mods: Int, label: String) {
         SharedDefaults.store.set(code, forKey: "clipboardHotKeyCode")
         SharedDefaults.store.set(mods, forKey: "clipboardHotKeyMods")
@@ -273,6 +261,10 @@ enum MicHotKey {
         }
     }
 
+    static func unregister() {
+        GlobalHotKey.clear(id: GlobalHotKey.ID.micMute)
+    }
+
     static func save(code: Int, mods: Int, label: String) {
         SharedDefaults.store.set(code, forKey: "micHotKeyCode")
         SharedDefaults.store.set(mods, forKey: "micHotKeyMods")
@@ -292,9 +284,17 @@ enum FocusDimHotKey {
     }
 
     static func register() {
+        guard SharedDefaults.store.bool(forKey: "focusDimEnabled") else {
+            unregister()
+            return
+        }
         GlobalHotKey.set(id: GlobalHotKey.ID.focusDim, keyCode: code, modifiers: mods) {
             toggleFocusDim()
         }
+    }
+
+    static func unregister() {
+        GlobalHotKey.clear(id: GlobalHotKey.ID.focusDim)
     }
 }
 
@@ -317,7 +317,7 @@ enum PresenterHotKey {
     }
 
     static func register() {
-        let enabled = SharedDefaults.store.object(forKey: "presenterEnabled") as? Bool ?? true
+        let enabled = SharedDefaults.store.object(forKey: "presenterEnabled") as? Bool ?? false
         guard enabled else {
             GlobalHotKey.clear(id: GlobalHotKey.ID.presenterToggle)
             return
@@ -386,12 +386,14 @@ struct RootView: View {
     @EnvironmentObject private var services: AppServices
     @State private var tab = UserDefaults.standard.string(forKey: "tab") ?? "usage"
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
+        false
     @AppStorage("focusDimEnabled", store: SharedDefaults.store) private var focusDimEnabled = false
+    @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
+        false
     @AppStorage("tabOrder", store: SharedDefaults.store) private var tabOrderRaw =
         "usage,music,system"
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
@@ -472,17 +474,19 @@ struct RootView: View {
                         }
                     }
                 }
-                Button {
-                    toggleFocusDim()
-                } label: {
-                    Image(systemName: focusDimEnabled ? "circle.lefthalf.filled" : "circle.dashed")
-                        .font(.system(size: 13))
-                        .foregroundStyle(focusDimEnabled ? .primary : .secondary)
+                if focusDimEnabled {
+                    Button {
+                        toggleFocusDim()
+                    } label: {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(HoverButtonStyle())
+                    .help("Focus dim (\(FocusDimHotKey.label))")
                 }
-                .buttonStyle(HoverButtonStyle())
-                .help("Focus dim (\(FocusDimHotKey.label))")
                 Button {
-                    mainWindowSection = "permissions"
+                    mainWindowSection = "extensions"
                     MainApp.openDashboard()
                     dismissPanel()
                 } label: {
@@ -526,7 +530,7 @@ struct RootView: View {
                 .buttonStyle(HoverButtonStyle())
                 .help("Quit options")
             }
-            if presenterState.autoActive {
+            if presenterEnabled, presenterState.autoActive {
                 presenterBanner
             }
             if let player = services.music, player.current != nil {

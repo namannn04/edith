@@ -6,31 +6,39 @@ import Testing
 @MainActor @Suite struct AppServicesTests {
     private let probe = "tabEnabledProbeKey"
 
-    @Test func defaultsToEnabledWhenUnset() {
+    @Test func extensionDefaultsToDisabledWhenUnset() {
         SharedDefaults.store.removeObject(forKey: probe)
-        #expect(AppServices.tabEnabled(probe))
+        defer { SharedDefaults.store.removeObject(forKey: probe) }
+        #expect(!AppServices.extensionEnabled(probe))
     }
 
-    @Test func respectsExplicitDisable() {
+    @Test func extensionRespectsExplicitDisable() {
         SharedDefaults.store.set(false, forKey: probe)
         defer { SharedDefaults.store.removeObject(forKey: probe) }
-        #expect(!AppServices.tabEnabled(probe))
+        #expect(!AppServices.extensionEnabled(probe))
     }
 
-    @Test func respectsExplicitEnable() {
+    @Test func extensionRespectsExplicitEnable() {
         SharedDefaults.store.set(true, forKey: probe)
         defer { SharedDefaults.store.removeObject(forKey: probe) }
-        #expect(AppServices.tabEnabled(probe))
+        #expect(AppServices.extensionEnabled(probe))
     }
 
-    @Test func featureDefaultsToOffWhenUnset() {
+    @Test func preferenceDefaultsToEnabledWhenUnset() {
         SharedDefaults.store.removeObject(forKey: probe)
-        #expect(!AppServices.featureOffByDefault(probe))
+        defer { SharedDefaults.store.removeObject(forKey: probe) }
+        #expect(AppServices.preferenceOnByDefault(probe))
     }
 
-    @Test func featureRespectsExplicitEnable() {
+    @Test func preferenceRespectsExplicitDisable() {
+        SharedDefaults.store.set(false, forKey: probe)
+        defer { SharedDefaults.store.removeObject(forKey: probe) }
+        #expect(!AppServices.preferenceOnByDefault(probe))
+    }
+
+    @Test func preferenceRespectsExplicitEnable() {
         SharedDefaults.store.set(true, forKey: probe)
         defer { SharedDefaults.store.removeObject(forKey: probe) }
-        #expect(AppServices.featureOffByDefault(probe))
+        #expect(AppServices.preferenceOnByDefault(probe))
     }
 }

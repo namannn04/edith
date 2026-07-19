@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 enum MainWindow {
     private static var window: NSWindow?
+    private static let updater = UpdaterModel(startingUpdater: true)
 
     #if DEBUG
     private static var snapshotObserver: NSObjectProtocol?
@@ -68,7 +69,7 @@ enum MainWindow {
         w.titlebarSeparatorStyle = .none
         w.isReleasedWhenClosed = false
         w.contentMinSize = NSSize(width: 720, height: 500)
-        let hosting = NSHostingController(rootView: MainWindowView())
+        let hosting = NSHostingController(rootView: MainWindowView(updater: updater))
         hosting.sizingOptions = []
         w.contentViewController = hosting
         w.setContentSize(NSSize(width: 900, height: 680))

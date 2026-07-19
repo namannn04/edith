@@ -5,7 +5,7 @@ import SwiftUI
 
 struct PresenterRows: View {
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
+        false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true

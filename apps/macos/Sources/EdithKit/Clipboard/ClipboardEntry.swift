@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 public struct ClipboardEntry: Codable, Identifiable, Equatable, Sendable {
     public let id: String
@@ -55,21 +56,75 @@ public struct ClipboardEntry: Codable, Identifiable, Equatable, Sendable {
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         lastCopiedAt = try container.decodeIfPresent(Date.self, forKey: .lastCopiedAt) ?? createdAt
         size = try container.decode(Int.self, forKey: .size)
-        preview = try container.decodeIfPresent(String.self, forKey: .preview)
+        preview = try container.decodeIfPresent(String.self, forKey: .preview).map {
+            String($0.prefix(500))
+        }
         pinned = try container.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
     }
 
     public var kind: Kind {
         switch ext {
-        case "png", "tiff": .image
-        case "url": .file
-        case "rtf": .richText
-        case "html": .html
-        default: .text
+        case "png", "tiff", "jpg", "jpeg", "gif", "heic", "heif", "webp", "svg", "bmp",
+            "ico", "avif", "image":
+            return .image
+        case "url", "files", "weburl": return .file
+        case "rtf", "rtfd": return .richText
+        case "html": return .html
+        case "pdf", "ps", "eps", "doc", "docx", "pages", "key", "numbers", "ppt", "pptx",
+            "xls", "xlsx":
+            return .document
+        case "mp3", "m4a", "wav", "aiff", "flac", "ogg", "mp4", "mov", "m4v", "avi",
+            "webm":
+            return .media
+        case "zip", "gz", "bz2", "xz", "tar", "7z", "rar", "sqlite", "sqlite3", "db", "data",
+            "color", "ttf", "otf", "woff", "woff2", "usd", "usdz":
+            return .data
+        default:
+            for identifier in types {
+                guard let type = UTType(identifier) else { continue }
+                if type.conforms(to: .image) { return .image }
+                if type.conforms(to: .text) { return .text }
+                if let media = UTType("public.audiovisual-content"), type.conforms(to: media) {
+                    return .media
+                }
+                if let document = UTType("public.composite-content"), type.conforms(to: document) {
+                    return .document
+                }
+            }
+            return .data
         }
     }
 
     public enum Kind {
-        case text, richText, html, image, file
+        case text, richText, html, image, file, document, media, data
+    }
+
+    public var isTextual: Bool {
+        switch kind {
+        case .text, .richText, .html: return true
+        default: return false
+        }
+    }
+
+    public var displayPreview: String {
+        if let preview {
+            let initial = preview.prefix(500)
+            if initial.unicodeScalars.contains(where: {
+                !CharacterSet.whitespacesAndNewlines.contains($0)
+                    && !CharacterSet.controlCharacters.contains($0)
+            }) {
+                return String(initial)
+            }
+        }
+        switch kind {
+        case .image: return "Image"
+        case .file: return "File"
+        case .richText: return "Rich text"
+        case .html: return "HTML"
+        case .document: return "Document"
+        case .media: return "Media"
+        case .data: return "Clipboard data"
+        case .text: return "Text"
+        }
     }
 }

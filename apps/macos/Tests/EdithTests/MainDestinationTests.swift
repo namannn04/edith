@@ -35,61 +35,44 @@ import Testing
         }
     }
 
-    @Test func allFeaturesOnShowsEveryHomeItem() {
-        let visible = MainDestination.visibleHomeItems(
-            usage: true, music: true, calendar: true, system: true)
-        #expect(visible == MainDestination.homeItems)
+    @Test func appItemsUseInformationArchitectureOrder() {
+        #expect(MainDestination.appItems == [.extensions, .settings, .about])
     }
 
-    @Test func disabledFeaturesHideTheirPages() {
-        let visible = MainDestination.visibleHomeItems(
-            usage: false, music: false, calendar: false, system: false)
-        #expect(visible == [.home])
+    @Test func settingsTabsUseInformationArchitectureOrder() {
+        #expect(SettingsPane.Tab.allCases == [.general, .shortcuts, .icloud, .updates])
     }
 
-    @Test func eachToggleHidesExactlyItsPage() {
-        let cases: [(MainDestination, [MainDestination])] = [
-            (
-                .dashboard,
-                MainDestination.visibleHomeItems(
-                    usage: false, music: true, calendar: true, system: true)
-            ),
-            (
-                .music,
-                MainDestination.visibleHomeItems(
-                    usage: true, music: false, calendar: true, system: true)
-            ),
-            (
-                .calendar,
-                MainDestination.visibleHomeItems(
-                    usage: true, music: true, calendar: false, system: true)
-            ),
-            (
-                .system,
-                MainDestination.visibleHomeItems(
-                    usage: true, music: true, calendar: true, system: false)
-            ),
-        ]
-        for (hidden, visible) in cases {
-            #expect(!visible.contains(hidden))
-            #expect(visible.count == MainDestination.homeItems.count - 1)
+    @Test func resolveKeepsDestinationsAndRejectsLegacyValues() {
+        for destination in MainDestination.allCases {
+            #expect(MainDestination.resolve(destination.rawValue) == destination)
         }
+        #expect(MainDestination.resolve("nonsense") == .home)
+        #expect(MainDestination.resolve("usage") == .home)
+        #expect(MainDestination.resolve("permissions") == .home)
+        #expect(MainDestination.resolve("shortcuts") == .home)
     }
 
-    @Test func resolveFallsBackToHomeForHiddenSelection() {
-        let visible = MainDestination.visibleHomeItems(
-            usage: false, music: true, calendar: true, system: true)
-        #expect(MainDestination.resolve("dashboard", visibleHome: visible) == .home)
-        #expect(MainDestination.resolve("music", visibleHome: visible) == .music)
-    }
-
-    @Test func resolveKeepsAppItemsAndRejectsGarbage() {
-        let visible = MainDestination.visibleHomeItems(
-            usage: false, music: false, calendar: false, system: false)
-        for item in MainDestination.appItems {
-            #expect(MainDestination.resolve(item.rawValue, visibleHome: visible) == item)
-        }
-        #expect(MainDestination.resolve("nonsense", visibleHome: visible) == .home)
-        #expect(MainDestination.resolve("usage", visibleHome: visible) == .home)
+    @Test func legacyNavigationValuesFallBack() {
+        #expect(
+            MainNavigationFallback.resolve(
+                mainWindowSection: "shortcuts", settingsTab: "general")
+                == MainNavigationSelection(
+                    mainWindowSection: "settings", settingsTab: "shortcuts"))
+        #expect(
+            MainNavigationFallback.resolve(
+                mainWindowSection: "settings", settingsTab: "menubar")
+                == MainNavigationSelection(
+                    mainWindowSection: "settings", settingsTab: "general"))
+        #expect(
+            MainNavigationFallback.resolve(
+                mainWindowSection: "settings", settingsTab: "usage")
+                == MainNavigationSelection(
+                    mainWindowSection: "settings", settingsTab: "general"))
+        #expect(
+            MainNavigationFallback.resolve(
+                mainWindowSection: "permissions", settingsTab: "shortcuts")
+                == MainNavigationSelection(
+                    mainWindowSection: "home", settingsTab: "shortcuts"))
     }
 }

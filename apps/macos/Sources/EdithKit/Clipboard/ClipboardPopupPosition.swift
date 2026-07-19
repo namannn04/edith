@@ -193,7 +193,8 @@ public enum ClipboardPopupPosition: String, CaseIterable, Identifiable, Sendable
 
     @MainActor
     private static func frontmostWindowFrame() -> NSRect? {
-        guard let app = NSWorkspace.shared.frontmostApplication,
+        guard CGPreflightScreenCaptureAccess(),
+            let app = NSWorkspace.shared.frontmostApplication,
             let list = CGWindowListCopyWindowInfo(
                 [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]]

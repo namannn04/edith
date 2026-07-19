@@ -94,11 +94,7 @@ struct DeveloperPanel: View {
 
     private func saveRepoPath() {
         let trimmed = repoPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            SharedDefaults.store.removeObject(forKey: "repoPath")
-        } else {
-            SharedDefaults.store.set(trimmed, forKey: "repoPath")
-        }
+        Repo.setDevRootPath(trimmed.isEmpty ? nil : trimmed)
         IPC.post(IPC.Name.settingsChanged)
     }
 

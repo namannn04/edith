@@ -9,13 +9,13 @@ struct HomePage: View {
     @StateObject private var presenterState = PresenterState.shared
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
         true
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+        false
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
+        false
     @Environment(\.colorScheme) private var scheme
 
     private var dark: Bool { scheme == .dark }
@@ -68,7 +68,9 @@ struct HomePage: View {
             .environment(\.compactLayout, compact)
         }
         .navigationTitle("Home")
-        .task { await model.load() }
+        .task(id: usageEnabled) {
+            if usageEnabled { await model.load() }
+        }
     }
 
     private var background: some View {
@@ -502,8 +504,8 @@ private struct QuickActionsCard: View {
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
+        false
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
 
     private var theme: Color { themeColor(themeName) }
@@ -610,6 +612,12 @@ private struct MeetingsCard: View {
             }
         }
         .onAppear { store.refreshAuthStatus() }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            store.refreshAuthStatus()
+        }
     }
 
     private var note: String {
@@ -661,7 +669,7 @@ private struct MeetingsCard: View {
                 .font(.system(size: 12))
                 .foregroundStyle(DashSkin.inkSoft(dark))
             Spacer()
-            Button("Grant…") { store.requestAccess() }
+            Button("Grant…") { IPC.post(IPC.Name.grantCalendar) }
                 .buttonStyle(HoverButtonStyle())
                 .font(.system(size: 11))
                 .foregroundStyle(theme)
@@ -827,6 +835,7 @@ private struct LimitsSummaryCard: View {
     @State private var latest: DashLimitPoint?
     @AppStorage("limitsProvider", store: SharedDefaults.store) private var selectedRaw =
         LimitProvider.claude.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var providers: [LimitProvider] { DashLimits.availableProviders() }
     private var selected: LimitProvider {
@@ -903,6 +912,9 @@ private struct LimitsSummaryCard: View {
                     .font(DashSkin.serif(22))
                     .foregroundStyle(value.map(barColor) ?? DashSkin.inkFaint(dark))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(
+                        Motion.animation(Motion.settle, reduceMotion: reduceMotion), value: value)
             }
             .frame(width: 92, height: 92)
             .padding(5)

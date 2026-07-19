@@ -41,6 +41,8 @@ final class MusicRemote: ObservableObject {
     @Published private(set) var volume = 0.7
     @Published private(set) var looping = false
     @Published private(set) var duration: TimeInterval = 0
+    @Published private(set) var restorePending = SharedDefaults.store.integer(
+        forKey: "restorePending.music")
 
     private var elapsedBase: TimeInterval = 0
     private var elapsedTimestamp: TimeInterval = 0
@@ -60,10 +62,13 @@ final class MusicRemote: ObservableObject {
     var progress: Double { duration > 0 ? min(elapsed / duration, 1) : 0 }
 
     private var folderObserver: NSObjectProtocol?
+    private var folderIPCObserver: NSObjectProtocol?
 
     func start() {
-        rescan()
-        guard stateObserver == nil else { return }
+        if stateObserver != nil {
+            rescan()
+            return
+        }
         stateObserver = IPC.observe(
             IPC.Name.musicState,
             info: { [weak self] info in
@@ -75,10 +80,34 @@ final class MusicRemote: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
         }
+        folderIPCObserver = IPC.observe(IPC.Name.musicFolderChanged) { [weak self] in
+            MainActor.assumeIsolated { self?.rescan() }
+        }
+        rescan()
+    }
+
+    func stop() {
+        if let stateObserver {
+            IPC.stopObserving(stateObserver)
+            self.stateObserver = nil
+        }
+        if let folderObserver {
+            NotificationCenter.default.removeObserver(folderObserver)
+            self.folderObserver = nil
+        }
+        if let folderIPCObserver {
+            IPC.stopObserving(folderIPCObserver)
+            self.folderIPCObserver = nil
+        }
+        tracks = []
+        currentFile = nil
+        isPlaying = false
+        duration = 0
     }
 
     func rescan() {
         tracks = TrackMeta.scanMusicFolder()
+        restorePending = SharedDefaults.store.integer(forKey: "restorePending.music")
     }
 
     func apply(_ info: [AnyHashable: Any]) {
@@ -130,10 +159,13 @@ final class MusicRemote: ObservableObject {
 
 struct MusicPage: View {
     @ObservedObject private var remote = MusicRemote.shared
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var enabled = true
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var tabMusicEnabled = false
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
+    @AppStorage(
+        Repo.musicFolderStaleKey, store: SharedDefaults.store)
+    private var musicFolderStale = false
     @StateObject private var presenterState = PresenterState.shared
     @Environment(\.colorScheme) private var scheme
     @State private var search = ""
@@ -155,16 +187,18 @@ struct MusicPage: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 18)
                 .padding(.bottom, 12)
-            if !enabled {
-                disabledBanner
+            if tabMusicEnabled, remote.restorePending > 0 {
+                Text("Restoring your music from iCloud, \(remote.restorePending) remaining")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 8)
             }
             trackList
         }
         .background(DashSkin.paper(dark).ignoresSafeArea(edges: .vertical))
         .navigationTitle("Music")
-        .onAppear { remote.start() }
         .sheet(isPresented: $showDownloader) {
             DownloadSheet()
         }
@@ -204,6 +238,15 @@ struct MusicPage: View {
                 .buttonStyle(HoverButtonStyle())
                 .help("Download YouTube audio")
             }
+            if musicFolderStale {
+                HStack(spacing: 5) {
+                    Text("A previous external music folder was skipped.")
+                    Button("Choose it again", action: chooseMusicFolder)
+                        .buttonStyle(.link)
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            }
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12))
@@ -219,23 +262,6 @@ struct MusicPage: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 9).strokeBorder(DashSkin.line(dark), lineWidth: 1))
         }
-    }
-
-    private var disabledBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "speaker.slash")
-                .foregroundStyle(.orange)
-            Text("The music player is turned off - playback controls won't respond.")
-                .font(.system(size: 12))
-            Spacer()
-            Toggle("Enable", isOn: $enabled)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .pointerCursor()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
     }
 
     @ViewBuilder private var trackList: some View {
@@ -266,6 +292,19 @@ struct MusicPage: View {
                 .padding(.bottom, 8)
             }
         }
+    }
+
+    private func chooseMusicFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        panel.message = "Choose your music folder"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Repo.setMusicDirectory(url)
+        remote.rescan()
+        IPC.post(IPC.Name.musicFolderChanged)
     }
 
 }

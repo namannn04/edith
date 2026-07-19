@@ -83,30 +83,7 @@ final class SystemStore: ObservableObject, FeatureModule {
 
     func refreshPermissions() {
         hasInputMonitoring = CGPreflightListenEventAccess()
-        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        hasAccessibility = AXIsProcessTrustedWithOptions([key: false] as CFDictionary)
-        if (!hasInputMonitoring || !hasAccessibility), phase == .idle, probeTap() {
-            hasInputMonitoring = true
-            hasAccessibility = true
-        }
-    }
-
-    private func probeTap() -> Bool {
-        let callback: CGEventTapCallBack = { _, _, event, _ in
-            Unmanaged.passUnretained(event)
-        }
-        guard
-            let tap = CGEvent.tapCreate(
-                tap: .cgSessionEventTap,
-                place: .headInsertEventTap,
-                options: .defaultTap,
-                eventsOfInterest: CGEventMask(1) << CGEventType.keyDown.rawValue,
-                callback: callback,
-                userInfo: nil)
-        else { return false }
-        CGEvent.tapEnable(tap: tap, enable: false)
-        CFMachPortInvalidate(tap)
-        return true
+        hasAccessibility = AXIsProcessTrusted()
     }
 
     func relaunch() {
@@ -120,6 +97,7 @@ final class SystemStore: ObservableObject, FeatureModule {
     func requestInputMonitoring() {
         CGRequestListenEventAccess()
         openInputMonitoringSettings()
+        IPC.post(IPC.Name.requestPermissionsRefresh)
         recheckSoon()
     }
 
@@ -127,6 +105,7 @@ final class SystemStore: ObservableObject, FeatureModule {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
         openAccessibilitySettings()
+        IPC.post(IPC.Name.requestPermissionsRefresh)
         recheckSoon()
     }
 
@@ -148,12 +127,21 @@ final class SystemStore: ObservableObject, FeatureModule {
     private func recheckSoon() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.refreshPermissions()
+            IPC.post(IPC.Name.requestPermissionsRefresh)
         }
     }
 
     func beginCleaning() {
         refreshPermissions()
-        guard phase == .idle, hasInputMonitoring, hasAccessibility else { return }
+        guard phase == .idle else { return }
+        guard hasInputMonitoring else {
+            requestInputMonitoring()
+            return
+        }
+        guard hasAccessibility else {
+            requestAccessibility()
+            return
+        }
         dismissPanel()
         phase = .arming
         armingCountdown = armingSeconds

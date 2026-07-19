@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 #
-# build.sh - build Edith.app (+ nested EdithHelper.app helper) from the
-# Swift package.
-#
 #   ./build.sh                # build into dist/Edith.app and launch it
 #   ./build.sh --install      # also copy to /Applications and launch from there
 #   ./build.sh --no-open      # build only, don't launch (used by CI)
@@ -81,16 +78,21 @@ if [ ! -f Resources/AppIcon.icns ] || [ "$ARTWORK" -nt Resources/AppIcon.icns ];
 fi
 
 APP="dist/Edith.app"
-HELPER="$APP/Contents/Library/LoginItems/EdithHelper.app"
+LOGIN_ITEMS="$APP/Contents/Library/LoginItems"
+HELPER="$LOGIN_ITEMS/Edith.app"
+SPARKLE_FRAMEWORK="$(find .build/artifacts -type d -name Sparkle.framework -print -quit)"
+[ -n "$SPARKLE_FRAMEWORK" ] || { echo "Sparkle.framework not found in SwiftPM artifacts" >&2; exit 1; }
 rm -rf dist
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
+rm -rf "$LOGIN_ITEMS/Edith"Helper.app
 cp .build/release/Edith "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cp -R .build/release/Edith_EdithKit.bundle "$APP/Contents/Resources/"
+cp -R "$SPARKLE_FRAMEWORK" "$APP/Contents/Frameworks/"
 
 mkdir -p "$HELPER/Contents/MacOS" "$HELPER/Contents/Resources"
-cp .build/release/EdithHelper "$HELPER/Contents/MacOS/"
+cp .build/release/EdithHelper "$HELPER/Contents/MacOS/Edith"
 cp Resources/HelperInfo.plist "$HELPER/Contents/Info.plist"
 cp Resources/AppIcon.icns "$HELPER/Contents/Resources/"
 cp -R .build/release/Edith_EdithKit.bundle "$HELPER/Contents/Resources/"
@@ -116,6 +118,7 @@ codesign --force --sign "$SIGN_IDENTITY" "$APP"
 killall Edith 2>/dev/null || true
 pkill -if "edith.?menubar" 2>/dev/null || true
 if [ "$INSTALL" = 1 ]; then
+  rm -rf "/Applications/Edith.app/Contents/Library/LoginItems/Edith"Helper.app
   rm -rf "/Applications/Edith.app" "/Applications/Control Center.app"
   cp -R "$APP" /Applications/
   [ "$NO_OPEN" = 1 ] || open "/Applications/Edith.app"

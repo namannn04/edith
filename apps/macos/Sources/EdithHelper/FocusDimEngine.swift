@@ -39,6 +39,7 @@ final class FocusDimEngine: FeatureModule {
     private var screenObserver: NSObjectProtocol?
 
     init() {
+        FocusDimHotKey.register()
         loadSettings()
         rebuildOverlays()
         reposition(animateIn: true)
@@ -64,6 +65,7 @@ final class FocusDimEngine: FeatureModule {
     }
 
     func shutdown() {
+        FocusDimHotKey.unregister()
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         if let activationObserver { workspaceCenter.removeObserver(activationObserver) }
         if let spaceObserver { workspaceCenter.removeObserver(spaceObserver) }
@@ -85,8 +87,13 @@ final class FocusDimEngine: FeatureModule {
     }
 
     func applySettings() {
+        FocusDimHotKey.register()
         let previousMode = displayMode
         loadSettings()
+        guard CGPreflightScreenCaptureAccess() else {
+            overlays.values.forEach { $0.alphaValue = 0 }
+            return
+        }
         if displayMode != previousMode {
             reposition(animateIn: false)
         } else {
@@ -125,6 +132,10 @@ final class FocusDimEngine: FeatureModule {
     }
 
     private func reposition(animateIn: Bool) {
+        guard CGPreflightScreenCaptureAccess() else {
+            overlays.values.forEach { $0.alphaValue = 0 }
+            return
+        }
         let windows = Self.onScreenWindows()
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
         var targets: [(FocusDimOverlayWindow, Int?)] = []

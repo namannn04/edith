@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import EdithHelper
+@testable import EdithKit
 
 @Suite struct SettingsBackupTests {
     @Test func everyAppStoragePreferenceIsBackedUpOrDeviceLocal() throws {
@@ -34,5 +35,84 @@ import Testing
         ]
         #expect(expected.isSubset(of: Set(SettingsBackup.backedKeys)))
         #expect(expected.isSubset(of: SettingsBackup.sharedKeys))
+    }
+
+    @Test func restoreProgressPreferencesAreDeviceLocal() {
+        let expected: Set<String> = [
+            "restorePending.usage", "restorePending.limits", "restorePending.music",
+            "restorePending.clipboard", "restoreTimedOut.usage", "restoreTimedOut.limits",
+            "restoreTimedOut.music", "restoreTimedOut.clipboard",
+        ]
+        #expect(expected.isSubset(of: SettingsBackup.deviceLocalKeys))
+        #expect(expected.isDisjoint(with: SettingsBackup.backedKeys))
+    }
+
+    @Test func transferDecisionMatrix() {
+        for dataClass in SettingsBackupDataClass.allCases {
+            for masterEnabled in [false, true] {
+                for subToggleEnabled in [false, true] {
+                    for extensionEnabled in [false, true] {
+                        let decision = settingsBackupTransferDecision(
+                            for: dataClass,
+                            masterEnabled: masterEnabled,
+                            subToggleEnabled: subToggleEnabled,
+                            extensionEnabled: extensionEnabled)
+                        let shouldRestore = masterEnabled && subToggleEnabled
+                        #expect(decision.shouldRestore == shouldRestore)
+                        #expect(
+                            decision.shouldExport == (shouldRestore && extensionEnabled))
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func enableTimeRestoreDecisionMatrix() {
+        let extensionDataClasses: [SettingsBackupDataClass] = [
+            .usage, .limits, .music, .clipboard,
+        ]
+        for dataClass in extensionDataClasses {
+            for cloudDataExists in [false, true] {
+                for masterEnabled in [false, true] {
+                    #expect(
+                        settingsBackupEnableRestoreDecision(
+                            for: dataClass, cloudDataExists: cloudDataExists,
+                            masterEnabled: masterEnabled) == cloudDataExists)
+                }
+            }
+        }
+    }
+
+    @Test func missingCloudNamesExcludeExistingLocalNames() {
+        let missing = settingsBackupMissingNames(
+            cloudNames: ["one.mp3", "two.mp3", "nested/three.m4a"],
+            localNames: ["two.mp3", "local-only.mp3"])
+        #expect(missing == ["one.mp3", "nested/three.m4a"])
+    }
+
+    @Test func pendingRestoreStateTracksUniqueCompletions() {
+        var state = SettingsBackupPendingState(["one.mp3", "two.mp3"])
+        #expect(state.remaining.count == 2)
+        state.complete("one.mp3")
+        #expect(state.remaining == ["two.mp3"])
+        state.complete("one.mp3")
+        #expect(state.remaining == ["two.mp3"])
+        state.complete("two.mp3")
+        #expect(state.remaining.isEmpty)
+    }
+
+    @Test func restoredPathValidationMatrix() {
+        let home = URL(fileURLWithPath: "/Users/example")
+        let cases: [(String, RestoredPathVerdict)] = [
+            ("/", .keep),
+            ("/Library/Application Support/Edith", .keep),
+            ("/Users/example", .keep),
+            ("/Users/example/Music", .keep),
+            ("/Volumes/X", .drop),
+            ("/Volumes/X/Music", .drop),
+        ]
+        for (path, expected) in cases {
+            #expect(RestoredPathValidation.verdict(for: path, homeDirectory: home) == expected)
+        }
     }
 }

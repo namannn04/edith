@@ -647,7 +647,7 @@ private struct NotchClipboardList: View {
             Button {
                 controller.copyClipboardEntry(entry)
             } label: {
-                Text(entry.preview ?? "Non-text item")
+                Text(entry.displayPreview)
                     .font(.system(size: 12)).foregroundStyle(.white.opacity(0.85))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)

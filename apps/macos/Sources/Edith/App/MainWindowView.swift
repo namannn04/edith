@@ -4,7 +4,7 @@ import SwiftUI
 
 enum MainDestination: String, CaseIterable, Identifiable {
     case home, dashboard, music, calendar, system
-    case extensions, shortcuts, settings, permissions, about
+    case extensions, settings, about
 
     var id: String { rawValue }
 
@@ -16,9 +16,7 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .calendar: return "Calendar"
         case .system: return "System"
         case .extensions: return "Extensions"
-        case .shortcuts: return "Shortcuts"
         case .settings: return "Settings"
-        case .permissions: return "Permissions"
         case .about: return "About"
         }
     }
@@ -31,39 +29,42 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .calendar: return "calendar"
         case .system: return "cpu"
         case .extensions: return "puzzlepiece.extension"
-        case .shortcuts: return "command"
         case .settings: return "gearshape"
-        case .permissions: return "checkmark.shield"
         case .about: return "info.circle"
         }
     }
 
     static let homeItems: [MainDestination] = [.home, .dashboard, .music, .calendar, .system]
     static let appItems: [MainDestination] = [
-        .settings, .extensions, .permissions, .shortcuts, .about,
+        .extensions, .settings, .about,
     ]
 
-    static func visibleHomeItems(
-        usage: Bool, music: Bool, calendar: Bool, system: Bool
-    ) -> [MainDestination] {
-        homeItems.filter { item in
-            switch item {
-            case .dashboard: return usage
-            case .music: return music
-            case .calendar: return calendar
-            case .system: return system
-            default: return true
-            }
-        }
-    }
-
-    static func resolve(_ raw: String, visibleHome: [MainDestination]) -> MainDestination {
-        let destination = MainDestination(rawValue: raw) ?? .home
-        return visibleHome.contains(destination) || appItems.contains(destination)
-            ? destination : .home
+    static func resolve(_ raw: String) -> MainDestination {
+        MainDestination(rawValue: raw) ?? .home
     }
 
     var usesPaperBackground: Bool { Self.homeItems.contains(self) }
+}
+
+struct MainNavigationSelection: Equatable {
+    let mainWindowSection: String
+    let settingsTab: String
+}
+
+enum MainNavigationFallback {
+    static func resolve(
+        mainWindowSection: String, settingsTab: String
+    ) -> MainNavigationSelection {
+        if mainWindowSection == "shortcuts" {
+            return MainNavigationSelection(mainWindowSection: "settings", settingsTab: "shortcuts")
+        }
+        let section = MainDestination(rawValue: mainWindowSection)?.rawValue ?? "home"
+        let validSettingsTabs = ["general", "shortcuts", "icloud", "updates"]
+        let resolvedSettingsTab =
+            validSettingsTabs.contains(settingsTab) ? settingsTab : "general"
+        return MainNavigationSelection(
+            mainWindowSection: section, settingsTab: resolvedSettingsTab)
+    }
 }
 
 enum Brand {
@@ -127,21 +128,16 @@ private struct SidebarNavRow: View {
     let item: MainDestination
     let selected: Bool
     let theme: Color
+    let selectionNamespace: Namespace.ID
     let action: () -> Void
     @State private var hovering = false
-
-    private var rowBackground: AnyShapeStyle {
-        if selected { return AnyShapeStyle(.primary.opacity(0.09)) }
-        if hovering { return AnyShapeStyle(.primary.opacity(0.05)) }
-        return AnyShapeStyle(.clear)
-    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 11) {
                 Image(systemName: item.icon)
                     .font(.system(size: 14, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? AnyShapeStyle(theme) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(.primary)
                     .frame(width: 22)
                 Text(item.title)
                     .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
@@ -154,7 +150,20 @@ private struct SidebarNavRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(rowBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background {
+            ZStack {
+                if hovering && !selected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.primary.opacity(0.07))
+                }
+                if selected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(theme.opacity(0.16))
+                        .matchedGeometryEffect(
+                            id: "sidebarSelection", in: selectionNamespace, isSource: true)
+                }
+            }
+        }
         .onHover { hovering = $0 }
         .pointerCursor()
     }
@@ -188,20 +197,21 @@ private struct NavStack {
 }
 
 struct MainWindowView: View {
+    @ObservedObject var updater = UpdaterModel()
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.home.rawValue
     @AppStorage("settingsTab", store: SharedDefaults.store) private var settingsTab = "general"
     @AppStorage("mainSidebarOpen", store: SharedDefaults.store) private var sidebarOpen = true
     @AppStorage("mainSidebarWidth", store: SharedDefaults.store) private var sidebarWidth = 230.0
-    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
-    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = true
-    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = true
+    @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
+    @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
-        true
+        false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
-        true
+        false
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
     @AppStorage("presenterBlurMoney", store: SharedDefaults.store) private var presenterBlurMoney =
@@ -222,7 +232,10 @@ struct MainWindowView: View {
     @State private var permissionsNeedAttention = PermissionsStatus.current
     @State private var presenterQuickActionsPresented = false
     @State private var hoveredPresenterQuickAction: String?
+    @State private var keyboardCleanTrigger = 0
+    @Namespace private var sidebarSelectionNamespace
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var theme: Color { themeColor(themeName) }
 
@@ -234,17 +247,25 @@ struct MainWindowView: View {
     }
 
     private var destination: MainDestination {
-        MainDestination.resolve(mainWindowSection, visibleHome: visibleHomeItems)
+        let requested = MainDestination.resolve(navigationSelection.mainWindowSection)
+        return switch requested {
+        case .dashboard: usageEnabled ? requested : .home
+        case .music: musicEnabled ? requested : .home
+        case .calendar: calendarEnabled ? requested : .home
+        case .system: systemEnabled ? requested : .home
+        default: requested
+        }
     }
 
-    private var visibleHomeItems: [MainDestination] {
-        MainDestination.visibleHomeItems(
-            usage: usageEnabled, music: musicEnabled, calendar: calendarEnabled,
-            system: systemEnabled)
+    private var navigationSelection: MainNavigationSelection {
+        MainNavigationFallback.resolve(
+            mainWindowSection: mainWindowSection, settingsTab: settingsTab)
     }
 
     private var currentLocation: String {
-        destination == .settings ? "settings/\(settingsTab)" : mainWindowSection
+        destination == .settings
+            ? "settings/\(navigationSelection.settingsTab)"
+            : navigationSelection.mainWindowSection
     }
 
     private func navigate(to location: String) {
@@ -278,7 +299,7 @@ struct MainWindowView: View {
             .ignoresSafeArea()
             .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
             .animation(
-                .spring(response: 0.32, dampingFraction: 0.9),
+                Motion.animation(Motion.glide, reduceMotion: reduceMotion),
                 value: musicFooterVisible)
         }
         .background(historyShortcuts)
@@ -290,18 +311,36 @@ struct MainWindowView: View {
             }
         }
         .onAppear {
-            MusicRemote.shared.start()
+            applyNavigationFallback()
+            syncMusicResources()
+            PresenterState.shared.syncEnabled(presenterEnabled)
             refreshPermissionsPill()
-            installMusicKeys()
             if nav.entries.isEmpty { nav.record(currentLocation) }
         }
-        .onDisappear { removeMusicKeys() }
+        .onChange(of: musicEnabled) { _, _ in syncMusicResources() }
+        .onChange(of: presenterEnabled) { _, on in PresenterState.shared.syncEnabled(on) }
+        .onDisappear {
+            removeMusicKeys()
+            MusicRemote.shared.stop()
+        }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: NSApplication.didBecomeActiveNotification)
         ) { _ in
             refreshPermissionsPill()
         }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.permissionsRefreshed)
+        ) { _ in
+            permissionsNeedAttention = PermissionsStatus.current
+        }
+    }
+
+    private func applyNavigationFallback() {
+        let resolved = navigationSelection
+        mainWindowSection = resolved.mainWindowSection
+        settingsTab = resolved.settingsTab
     }
 
     private var historyShortcuts: some View {
@@ -330,6 +369,16 @@ struct MainWindowView: View {
                         volumeBy: { remote.nudgeVolume($0) }))
             }
             return handled ? nil : event
+        }
+    }
+
+    private func syncMusicResources() {
+        if musicEnabled {
+            MusicRemote.shared.start()
+            installMusicKeys()
+        } else {
+            removeMusicKeys()
+            MusicRemote.shared.stop()
         }
     }
 
@@ -372,7 +421,8 @@ struct MainWindowView: View {
                 .opacity(sidebarOpen ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.34, dampingFraction: 0.9), value: sidebarOpen)
+        .animation(
+            Motion.animation(Motion.glide, reduceMotion: reduceMotion), value: sidebarOpen)
     }
 
     private func refreshPermissionsPill() {
@@ -412,22 +462,24 @@ struct MainWindowView: View {
     }
 
     private var footerVisible: Bool {
-        systemEnabled || presenterEnabled || permissionsNeedAttention
+        systemEnabled || presenterEnabled || permissionsNeedAttention || updater.updateReady != nil
     }
 
     private func sidebar(_ bandHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            band(Color(nsColor: .windowBackgroundColor), height: bandHeight)
+        ZStack {
+            SidebarMaterial()
             VStack(spacing: 0) {
-                sidebarList
-                if footerVisible {
-                    Divider()
-                    sidebarFooter
+                band(.clear, height: bandHeight)
+                VStack(spacing: 0) {
+                    sidebarList
+                    if footerVisible {
+                        Divider()
+                        sidebarFooter
+                    }
+                    credit
+                        .padding(.vertical, 8)
                 }
-                credit
-                    .padding(.vertical, 8)
             }
-            .background(Color(nsColor: .windowBackgroundColor))
         }
     }
 
@@ -436,7 +488,8 @@ struct MainWindowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(visibleHomeItems) { item in
                     SidebarNavRow(
-                        item: item, selected: destination == item, theme: theme
+                        item: item, selected: destination == item, theme: theme,
+                        selectionNamespace: sidebarSelectionNamespace
                     ) {
                         mainWindowSection = item.rawValue
                     }
@@ -449,7 +502,8 @@ struct MainWindowView: View {
                     .padding(.bottom, 4)
                 ForEach(MainDestination.appItems) { item in
                     SidebarNavRow(
-                        item: item, selected: destination == item, theme: theme
+                        item: item, selected: destination == item, theme: theme,
+                        selectionNamespace: sidebarSelectionNamespace
                     ) {
                         mainWindowSection = item.rawValue
                     }
@@ -459,10 +513,27 @@ struct MainWindowView: View {
             .padding(.top, 8)
         }
         .frame(maxHeight: .infinity)
+        .animation(
+            Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: destination)
+    }
+
+    private var visibleHomeItems: [MainDestination] {
+        MainDestination.homeItems.filter { item in
+            switch item {
+            case .dashboard: usageEnabled
+            case .music: musicEnabled
+            case .calendar: calendarEnabled
+            case .system: systemEnabled
+            default: true
+            }
+        }
     }
 
     private var sidebarFooter: some View {
         VStack(spacing: 8) {
+            if let version = updater.updateReady {
+                updateReadyPill(version)
+            }
             if systemEnabled || presenterEnabled {
                 quickActions
             }
@@ -473,18 +544,43 @@ struct MainWindowView: View {
         .padding(10)
     }
 
+    private func updateReadyPill(_ version: String) -> some View {
+        Button {
+            updater.checkForUpdates()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill")
+                Text("Update ready")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text("v\(version)")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .opacity(0.75)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(DashSkin.sage)
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .help("Show update options")
+    }
+
     @ViewBuilder
     private var quickActions: some View {
         let tiles = [
             quickActionTile(
                 icon: "keyboard", title: "Clean keys", active: false,
+                trigger: keyboardCleanTrigger,
                 help: "Lock the keyboard so you can wipe it"
             ) {
+                keyboardCleanTrigger += 1
                 IPC.post(IPC.Name.requestKeyboardClean)
             },
             quickActionTile(
                 icon: preventSleep ? "moon.zzz.fill" : "moon.zzz", title: "Keep awake",
-                active: preventSleep,
+                active: preventSleep, trigger: preventSleep ? 1 : 0,
                 help: "Keep this Mac from sleeping until turned off"
             ) {
                 preventSleep.toggle()
@@ -514,6 +610,7 @@ struct MainWindowView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "theatermasks.fill")
                         .font(.system(size: 14))
+                        .symbolEffect(.bounce, value: presenterMode)
                     Text("Presenter mode")
                         .font(.system(size: 10, weight: .medium))
                         .lineLimit(1)
@@ -535,6 +632,7 @@ struct MainWindowView: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
+                    .symbolEffect(.bounce, value: presenterQuickActionsPresented)
                     .frame(width: 30, height: 46)
                     .contentShape(Rectangle())
             }
@@ -547,7 +645,7 @@ struct MainWindowView: View {
         }
         .foregroundStyle(presenterMode ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
         .background(
-            presenterMode ? AnyShapeStyle(theme) : AnyShapeStyle(.primary.opacity(0.05)),
+            presenterMode ? AnyShapeStyle(theme) : AnyShapeStyle(.thinMaterial),
             in: RoundedRectangle(cornerRadius: 9)
         )
         .clipShape(RoundedRectangle(cornerRadius: 9))
@@ -604,12 +702,14 @@ struct MainWindowView: View {
     }
 
     private func quickActionTile(
-        icon: String, title: String, active: Bool, help: String, action: @escaping () -> Void
+        icon: String, title: String, active: Bool, trigger: Int, help: String,
+        action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 14))
+                    .symbolEffect(.bounce, value: trigger)
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
@@ -618,7 +718,7 @@ struct MainWindowView: View {
             .padding(.vertical, 8)
             .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .background(
-                active ? AnyShapeStyle(theme) : AnyShapeStyle(.primary.opacity(0.05)),
+                active ? AnyShapeStyle(theme) : AnyShapeStyle(.thinMaterial),
                 in: RoundedRectangle(cornerRadius: 9)
             )
             .contentShape(Rectangle())
@@ -692,7 +792,7 @@ struct MainWindowView: View {
 
     private var permissionsPill: some View {
         Button {
-            mainWindowSection = MainDestination.permissions.rawValue
+            mainWindowSection = MainDestination.extensions.rawValue
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -718,9 +818,7 @@ struct MainWindowView: View {
         case .calendar: CalendarPage()
         case .system: SystemPage()
         case .extensions: ExtensionsPane()
-        case .shortcuts: ShortcutsPane()
-        case .settings: SettingsPane()
-        case .permissions: MainPermissionsPane()
+        case .settings: SettingsPane(updater: updater)
         case .about: AboutPane()
         }
     }

@@ -27,6 +27,36 @@ import Testing
         #expect(!FeatureGates.preventSleepPersisted(systemOn: true, current: false))
     }
 
+    @Test func optionalMonitorStartsOnlyWhenGrantedOrContextuallyEnabled() {
+        #expect(
+            !ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: true, wasEnabled: true, isGranted: false))
+        #expect(
+            ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: true, wasEnabled: false, isGranted: false))
+        #expect(
+            ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: true, wasEnabled: true, isGranted: true))
+        #expect(
+            !ContextualPermissionGate.shouldStartMonitor(
+                isEnabled: false, wasEnabled: true, isGranted: true))
+    }
+
+    @Test func extensionShortcutsOnlyIncludeEnabledOwners() {
+        #expect(
+            ExtensionShortcutVisibility.visible(
+                clipboard: false, focusDim: false, presenter: false, colorPicker: false
+            ).isEmpty)
+        #expect(
+            ExtensionShortcutVisibility.visible(
+                clipboard: true, focusDim: false, presenter: true, colorPicker: false)
+                == [.clipboard, .presenter])
+        #expect(
+            ExtensionShortcutVisibility.visible(
+                clipboard: true, focusDim: true, presenter: true, colorPicker: true)
+                == ExtensionShortcut.allCases)
+    }
+
     @Test func lastUsageProviderTurnsOffDependentFeatures() {
         let state = AgentUsageSettingsState(
             enabled: true, claudeEnabled: false, codexEnabled: false, menuBarEnabled: true,

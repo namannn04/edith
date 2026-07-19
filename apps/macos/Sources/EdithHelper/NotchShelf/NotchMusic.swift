@@ -1,7 +1,15 @@
+import EdithKit
 import Foundation
 
 enum NotchTab: String, CaseIterable, Equatable {
     case home, files, clipboard, audio, camera
+
+    static var allCases: [NotchTab] {
+        var tabs: [NotchTab] = [.home, .files]
+        if SharedDefaults.store.bool(forKey: "clipboardEnabled") { tabs.append(.clipboard) }
+        tabs.append(contentsOf: [.audio, .camera])
+        return tabs
+    }
 
     var title: String {
         switch self {

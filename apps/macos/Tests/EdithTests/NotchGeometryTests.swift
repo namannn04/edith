@@ -53,4 +53,13 @@ import Testing
         #expect(clamped.x == NotchGeometry.itemCell.width / 2)
         #expect(clamped.y == size.height - NotchGeometry.itemCell.height / 2)
     }
+
+    @Test func interactionFrameUsesSharedInsetForDragNearAndDropAcceptance() {
+        let shape = CGRect(x: 100, y: 200, width: 160, height: 32)
+        let interactionFrame = NotchGeometry.interactionFrame(around: shape)
+        #expect(interactionFrame.minX == shape.minX - NotchGeometry.interactInset)
+        #expect(interactionFrame.minY == shape.minY - NotchGeometry.interactInset)
+        #expect(interactionFrame.maxX == shape.maxX + NotchGeometry.interactInset)
+        #expect(interactionFrame.maxY == shape.maxY + NotchGeometry.interactInset)
+    }
 }

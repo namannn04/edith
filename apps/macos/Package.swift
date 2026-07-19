@@ -4,6 +4,9 @@ import PackageDescription
 let package = Package(
     name: "Edith",
     platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0")
+    ],
     targets: [
         .target(
             name: "EdithKit",
@@ -12,9 +15,17 @@ let package = Package(
         ),
         .executableTarget(
             name: "Edith",
-            dependencies: ["EdithKit"],
+            dependencies: [
+                "EdithKit",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             resources: [.copy("Resources/appicon.png")],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",
+                ])
+            ]
         ),
         .executableTarget(
             name: "EdithHelper",

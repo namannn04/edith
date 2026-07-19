@@ -18,7 +18,6 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
             cancelReminders()
             return
         }
-        ensureAuthorization()
         var state = loadState()
         let before = state
         let alerts = LimitNotifierLogic.decide(
@@ -26,18 +25,6 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
         if state != before { save(state) }
         for alert in alerts { send(alert) }
         scheduleReminders(session: session, week: week, settings: settings)
-    }
-
-    private var authRequested = false
-    private func ensureAuthorization() {
-        guard !authRequested else { return }
-        authRequested = true
-        Task { @MainActor [weak self] in
-            guard let self,
-                await self.center.notificationSettings().authorizationStatus == .notDetermined
-            else { return }
-            self.requestPermission()
-        }
     }
 
     func clearStateIfMasterOff() {
@@ -78,6 +65,7 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
         case .notDetermined:
             let granted =
                 (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+            IPC.post(IPC.Name.requestPermissionsRefresh)
             guard granted else { return "Permission not granted" }
         default:
             break
@@ -98,16 +86,6 @@ final class LimitNotifier: NSObject, UNUserNotificationCenterDelegate {
             $0.request.identifier == id
         }
         return delivered ? "Delivered" : "Sent but not delivered - check Focus / System Settings"
-    }
-
-    func requestPermission() {
-        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error {
-                NSLog("Edith notifications: authorization error: %@", error.localizedDescription)
-            } else {
-                NSLog("Edith notifications: authorization granted=%d", granted)
-            }
-        }
     }
 
     func authorizationStatus() async -> UNAuthorizationStatus {
