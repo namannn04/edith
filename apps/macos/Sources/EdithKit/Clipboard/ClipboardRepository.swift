@@ -69,9 +69,16 @@ public enum ClipboardRepository {
     public static func plainText(for entry: ClipboardEntry, data: Data) -> String? {
         switch entry.ext {
         case "rtf": return NSAttributedString(rtf: data, documentAttributes: nil)?.string
+        case "rtfd": return NSAttributedString(rtfd: data, documentAttributes: nil)?.string
         case "html": return NSAttributedString(html: data, documentAttributes: nil)?.string
-        case "txt": return String(data: data, encoding: .utf8)
-        default: return nil
+        case "url", "files", "png", "tiff", "jpg", "jpeg", "gif", "heic", "heif", "webp",
+            "svg", "bmp", "ico", "avif", "image", "pdf", "ps", "eps", "mp3", "m4a",
+            "wav", "aiff", "flac", "ogg", "mp4", "mov", "m4v", "avi", "webm", "zip",
+            "gz", "bz2", "xz", "tar", "7z", "rar", "data", "color":
+            return nil
+        default:
+            return String(data: data, encoding: .utf8)
+                ?? String(data: data, encoding: .utf16)
         }
     }
 
@@ -81,7 +88,7 @@ public enum ClipboardRepository {
     ) -> Bool {
         guard let data = blobData(for: entry) else { return false }
         pasteboard.clearContents()
-        if asPlainText, entry.kind != .image, entry.kind != .file {
+        if asPlainText, entry.isTextual {
             let text = plainText(for: entry, data: data) ?? entry.preview ?? ""
             pasteboard.setString(text, forType: .string)
         } else {
@@ -98,8 +105,24 @@ public enum ClipboardRepository {
             pasteboard.setData(data, forType: .png)
         case "tiff":
             pasteboard.setData(data, forType: .tiff)
+        case "jpg", "jpeg", "gif", "heic", "heif", "webp", "svg", "bmp", "ico", "avif",
+            "image", "pdf", "ps", "eps", "mp3", "m4a", "wav", "aiff", "flac", "ogg",
+            "mp4", "mov", "m4v", "avi", "webm", "zip", "gz", "bz2", "xz", "tar", "7z",
+            "rar", "data", "color":
+            let type =
+                entry.types.first.map { NSPasteboard.PasteboardType($0) }
+                ?? NSPasteboard.PasteboardType("public.data")
+            pasteboard.setData(data, forType: type)
         case "rtf":
             pasteboard.setData(data, forType: .rtf)
+            if let text = plainText(for: entry, data: data) {
+                pasteboard.setString(text, forType: .string)
+            }
+        case "rtfd":
+            let type =
+                entry.types.first.map { NSPasteboard.PasteboardType($0) }
+                ?? NSPasteboard.PasteboardType("com.apple.flat-rtfd")
+            pasteboard.setData(data, forType: type)
             if let text = plainText(for: entry, data: data) {
                 pasteboard.setString(text, forType: .string)
             }
@@ -112,7 +135,19 @@ public enum ClipboardRepository {
             if let string = String(data: data, encoding: .utf8), let url = URL(string: string) {
                 pasteboard.writeObjects([url as NSURL])
             }
+        case "files":
+            if let strings = try? JSONDecoder().decode([String].self, from: data) {
+                pasteboard.writeObjects(strings.compactMap(URL.init(string:)).map { $0 as NSURL })
+            }
+        case "weburl":
+            if let string = String(data: data, encoding: .utf8), let url = URL(string: string) {
+                pasteboard.writeObjects([url as NSURL])
+                pasteboard.setString(string, forType: .string)
+            }
         default:
+            if let rawType = entry.types.first {
+                pasteboard.setData(data, forType: NSPasteboard.PasteboardType(rawType))
+            }
             if let string = String(data: data, encoding: .utf8) {
                 pasteboard.setString(string, forType: .string)
             }

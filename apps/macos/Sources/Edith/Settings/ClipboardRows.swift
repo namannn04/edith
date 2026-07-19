@@ -255,7 +255,7 @@ struct ClipboardRows: View {
 
     private func recentRow(_ entry: ClipboardEntry) -> some View {
         HStack {
-            Text(entry.preview ?? "").lineLimit(1)
+            Text(entry.displayPreview).lineLimit(1)
             Spacer()
             Text(entry.sourceApp ?? "Unknown")
             Text("·")

@@ -108,17 +108,9 @@ final class ClipboardStore: ObservableObject, FeatureModule {
         capture(from: pb)
     }
 
-    private struct Captured {
-        let data: Data
-        let types: [String]
-        let ext: String
-        let preview: String?
-    }
-
     private func capture(from pb: NSPasteboard) {
         let rawTypes = (pb.types ?? []).map(\.rawValue)
         guard !ClipboardPasteboardFilter.shouldSkip(types: rawTypes) else { return }
-        guard !ClipboardPasteboardFilter.capturableTypes(from: rawTypes).isEmpty else { return }
 
         let frontApp = NSWorkspace.shared.frontmostApplication
         let bundleID = frontApp?.bundleIdentifier
@@ -126,7 +118,14 @@ final class ClipboardStore: ObservableObject, FeatureModule {
             SharedDefaults.store.string(forKey: "clipboardIgnoredApps") ?? "")
         guard !ClipboardIgnore.isIgnored(bundleID: bundleID, userList: ignoreList) else { return }
 
-        guard let captured = Self.extractPayload(pb) else { return }
+        let defaults = SharedDefaults.store
+        let options = ClipboardCaptureOptions(
+            saveFiles: defaults.object(forKey: "clipboardSaveFiles") as? Bool ?? true,
+            saveImages: defaults.object(forKey: "clipboardSaveImages") as? Bool ?? true,
+            saveText: defaults.object(forKey: "clipboardSaveText") as? Bool ?? true)
+        guard let captured = ClipboardPayloadExtractor.extract(from: pb, options: options) else {
+            return
+        }
 
         let maxBytes =
             SharedDefaults.store.object(forKey: "clipboardMaxItemBytes") as? Int
@@ -153,62 +152,6 @@ final class ClipboardStore: ObservableObject, FeatureModule {
         entries = sorter.sort(entries + [entry])
         persistAndTrim(appending: existing == nil ? entry : nil)
         SettingsBackup.shared.scheduleClipboardBackup()
-    }
-
-    private static func extractPayload(_ pb: NSPasteboard) -> Captured? {
-        let defaults = SharedDefaults.store
-        let saveFiles = defaults.object(forKey: "clipboardSaveFiles") as? Bool ?? true
-        let saveImages = defaults.object(forKey: "clipboardSaveImages") as? Bool ?? true
-        let saveText = defaults.object(forKey: "clipboardSaveText") as? Bool ?? true
-
-        if saveFiles, let string = pb.string(forType: .fileURL),
-            let data = string.data(using: .utf8)
-        {
-            let name = (string as NSString).lastPathComponent.removingPercentEncoding ?? string
-            return Captured(
-                data: data, types: [NSPasteboard.PasteboardType.fileURL.rawValue], ext: "url",
-                preview: name)
-        }
-        if saveImages {
-            if let data = pb.data(forType: .png) {
-                return Captured(
-                    data: data, types: [NSPasteboard.PasteboardType.png.rawValue], ext: "png",
-                    preview: "Image")
-            }
-            if let data = pb.data(forType: .tiff) {
-                return Captured(
-                    data: data, types: [NSPasteboard.PasteboardType.tiff.rawValue], ext: "tiff",
-                    preview: "Image")
-            }
-        }
-        guard saveText else { return nil }
-        if let data = pb.data(forType: .rtf) {
-            let plain = NSAttributedString(rtf: data, documentAttributes: nil)?.string
-            if hasVisibleText(plain) {
-                return Captured(
-                    data: data, types: [NSPasteboard.PasteboardType.rtf.rawValue], ext: "rtf",
-                    preview: plain)
-            }
-        }
-        if let data = pb.data(forType: .html) {
-            let plain = NSAttributedString(html: data, documentAttributes: nil)?.string
-            if hasVisibleText(plain) {
-                return Captured(
-                    data: data, types: [NSPasteboard.PasteboardType.html.rawValue], ext: "html",
-                    preview: plain)
-            }
-        }
-        if let string = pb.string(forType: .string), hasVisibleText(string) {
-            return Captured(
-                data: Data(string.utf8), types: [NSPasteboard.PasteboardType.string.rawValue],
-                ext: "txt", preview: string)
-        }
-        return nil
-    }
-
-    private static func hasVisibleText(_ text: String?) -> Bool {
-        guard let text else { return false }
-        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private static let senderID =

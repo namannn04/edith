@@ -66,7 +66,7 @@ struct ClipboardHistoryView: View {
             .frame(minWidth: 18)
             VStack(alignment: .leading, spacing: 3) {
                 if entry.kind != .image {
-                    Text(entry.preview ?? "").lineLimit(2)
+                    Text(entry.displayPreview).lineLimit(2)
                 }
                 HStack(spacing: 4) {
                     Text(entry.sourceApp ?? "Unknown")
@@ -110,6 +110,9 @@ struct ClipboardHistoryView: View {
         case .file: return "doc"
         case .richText, .html: return "doc.richtext"
         case .text: return "doc.plaintext"
+        case .document: return "doc.text"
+        case .media: return "play.rectangle"
+        case .data: return "externaldrive"
         }
     }
 
