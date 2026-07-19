@@ -62,11 +62,11 @@ release:
 	  exit 1; \
 	fi; \
 	BUILD=$$(( $$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' apps/macos/Resources/Info.plist) + 1 )); \
-	for p in apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist; do \
+	for p in apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist apps/macos/Resources/InstallerInfo.plist; do \
 	  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(V)" $$p; \
 	  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $$BUILD" $$p; \
 	done; \
-	git commit -m "Bump version to $(V)" apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist; \
+	git commit -m "Bump version to $(V)" apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist apps/macos/Resources/InstallerInfo.plist; \
 	git tag "v$(V)"; \
 	(cd apps/macos && ./build.sh --no-open); \
 	rm -rf apps/macos/dmg-root; \
@@ -80,12 +80,15 @@ release:
 	cp "apps/macos/Edith-v$(V).dmg" apps/macos/dist/appcast/; \
 	"$$GENERATE_APPCAST" apps/macos/dist/appcast; \
 	test -f apps/macos/dist/appcast/appcast.xml || { echo "release blocked: generate_appcast did not create apps/macos/dist/appcast/appcast.xml" >&2; exit 1; }; \
+	(cd apps/macos && ./build-installer.sh); \
 	git push origin HEAD "v$(V)"; \
 	gh release create "v$(V)" --title "Edith v$(V)" --generate-notes \
 	  "apps/macos/Edith-v$(V).dmg" \
+	  apps/macos/dist/EdithInstaller.dmg \
 	  apps/macos/dist/appcast/appcast.xml \
 	|| gh release upload "v$(V)" --clobber \
 	  "apps/macos/Edith-v$(V).dmg" \
+	  apps/macos/dist/EdithInstaller.dmg \
 	  apps/macos/dist/appcast/appcast.xml
 
 loc:
