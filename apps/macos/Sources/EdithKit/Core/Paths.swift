@@ -40,6 +40,13 @@ public enum AppData {
             atPath: FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs").path)
     }
+
+    public static var cloudBackupExists: Bool {
+        guard cloudAvailable else { return false }
+        let names =
+            (try? FileManager.default.contentsOfDirectory(atPath: cloudDir.path)) ?? []
+        return names.contains { $0 != ".DS_Store" }
+    }
 }
 
 public enum Repo {

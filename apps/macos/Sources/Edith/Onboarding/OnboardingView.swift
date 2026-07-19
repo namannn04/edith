@@ -14,6 +14,7 @@ struct OnboardingView: View {
 
     let onFinish: () -> Void
     private let baselineGrantedPermissions: [ExtensionPermission: Bool]
+    private let cloudBackupFound: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = Step.welcome
@@ -26,9 +27,12 @@ struct OnboardingView: View {
 
     init(onFinish: @escaping () -> Void) {
         let baselineGrantedPermissions = OnboardingFlow.grantedPermissions()
+        let cloudBackupFound = AppData.cloudBackupExists
         self.onFinish = onFinish
         self.baselineGrantedPermissions = baselineGrantedPermissions
+        self.cloudBackupFound = cloudBackupFound
         _grantedPermissions = State(initialValue: baselineGrantedPermissions)
+        _icloudBackup = State(initialValue: cloudBackupFound)
     }
 
     private var dark: Bool { colorScheme == .dark }
@@ -257,7 +261,13 @@ struct OnboardingView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(DashSkin.inkSoft(dark))
                 .padding(.top, 7)
-            Toggle("Back up my settings to iCloud", isOn: $icloudBackup)
+            VStack(spacing: 6) {
+                Toggle(
+                    cloudBackupFound
+                        ? "Restore my iCloud backup and keep syncing"
+                        : "Back up my settings to iCloud",
+                    isOn: $icloudBackup
+                )
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .font(.system(size: 12.5, weight: .medium))
@@ -269,7 +279,13 @@ struct OnboardingView: View {
                     RoundedRectangle(cornerRadius: 10).strokeBorder(DashSkin.line(dark))
                 }
                 .pointerCursor()
-                .padding(.top, 18)
+                if cloudBackupFound {
+                    Text("We found an existing Edith backup in iCloud.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(DashSkin.inkSoft(dark))
+                }
+            }
+            .padding(.top, 18)
             HStack(spacing: 14) {
                 Text(hotKeyLabel)
                     .font(DashSkin.mono(20, weight: .semibold))
