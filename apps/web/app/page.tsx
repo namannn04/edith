@@ -84,9 +84,9 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <header className="sticky top-0 z-40 border-b border-line bg-[color-mix(in_oklab,var(--color-bg)_72%,transparent)] backdrop-blur-[16px]">
-        <div className="mx-auto w-full max-w-[1120px] px-6 flex h-14 items-center justify-between">
-          <a href="#top" className="flex items-center gap-2 text-[15px] font-semibold">
+      <header className="sticky top-0 z-40 border-line border-b bg-[color-mix(in_oklab,var(--color-bg)_72%,transparent)] backdrop-blur-[16px]">
+        <div className="mx-auto flex h-14 w-full max-w-[1120px] items-center justify-between px-6">
+          <a href="#top" className="flex items-center gap-2 font-semibold text-[15px]">
             <img
               src="/app-icon-512.png"
               alt="Edith app icon"
@@ -96,11 +96,11 @@ export default function HomePage() {
             />
             <span>Edith</span>
           </a>
-          <nav className="hidden gap-8 md:flex [&>a]:text-[13px] [&>a]:text-muted [&>a:hover]:text-fg">
+          <nav className="hidden gap-8 md:flex [&>a:hover]:text-fg [&>a]:text-[13px] [&>a]:text-muted">
             <a href="#features">Features</a>
             <a href="#performance">Performance</a>
           </nav>
-          <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent px-6 py-3 text-[14px] font-medium transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none bg-fg text-bg px-4! py-1.5! text-[13px]!">
+          <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-4! px-6 py-1.5! py-3 font-medium text-[13px]! text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
             Download
           </a>
         </div>
@@ -109,15 +109,15 @@ export default function HomePage() {
       <main id="top">
         <section className="relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_8%,color-mix(in_oklab,var(--color-accent)_20%,transparent),transparent_70%),radial-gradient(50%_40%_at_82%_26%,color-mix(in_oklab,var(--color-accent)_9%,transparent),transparent_70%)]" aria-hidden="true"></div>
-          <div className="mx-auto w-full max-w-[1120px] px-6 relative pt-24 pb-18 md:pt-36 md:pb-24 [&>h1]:mt-6 [&>h1]:animate-hero-rise [&>h1]:[animation-delay:160ms] [&>p:first-of-type]:mb-6 [&>p:first-of-type]:animate-hero-rise [&>p:first-of-type]:[animation-delay:80ms] [&>p:nth-of-type(3)]:mt-4 [&>p:nth-of-type(3)]:animate-hero-rise [&>p:nth-of-type(3)]:[animation-delay:380ms] motion-reduce:[&>h1]:animate-none motion-reduce:[&>p]:animate-none">
+          <div className="relative mx-auto w-full max-w-[1120px] px-6 pt-24 pb-18 md:pt-36 md:pb-24 [&>h1]:mt-6 [&>h1]:animate-hero-rise [&>h1]:[animation-delay:160ms] motion-reduce:[&>h1]:animate-none [&>p:first-of-type]:mb-6 [&>p:first-of-type]:animate-hero-rise [&>p:first-of-type]:[animation-delay:80ms] [&>p:nth-of-type(3)]:mt-4 [&>p:nth-of-type(3)]:animate-hero-rise [&>p:nth-of-type(3)]:[animation-delay:380ms] motion-reduce:[&>p]:animate-none">
             <img
               src="/app-icon.png"
               alt="Edith app icon"
               width="88"
               height="88"
-              className="mb-8 size-18 animate-[var(--animate-hero-rise),var(--animate-float-slow)] rounded-[22%] shadow-hero-icon md:size-22 motion-reduce:animate-none"
+              className="mb-8 size-18 animate-[var(--animate-hero-rise),var(--animate-float-slow)] rounded-[22%] shadow-hero-icon motion-reduce:animate-none md:size-22"
             />
-            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">For macOS</p>
+            <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">For macOS</p>
             <h1>
               One menu bar app
               <br />
@@ -128,7 +128,7 @@ export default function HomePage() {
               tracking, usage analytics, local music, and system tools.
             </p>
             <div className="mt-10 flex animate-hero-rise flex-wrap gap-3 [animation-delay:320ms] motion-reduce:animate-none">
-              <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent px-6 py-3 text-[14px] font-medium transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none bg-fg text-bg">
+              <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-6 py-3 font-medium text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
                 <svg className="size-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M16.365 1.43c0 1.14-.42 2.23-1.24 3.05-.83.83-2.19 1.45-3.31 1.36-.14-1.1.43-2.24 1.2-2.98.85-.83 2.32-1.42 3.35-1.43zM20.5 17.29c-.57 1.31-.85 1.9-1.59 3.06-1.03 1.61-2.48 3.62-4.28 3.63-1.6.01-2.01-1.05-4.18-1.04-2.17.01-2.62 1.06-4.22 1.05-1.8-.02-3.18-1.83-4.21-3.44C-.36 16.72-1.02 10.6 2.87 8.4c1.4-.8 2.86-1.24 4.24-1.26 1.61-.03 3.13 1.09 4.19 1.09 1.05 0 2.87-1.35 4.85-1.15.83.03 3.16.33 4.66 2.52-.12.08-2.78 1.62-2.75 4.82.03 3.83 3.36 5.1 3.4 5.11-.03.09-.53 1.82-1.96 3.76z" />
                 </svg>
@@ -138,21 +138,21 @@ export default function HomePage() {
             <p className="text-[12px] text-subtle">Requires macOS. Apple Silicon and Intel.</p>
 
             <div className="mx-auto mt-16 max-w-[900px] animate-hero-rise [animation-delay:480ms] motion-reduce:animate-none [&>p]:mt-4">
-              <div className="relative overflow-hidden rounded-card border border-line-2 bg-surface shadow-demo [&:has(#presenter:checked)_[data-sensitive]]:blur-[7px] [&:has(#presenter:checked)_[data-sensitive]]:select-none [&:has(#presenter:checked)_[data-presenter-toggle]]:border-accent/[40%] [&:has(#presenter:checked)_[data-presenter-toggle]]:bg-accent/[15%] [&:has(#presenter:checked)_[data-presenter-icon]]:text-accent">
+              <div className="relative overflow-hidden rounded-card border border-line-2 bg-surface shadow-demo [&:has(#presenter:checked)_[data-presenter-icon]]:text-accent [&:has(#presenter:checked)_[data-presenter-toggle]]:border-accent/[40%] [&:has(#presenter:checked)_[data-presenter-toggle]]:bg-accent/[15%] [&:has(#presenter:checked)_[data-sensitive]]:select-none [&:has(#presenter:checked)_[data-sensitive]]:blur-[7px]">
                 <input type="checkbox" id="presenter" className="sr-only" />
-                <div className="flex items-center gap-3 border-b border-line px-5 py-3">
-                  <span className="flex gap-2 [&>i]:block [&>i]:size-3 [&>i]:rounded-full [&>i:nth-child(1)]:bg-window-close [&>i:nth-child(2)]:bg-window-minimize [&>i:nth-child(3)]:bg-window-expand">
+                <div className="flex items-center gap-3 border-line border-b px-5 py-3">
+                  <span className="flex gap-2 [&>i:nth-child(1)]:bg-window-close [&>i:nth-child(2)]:bg-window-minimize [&>i:nth-child(3)]:bg-window-expand [&>i]:block [&>i]:size-3 [&>i]:rounded-full">
                     <i></i>
                     <i></i>
                     <i></i>
                   </span>
-                  <span className="text-[13px] font-medium text-muted">Edith</span>
+                  <span className="font-medium text-[13px] text-muted">Edith</span>
                   <span className="flex-1"></span>
-                  <span className="text-[12px] text-subtle font-mono tabular-nums">11:59 PM</span>
+                  <span className="font-mono text-[12px] text-subtle tabular-nums">11:59 PM</span>
                 </div>
                 <div className="flex">
-                  <aside className="hidden w-40 shrink-0 flex-col gap-1 border-r border-line p-3 md:flex [&>span]:rounded-lg [&>span]:px-3 [&>span]:py-2 [&>span]:text-[13px] [&>span]:text-muted [&>span:first-child]:bg-white/[5%] [&>span:first-child]:font-medium [&>span:first-child]:text-fg">
-                    <span className="rounded-lg bg-white/[5%] px-3 py-2 text-[13px] font-medium text-fg">Home</span>
+                  <aside className="hidden w-40 shrink-0 flex-col gap-1 border-line border-r p-3 md:flex [&>span:first-child]:bg-white/[5%] [&>span:first-child]:font-medium [&>span:first-child]:text-fg [&>span]:rounded-lg [&>span]:px-3 [&>span]:py-2 [&>span]:text-[13px] [&>span]:text-muted">
+                    <span className="rounded-lg bg-white/[5%] px-3 py-2 font-medium text-[13px] text-fg">Home</span>
                     <span>Agent Usage</span>
                     <span>Music</span>
                     <span>Calendar</span>
@@ -160,7 +160,7 @@ export default function HomePage() {
                   </aside>
                   <div className="min-w-0 flex-1 p-6">
                     <div className="mb-5">
-                      <div className="font-serif text-[24px] font-semibold tracking-[-0.01em]">Good evening.</div>
+                      <div className="font-semibold font-serif text-[24px] tracking-[-0.01em]">Good evening.</div>
                       <div className="mt-1 text-[13px] text-subtle [&>span]:text-muted">
                         This week <span className="font-mono tabular-nums transition-[filter_0.3s_ease] motion-reduce:transition-none" data-sensitive="">$2.1k</span>
                       </div>
@@ -168,32 +168,32 @@ export default function HomePage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div className="rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center">
-                        <div className="font-mono tabular-nums text-[18px] font-semibold">11:59</div>
-                        <div className="font-mono tabular-nums text-[10px] text-subtle">PM</div>
+                        <div className="font-mono font-semibold text-[18px] tabular-nums">11:59</div>
+                        <div className="font-mono text-[10px] text-subtle tabular-nums">PM</div>
                         <div className="mt-1 text-[11px] text-muted">Local</div>
                       </div>
                       <div className="rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center">
-                        <div className="font-mono tabular-nums text-[18px] font-semibold">2:29</div>
-                        <div className="font-mono tabular-nums text-[10px] text-subtle">PM</div>
+                        <div className="font-mono font-semibold text-[18px] tabular-nums">2:29</div>
+                        <div className="font-mono text-[10px] text-subtle tabular-nums">PM</div>
                         <div className="mt-1 text-[11px] text-muted">New York</div>
                       </div>
                       <div className="rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center">
-                        <div className="font-mono tabular-nums text-[18px] font-semibold">7:29</div>
-                        <div className="font-mono tabular-nums text-[10px] text-subtle">PM</div>
+                        <div className="font-mono font-semibold text-[18px] tabular-nums">7:29</div>
+                        <div className="font-mono text-[10px] text-subtle tabular-nums">PM</div>
                         <div className="mt-1 text-[11px] text-muted">London</div>
                       </div>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-3 gap-3 [&>span:nth-child(2)]:border-accent/[40%] [&>span:nth-child(2)]:bg-accent/[15%] [&>span:nth-child(2)>span:first-child]:text-accent">
-                      <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center text-[12px] font-semibold text-fg [&>small]:text-[11px] [&>small]:font-normal [&>small]:leading-[1.3] [&>small]:text-subtle">
+                    <div className="mt-3 grid grid-cols-3 gap-3 [&>span:nth-child(2)>span:first-child]:text-accent [&>span:nth-child(2)]:border-accent/[40%] [&>span:nth-child(2)]:bg-accent/[15%]">
+                      <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center font-semibold text-[12px] text-fg [&>small]:font-normal [&>small]:text-[11px] [&>small]:text-subtle [&>small]:leading-[1.3]">
                         <span className="text-base text-subtle">⌨</span>
                         <span>Clean keys</span>
                       </span>
-                      <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center text-[12px] font-semibold text-fg [&>small]:text-[11px] [&>small]:font-normal [&>small]:leading-[1.3] [&>small]:text-subtle border-accent/[40%]! bg-accent/[15%]! [&>span:first-child]:text-accent!">
+                      <span className="flex flex-col items-center gap-1.5 rounded-xl border border-accent/[40%]! border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] bg-accent/[15%]! p-3 text-center font-semibold text-[12px] text-fg [&>small]:font-normal [&>small]:text-[11px] [&>small]:text-subtle [&>small]:leading-[1.3] [&>span:first-child]:text-accent!">
                         <span className="text-base text-subtle">☾</span>
                         <span>Keep awake</span>
                       </span>
-                      <label htmlFor="presenter" className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center text-[12px] font-semibold text-fg [&>small]:text-[11px] [&>small]:font-normal [&>small]:leading-[1.3] [&>small]:text-subtle cursor-pointer" data-presenter-toggle="">
+                      <label htmlFor="presenter" className="flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center font-semibold text-[12px] text-fg [&>small]:font-normal [&>small]:text-[11px] [&>small]:text-subtle [&>small]:leading-[1.3]" data-presenter-toggle="">
                         <span className="text-base text-subtle" data-presenter-icon="">◍</span>
                         <span>Presenter</span>
                       </label>
@@ -201,7 +201,7 @@ export default function HomePage() {
 
                     <div className="mt-3 grid gap-3 md:grid-cols-[auto_1fr]">
                       <div className="rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-4">
-                        <div className="mb-5 text-[11px] font-medium uppercase tracking-[0.16em] text-subtle">Rate limits</div>
+                        <div className="mb-5 font-medium text-[11px] text-subtle uppercase tracking-[0.16em]">Rate limits</div>
                         <div className="flex gap-5">
                           <div className="relative flex flex-1 flex-col items-center gap-1.5 [&>svg]:size-20">
                             <svg viewBox="0 0 80 80">
@@ -212,7 +212,7 @@ export default function HomePage() {
                                 r="32"
                               />
                               <circle
-                                className="fill-none [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7] stroke-sage"
+                                className="fill-none stroke-sage [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7]"
                                 cx="40"
                                 cy="40"
                                 r="32"
@@ -220,9 +220,9 @@ export default function HomePage() {
                                 style={{ strokeDashoffset: 106.6 }}
                               />
                             </svg>
-                            <span className="absolute inset-x-0 top-7 text-center text-base font-semibold font-mono tabular-nums">47%</span>
-                            <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-subtle">Session</span>
-                            <span className="text-[10px] text-subtle font-mono tabular-nums">2h 47m</span>
+                            <span className="absolute inset-x-0 top-7 text-center font-mono font-semibold text-base tabular-nums">47%</span>
+                            <span className="font-medium text-[9px] text-subtle uppercase tracking-[0.16em]">Session</span>
+                            <span className="font-mono text-[10px] text-subtle tabular-nums">2h 47m</span>
                           </div>
                           <div className="relative flex flex-1 flex-col items-center gap-1.5 [&>svg]:size-20">
                             <svg viewBox="0 0 80 80">
@@ -233,7 +233,7 @@ export default function HomePage() {
                                 r="32"
                               />
                               <circle
-                                className="fill-none [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7] stroke-accent"
+                                className="fill-none stroke-accent [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7]"
                                 cx="40"
                                 cy="40"
                                 r="32"
@@ -241,16 +241,16 @@ export default function HomePage() {
                                 style={{ strokeDashoffset: 64.3 }}
                               />
                             </svg>
-                            <span className="absolute inset-x-0 top-7 text-center text-base font-semibold font-mono tabular-nums">68%</span>
-                            <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-subtle">Week</span>
-                            <span className="text-[10px] text-subtle font-mono tabular-nums">3d 6h</span>
+                            <span className="absolute inset-x-0 top-7 text-center font-mono font-semibold text-base tabular-nums">68%</span>
+                            <span className="font-medium text-[9px] text-subtle uppercase tracking-[0.16em]">Week</span>
+                            <span className="font-mono text-[10px] text-subtle tabular-nums">3d 6h</span>
                           </div>
                         </div>
                       </div>
                       <div className="rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-4">
-                        <div className="mb-5 text-[11px] font-medium uppercase tracking-[0.16em] text-subtle flex items-baseline justify-between">
+                        <div className="mb-5 flex items-baseline justify-between font-medium text-[11px] text-subtle uppercase tracking-[0.16em]">
                           <span>Activity</span>
-                          <span className="font-mono tabular-nums text-subtle">May to Jul</span>
+                          <span className="font-mono text-subtle tabular-nums">May to Jul</span>
                         </div>
                         <div
                           className="grid grid-flow-col grid-rows-7 gap-1"
@@ -264,7 +264,7 @@ export default function HomePage() {
                     <div className="mt-3 flex items-center gap-4 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3">
                       <span className="size-12 shrink-0 rounded-[10px] bg-[linear-gradient(145deg,var(--color-art-coral),var(--color-art-rust))]" data-art=""></span>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[14px] font-semibold transition-[filter_0.3s_ease] motion-reduce:transition-none" data-title="" data-sensitive="">
+                        <div className="truncate font-semibold text-[14px] transition-[filter_0.3s_ease] motion-reduce:transition-none" data-title="" data-sensitive="">
                           Weightless
                         </div>
                         <div className="truncate text-[12px] text-muted transition-[filter_0.3s_ease] motion-reduce:transition-none" data-artist="" data-sensitive="">
@@ -293,12 +293,12 @@ export default function HomePage() {
 
         <section className="mx-auto w-full max-w-[1120px] px-6 pt-24 pb-24">
           <div className="grid gap-10 md:grid-cols-[5fr_7fr] [&>div>p]:mt-6 [&>div>p]:max-w-[560px]" data-reveal-group="">
-            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">The pitch</p>
+            <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">The pitch</p>
             <div>
               <h2>
                 Twelve menu bar utilities' worth of tools. One native app.
               </h2>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Every feature in Edith is normally its own app. We built the
                 whole shelf into a single native binary that idles at twenty-two
                 megabytes.
@@ -309,78 +309,78 @@ export default function HomePage() {
 
         <section id="features" className="mx-auto w-full max-w-[1120px] px-6 pb-24">
           <div className="overflow-hidden rounded-card border border-line bg-surface" data-reveal-group="">
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0 bg-surface-2 text-[12px] font-medium uppercase tracking-[0.14em] text-muted">
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b bg-surface-2 px-6 py-5 font-medium text-[12px] text-muted uppercase tracking-[0.14em] last:border-b-0">
               <span>The feature</span>
               <span>What you get in Edith</span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">AI usage &amp; rate limits</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">AI usage &amp; rate limits</span>
               <span className="text-[15px] text-muted">
                 Claude and Codex rings with live countdowns
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Menu bar stats</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Menu bar stats</span>
               <span className="text-[15px] text-muted">
                 Session and weekly %, tinted by a risk model
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Usage alerts</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Usage alerts</span>
               <span className="text-[15px] text-muted">
                 Threshold, ahead-of-pace, burn, back-to-green, pre-reset
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Analytics dashboard</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Analytics dashboard</span>
               <span className="text-[15px] text-muted">
                 KPIs, per-day and per-model charts, sortable table
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Spend heatmap</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Spend heatmap</span>
               <span className="text-[15px] text-muted">
                 GitHub-style daily calendar across your full history
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Music player</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Music player</span>
               <span className="text-[15px] text-muted">
                 Thumbnails, drag-to-seek, fades, auto-advance, media keys
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Clipboard history</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Clipboard history</span>
               <span className="text-[15px] text-muted">
                 Everything you copied, instant paste on a hotkey
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Color picker</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Color picker</span>
               <span className="text-[15px] text-muted">
                 System loupe on a hotkey, sampled hex to your clipboard
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Focus &amp; system utilities</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Focus &amp; system utilities</span>
               <span className="text-[15px] text-muted">
                 Focus dim, prevent-sleep, keyboard-clean lock, notch shelf
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Mic mute</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Mic mute</span>
               <span className="text-[15px] text-muted">
                 Every microphone muted system-wide on one hotkey
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Per-app volume</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Per-app volume</span>
               <span className="text-[15px] text-muted">
                 Set each app's volume independently from the panel
               </span>
             </div>
-            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0">
-              <span className="text-[15px] font-medium">Disk cleaner</span>
+            <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b px-6 py-5 last:border-b-0">
+              <span className="font-medium text-[15px]">Disk cleaner</span>
               <span className="text-[15px] text-muted">
                 Junk scanner for build caches, package managers, and logs
               </span>
@@ -388,9 +388,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="film" className="mx-auto w-full max-w-[1120px] px-6 border-t border-line py-24 [&>video]:block [&>video]:h-auto [&>video]:w-full [&>video]:rounded-card [&>video]:border [&>video]:border-line-2 [&>video]:bg-black" data-reveal-group="">
+        <section id="film" className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24 [&>video]:block [&>video]:h-auto [&>video]:w-full [&>video]:rounded-card [&>video]:border [&>video]:border-line-2 [&>video]:bg-black" data-reveal-group="">
           <div className="mx-auto mb-10 max-w-[620px] text-center [&>h2]:mt-3">
-            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">The film</p>
+            <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">The film</p>
             <h2>See the whole app in two minutes.</h2>
           </div>
           <video
@@ -405,12 +405,12 @@ export default function HomePage() {
           ></video>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Rate limits</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Rate limits</p>
               <h3>Live rings for session and week.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Second-by-second countdowns to your next 5-hour session reset
                 and to the weekly rollover, for Claude and Codex alike. A
                 24-hour spark shows the shape of your day at a glance.
@@ -418,16 +418,16 @@ export default function HomePage() {
             </div>
             <div>
               <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card">
-                <div className="mb-5 text-[11px] font-medium uppercase tracking-[0.16em] text-subtle flex items-baseline justify-between">
+                <div className="mb-5 flex items-baseline justify-between font-medium text-[11px] text-subtle uppercase tracking-[0.16em]">
                   <span>Rate limits</span>
-                  <span className="font-mono tabular-nums text-subtle">session, weekly</span>
+                  <span className="font-mono text-subtle tabular-nums">session, weekly</span>
                 </div>
-                <div className="flex gap-5 [&_svg]:size-24 [&_circle:nth-child(2)]:[stroke-dasharray:238.76] [&_circle:nth-child(2)]:[stroke-width:8] [&_svg+span]:top-[34px] [&_svg+span]:text-[20px]">
+                <div className="flex gap-5 [&_circle:nth-child(2)]:[stroke-dasharray:238.76] [&_circle:nth-child(2)]:[stroke-width:8] [&_svg+span]:top-[34px] [&_svg+span]:text-[20px] [&_svg]:size-24">
                   <div className="relative flex flex-1 flex-col items-center gap-1.5 [&>svg]:size-20">
                     <svg viewBox="0 0 96 96">
                       <circle className="fill-none stroke-warm-10 [stroke-width:7]" cx="48" cy="48" r="38" />
                       <circle
-                        className="fill-none [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7] stroke-sage"
+                        className="fill-none stroke-sage [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7]"
                         cx="48"
                         cy="48"
                         r="38"
@@ -435,15 +435,15 @@ export default function HomePage() {
                         style={{ strokeDashoffset: 126.5 }}
                       />
                     </svg>
-                    <span className="absolute inset-x-0 top-7 text-center text-base font-semibold font-mono tabular-nums">47%</span>
-                    <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-subtle">Session (5h)</span>
-                    <span className="text-[10px] text-subtle font-mono tabular-nums">resets 2h 47m</span>
+                    <span className="absolute inset-x-0 top-7 text-center font-mono font-semibold text-base tabular-nums">47%</span>
+                    <span className="font-medium text-[9px] text-subtle uppercase tracking-[0.16em]">Session (5h)</span>
+                    <span className="font-mono text-[10px] text-subtle tabular-nums">resets 2h 47m</span>
                   </div>
                   <div className="relative flex flex-1 flex-col items-center gap-1.5 [&>svg]:size-20">
                     <svg viewBox="0 0 96 96">
                       <circle className="fill-none stroke-warm-10 [stroke-width:7]" cx="48" cy="48" r="38" />
                       <circle
-                        className="fill-none [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7] stroke-accent"
+                        className="fill-none stroke-accent [stroke-dasharray:201.06] [stroke-linecap:round] [stroke-width:7]"
                         cx="48"
                         cy="48"
                         r="38"
@@ -451,24 +451,24 @@ export default function HomePage() {
                         style={{ strokeDashoffset: 76.4 }}
                       />
                     </svg>
-                    <span className="absolute inset-x-0 top-7 text-center text-base font-semibold font-mono tabular-nums">68%</span>
-                    <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-subtle">Weekly</span>
-                    <span className="text-[10px] text-subtle font-mono tabular-nums">resets 3d 6h</span>
+                    <span className="absolute inset-x-0 top-7 text-center font-mono font-semibold text-base tabular-nums">68%</span>
+                    <span className="font-medium text-[9px] text-subtle uppercase tracking-[0.16em]">Weekly</span>
+                    <span className="font-mono text-[10px] text-subtle tabular-nums">resets 3d 6h</span>
                   </div>
                 </div>
                 <div className="mt-6 flex h-10 items-end gap-[3px]" data-spark=""></div>
-                <div className="font-mono tabular-nums text-subtle text-center text-[12px]">24-hour spark</div>
+                <div className="text-center font-mono text-[12px] text-subtle tabular-nums">24-hour spark</div>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Codex</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Codex</p>
               <h3>Claude and Codex, side by side.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Edith tracks both agents. Switch the rate-limit rings between
                 providers, filter the dashboard by source, and see Codex chats
                 right in the project drilldown next to your Claude sessions.
@@ -476,13 +476,13 @@ export default function HomePage() {
             </div>
             <div>
               <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card">
-                <div className="mb-5 text-[11px] font-medium uppercase tracking-[0.16em] text-subtle flex items-baseline justify-between">
+                <div className="mb-5 flex items-baseline justify-between font-medium text-[11px] text-subtle uppercase tracking-[0.16em]">
                   <span>Providers</span>
-                  <span className="font-mono tabular-nums text-subtle">both tracked</span>
+                  <span className="font-mono text-subtle tabular-nums">both tracked</span>
                 </div>
                 <div className="mb-5 flex flex-col gap-3">
                   <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-5 rounded-xl border border-line px-[18px] py-3.5 text-[14px]">
-                    <span className="text-[15px] font-semibold">Claude</span>
+                    <span className="font-semibold text-[15px]">Claude</span>
                     <span className="font-mono tabular-nums">
                       47% <span className="text-subtle">session</span>
                     </span>
@@ -491,7 +491,7 @@ export default function HomePage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-5 rounded-xl border border-line px-[18px] py-3.5 text-[14px]">
-                    <span className="text-[15px] font-semibold">Codex</span>
+                    <span className="font-semibold text-[15px]">Codex</span>
                     <span className="font-mono tabular-nums">
                       12% <span className="text-subtle">session</span>
                     </span>
@@ -500,7 +500,7 @@ export default function HomePage() {
                     </span>
                   </div>
                 </div>
-                <p className="text-center text-muted text-[12px]">
+                <p className="text-center text-[12px] text-muted">
                   Toggle either provider off in Settings and its polling stops
                   entirely.
                 </p>
@@ -509,12 +509,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Menu bar</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Menu bar</p>
               <h3>Two numbers in your menu bar.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Session and weekly percentages, tinted by a time-aware risk
                 model. Green when you have room. Amber when you're close. Red
                 when the next prompt could push you over.
@@ -522,7 +522,7 @@ export default function HomePage() {
             </div>
             <div>
               <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card">
-                <div className="flex h-9 items-center justify-end gap-4 rounded-lg border border-line bg-[color-mix(in_oklab,var(--color-bg)_60%,transparent)] px-4 text-[12px] text-muted font-mono tabular-nums">
+                <div className="flex h-9 items-center justify-end gap-4 rounded-lg border border-line bg-[color-mix(in_oklab,var(--color-bg)_60%,transparent)] px-4 font-mono text-[12px] text-muted tabular-nums">
                   <span>
                     <span className="text-sage">38%</span>{" "}
                     <span className="text-subtle">·</span>{" "}
@@ -546,12 +546,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Notifications</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Notifications</p>
               <h3>Alerts that stay out of your way.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Threshold, ahead-of-pace, burn, back-to-green, and pre-reset.
                 All optional. A single button sends a test notification and
                 reports back exactly why it did or didn't fire.
@@ -561,10 +561,10 @@ export default function HomePage() {
               <div className="flex flex-col gap-3">
                 <div className="flex items-start gap-3 rounded-card border border-line-2 bg-[color-mix(in_oklab,var(--color-surface)_90%,transparent)] p-4 shadow-notification [&>i]:mt-1.5 [&>i]:shrink-0">
                   <span className="size-9 shrink-0 rounded-[10px] bg-[linear-gradient(180deg,var(--color-accent),var(--color-art-rust))]"></span>
-                  <div className="flex-1 [&>p]:mt-0.5 [&>p]:text-[13px] [&>p]:leading-[1.35] [&>p]:text-muted">
+                  <div className="flex-1 [&>p]:mt-0.5 [&>p]:text-[13px] [&>p]:text-muted [&>p]:leading-[1.35]">
                     <div className="flex items-baseline justify-between [&>b]:text-[14px]">
                       <b>Ahead of pace</b>
-                      <span className="font-mono tabular-nums text-subtle">Edith · now</span>
+                      <span className="font-mono text-subtle tabular-nums">Edith · now</span>
                     </div>
                     <p>
                       You're using this session faster than usual. 72% with 2h
@@ -575,10 +575,10 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-start gap-3 rounded-card border border-line-2 bg-[color-mix(in_oklab,var(--color-surface)_90%,transparent)] p-4 shadow-notification [&>i]:mt-1.5 [&>i]:shrink-0">
                   <span className="size-9 shrink-0 rounded-[10px] bg-[linear-gradient(180deg,var(--color-accent),var(--color-art-rust))]"></span>
-                  <div className="flex-1 [&>p]:mt-0.5 [&>p]:text-[13px] [&>p]:leading-[1.35] [&>p]:text-muted">
+                  <div className="flex-1 [&>p]:mt-0.5 [&>p]:text-[13px] [&>p]:text-muted [&>p]:leading-[1.35]">
                     <div className="flex items-baseline justify-between [&>b]:text-[14px]">
                       <b>Approaching weekly limit</b>
-                      <span className="font-mono tabular-nums text-subtle">Edith · now</span>
+                      <span className="font-mono text-subtle tabular-nums">Edith · now</span>
                     </div>
                     <p>Week usage at 85%. Resets Sunday 4:00 PM.</p>
                   </div>
@@ -586,10 +586,10 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-start gap-3 rounded-card border border-line-2 bg-[color-mix(in_oklab,var(--color-surface)_90%,transparent)] p-4 shadow-notification [&>i]:mt-1.5 [&>i]:shrink-0">
                   <span className="size-9 shrink-0 rounded-[10px] bg-[linear-gradient(180deg,var(--color-accent),var(--color-art-rust))]"></span>
-                  <div className="flex-1 [&>p]:mt-0.5 [&>p]:text-[13px] [&>p]:leading-[1.35] [&>p]:text-muted">
+                  <div className="flex-1 [&>p]:mt-0.5 [&>p]:text-[13px] [&>p]:text-muted [&>p]:leading-[1.35]">
                     <div className="flex items-baseline justify-between [&>b]:text-[14px]">
                       <b>Back in the green</b>
-                      <span className="font-mono tabular-nums text-subtle">Edith · now</span>
+                      <span className="font-mono text-subtle tabular-nums">Edith · now</span>
                     </div>
                     <p>Session dropped below 60%. Room to keep going.</p>
                   </div>
@@ -600,12 +600,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Heatmap</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Heatmap</p>
               <h3>A year of usage at a glance.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 A GitHub-style calendar of daily spend across your full history.
                 Every day is a square, shaded by how much you spent. Hover any
                 square for the exact number.
@@ -613,11 +613,11 @@ export default function HomePage() {
             </div>
             <div>
               <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card">
-                <div className="mb-5 text-[11px] font-medium uppercase tracking-[0.16em] text-subtle flex items-baseline justify-between">
+                <div className="mb-5 flex items-baseline justify-between font-medium text-[11px] text-subtle uppercase tracking-[0.16em]">
                   <span>Activity</span>
-                  <span className="font-mono tabular-nums text-subtle">$1,284 · 13 weeks</span>
+                  <span className="font-mono text-subtle tabular-nums">$1,284 · 13 weeks</span>
                 </div>
-                <div className="mb-1.5 grid grid-cols-3 text-[10px] font-mono tabular-nums text-subtle">
+                <div className="mb-1.5 grid grid-cols-3 font-mono text-[10px] text-subtle tabular-nums">
                   <span>May</span>
                   <span className="text-center">Jun</span>
                   <span className="text-right">Jul</span>
@@ -628,7 +628,7 @@ export default function HomePage() {
                   data-cols="20"
                   aria-hidden="true"
                 ></div>
-                <div className="mt-4 flex items-center justify-end gap-1.5 text-[10px] font-mono tabular-nums text-subtle">
+                <div className="mt-4 flex items-center justify-end gap-1.5 font-mono text-[10px] text-subtle tabular-nums">
                   Less<i className="inline-block size-3 rounded-[3px] bg-warm-5"></i>
                   <i className="inline-block size-3 rounded-[3px] bg-accent/[28%]"></i>
                   <i className="inline-block size-3 rounded-[3px] bg-accent/[50%]"></i>
@@ -640,12 +640,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Music</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Music</p>
               <h3>Your local music folder, done right.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Cover thumbnails, drag-to-seek, crossfades, auto-advance, and
                 media keys. Point it at a folder and press play. No cloud, no
                 accounts, no ads.
@@ -653,35 +653,35 @@ export default function HomePage() {
             </div>
             <div>
               <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card">
-                <div className="mt-3 flex items-center gap-4 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 border-transparent! bg-transparent! p-0! [&>span:first-child]:size-16 [&>div>div:first-child]:text-[15px] [&>div>div:nth-child(3)]:h-1.5">
+                <div className="mt-3 flex items-center gap-4 rounded-xl border border-line border-transparent! bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] bg-transparent! p-0! p-3 [&>div>div:first-child]:text-[15px] [&>div>div:nth-child(3)]:h-1.5 [&>span:first-child]:size-16">
                   <span className="size-12 shrink-0 rounded-[10px] bg-[linear-gradient(145deg,var(--color-art-coral),var(--color-art-rust))]"></span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-semibold">Weightless</div>
+                    <div className="truncate font-semibold text-[14px]">Weightless</div>
                     <div className="truncate text-[12px] text-muted">Marconi Union</div>
                     <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[10%] [&>span]:block [&>span]:h-full [&>span]:w-[18%] [&>span]:rounded-full [&>span]:bg-accent [&>span]:transition-[width] [&>span]:duration-100 [&>span]:ease-linear motion-reduce:[&>span]:transition-none">
                       <span style={{ width: "42%" }}></span>
                     </div>
-                    <div className="mt-1.5 flex justify-between text-[11px] font-mono tabular-nums text-subtle">
+                    <div className="mt-1.5 flex justify-between font-mono text-[11px] text-subtle tabular-nums">
                       <span>2:38</span>
                       <span>-3:34</span>
                     </div>
                   </div>
                 </div>
                 <div className="mt-4">
-                  <div className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
+                  <div className="flex items-center gap-3 border-line border-t py-2.5 first:border-t-0">
                     <span className="size-8 shrink-0 rounded-md bg-[linear-gradient(145deg,var(--color-art-blue),var(--color-art-navy))]"></span>
                     <span className="min-w-0 flex-1 truncate text-[13px] text-muted">Clair de Lune · Debussy</span>
-                    <span className="font-mono tabular-nums text-subtle">5:02</span>
+                    <span className="font-mono text-subtle tabular-nums">5:02</span>
                   </div>
-                  <div className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
+                  <div className="flex items-center gap-3 border-line border-t py-2.5 first:border-t-0">
                     <span className="size-8 shrink-0 rounded-md bg-[linear-gradient(145deg,var(--color-art-green),var(--color-art-forest))]"></span>
                     <span className="min-w-0 flex-1 truncate text-[13px] text-muted">Time · Hans Zimmer</span>
-                    <span className="font-mono tabular-nums text-subtle">4:35</span>
+                    <span className="font-mono text-subtle tabular-nums">4:35</span>
                   </div>
-                  <div className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
+                  <div className="flex items-center gap-3 border-line border-t py-2.5 first:border-t-0">
                     <span className="size-8 shrink-0 rounded-md bg-[linear-gradient(145deg,var(--color-art-purple),var(--color-art-plum))]"></span>
                     <span className="min-w-0 flex-1 truncate text-[13px] text-muted">Intro · The xx</span>
-                    <span className="font-mono tabular-nums text-subtle">2:07</span>
+                    <span className="font-mono text-subtle tabular-nums">2:07</span>
                   </div>
                 </div>
               </div>
@@ -689,12 +689,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Privacy</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Privacy</p>
               <h3>Presenter mode for the room.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 One toggle blurs spend figures and track names so you can
                 screen-share without exposing your bill. Watch it flip below.
                 Usage stays local, with optional iCloud backup that merges
@@ -702,32 +702,32 @@ export default function HomePage() {
               </p>
             </div>
             <div>
-              <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card [&[data-presenter-state=on]_[data-sensitive]]:blur-[7px] [&[data-presenter-state=on]_[data-sensitive]]:select-none" data-presenter-demo="" data-presenter-state="off">
-                <div className="mb-5 text-[11px] font-medium uppercase tracking-[0.16em] text-subtle flex items-baseline justify-between">
+              <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card [&[data-presenter-state=on]_[data-sensitive]]:select-none [&[data-presenter-state=on]_[data-sensitive]]:blur-[7px]" data-presenter-demo="" data-presenter-state="off">
+                <div className="mb-5 flex items-baseline justify-between font-medium text-[11px] text-subtle uppercase tracking-[0.16em]">
                   <span>Usage</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/[50%] bg-accent/[15%] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-accent" data-pbadge="">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/[50%] bg-accent/[15%] px-2.5 py-1 font-medium text-[10px] text-accent uppercase tracking-[0.12em]" data-pbadge="">
                     Presenter on
                   </span>
                 </div>
                 <div className="grid grid-cols-4 gap-3">
                   <div className="rounded-[10px] border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3">
-                    <div className="text-[9px] font-medium uppercase tracking-[0.12em] text-subtle">Cost this cycle</div>
-                    <div className="mt-1.5 text-[18px] font-semibold font-mono tabular-nums transition-[filter_0.3s_ease] motion-reduce:transition-none" data-sensitive="">$3.8k</div>
+                    <div className="font-medium text-[9px] text-subtle uppercase tracking-[0.12em]">Cost this cycle</div>
+                    <div className="mt-1.5 font-mono font-semibold text-[18px] tabular-nums transition-[filter_0.3s_ease] motion-reduce:transition-none" data-sensitive="">$3.8k</div>
                   </div>
                   <div className="rounded-[10px] border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3">
-                    <div className="text-[9px] font-medium uppercase tracking-[0.12em] text-subtle">Tokens</div>
-                    <div className="mt-1.5 text-[18px] font-semibold font-mono tabular-nums transition-[filter_0.3s_ease] motion-reduce:transition-none" data-sensitive="">5.19B</div>
+                    <div className="font-medium text-[9px] text-subtle uppercase tracking-[0.12em]">Tokens</div>
+                    <div className="mt-1.5 font-mono font-semibold text-[18px] tabular-nums transition-[filter_0.3s_ease] motion-reduce:transition-none" data-sensitive="">5.19B</div>
                   </div>
                   <div className="rounded-[10px] border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3">
-                    <div className="text-[9px] font-medium uppercase tracking-[0.12em] text-subtle">Cache hit</div>
-                    <div className="mt-1.5 text-[18px] font-semibold font-mono tabular-nums">99.5%</div>
+                    <div className="font-medium text-[9px] text-subtle uppercase tracking-[0.12em]">Cache hit</div>
+                    <div className="mt-1.5 font-mono font-semibold text-[18px] tabular-nums">99.5%</div>
                   </div>
                   <div className="rounded-[10px] border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3">
-                    <div className="text-[9px] font-medium uppercase tracking-[0.12em] text-subtle">Top model</div>
-                    <div className="mt-1.5 text-[18px] font-semibold font-mono tabular-nums">opus-4-8</div>
+                    <div className="font-medium text-[9px] text-subtle uppercase tracking-[0.12em]">Top model</div>
+                    <div className="mt-1.5 font-mono font-semibold text-[18px] tabular-nums">opus-4-8</div>
                   </div>
                 </div>
-                <p className="mt-4 text-center text-muted text-[12px]" data-pnote="">
+                <p className="mt-4 text-center text-[12px] text-muted" data-pnote="">
                   Spend and track names hidden for the room.
                 </p>
               </div>
@@ -735,12 +735,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-t border-line">
-          <div className="mx-auto w-full max-w-[1120px] px-6 grid items-center gap-12 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
+        <section className="border-line border-t">
+          <div className="mx-auto grid w-full max-w-[1120px] items-center gap-12 px-6 py-24 md:grid-cols-2 md:gap-16 md:py-32 md:[&>:first-child]:order-2 md:[&>:last-child]:order-1" data-reveal-group="">
             <div className="[&>h3]:mt-4 [&>p:last-child]:mt-5 [&>p:last-child]:max-w-[440px]">
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">System</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">System</p>
               <h3>Prevent sleep. Lock the keyboard.</h3>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Keep your Mac awake for a long build, even with the lid closed
                 on power. Lock the keyboard to wipe it down without triggering
                 shortcuts. Auto-restores in sixty seconds so you can't lock
@@ -749,25 +749,25 @@ export default function HomePage() {
             </div>
             <div>
               <div className="rounded-card border border-line-2 bg-surface p-6 shadow-card">
-                <div className="mb-5 text-[11px] font-medium uppercase tracking-[0.16em] text-subtle">Quick actions</div>
-                <div className="mt-3 grid grid-cols-3 gap-3 [&>span:nth-child(2)]:border-accent/[40%] [&>span:nth-child(2)]:bg-accent/[15%] [&>span:nth-child(2)>span:first-child]:text-accent grid-cols-3">
-                  <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center text-[12px] font-semibold text-fg [&>small]:text-[11px] [&>small]:font-normal [&>small]:leading-[1.3] [&>small]:text-subtle">
+                <div className="mb-5 font-medium text-[11px] text-subtle uppercase tracking-[0.16em]">Quick actions</div>
+                <div className="mt-3 grid grid-cols-3 grid-cols-3 gap-3 [&>span:nth-child(2)>span:first-child]:text-accent [&>span:nth-child(2)]:border-accent/[40%] [&>span:nth-child(2)]:bg-accent/[15%]">
+                  <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center font-semibold text-[12px] text-fg [&>small]:font-normal [&>small]:text-[11px] [&>small]:text-subtle [&>small]:leading-[1.3]">
                     <span className="text-base text-subtle">⌨</span>
                     <span>Clean keys</span>
                     <small>Lock the keyboard to wipe it</small>
                   </span>
-                  <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center text-[12px] font-semibold text-fg [&>small]:text-[11px] [&>small]:font-normal [&>small]:leading-[1.3] [&>small]:text-subtle border-accent/[40%] bg-accent/[15%] [&>span:first-child]:text-accent">
+                  <span className="flex flex-col items-center gap-1.5 rounded-xl border border-accent/[40%] border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] bg-accent/[15%] p-3 text-center font-semibold text-[12px] text-fg [&>small]:font-normal [&>small]:text-[11px] [&>small]:text-subtle [&>small]:leading-[1.3] [&>span:first-child]:text-accent">
                     <span className="text-base text-subtle">☾</span>
                     <span>Keep awake</span>
                     <small>Stop this Mac from sleeping</small>
                   </span>
-                  <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center text-[12px] font-semibold text-fg [&>small]:text-[11px] [&>small]:font-normal [&>small]:leading-[1.3] [&>small]:text-subtle">
+                  <span className="flex flex-col items-center gap-1.5 rounded-xl border border-line bg-[color-mix(in_oklab,var(--color-bg)_40%,transparent)] p-3 text-center font-semibold text-[12px] text-fg [&>small]:font-normal [&>small]:text-[11px] [&>small]:text-subtle [&>small]:leading-[1.3]">
                     <span className="text-base text-subtle">◍</span>
                     <span>Presenter</span>
                     <small>Blur sensitive values</small>
                   </span>
                 </div>
-                <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-dashed border-line-2 px-3 py-2.5 text-[12px] text-subtle">
+                <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-line-2 border-dashed px-3 py-2.5 text-[12px] text-subtle">
                   <span>🔒</span>Keyboard relocks for 60s, then
                   restores itself. No way to get stuck.
                 </div>
@@ -776,16 +776,16 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-[1120px] px-6 border-t border-line py-24">
+        <section className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24">
           <div className="mx-auto mb-14 max-w-[620px] text-center [&>h2]:mt-3" data-reveal-item="">
-            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">And the rest of the shelf</p>
+            <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">And the rest of the shelf</p>
             <h2>Everything else you'd otherwise install one by one.</h2>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-reveal-group="">
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
               <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="relative size-[38px] shrink-0 rounded-full border-2 border-accent bg-[conic-gradient(var(--color-line-2)_0_25%,transparent_0_50%,var(--color-line-2)_0_75%,transparent_0)_0_0/10px_10px,var(--color-surface)] after:absolute after:inset-1/2 after:m-[-4.5px] after:size-[9px] after:border-[1.5px] after:border-fg after:bg-accent after:content-['']"></span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums border-accent/[40%]! text-accent!">&#35;F5A623</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/[40%]! border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-accent! text-muted tabular-nums">&#35;F5A623</span>
               </div>
               <h4>Color picker</h4>
               <p>
@@ -793,10 +793,10 @@ export default function HomePage() {
                 on your clipboard.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 relative">
-                <span className="h-[46px] w-[72px] rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] translate-x-2.5 -translate-y-1.5 opacity-[0.35]"></span>
-                <span className="h-[46px] w-[72px] rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] -translate-x-2.5 translate-y-1.5 shadow-window"></span>
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="relative flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="h-[46px] w-[72px] translate-x-2.5 -translate-y-1.5 rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] opacity-[0.35]"></span>
+                <span className="h-[46px] w-[72px] -translate-x-2.5 translate-y-1.5 rounded-lg border border-line-2 bg-[linear-gradient(var(--color-line-2)_10px,transparent_0),var(--color-surface)] shadow-window"></span>
               </div>
               <h4>Focus dim</h4>
               <p>
@@ -804,9 +804,9 @@ export default function HomePage() {
                 see.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
-                <span className="-mt-3.5 h-[15px] w-[92px] self-center rounded-b-[10px] border border-t-0 border-line-2 bg-black"></span>
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="-mt-3.5 h-[15px] w-[92px] self-center rounded-b-[10px] border border-line-2 border-t-0 bg-black"></span>
                 <span className="flex justify-center gap-2">
                   <span className="h-[27px] w-[22px] rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
                   <span className="h-[27px] w-[22px] rounded-[4px_8px_4px_4px] border border-line-2 bg-[linear-gradient(transparent_8px,var(--color-line-2)_8px,var(--color-line-2)_10px,transparent_10px,transparent_14px,var(--color-line-2)_14px,var(--color-line-2)_16px,transparent_16px),var(--color-surface)]"></span>
@@ -819,17 +819,17 @@ export default function HomePage() {
                 they belong.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2 rounded-lg border border-line-2 bg-accent/[8%] px-2 py-1 [&>span:first-child]:flex-1 [&>span:first-child]:bg-[color-mix(in_oklab,var(--color-accent)_50%,var(--color-line-2))]">
-                  <span className="h-1.5 shrink-0 rounded-full bg-line-2 w-3/5"></span>
+                  <span className="h-1.5 w-3/5 shrink-0 rounded-full bg-line-2"></span>
                   <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-muted">⌘V</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-1.5 shrink-0 rounded-full bg-line-2 w-4/5"></span>
+                  <span className="h-1.5 w-4/5 shrink-0 rounded-full bg-line-2"></span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-1.5 shrink-0 rounded-full bg-line-2 w-2/5"></span>
+                  <span className="h-1.5 w-2/5 shrink-0 rounded-full bg-line-2"></span>
                 </span>
               </div>
               <h4>Clipboard history</h4>
@@ -837,12 +837,12 @@ export default function HomePage() {
                 Everything you copied, one shortcut away, with instant paste.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <i className="inline-block size-2 rounded-full bg-accent"></i>
                   <span className="truncate text-[11px] text-muted">10:00 Standup</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted border-accent/[40%]! text-accent!">Join</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/[40%]! border-line-2 px-[9px] py-[3px] text-[10.5px] text-accent! text-muted">Join</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <i className="inline-block size-2 rounded-full bg-sage"></i>
@@ -855,20 +855,20 @@ export default function HomePage() {
                 links.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
               <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">SF 11:59</span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">NY 2:29</span>
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">LDN 7:29</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">SF 11:59</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">NY 2:29</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">LDN 7:29</span>
               </div>
               <h4>World clocks</h4>
               <p>Local time plus the offices you care about, at a glance.</p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
               <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-muted h-10 min-w-10 rounded-[9px] text-[17px]">⌥</span>
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-muted h-10 min-w-10 rounded-[9px] text-[17px]">⌘</span>
-                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-muted h-10 min-w-10 rounded-[9px] text-[17px]">E</span>
+                <span className="inline-flex h-10 h-6 min-w-10 min-w-6 items-center justify-center rounded-[9px] rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-[17px] text-muted">⌥</span>
+                <span className="inline-flex h-10 h-6 min-w-10 min-w-6 items-center justify-center rounded-[9px] rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-[17px] text-muted">⌘</span>
+                <span className="inline-flex h-10 h-6 min-w-10 min-w-6 items-center justify-center rounded-[9px] rounded-md border border-line-2 border-b-2 bg-surface px-1.5 font-mono text-[11px] text-[17px] text-muted">E</span>
               </div>
               <h4>Global shortcut</h4>
               <p>
@@ -876,9 +876,9 @@ export default function HomePage() {
                 re-records to taste.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
               <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="relative mt-[9px] h-[15px] w-5 shrink-0 rounded bg-accent before:absolute before:left-[3px] before:top-[-9px] before:h-3 before:w-3.5 before:rounded-t-lg before:border-[2.5px] before:border-b-0 before:border-muted before:box-border before:content-['']"></span>
+                <span className="relative mt-[9px] h-[15px] w-5 shrink-0 rounded bg-accent before:absolute before:top-[-9px] before:left-[3px] before:box-border before:h-3 before:w-3.5 before:rounded-t-lg before:border-[2.5px] before:border-muted before:border-b-0 before:content-['']"></span>
                 <span className="truncate text-[11px] text-muted">Stays on this Mac</span>
               </div>
               <h4>Local first</h4>
@@ -887,9 +887,9 @@ export default function HomePage() {
                 across machines.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
               <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="relative h-[19px] w-3 shrink-0 rounded-full bg-muted before:absolute before:-inset-x-[5px] before:-bottom-[5px] before:h-3 before:rounded-b-[11px] before:border-2 before:border-t-0 before:border-muted before:content-[''] after:absolute after:left-1/2 after:-top-1.5 after:-bottom-2 after:w-[2.5px] after:rotate-45 after:rounded-[2px] after:bg-danger after:content-['']"></span>
+                <span className="relative h-[19px] w-3 shrink-0 rounded-full bg-muted before:absolute before:-inset-x-[5px] before:-bottom-[5px] before:h-3 before:rounded-b-[11px] before:border-2 before:border-muted before:border-t-0 before:content-[''] after:absolute after:-top-1.5 after:-bottom-2 after:left-1/2 after:w-[2.5px] after:rotate-45 after:rounded-[2px] after:bg-danger after:content-['']"></span>
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted">
                   <i className="inline-block size-2 rounded-full bg-danger"></i>All mics muted
                 </span>
@@ -900,22 +900,22 @@ export default function HomePage() {
                 shows when you're safe.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-[11px] text-muted w-11 shrink-0">Safari</span>
+                  <span className="w-11 shrink-0 truncate text-[11px] text-muted">Safari</span>
                   <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "35%" }}></i>
                   </span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-[11px] text-muted w-11 shrink-0">Music</span>
+                  <span className="w-11 shrink-0 truncate text-[11px] text-muted">Music</span>
                   <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "80%" }}></i>
                   </span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-[11px] text-muted w-11 shrink-0">Zoom</span>
+                  <span className="w-11 shrink-0 truncate text-[11px] text-muted">Zoom</span>
                   <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "55%" }}></i>
                   </span>
@@ -927,9 +927,9 @@ export default function HomePage() {
                 music.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
-                <span className="-mt-3.5 h-[15px] w-[92px] self-center rounded-b-[10px] border border-t-0 border-line-2 bg-black"></span>
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="-mt-3.5 h-[15px] w-[92px] self-center rounded-b-[10px] border border-line-2 border-t-0 bg-black"></span>
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted">
                   <i className="inline-block size-2 rounded-full bg-sage"></i>AirPods connected
                 </span>
@@ -940,9 +940,9 @@ export default function HomePage() {
                 notices around the notch.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
               <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
-                <span className="flex flex-1 items-center justify-between gap-3 rounded-lg border border-line-2 bg-surface px-3 py-[7px] text-[11px] text-fg font-mono tabular-nums">
+                <span className="flex flex-1 items-center justify-between gap-3 rounded-lg border border-line-2 bg-surface px-3 py-[7px] font-mono text-[11px] text-fg tabular-nums">
                   CPU 3% · 6.2 GB<span className="text-subtle">Wed 14:22</span>
                 </span>
               </div>
@@ -952,17 +952,17 @@ export default function HomePage() {
                 on you.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">Build caches</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">8.2 GB</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">8.2 GB</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "64%" }}></i>
                   </span>
-                  <span className="truncate text-[11px] text-muted font-mono tabular-nums">12.4 GB found</span>
+                  <span className="truncate font-mono text-[11px] text-muted tabular-nums">12.4 GB found</span>
                 </span>
               </div>
               <h4>Junk cleaner</h4>
@@ -971,16 +971,16 @@ export default function HomePage() {
                 gigabytes, restorable from the Trash.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">Chrome</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">42%</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">42%</span>
                   <span className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-md border border-line-2 text-[9px] text-danger">✕</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">node</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">31%</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">31%</span>
                   <span className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-md border border-line-2 text-[9px] text-danger">✕</span>
                 </span>
               </div>
@@ -990,16 +990,16 @@ export default function HomePage() {
                 a click.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums block! max-w-full self-start truncate">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
+                <span className="block! inline-flex max-w-full items-center gap-1.5 self-start truncate whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">
                   youtube.com/watch?v=dQw4…
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "64%" }}></i>
                   </span>
-                  <span className="truncate text-[11px] text-muted font-mono tabular-nums">64%</span>
+                  <span className="truncate font-mono text-[11px] text-muted tabular-nums">64%</span>
                 </span>
               </div>
               <h4>YouTube audio</h4>
@@ -1008,15 +1008,15 @@ export default function HomePage() {
                 folder, with live progress.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-[11px] text-muted">▸ edith</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">$412</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">$412</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2 pl-4">
                   <span className="truncate text-[11px] text-muted">notch-motion</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] text-[10.5px] text-muted font-mono tabular-nums">$268</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line-2 px-[9px] py-[3px] font-mono text-[10.5px] text-muted tabular-nums">$268</span>
                 </span>
               </div>
               <h4>Project drilldown</h4>
@@ -1025,8 +1025,8 @@ export default function HomePage() {
                 so you know which repo eats the budget.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
-              <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5 flex-col items-stretch! justify-center! gap-2!">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
+              <div className="items-stretch! justify-center! flex h-[104px] flex-col items-center justify-center gap-2! gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="flex min-w-0 items-center gap-2">
                   <i className="inline-block size-2 rounded-full bg-sage"></i>
                   <span className="truncate text-[11px] text-muted">Spotify · Weightless</span>
@@ -1035,7 +1035,7 @@ export default function HomePage() {
                   <span className="h-1 min-w-[30px] flex-1 rounded-full bg-line-2 [&>i]:block [&>i]:h-full [&>i]:rounded-full [&>i]:bg-accent">
                     <i style={{ width: "42%" }}></i>
                   </span>
-                  <span className="truncate text-[11px] text-muted font-mono tabular-nums">-3:34</span>
+                  <span className="truncate font-mono text-[11px] text-muted tabular-nums">-3:34</span>
                 </span>
               </div>
               <h4>Spotify &amp; Apple Music</h4>
@@ -1044,10 +1044,10 @@ export default function HomePage() {
                 controls, next to your local library.
               </p>
             </div>
-            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:leading-[1.5] [&>p]:text-muted">
+            <div className="rounded-card border border-line bg-surface p-6 transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-1 hover:border-accent/[35%] motion-reduce:transition-none [&>h4]:mt-5 [&>p]:mt-2 [&>p]:text-[14px] [&>p]:text-muted [&>p]:leading-[1.5]">
               <div className="flex h-[104px] items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-line bg-surface-2 p-3.5">
                 <span className="relative h-[62px] w-[110px] rounded-[10px] border border-line-2 bg-black">
-                  <span className="absolute left-1/2 top-1/2 size-6 -translate-x-1/2 -translate-y-[60%] rounded-full bg-surface-2 after:absolute after:left-1/2 after:top-[26px] after:h-[18px] after:w-[34px] after:-translate-x-1/2 after:rounded-t-[10px] after:bg-surface-2 after:content-['']"></span>
+                  <span className="absolute top-1/2 left-1/2 size-6 -translate-x-1/2 -translate-y-[60%] rounded-full bg-surface-2 after:absolute after:top-[26px] after:left-1/2 after:h-[18px] after:w-[34px] after:-translate-x-1/2 after:rounded-t-[10px] after:bg-surface-2 after:content-['']"></span>
                   <span className="absolute right-[5px] bottom-[5px] flex size-[18px] items-center justify-center rounded-md bg-white/[12%] text-[10px] text-fg">⟳</span>
                 </span>
               </div>
@@ -1060,12 +1060,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="performance" className="mx-auto w-full max-w-[1120px] px-6 border-t border-line py-24">
+        <section id="performance" className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24">
           <div className="grid gap-12 md:grid-cols-[5fr_7fr] md:items-start [&>div:first-child>h2]:mt-4 [&>div:first-child>p:nth-of-type(2)]:mt-6 [&>div:first-child>p:nth-of-type(2)]:max-w-[440px] [&>div:first-child>p:nth-of-type(3)]:mt-4" data-reveal-group="">
             <div>
-              <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">24/7, quietly</p>
+              <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">24/7, quietly</p>
               <h2>Built to sit in your menu bar forever.</h2>
-              <p className="text-muted text-[17px] leading-[1.6]">
+              <p className="text-[17px] text-muted leading-[1.6]">
                 Native SwiftUI, not Electron. Work stops when it isn't seen.
                 Disabling a tab tears down its timers and background jobs.
                 Per-frame UI only redraws while the panel is open.
@@ -1076,43 +1076,43 @@ export default function HomePage() {
               </p>
             </div>
             <div className="overflow-hidden rounded-card border border-line bg-surface">
-              <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0 bg-surface-2 text-[12px] font-medium uppercase tracking-[0.14em] text-muted grid-cols-[1.4fr_1fr_1fr]! items-center! p-6!">
+              <div className="items-center! grid grid-cols-[1.4fr_1fr_1fr]! grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b bg-surface-2 p-6! px-6 py-5 font-medium text-[12px] text-muted uppercase tracking-[0.14em] last:border-b-0">
                 <span>State</span>
                 <span className="text-right">CPU</span>
                 <span className="text-right">Memory</span>
               </div>
-              <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0 grid-cols-[1.4fr_1fr_1fr]! items-center! p-6!">
+              <div className="items-center! grid grid-cols-[1.4fr_1fr_1fr]! grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b p-6! px-6 py-5 last:border-b-0">
                 <span>Idle, panel closed</span>
-                <span className="text-right font-mono tabular-nums text-muted">~0%</span>
-                <span className="text-right font-mono tabular-nums text-muted">~22 MB</span>
+                <span className="text-right font-mono text-muted tabular-nums">~0%</span>
+                <span className="text-right font-mono text-muted tabular-nums">~22 MB</span>
               </div>
-              <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0 grid-cols-[1.4fr_1fr_1fr]! items-center! p-6!">
+              <div className="items-center! grid grid-cols-[1.4fr_1fr_1fr]! grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b p-6! px-6 py-5 last:border-b-0">
                 <span>Music playing, panel closed</span>
-                <span className="text-right font-mono tabular-nums text-muted">~1%</span>
-                <span className="text-right font-mono tabular-nums text-muted">~40 MB</span>
+                <span className="text-right font-mono text-muted tabular-nums">~1%</span>
+                <span className="text-right font-mono text-muted tabular-nums">~40 MB</span>
               </div>
-              <div className="grid grid-cols-[1fr_1.2fr] items-start gap-6 border-b border-line px-6 py-5 last:border-b-0 grid-cols-[1.4fr_1fr_1fr]! items-center! p-6!">
+              <div className="items-center! grid grid-cols-[1.4fr_1fr_1fr]! grid-cols-[1fr_1.2fr] items-start gap-6 border-line border-b p-6! px-6 py-5 last:border-b-0">
                 <span>Paused</span>
-                <span className="text-right font-mono tabular-nums text-muted">&lt;1%</span>
-                <span className="text-right font-mono tabular-nums text-muted">~40 MB</span>
+                <span className="text-right font-mono text-muted tabular-nums">&lt;1%</span>
+                <span className="text-right font-mono text-muted tabular-nums">~40 MB</span>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-[1120px] px-6 border-t border-line py-24 text-center [&>h2]:mx-auto [&>h2]:mt-4 [&>h2]:max-w-[760px] [&>p:last-child]:mt-6" data-reveal-group="">
-          <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-accent">Local first</p>
+        <section className="mx-auto w-full max-w-[1120px] border-line border-t px-6 py-24 text-center [&>h2]:mx-auto [&>h2]:mt-4 [&>h2]:max-w-[760px] [&>p:last-child]:mt-6" data-reveal-group="">
+          <p className="font-medium text-[12px] text-accent uppercase tracking-[0.18em]">Local first</p>
           <h2>Your usage never leaves your Mac.</h2>
-          <p className="text-muted text-[17px] leading-[1.6] mx-auto max-w-[620px]">
+          <p className="mx-auto max-w-[620px] text-[17px] text-muted leading-[1.6]">
             No account. No telemetry. Optional iCloud backup merges cleanly
             across machines so your history follows you between a MacBook and a
             Mac mini.
           </p>
         </section>
 
-        <section id="download" className="mx-auto w-full max-w-[1120px] px-6 border-t border-line pt-24 pb-28 text-center [&>h2]:mx-auto [&>h2]:max-w-[640px] [&>a]:mt-8 [&>p]:mt-3" data-reveal-group="">
+        <section id="download" className="mx-auto w-full max-w-[1120px] border-line border-t px-6 pt-24 pb-28 text-center [&>a]:mt-8 [&>h2]:mx-auto [&>h2]:max-w-[640px] [&>p]:mt-3" data-reveal-group="">
           <h2>Try Edith on your Mac.</h2>
-          <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent px-6 py-3 text-[14px] font-medium transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none bg-accent text-accent-fg">
+          <a href="/api/v1/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-accent px-6 py-3 font-medium text-[14px] text-accent-fg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
             <svg className="size-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M16.365 1.43c0 1.14-.42 2.23-1.24 3.05-.83.83-2.19 1.45-3.31 1.36-.14-1.1.43-2.24 1.2-2.98.85-.83 2.32-1.42 3.35-1.43zM20.5 17.29c-.57 1.31-.85 1.9-1.59 3.06-1.03 1.61-2.48 3.62-4.28 3.63-1.6.01-2.01-1.05-4.18-1.04-2.17.01-2.62 1.06-4.22 1.05-1.8-.02-3.18-1.83-4.21-3.44C-.36 16.72-1.02 10.6 2.87 8.4c1.4-.8 2.86-1.24 4.24-1.26 1.61-.03 3.13 1.09 4.19 1.09 1.05 0 2.87-1.35 4.85-1.15.83.03 3.16.33 4.66 2.52-.12.08-2.78 1.62-2.75 4.82.03 3.83 3.36 5.1 3.4 5.11-.03.09-.53 1.82-1.96 3.76z" />
             </svg>
@@ -1122,9 +1122,9 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto w-full max-w-[1120px] px-6 flex flex-col gap-6 py-10 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2 text-[15px] font-semibold">
+      <footer className="border-line border-t">
+        <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 px-6 py-10 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 font-semibold text-[15px]">
             <img
               src="/app-icon-512.png"
               alt="Edith app icon"
@@ -1132,7 +1132,7 @@ export default function HomePage() {
               height="28"
               className="size-7 rounded-[22%] shadow-brand-icon"
             />
-            <span className="text-muted text-[12px]">Edith. Made for macOS.</span>
+            <span className="text-[12px] text-muted">Edith. Made for macOS.</span>
           </div>
           <div className="flex gap-6 text-[13px] text-muted [&>a:hover]:text-fg">
             <a href="#features">Features</a>

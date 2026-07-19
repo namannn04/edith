@@ -1,0 +1,20 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": ["app/**", "lib/**", "scripts/**", "!**/*.css", "!.next/**"]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "nursery": {
+        "useSortedClasses": {
+          "level": "warn",
+          "options": { "functions": ["clsx", "cva", "cn", "twMerge"] }
+        }
+      }
+    }
+  },
+  "formatter": { "enabled": true, "indentStyle": "space" },
+  "css": { "parser": { "tailwindDirectives": true } }
+}

@@ -11,7 +11,9 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "create-license": "bun scripts/create-license.ts"
+    "create-license": "bun scripts/create-license.ts",
+    "lint": "biome check ./app ./lib",
+    "lint:fix": "biome lint --write --unsafe ./app ./lib"
   },
   "dependencies": {
     "drizzle-orm": "0.44.6",
