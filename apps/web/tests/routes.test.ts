@@ -46,6 +46,7 @@ const webhookRoute = await import(
 );
 const dmgRoute = await import("@/app/api/download/dmg/route");
 const appcastRoute = await import("@/app/api/appcast/route");
+const legacyAppcastRoute = await import("@/app/api/v1/appcast/route");
 
 let ipCounter = 0;
 
@@ -412,6 +413,10 @@ describe("protected downloads", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("<rss/>");
+  });
+
+  test("the legacy v1 appcast path serves the same handler", () => {
+    expect(legacyAppcastRoute.GET).toBe(appcastRoute.GET);
   });
 
   test("an expired access token is rejected", async () => {
