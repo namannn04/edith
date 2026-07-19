@@ -41,6 +41,8 @@ final class MusicRemote: ObservableObject {
     @Published private(set) var volume = 0.7
     @Published private(set) var looping = false
     @Published private(set) var duration: TimeInterval = 0
+    @Published private(set) var restorePending = SharedDefaults.store.integer(
+        forKey: "restorePending.music")
 
     private var elapsedBase: TimeInterval = 0
     private var elapsedTimestamp: TimeInterval = 0
@@ -105,6 +107,7 @@ final class MusicRemote: ObservableObject {
 
     func rescan() {
         tracks = TrackMeta.scanMusicFolder()
+        restorePending = SharedDefaults.store.integer(forKey: "restorePending.music")
     }
 
     func apply(_ info: [AnyHashable: Any]) {
@@ -157,6 +160,7 @@ final class MusicRemote: ObservableObject {
 struct MusicPage: View {
     @ObservedObject private var remote = MusicRemote.shared
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
+    @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var tabMusicEnabled = false
     @AppStorage("presenterBlurMusic", store: SharedDefaults.store) private var presenterBlurMusic =
         true
     @AppStorage(
@@ -183,6 +187,14 @@ struct MusicPage: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 18)
                 .padding(.bottom, 12)
+            if tabMusicEnabled, remote.restorePending > 0 {
+                Text("Restoring your music from iCloud, \(remote.restorePending) remaining")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+            }
             trackList
         }
         .background(DashSkin.paper(dark).ignoresSafeArea(edges: .vertical))
