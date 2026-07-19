@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.vercel/
+.env*
+!.env.example
+*.tsbuildinfo
+drizzle/generated/
+drizzle/meta/
+drizzle/*.json
+next-env.d.ts
