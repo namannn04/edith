@@ -6,6 +6,7 @@ import SwiftUI
 struct OnboardingView: View {
     private enum Step: Int, CaseIterable {
         case welcome
+        case restore
         case picks
         case permissions
         case ready
@@ -14,7 +15,9 @@ struct OnboardingView: View {
 
     let onFinish: () -> Void
     private let baselineGrantedPermissions: [ExtensionPermission: Bool]
-    private let cloudBackupFound: Bool
+    @State private var cloudBackupFound = false
+    @State private var cloudChecked = false
+    @State private var cloudChecking = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = Step.welcome
@@ -27,15 +30,9 @@ struct OnboardingView: View {
 
     init(onFinish: @escaping () -> Void) {
         let baselineGrantedPermissions = OnboardingFlow.grantedPermissions()
-        let cloudBackupFound = AppData.cloudBackupExists
         self.onFinish = onFinish
         self.baselineGrantedPermissions = baselineGrantedPermissions
-        self.cloudBackupFound = cloudBackupFound
         _grantedPermissions = State(initialValue: baselineGrantedPermissions)
-        _icloudBackup = State(initialValue: cloudBackupFound)
-        if cloudBackupFound, let restored = OnboardingFlow.cloudBackupSelection() {
-            _selectedIDs = State(initialValue: restored)
-        }
     }
 
     private var dark: Bool { colorScheme == .dark }
@@ -90,6 +87,8 @@ struct OnboardingView: View {
         switch step {
         case .welcome:
             welcomeStep
+        case .restore:
+            restoreStep
         case .picks:
             picksStep
         case .permissions:
@@ -116,16 +115,9 @@ struct OnboardingView: View {
                 .foregroundStyle(DashSkin.inkSoft(dark))
                 .padding(.top, 8)
             VStack(spacing: 10) {
-                Button("Get started") {
-                    if cloudBackupFound, selectedIDs.isEmpty,
-                        let restored = OnboardingFlow.cloudBackupSelection()
-                    {
-                        selectedIDs = restored
-                    }
-                    move(to: .picks, direction: 1)
-                }
-                .buttonStyle(OnboardingPrimaryButtonStyle())
-                .keyboardShortcut(.defaultAction)
+                Button("Get started") { move(to: .restore, direction: 1) }
+                    .buttonStyle(OnboardingPrimaryButtonStyle())
+                    .keyboardShortcut(.defaultAction)
                 Button("Skip setup") {
                     OnboardingFlow.skip()
                     onFinish()
@@ -139,6 +131,96 @@ struct OnboardingView: View {
             Spacer(minLength: 28)
         }
         .padding(.horizontal, 48)
+    }
+
+    private var restoreStep: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 44)
+            ZStack {
+                Circle()
+                    .fill(brandAccent.opacity(0.13))
+                    .frame(width: 106, height: 106)
+                Image(systemName: restoreSymbol)
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundStyle(brandAccent)
+            }
+            Text(restoreTitle)
+                .font(DashSkin.serif(34, weight: .bold))
+                .foregroundStyle(DashSkin.ink(dark))
+                .padding(.top, 22)
+            Text(restoreDetail)
+                .font(.system(size: 14))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .multilineTextAlignment(.center)
+                .padding(.top, 7)
+            VStack(spacing: 10) {
+                if cloudChecked {
+                    Button("Continue") { move(to: .picks, direction: 1) }
+                        .buttonStyle(OnboardingPrimaryButtonStyle())
+                        .keyboardShortcut(.defaultAction)
+                } else {
+                    Button(cloudChecking ? "Checking iCloud…" : "Check for a backup") {
+                        checkForCloudBackup()
+                    }
+                    .buttonStyle(OnboardingPrimaryButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(cloudChecking)
+                    Button("Start fresh") { move(to: .picks, direction: 1) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(DashSkin.inkSoft(dark))
+                        .pointerCursor()
+                }
+            }
+            .frame(width: 230)
+            .padding(.top, 26)
+            if !cloudChecked {
+                Text("macOS will ask permission to read Edith's folder in iCloud Drive.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .padding(.top, 12)
+            }
+            Spacer(minLength: 28)
+        }
+        .padding(.horizontal, 48)
+    }
+
+    private var restoreSymbol: String {
+        guard cloudChecked else { return "icloud" }
+        return cloudBackupFound ? "checkmark.icloud" : "icloud.slash"
+    }
+
+    private var restoreTitle: String {
+        guard cloudChecked else { return "Been here before?" }
+        return cloudBackupFound ? "Backup found" : "No backup found"
+    }
+
+    private var restoreDetail: String {
+        guard cloudChecked else {
+            return
+                "If you backed up Edith to iCloud, we can bring back your extensions, settings, and usage history."
+        }
+        if cloudBackupFound {
+            return
+                "Your extensions are preselected and your settings and history will be restored once setup finishes."
+        }
+        return "No Edith data in iCloud Drive. You can turn on backups at the end of setup."
+    }
+
+    private func checkForCloudBackup() {
+        cloudChecking = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let found = AppData.cloudBackupExists
+            let restored = found ? OnboardingFlow.cloudBackupSelection() : nil
+            DispatchQueue.main.async {
+                cloudBackupFound = found
+                icloudBackup = found
+                if let restored {
+                    selectedIDs = restored
+                }
+                cloudChecking = false
+                withAnimation(glide) { cloudChecked = true }
+            }
+        }
     }
 
     private var picksStep: some View {
@@ -344,7 +426,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var footer: some View {
         HStack(spacing: 10) {
-            if step == .picks || step == .permissions {
+            if step == .restore || step == .picks || step == .permissions {
                 Button("Back") { goBack() }
                     .buttonStyle(.plain)
                     .foregroundStyle(DashSkin.inkSoft(dark))
@@ -476,7 +558,8 @@ struct OnboardingView: View {
 
     private func goBack() {
         switch step {
-        case .picks: move(to: .welcome, direction: -1)
+        case .restore: move(to: .welcome, direction: -1)
+        case .picks: move(to: .restore, direction: -1)
         case .permissions: move(to: .picks, direction: -1)
         default: break
         }

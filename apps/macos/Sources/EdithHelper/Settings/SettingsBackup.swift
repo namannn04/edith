@@ -209,6 +209,10 @@ final class SettingsBackup: ObservableObject {
     private var pendingRestoreStates: [SettingsBackupDataClass: SettingsBackupPendingState] = [:]
     private var restoreTasks: [SettingsBackupDataClass: Task<Void, Never>] = [:]
 
+    private var cloudEnabled: Bool {
+        SharedDefaults.store.bool(forKey: "icloudBackup") && AppData.cloudAvailable
+    }
+
     private func flag(_ key: String) -> Bool {
         store(for: key).object(forKey: key) as? Bool ?? true
     }
@@ -243,7 +247,7 @@ final class SettingsBackup: ObservableObject {
     }
 
     func restoreDataOnEnable(for dataClass: SettingsBackupDataClass) {
-        guard AppData.cloudAvailable else { return }
+        guard cloudEnabled else { return }
         let dataExists = cloudDataExists(for: dataClass)
         guard
             settingsBackupEnableRestoreDecision(
@@ -620,7 +624,7 @@ final class SettingsBackup: ObservableObject {
 
     @discardableResult
     private func restoreFromCloud() -> (music: Bool, clipboard: Bool) {
-        guard SharedDefaults.store.bool(forKey: "icloudBackup"), AppData.cloudAvailable else {
+        guard cloudEnabled else {
             return (false, false)
         }
         importFromCloudIfNewer(decision: transferDecision(for: .settings))
@@ -668,7 +672,7 @@ final class SettingsBackup: ObservableObject {
     }
 
     func backupMusic() {
-        guard !musicBackupRunning, AppData.cloudAvailable,
+        guard !musicBackupRunning, cloudEnabled,
             transferDecision(for: .music).shouldExport,
             FileManager.default.fileExists(atPath: Repo.musicDir.path)
         else { return }
@@ -718,7 +722,7 @@ final class SettingsBackup: ObservableObject {
     private var clipboardDebounce: Timer?
 
     func scheduleClipboardBackup() {
-        guard AppData.cloudAvailable, transferDecision(for: .clipboard).shouldExport else {
+        guard cloudEnabled, transferDecision(for: .clipboard).shouldExport else {
             clipboardDebounce?.invalidate()
             clipboardDebounce = nil
             return
@@ -730,7 +734,7 @@ final class SettingsBackup: ObservableObject {
     }
 
     func backupClipboard() {
-        guard !clipboardBackupRunning, AppData.cloudAvailable,
+        guard !clipboardBackupRunning, cloudEnabled,
             transferDecision(for: .clipboard).shouldExport,
             FileManager.default.fileExists(atPath: localClipboardDir.path)
         else { return }
@@ -798,7 +802,7 @@ final class SettingsBackup: ObservableObject {
         if (try? Data(contentsOf: localFile)) != data {
             try? data.write(to: localFile)
         }
-        guard AppData.cloudAvailable, transferDecision(for: .settings).shouldExport else { return }
+        guard cloudEnabled, transferDecision(for: .settings).shouldExport else { return }
         try? FileManager.default.createDirectory(
             at: AppData.cloudDir, withIntermediateDirectories: true)
         if (try? Data(contentsOf: cloudFile)) != data {
@@ -830,7 +834,7 @@ final class SettingsBackup: ObservableObject {
         export: Bool,
         requireApplicationSupportRestore: Bool
     ) {
-        guard AppData.cloudAvailable else { return }
+        guard cloudEnabled else { return }
         let shouldRestore =
             restore && decision.shouldRestore
             && (!requireApplicationSupportRestore || isApplicationSupportURL(localLimits))
@@ -880,7 +884,7 @@ final class SettingsBackup: ObservableObject {
         export: Bool,
         requireApplicationSupportRestore: Bool
     ) {
-        guard AppData.cloudAvailable else { return }
+        guard cloudEnabled else { return }
         let shouldRestore =
             restore && decision.shouldRestore
             && (!requireApplicationSupportRestore || isApplicationSupportURL(localUsage))
