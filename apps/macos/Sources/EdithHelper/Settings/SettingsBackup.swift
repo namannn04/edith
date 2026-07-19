@@ -610,6 +610,9 @@ final class SettingsBackup: ObservableObject {
         if shouldRestore {
             _ = restoreFromCloud()
             observedICloudBackup = SharedDefaults.store.bool(forKey: "icloudBackup")
+            exportLimits()
+            exportUsage()
+            backupMusic()
         }
         scheduleExport()
         scheduleClipboardBackup()
