@@ -12,6 +12,7 @@ struct ActivationView: View {
     @State private var key = "EDITH-"
     @State private var activating = false
     @State private var errorMessage: String?
+    @State private var seatLimitHit = false
 
     private var dark: Bool { colorScheme == .dark }
 
@@ -80,12 +81,14 @@ struct ActivationView: View {
                 .frame(height: 17)
                 .padding(.top, 8)
             Spacer(minLength: 18)
-            Divider()
-                .overlay(DashSkin.line(dark))
-            Text("Keys are limited to a number of Macs")
-                .font(.system(size: 10.5))
-                .foregroundStyle(DashSkin.inkFaint(dark))
-                .frame(height: 42)
+            if seatLimitHit {
+                Divider()
+                    .overlay(DashSkin.line(dark))
+                Text("Keys are limited to a number of Macs")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .frame(height: 42)
+            }
         }
         .padding(.horizontal, 52)
         .frame(width: 440, height: 390)
@@ -135,6 +138,7 @@ struct ActivationView: View {
                 onActivated()
             } catch LicenseClientError.seatLimitReached {
                 errorMessage = "This key has reached its Mac limit."
+                seatLimitHit = true
                 activating = false
             } catch LicenseClientError.invalidKey {
                 errorMessage = "That license key is invalid or inactive."
