@@ -79,13 +79,13 @@ release:
 	cp "apps/macos/Edith-v$(V).dmg" apps/macos/dist/appcast/; \
 	"$$GENERATE_APPCAST" apps/macos/dist/appcast; \
 	test -f apps/macos/dist/appcast/appcast.xml || { echo "release blocked: generate_appcast did not create apps/macos/dist/appcast/appcast.xml" >&2; exit 1; }; \
+	git push origin HEAD "v$(V)"; \
 	gh release create "v$(V)" --title "Edith v$(V)" --generate-notes \
 	  "apps/macos/Edith-v$(V).dmg" \
 	  apps/macos/dist/appcast/appcast.xml \
 	|| gh release upload "v$(V)" --clobber \
 	  "apps/macos/Edith-v$(V).dmg" \
-	  apps/macos/dist/appcast/appcast.xml; \
-	git push origin HEAD "v$(V)"
+	  apps/macos/dist/appcast/appcast.xml
 
 loc:
 	cloc --vcs=git
