@@ -8,6 +8,21 @@ import Testing
         #expect(OnboardingFlow.initialSelectedIDs.isEmpty)
     }
 
+    @Test func enabledExtensionIDsComeFromBackupSettings() {
+        let entries = ExtensionRegistry.entries
+        let enabled = entries[0]
+        let disabled = entries[1]
+        let settings: [String: Any] = [
+            enabled.defaultsKey: true,
+            disabled.defaultsKey: false,
+            "unrelatedKey": true,
+        ]
+
+        let ids = OnboardingFlow.enabledExtensionIDs(settings: settings, entries: entries)
+
+        #expect(ids == [enabled.id])
+    }
+
     @Test func freshInstallShowsOnboarding() {
         let (defaults, suiteName) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

@@ -71,6 +71,26 @@ public enum OnboardingFlow {
         return permissions.filter { baseline[$0] != true && current[$0] == true }.count
     }
 
+    public static func enabledExtensionIDs(
+        settings: [String: Any],
+        entries: [ExtensionRegistryEntry] = ExtensionRegistry.entries
+    ) -> Set<String> {
+        Set(entries.filter { settings[$0.defaultsKey] as? Bool == true }.map(\.id))
+    }
+
+    public static func cloudBackupSelection(
+        entries: [ExtensionRegistryEntry] = ExtensionRegistry.entries
+    ) -> Set<String>? {
+        let file = AppData.cloudDir.appendingPathComponent("settings.json")
+        guard let data = try? Data(contentsOf: file),
+            let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            try? FileManager.default.startDownloadingUbiquitousItem(at: file)
+            return nil
+        }
+        return enabledExtensionIDs(settings: dict, entries: entries)
+    }
+
     public static func seenKey(for entry: ExtensionRegistryEntry) -> String {
         "extensionPermissionsSeen.\(entry.id)"
     }

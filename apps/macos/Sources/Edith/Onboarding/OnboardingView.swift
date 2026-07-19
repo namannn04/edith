@@ -33,6 +33,9 @@ struct OnboardingView: View {
         self.cloudBackupFound = cloudBackupFound
         _grantedPermissions = State(initialValue: baselineGrantedPermissions)
         _icloudBackup = State(initialValue: cloudBackupFound)
+        if cloudBackupFound, let restored = OnboardingFlow.cloudBackupSelection() {
+            _selectedIDs = State(initialValue: restored)
+        }
     }
 
     private var dark: Bool { colorScheme == .dark }
@@ -113,9 +116,16 @@ struct OnboardingView: View {
                 .foregroundStyle(DashSkin.inkSoft(dark))
                 .padding(.top, 8)
             VStack(spacing: 10) {
-                Button("Get started") { move(to: .picks, direction: 1) }
-                    .buttonStyle(OnboardingPrimaryButtonStyle())
-                    .keyboardShortcut(.defaultAction)
+                Button("Get started") {
+                    if cloudBackupFound, selectedIDs.isEmpty,
+                        let restored = OnboardingFlow.cloudBackupSelection()
+                    {
+                        selectedIDs = restored
+                    }
+                    move(to: .picks, direction: 1)
+                }
+                .buttonStyle(OnboardingPrimaryButtonStyle())
+                .keyboardShortcut(.defaultAction)
                 Button("Skip setup") {
                     OnboardingFlow.skip()
                     onFinish()
@@ -135,9 +145,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 14) {
             stepHeading(
                 "Make Edith yours",
-                detail: showsAllExtensions
-                    ? "Choose any extensions you want ready on day one."
-                    : "Start with a few favorites. You can change these anytime.")
+                detail: picksDetail)
             ScrollView {
                 VStack(spacing: 0) {
                     LazyVGrid(columns: gridColumns, spacing: 12) {
@@ -380,6 +388,15 @@ struct OnboardingView: View {
 
     private var gridColumns: [GridItem] {
         [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    }
+
+    private var picksDetail: String {
+        if cloudBackupFound && !selectedIDs.isEmpty {
+            return "We preselected the extensions from your iCloud backup. Adjust as you like."
+        }
+        return showsAllExtensions
+            ? "Choose any extensions you want ready on day one."
+            : "Start with a few favorites. You can change these anytime."
     }
 
     private var marketplaceDetail: String {
