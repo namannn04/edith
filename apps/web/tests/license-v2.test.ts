@@ -3,6 +3,7 @@ import {
   activateDeviceV2,
   deactivateDeviceV2,
   migrateMachineV2,
+  productHardwareDigest,
   refreshDeviceV2,
   verifyDeviceRefreshCredential,
 } from "@/lib/license";
@@ -33,6 +34,7 @@ async function activate(
   license: StoredLicense,
   deviceId: string,
   keyPair = makeDeviceKey(),
+  hardwareUuidDigest?: string,
 ) {
   const { challengeId, nonce } = await issueChallenge(store, "activate", {
     licenseId: license.id,
@@ -46,6 +48,7 @@ async function activate(
     devicePublicKey: keyPair.encodedPublicKey,
     signature: signChallenge(keyPair.privateKey, "activate", challengeId, nonce),
     appVersion: "2.0.0",
+    hardwareUuidDigest,
   });
   return { result, keyPair };
 }
@@ -428,5 +431,114 @@ describe("v2 migration", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "invalid_credentials" });
+  });
+});
+
+describe("same-Mac reinstall dedupe", () => {
+  const digestH = productHardwareDigest("11111111-2222-3333-4444-555555555555");
+  const digestOther = productHardwareDigest(
+    "99999999-8888-7777-6666-555555555555",
+  );
+
+  test("reinstall on the same Mac reuses the seat", async () => {
+    const store = new FakeStoreV2();
+    const license = store.addLicense({ key: licenseKey, maxMachines: 1 });
+
+    const first = await activate(
+      store,
+      license,
+      "device-a",
+      makeDeviceKey(),
+      digestH,
+    );
+    expect(first.result).toMatchObject({ ok: true, machinesUsed: 1 });
+
+    const second = await activate(
+      store,
+      license,
+      "device-b",
+      makeDeviceKey(),
+      digestH,
+    );
+
+    expect(second.result).toMatchObject({ ok: true, machinesUsed: 1 });
+    expect((await store.getDevice("device-a"))?.status).toBe("deactivated");
+    expect((await store.getDevice("device-b"))?.status).toBe("active");
+    expect(await store.countActiveSeats(license.id)).toBe(1);
+    expect(
+      store.securityEvents.some(
+        (event) => event.eventType === "device_reclaimed",
+      ),
+    ).toBe(true);
+  });
+
+  test("a different Mac still hits the seat limit", async () => {
+    const store = new FakeStoreV2();
+    const license = store.addLicense({ key: licenseKey, maxMachines: 1 });
+
+    await activate(store, license, "device-a", makeDeviceKey(), digestH);
+    const second = await activate(
+      store,
+      license,
+      "device-b",
+      makeDeviceKey(),
+      digestOther,
+    );
+
+    expect(second.result).toEqual({
+      ok: false,
+      error: "machine_limit_reached",
+      machinesUsed: 1,
+      maxMachines: 1,
+    });
+  });
+
+  test("a leftover v1 machine on the same Mac does not block activation", async () => {
+    const store = new FakeStoreV2();
+    const license = store.addLicense({ key: licenseKey, maxMachines: 1 });
+    const hardwareUuid = "11111111-2222-3333-4444-555555555555";
+    await store.upsertMachine({
+      licenseId: license.id,
+      hardwareUuid,
+      hostname: "Old Mac",
+    });
+
+    expect(await store.countActiveSeats(license.id)).toBe(1);
+
+    const { result } = await activate(
+      store,
+      license,
+      "device-a",
+      makeDeviceKey(),
+      productHardwareDigest(hardwareUuid),
+    );
+
+    expect(result).toMatchObject({ ok: true, machinesUsed: 1 });
+    expect(await store.getMachine(license.id, hardwareUuid)).toBeNull();
+    expect(await store.countActiveSeats(license.id)).toBe(1);
+  });
+
+  test("activation without a digest keeps existing behavior", async () => {
+    const store = new FakeStoreV2();
+    const license = store.addLicense({ key: licenseKey, maxMachines: 1 });
+
+    await activate(store, license, "device-a");
+    const second = await activate(store, license, "device-b");
+
+    expect(second.result).toEqual({
+      ok: false,
+      error: "machine_limit_reached",
+      machinesUsed: 1,
+      maxMachines: 1,
+    });
+    expect((await store.getDevice("device-a"))?.status).toBe("active");
+  });
+
+  test("productHardwareDigest matches the known vector", () => {
+    expect(
+      productHardwareDigest("1AB2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D"),
+    ).toBe(
+      "394377a8cfd10eff5793965225efbe64c3f7e2f67b256675043681f39b59d2e2",
+    );
   });
 });

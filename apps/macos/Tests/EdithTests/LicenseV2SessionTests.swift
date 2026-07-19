@@ -135,6 +135,9 @@ import Testing
         #expect(payload["deviceName"] as? String == "Test Mac")
         #expect(payload["appVersion"] as? String == "9.9.9")
         #expect(payload["hostname"] == nil)
+        #expect(
+            payload["hardwareUuidDigest"] as? String
+                == DeviceIdentity.hardwareDigest("hardware-1"))
         try expectValidSignature(payload: payload, purpose: "activate")
     }
 
@@ -173,6 +176,9 @@ import Testing
             transport.requests[1].url?.absoluteString
                 == "https://license.test/api/v2/devices/migrate")
         #expect(payload["hardwareUuid"] as? String == "hardware-1")
+        #expect(
+            payload["hardwareUuidDigest"] as? String
+                == DeviceIdentity.hardwareDigest("hardware-1"))
         try expectValidSignature(payload: payload, purpose: "migrate")
     }
 

@@ -145,4 +145,10 @@ public struct DeviceIdentity {
     {
         Data("edith-v2.\(purpose).\(challengeId).\(nonce)".utf8)
     }
+
+    public static func hardwareDigest(_ uuid: String) -> String {
+        SHA256.hash(data: Data("edith:\(uuid)".utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
 }

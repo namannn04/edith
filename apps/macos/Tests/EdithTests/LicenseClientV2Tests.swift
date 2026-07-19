@@ -36,7 +36,7 @@ import Testing
         let response = try await client.activateV2(
             licenseKey: "EDITH-ABCD-1234-EFGH-5678", challengeId: "ch-1", nonce: "n-1",
             deviceId: "device-1", devicePublicKey: "spki-b64url", signature: "sig-b64url",
-            appVersion: "1.2.3", deviceName: "Test Mac")
+            appVersion: "1.2.3", deviceName: "Test Mac", hardwareUuidDigest: "abc123")
 
         #expect(response.planId == "personal_3")
         #expect(response.machinesUsed == 1)
@@ -52,6 +52,7 @@ import Testing
         #expect(payload["signature"] as? String == "sig-b64url")
         #expect(payload["appVersion"] as? String == "1.2.3")
         #expect(payload["deviceName"] as? String == "Test Mac")
+        #expect(payload["hardwareUuidDigest"] as? String == "abc123")
     }
 
     @Test func migrateV2SendsHardwareUuid() async throws {
@@ -69,6 +70,13 @@ import Testing
         #expect(payload["hardwareUuid"] as? String == "hardware-1")
         #expect(payload["nonce"] as? String == "n-1")
         #expect(payload["deviceName"] == nil)
+        #expect(payload["hardwareUuidDigest"] == nil)
+    }
+
+    @Test func hardwareDigestMatchesKnownVector() {
+        #expect(
+            DeviceIdentity.hardwareDigest("1AB2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D")
+                == "394377a8cfd10eff5793965225efbe64c3f7e2f67b256675043681f39b59d2e2")
     }
 
     @Test func refreshChallengeSendsCredentialAndOptionalPurpose() async throws {

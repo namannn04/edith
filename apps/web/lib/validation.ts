@@ -32,6 +32,7 @@ export const deviceIdSchema = z.string().trim().min(1).max(255);
 const challengeIdSchema = z.string().uuid();
 const appVersionSchema = z.string().trim().min(1).max(64);
 const deviceNameSchema = z.string().trim().min(1).max(255);
+const hardwareUuidDigestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 export const activationChallengeBodySchema = z
   .object({
@@ -52,6 +53,7 @@ export const activationV2BodySchema = z
     signature: base64UrlSchema,
     appVersion: appVersionSchema,
     deviceName: deviceNameSchema.optional(),
+    hardwareUuidDigest: hardwareUuidDigestSchema.optional(),
   })
   .strict();
 

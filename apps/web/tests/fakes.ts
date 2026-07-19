@@ -5,26 +5,30 @@ import {
   nonceDigest,
 } from "@/lib/device-auth";
 import { keyLookupDigest } from "@/lib/license-key";
-import type {
-  ChallengeInput,
-  ChallengeRecord,
-  CredentialRecord,
-  DeviceInput,
-  DeviceRecord,
-  LicenseAccessV2,
-  LicenseStoreV2,
-  LicenseV2Record,
-  MachineInput,
-  NewLicenseInput,
-  PaymentEventRecord,
-  SecurityEventInput,
+import {
+  type ChallengeInput,
+  type ChallengeRecord,
+  type CredentialRecord,
+  type DeviceInput,
+  type DeviceRecord,
+  type LicenseAccessV2,
+  type LicenseStoreV2,
+  type LicenseV2Record,
+  type MachineInput,
+  type NewLicenseInput,
+  type PaymentEventRecord,
+  productHardwareDigest,
+  type SecurityEventInput,
 } from "@/lib/license";
 
 export type StoredLicense = LicenseV2Record & {
   key: string;
   keyDigest: string;
 };
-export type StoredDevice = DeviceRecord & { deactivatedAt: Date | null };
+export type StoredDevice = DeviceRecord & {
+  deactivatedAt: Date | null;
+  hardwareUuidDigest: string | null;
+};
 export type StoredChallenge = ChallengeRecord & { consumedAt: Date | null };
 export type StoredCredential = CredentialRecord & {
   revocationReason: string | null;
@@ -178,6 +182,58 @@ export class FakeStoreV2 implements LicenseStoreV2 {
     this.machines.delete(`${licenseId}:${hardwareUuid}`);
   }
 
+  async listMachines(licenseId: string) {
+    return [...this.machines.values()]
+      .filter((machine) => machine.licenseId === licenseId)
+      .map((machine) => ({
+        licenseId: machine.licenseId,
+        hardwareUuid: machine.hardwareUuid,
+      }));
+  }
+
+  async setDeviceHardwareDigest(deviceId: string, digest: string) {
+    const device = this.devices.get(deviceId);
+
+    if (device) {
+      device.hardwareUuidDigest = digest;
+    }
+  }
+
+  async reclaimSeatsByHardwareDigest(
+    licenseId: string,
+    hardwareUuidDigest: string,
+    exceptDeviceId: string,
+    now: Date,
+  ) {
+    for (const device of this.devices.values()) {
+      if (
+        device.licenseId === licenseId &&
+        device.hardwareUuidDigest === hardwareUuidDigest &&
+        device.status === "active" &&
+        device.id !== exceptDeviceId
+      ) {
+        device.status = "deactivated";
+        device.deactivatedAt = now;
+        await this.revokeCredentials(device.id, "device_reclaimed", now);
+        this.securityEvents.push({
+          eventType: "device_reclaimed",
+          licenseId,
+          deviceId: device.id,
+          actor: "system",
+        });
+      }
+    }
+
+    for (const [key, machine] of this.machines.entries()) {
+      if (
+        machine.licenseId === licenseId &&
+        productHardwareDigest(machine.hardwareUuid) === hardwareUuidDigest
+      ) {
+        this.machines.delete(key);
+      }
+    }
+  }
+
   async getDevice(deviceId: string) {
     return this.devices.get(deviceId) ?? null;
   }
@@ -191,6 +247,7 @@ export class FakeStoreV2 implements LicenseStoreV2 {
       status: "active",
       credentialGeneration: 0,
       deactivatedAt: null,
+      hardwareUuidDigest: input.hardwareUuidDigest,
     });
   }
 

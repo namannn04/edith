@@ -140,7 +140,8 @@ public struct LicenseV2Session {
             licenseKey: licenseKey, challengeId: challenge.challengeId, nonce: challenge.nonce,
             deviceId: identity.deviceId, devicePublicKey: identity.publicKeySPKIBase64URL,
             signature: try signature(identity, purpose: "activate", challenge: challenge),
-            appVersion: appVersion, deviceName: deviceName)
+            appVersion: appVersion, deviceName: deviceName,
+            hardwareUuidDigest: machineIdentifier().map(DeviceIdentity.hardwareDigest))
         try store(
             entitlement: response.entitlement, refreshCredential: response.refreshCredential,
             accessToken: response.accessToken,
@@ -166,7 +167,8 @@ public struct LicenseV2Session {
             devicePublicKey: identity.publicKeySPKIBase64URL,
             challengeId: challenge.challengeId, nonce: challenge.nonce,
             signature: try signature(identity, purpose: "migrate", challenge: challenge),
-            appVersion: appVersion, deviceName: deviceName)
+            appVersion: appVersion, deviceName: deviceName,
+            hardwareUuidDigest: DeviceIdentity.hardwareDigest(hardwareUuid))
         try store(
             entitlement: response.entitlement, refreshCredential: response.refreshCredential,
             accessToken: response.accessToken,
