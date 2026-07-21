@@ -105,7 +105,9 @@ just the fixed message prefix, not a URL or protocol version.
 - `POST /api/devices/deactivate` `{deviceId, challengeId, nonce, signature}` -> `{ok}`.
   Marks the device deactivated, revokes its credentials, frees the seat, records a
   security event.
-- `POST /api/payments/lemonsqueezy/webhook`: HMAC-verified, idempotent (see below).
+- `POST /api/checkout` `{planId, machines?, email?}` -> `{ok, url, checkoutId}`. Creates a
+  Polar hosted checkout (see below).
+- `POST /api/payments/polar/webhook`: signature-verified, idempotent (see below).
 - `GET /api/download/dmg`: **Bearer access token only**. Streams the latest `Edith-v*.dmg`
   from the private GitHub release using the server `GITHUB_TOKEN`. 403 `unlicensed`
   otherwise.
@@ -182,35 +184,67 @@ the grace ceiling.
 
 ## Plans and ceilings
 
-Seeded plans (`lib/plans.ts`): `individual_1` (1 Mac), `personal_3` (3), `power_5` (5),
-each mapped to a LemonSqueezy product/price id. `custom` allowances live on the license as
-an explicit `custom_max_machines` override; `effectiveAllowance` is
-`custom_max_machines ?? max_machines`.
+The price ladder lives in `lib/pricing.ts` and is the single source of truth; `lib/plans.ts`
+derives its catalog from it.
 
-Env ceilings `LICENSE_STANDARD_MAX_MACHINES_CAP` and `LICENSE_CUSTOM_MAX_MACHINES_CAP`
-(both default 5) are **validated, never clamped**: an allowance above its ceiling throws
-at issuance rather than being silently reduced (`validatePlanAllowance`).
+| Plan | Macs | Price |
+| --- | --- | --- |
+| `individual_1` | 1 | $25 |
+| `personal_3` | 3 | $45 |
+| `power_5` | 5 | $65 |
+| `custom` | 6 to 50 | $65 + $10 per Mac above 5 |
 
-Go-live note: the seeded plan rows carry **placeholder** LemonSqueezy product and variant
-ids. Replace them with the real variant ids before public sales, for example:
+`custom` allowances live on the license as an explicit `custom_max_machines` override;
+`effectiveAllowance` is `custom_max_machines ?? max_machines`.
 
-```sql
-UPDATE "plans"
-SET "external_product_id" = '<real product id>', "external_price_id" = '<real variant id>'
-WHERE "id" = 'personal_3';
-```
+Env ceilings `LICENSE_STANDARD_MAX_MACHINES_CAP` (default 5) and
+`LICENSE_CUSTOM_MAX_MACHINES_CAP` (default 50) are **validated, never clamped**: an
+allowance above its ceiling throws at issuance rather than being silently reduced
+(`validatePlanAllowance`).
+
+Polar product ids live in env (`POLAR_PRODUCT_*`), not in the `plans` table, because they
+differ between the sandbox and production Polar environments while the database schema
+does not.
+
+## Checkout
+
+`POST /api/checkout` (`app/api/checkout/route.ts`) takes `{ planId, machines?, email? }`
+and returns a Polar hosted checkout URL.
+
+Fixed tiers use their catalog price. The custom tier sends an **ad-hoc fixed price**
+computed server-side from `customPriceCents`. This matters: Polar's `amount` field is only
+a prefill for pay-what-you-want prices and the buyer can edit it down to the minimum, so a
+PWYW-based custom tier would let someone select 50 Macs and pay 50 cents. An ad-hoc fixed
+price is not buyer-editable.
+
+Seat counts are validated before Polar is called: a fixed tier rejects any count other
+than its own, and custom accepts 6 to 50 only.
 
 ## Payments webhook
 
-`POST /api/payments/lemonsqueezy/webhook` (`lib/payments.ts`):
+`POST /api/payments/polar/webhook` (`lib/payments.ts`):
 
-- Verifies the `x-signature` HMAC against `PAYMENT_WEBHOOK_SECRET` in constant time before
-  parsing anything.
-- Idempotent on `provider_event_id` (`<event_name>:<order id>`): a replayed event returns
-  the stored result, and a unique-violation race falls back to the recorded outcome.
-- `order_created` validates the plan allowance, mints a license key, stores its digest and
-  last4, and returns the key. `order_refunded` / `order_chargeback` move the license to
-  the matching status. Every transition writes a `security_events` row.
+- Verifies the Standard Webhooks signature (`webhook-id`, `webhook-timestamp`,
+  `webhook-signature`) against `POLAR_WEBHOOK_SECRET` before parsing anything. The HMAC key
+  is the **raw UTF-8 bytes** of the secret, and stale or future timestamps outside a five
+  minute window are rejected.
+- Idempotent on `provider_event_id` (`<type>:<order id>`): a replayed event returns the
+  stored result, and a unique-violation race falls back to the recorded outcome.
+- Fulfils on **`order.paid`, not `order.created`**. UPI settles asynchronously, so an order
+  can exist before the money arrives; `order.created` would hand out a licence too early.
+- Resolves the plan from checkout metadata (`plan_id`, `machines`), falling back to the
+  product id for fixed tiers. A custom order without metadata is refused rather than
+  guessed, because there is no way to infer the seat count.
+- Re-derives the expected price from the ladder and compares it to `subtotal_amount`
+  before minting. `subtotal_amount` is pre-discount, so coupon codes still pass. The check
+  is skipped for non-USD orders, where Polar has converted the presentment amount.
+- Links the buyer to a `users` row by email, mints the key, and stores its digest and
+  last4. `order.refunded` moves the license to `refunded`. Every transition writes a
+  `security_events` row.
+- Sends the key through Resend **after** the transaction commits, so a delivery failure
+  never rolls back a paid order. The outcome is recorded as `license_delivered`,
+  `license_delivery_failed`, or `license_delivery_skipped` (buyer had no email on file,
+  which Polar permits).
 
 ## Operations
 
@@ -219,8 +253,21 @@ WHERE "id" = 'personal_3';
 
 **Optional env**: `LICENSE_SIGNING_KEY_ID` (default `edith-2026-07`),
 `LICENSE_ENTITLEMENT_TTL_DAYS` (30), `LICENSE_ACCESS_TOKEN_TTL_MINUTES` (840),
-`LICENSE_STANDARD_MAX_MACHINES_CAP` (5), `LICENSE_CUSTOM_MAX_MACHINES_CAP` (5),
-`PAYMENT_WEBHOOK_SECRET`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`.
+`LICENSE_STANDARD_MAX_MACHINES_CAP` (5), `LICENSE_CUSTOM_MAX_MACHINES_CAP` (50),
+`SITE_URL` (default `https://edith.pulkit.page`), `UPSTASH_REDIS_REST_URL`,
+`UPSTASH_REDIS_REST_TOKEN`.
+
+**Payments env**: `POLAR_SERVER` (`sandbox` unless set to `production`),
+`POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`, `POLAR_PRODUCT_INDIVIDUAL_1`,
+`POLAR_PRODUCT_PERSONAL_3`, `POLAR_PRODUCT_POWER_5`, `POLAR_PRODUCT_CUSTOM`,
+`RESEND_API_KEY`, `LICENSE_EMAIL_FROM`.
+
+**Sandbox testing**: Polar's sandbox is a separate instance with its own account, so sign
+up at `sandbox.polar.sh` and mint a sandbox token. Point `POLAR_SERVER=sandbox`, forward
+webhooks with `polar login && polar listen http://localhost:3000/api/payments/polar/webhook`
+(which prints the signing secret to use), and pay with Stripe's test card
+`4242 4242 4242 4242`. Sandbox only delivers customer email to members of your Polar
+organization.
 
 **Mint a license by hand** (billing mints the rest automatically):
 
@@ -259,8 +306,17 @@ build for use until a Developer ID exists.
 
 **Go-live checklist still pending**:
 
-- Replace the placeholder LemonSqueezy product and variant ids on the seeded plans.
-- Set `PAYMENT_WEBHOOK_SECRET` and register the LemonSqueezy webhook.
+- Complete Polar organization onboarding. Until details are submitted the org reports
+  `checkout_payments: false` and cannot take money.
+- Create the four products in production Polar and set the `POLAR_PRODUCT_*` env vars.
+- Set `POLAR_WEBHOOK_SECRET`, register the production webhook against `order.paid` and
+  `order.refunded`, and flip `POLAR_SERVER=production`.
+- Verify a UPI checkout end to end. Polar shipped UPI on 2026-07-10 and
+  [polarsource/polar#13280](https://github.com/polarsource/polar/issues/13280) reports it
+  failing for consumer buyers who do not tick "I'm purchasing as a business", because
+  Stripe requires a full billing address for UPI. Consider setting
+  `require_billing_address` on checkout if the bug is still open.
+- Verify the `pulkit.page` sending domain in Resend and set `RESEND_API_KEY`.
 - Obtain a Developer ID Application identity and drop `EDITH_RELEASE_ALLOW_DEV_SIGNING`.
 - Provision Upstash Redis env vars for production rate limiting.
 
