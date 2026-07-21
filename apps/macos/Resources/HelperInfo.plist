@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.0.2</string>
+	<string>0.0.3</string>
 	<key>CFBundleVersion</key>
-	<string>11</string>
+	<string>12</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -30,12 +30,12 @@
 	<string>Edith shows a notch alert when a Bluetooth device connects or disconnects.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Edith shows today's calendar events in its menu bar panel.</string>
-	<key>NSRemovableVolumesUsageDescription</key>
-	<string>Edith needs this to scan an external drive you pick in the Cleaner.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Edith shows a camera preview in the notch so you can check yourself before a call.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Edith needs this to scan an external drive you pick in the Cleaner.</string>
 	<key>NSUserNotificationAlertStyle</key>
 	<string>alert</string>
 </dict>
