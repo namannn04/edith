@@ -190,6 +190,7 @@ struct HotKeyRecorderControl: View {
         SharedDefaults.store.set(Int(event.keyCode), forKey: keyPrefix + "Code")
         SharedDefaults.store.set(mods, forKey: keyPrefix + "Mods")
         SharedDefaults.store.set(symbols + key, forKey: keyPrefix + "Label")
+        IPC.post(IPC.Name.settingsChanged)
         stop()
     }
 }

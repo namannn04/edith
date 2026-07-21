@@ -188,6 +188,9 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         licenseVerificationTask = nil
         licenseVerificationTimer?.invalidate()
         licenseVerificationTimer = nil
+        if settingsChangeDebounce?.isValid == true {
+            IPC.post(IPC.Name.settingsChanged)
+        }
         settingsChangeDebounce?.invalidate()
         settingsChangeDebounce = nil
     }
