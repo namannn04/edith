@@ -117,6 +117,7 @@ export const polarEventSchema = z
         product_id: z.string().max(255).nullish(),
         customer_id: z.string().max(255).nullish(),
         subtotal_amount: z.number().int().nullish(),
+        discount_amount: z.number().int().nullish(),
         total_amount: z.number().int().nullish(),
         currency: z.string().max(10).nullish(),
         billing_reason: z.string().max(50).nullish(),

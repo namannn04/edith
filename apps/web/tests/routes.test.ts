@@ -639,14 +639,42 @@ describe("polar webhook", () => {
     expect(sentEmails).toHaveLength(0);
   });
 
-  test("a discounted order still passes the subtotal check", async () => {
+  test("a partly discounted order is accepted", async () => {
     const response = await webhookRoute.POST(
       webhookRequest(
-        orderPaid("order-1", { subtotal_amount: 4500, net_amount: 3600 }),
+        orderPaid("order-1", { subtotal_amount: 3600, discount_amount: 900 }),
       ),
     );
 
     expect(response.status).toBe(200);
+    expect(store.licensesById.size).toBe(1);
+  });
+
+  test("a fully discounted order is accepted", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-1", {
+          subtotal_amount: 0,
+          discount_amount: 4500,
+          total_amount: 0,
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.licensesById.size).toBe(1);
+  });
+
+  test("a discount that does not reconcile to the list price is refused", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-1", { subtotal_amount: 100, discount_amount: 900 }),
+      ),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "amount_mismatch" });
+    expect(store.licensesById.size).toBe(0);
   });
 
   test("a non-usd order skips the amount check", async () => {

@@ -108,7 +108,9 @@ function chargedAmountMatches(
     return true;
   }
 
-  return charged === expectedCents;
+  const discount = envelope.data.discount_amount ?? 0;
+
+  return charged + discount === expectedCents;
 }
 
 async function handleOrderPaid(
