@@ -792,7 +792,8 @@ struct MainWindowView: View {
 
     private var permissionsPill: some View {
         Button {
-            mainWindowSection = MainDestination.extensions.rawValue
+            settingsTab = SettingsPane.Tab.permissions.rawValue
+            mainWindowSection = MainDestination.settings.rawValue
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
