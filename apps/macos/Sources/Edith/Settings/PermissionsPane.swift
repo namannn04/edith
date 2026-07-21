@@ -7,8 +7,11 @@ struct PermissionsPane: View {
         PermissionFilter.mine.rawValue
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.home.rawValue
+    @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @State private var usages: [PermissionUsage] = PermissionsStatus.usages
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var accent: Color { themeColor(themeName) }
 
     private var filter: PermissionFilter {
         PermissionFilter(rawValue: filterRaw) ?? .mine
@@ -75,6 +78,7 @@ struct PermissionsPane: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(accent)
                 .pointerCursor()
             }
         }
@@ -112,7 +116,7 @@ struct PermissionsPane: View {
                     .foregroundStyle(filter == item ? Color.white : Color.secondary)
                     .padding(.horizontal, 12)
                     .frame(height: 28)
-                    .background(filter == item ? Color.accentColor : Color.clear)
+                    .background(filter == item ? accent : Color.clear)
                     .clipShape(Capsule())
                     .overlay {
                         if filter != item {
@@ -147,7 +151,8 @@ struct PermissionsPane: View {
             Button("Browse Extensions") {
                 mainWindowSection = MainDestination.extensions.rawValue
             }
-            .buttonStyle(.link)
+            .buttonStyle(.plain)
+            .foregroundStyle(accent)
             .pointerCursor()
         }
         .frame(maxWidth: .infinity)
