@@ -157,6 +157,27 @@ export class FakeStore implements LicenseStore {
     return id;
   }
 
+  async getActiveLicensesByEmail(email: string) {
+    const userId = this.userIdsByEmail.get(email);
+
+    if (!userId) {
+      return [];
+    }
+
+    return [...this.licensesById.entries()]
+      .filter(
+        ([licenseId, license]) =>
+          this.licenseUserIds.get(licenseId) === userId &&
+          license.status === "active",
+      )
+      .map(([, license]) => ({
+        key: license.key,
+        planId: license.planId,
+        maxMachines: license.maxMachines,
+        customMaxMachines: license.customMaxMachines,
+      }));
+  }
+
   async getPlanByPriceId(provider: string, priceId: string) {
     const plan = [...this.plans.values()].find(
       (record) =>

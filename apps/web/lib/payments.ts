@@ -82,7 +82,11 @@ export function resolveOrder(envelope: PolarEvent): ResolvedOrder | null {
   return tier ? { planId: tier.id, machines: tier.maxMachines } : null;
 }
 
-export function planNameFor(planId: string): string {
+export function planNameFor(planId: string | null): string {
+  if (!planId) {
+    return "Edith";
+  }
+
   return planId === customTier.id
     ? customTier.name
     : (getTier(planId)?.name ?? planId);

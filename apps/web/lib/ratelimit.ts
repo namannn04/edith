@@ -3,6 +3,7 @@ import { z } from "zod";
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 20;
 const MAX_KEYED_REQUESTS = 30;
+const MAX_RECOVERY_REQUESTS = 2;
 const FAILURE_WINDOW_MS = 600_000;
 const MAX_FAILURES = 5;
 const MAX_BACKOFF_SECONDS = 3_600;
@@ -158,6 +159,13 @@ export async function checkKeyedRateLimit(
   now = Date.now(),
 ): Promise<RateLimitResult> {
   return checkBucket(`subject:${subject}:${route}`, MAX_KEYED_REQUESTS, now);
+}
+
+export async function checkRecoveryRateLimit(
+  subject: string,
+  now = Date.now(),
+): Promise<RateLimitResult> {
+  return checkBucket(`recovery:${subject}`, MAX_RECOVERY_REQUESTS, now);
 }
 
 export async function registerAuthFailure(

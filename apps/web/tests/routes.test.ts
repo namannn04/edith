@@ -23,6 +23,7 @@ mock.module("@/lib/email", () => ({
     sentEmails.push(input);
     return emailResult;
   },
+  sendLicenseRecoveryEmail: async () => ({ ok: true, id: "email_recovery" }),
 }));
 
 mock.module("@/lib/db", () => ({ licenseStore: store }));

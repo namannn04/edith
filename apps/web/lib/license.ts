@@ -93,6 +93,13 @@ export type PlanPriceRecord = {
   maxMachines: number;
 };
 
+export type LicenseKeyRecord = {
+  key: string;
+  planId: string | null;
+  maxMachines: number;
+  customMaxMachines: number | null;
+};
+
 export type PaymentEventRecord = {
   id: string;
   provider: string;
@@ -181,6 +188,7 @@ export interface LicenseAccess {
   ): Promise<void>;
   insertLicense(input: NewLicenseInput): Promise<{ id: string }>;
   upsertUserByEmail(email: string, name: string | null): Promise<string>;
+  getActiveLicensesByEmail(email: string): Promise<LicenseKeyRecord[]>;
   getPlanByPriceId(
     provider: string,
     priceId: string,

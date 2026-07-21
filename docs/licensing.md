@@ -107,6 +107,8 @@ just the fixed message prefix, not a URL or protocol version.
   security event.
 - `POST /api/checkout` `{planId, machines?, email?}` -> `{ok, url, checkoutId}`. Creates a
   Polar hosted checkout (see below).
+- `POST /api/licenses/resend` `{email}` -> always `{ok, message}`. Emails every active key
+  for that address (see below).
 - `POST /api/payments/polar/webhook`: signature-verified, idempotent (see below).
 - `GET /api/download/dmg`: **Bearer access token only**. Streams the latest `Edith-v*.dmg`
   from the private GitHub release using the server `GITHUB_TOKEN`. 403 `unlicensed`
@@ -245,6 +247,25 @@ than its own, and custom accepts 6 to 50 only.
   never rolls back a paid order. The outcome is recorded as `license_delivered`,
   `license_delivery_failed`, or `license_delivery_skipped` (buyer had no email on file,
   which Polar permits).
+
+## Key recovery
+
+`POST /api/licenses/resend` lets a buyer have their key emailed again from the
+`/license` page.
+
+It **always returns the same 200 body**, whatever happens: unknown address, malformed
+input, rate limited, or database error. That is deliberate. A differing status, body, or
+error would turn the endpoint into an oracle for "does this person own Edith", which is
+customer data we do not owe an anonymous caller.
+
+Only `active` licences are sent, so a refunded or charged-back key is not recoverable. All
+of an address's keys go in one email, so a buyer with several licences gets one message
+rather than several.
+
+Because the caller chooses the recipient, this endpoint can mail a third party. It is
+therefore limited twice: the normal per-IP route limit, plus `checkRecoveryRateLimit`, a
+tighter per-address bucket (2 per minute) so an attacker cannot use it to flood someone
+else's inbox.
 
 ## Operations
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter, SiteHeader } from "../site-chrome";
+import { ResendForm } from "./resend-form";
 
 export const metadata: Metadata = {
   title: "License · Edith",
@@ -32,6 +33,16 @@ export default function LicensePage() {
           lost, broken, or otherwise unreachable, email{" "}
           <a href="mailto:kpulkit15234@gmail.com">kpulkit15234@gmail.com</a> and we will
           release the seat for you.
+        </p>
+        <h2>Lost your key?</h2>
+        <p>
+          Enter the email address you bought with and we will send your key
+          again.
+        </p>
+        <ResendForm />
+        <p>
+          If nothing arrives within a few minutes, check your spam folder, then
+          email <a href="mailto:kpulkit15234@gmail.com">kpulkit15234@gmail.com</a>.
         </p>
       </main>
       <SiteFooter />

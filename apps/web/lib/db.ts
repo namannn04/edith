@@ -351,6 +351,18 @@ function createAccess(database: Database): LicenseAccess {
 
       return user.id;
     },
+    async getActiveLicensesByEmail(email) {
+      return database
+        .select({
+          key: licenses.key,
+          planId: licenses.planId,
+          maxMachines: licenses.maxMachines,
+          customMaxMachines: licenses.customMaxMachines,
+        })
+        .from(licenses)
+        .innerJoin(users, eq(users.id, licenses.userId))
+        .where(and(eq(users.email, email), eq(licenses.status, "active")));
+    },
     async getPlanByPriceId(provider, priceId) {
       const [plan] = await database
         .select({ id: plans.id, maxMachines: plans.maxMachines })
@@ -513,6 +525,9 @@ export const licenseStore: LicenseStore = {
   },
   async upsertUserByEmail(email, name) {
     return createAccess(getDb()).upsertUserByEmail(email, name);
+  },
+  async getActiveLicensesByEmail(email) {
+    return createAccess(getDb()).getActiveLicensesByEmail(email);
   },
   async getPlanByPriceId(provider, priceId) {
     return createAccess(getDb()).getPlanByPriceId(provider, priceId);
