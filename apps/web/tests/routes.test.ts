@@ -6,9 +6,7 @@ import { FakeStore, makeDeviceKey, signChallenge } from "./fakes";
 process.env.LICENSE_KEY_LOOKUP_PEPPER = "route-test-pepper";
 process.env.LICENSE_ACCESS_TOKEN_SECRET = "route-test-access-secret";
 process.env.LICENSE_SIGNING_PRIVATE_KEY = randomBytes(32).toString("base64");
-process.env.POLAR_WEBHOOK_SECRET = "route-test-webhook-secret";
-process.env.POLAR_PRODUCT_PERSONAL_3 = "prod_personal_3";
-process.env.POLAR_PRODUCT_CUSTOM = "prod_custom";
+process.env.RAZORPAY_WEBHOOK_SECRET = "route-test-webhook-secret";
 
 const store = new FakeStore();
 
@@ -57,7 +55,7 @@ const refreshChallengeRoute = await import(
 );
 const refreshRoute = await import("@/app/api/devices/refresh/route");
 const deactivateRoute = await import("@/app/api/devices/deactivate/route");
-const webhookRoute = await import("@/app/api/payments/polar/webhook/route");
+const webhookRoute = await import("@/app/api/payments/razorpay/webhook/route");
 const dmgRoute = await import("@/app/api/download/dmg/route");
 const appcastRoute = await import("@/app/api/appcast/route");
 const legacyAppcastRoute = await import("@/app/api/v1/appcast/route");
@@ -486,57 +484,136 @@ describe("protected downloads", () => {
 
 let webhookCounter = 0;
 
-function signPolar(rawBody: string, id: string, timestamp: number): string {
+function signRazorpay(rawBody: string): string {
   return createHmac("sha256", Buffer.from("route-test-webhook-secret", "utf8"))
-    .update(`${id}.${timestamp}.${rawBody}`, "utf8")
-    .digest("base64");
+    .update(rawBody, "utf8")
+    .digest("hex");
 }
 
 function webhookRequest(
   payload: unknown,
-  options: { signature?: string; id?: string } = {},
+  options: { signature?: string; eventId?: string } = {},
 ): Request {
   const rawBody = JSON.stringify(payload);
   webhookCounter += 1;
-  const id = options.id ?? `msg_${webhookCounter}`;
-  const timestamp = Math.floor(Date.now() / 1000);
 
-  return new Request("https://edith.test/api/payments/polar/webhook", {
+  return new Request("https://edith.test/api/payments/razorpay/webhook", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-forwarded-for": nextIp(),
-      "webhook-id": id,
-      "webhook-timestamp": String(timestamp),
-      "webhook-signature":
-        options.signature ?? `v1,${signPolar(rawBody, id, timestamp)}`,
+      "x-razorpay-event-id": options.eventId ?? `evt_${webhookCounter}`,
+      "x-razorpay-signature": options.signature ?? signRazorpay(rawBody),
     },
     body: rawBody,
   });
 }
 
-function orderPaid(
-  orderId: string,
-  overrides: Record<string, unknown> = {},
+type PaidOptions = {
+  planId?: string;
+  machines?: string;
+  linkAmount?: number;
+  amountPaid?: number;
+  paymentAmount?: number;
+  baseAmount?: number;
+  paymentId?: string;
+  email?: string | null;
+  name?: string | null;
+  offerId?: string | null;
+};
+
+function paymentLinkPaid(
+  linkId: string,
+  options: PaidOptions = {},
 ): Record<string, unknown> {
+  const amount = options.linkAmount ?? 380000;
+  const amountPaid = options.amountPaid ?? amount;
+  const paymentId = options.paymentId ?? `pay_${linkId}`;
+
   return {
-    type: "order.paid",
-    data: {
-      id: orderId,
-      status: "paid",
-      paid: true,
-      product_id: "prod_personal_3",
-      currency: "usd",
-      subtotal_amount: 4500,
-      customer_id: "cus_1",
-      customer: { email: "buyer@example.com", name: "Buyer" },
-      metadata: { plan_id: "personal_3", machines: 3 },
-      ...overrides,
+    event: "payment_link.paid",
+    payload: {
+      payment_link: {
+        entity: {
+          id: linkId,
+          amount,
+          amount_paid: amountPaid,
+          currency: "INR",
+          status: "paid",
+          notes: {
+            plan_id: options.planId ?? "personal_3",
+            machines: options.machines ?? "3",
+          },
+          customer: {
+            email:
+              options.email === undefined ? "buyer@example.com" : options.email,
+            name: options.name === undefined ? "Buyer" : options.name,
+          },
+          order_id: `order_${linkId}`,
+        },
+      },
+      payment: {
+        entity: {
+          id: paymentId,
+          amount: options.paymentAmount ?? amountPaid,
+          base_amount: options.baseAmount ?? amount,
+          currency: "INR",
+          status: "captured",
+          captured: true,
+          email:
+            options.email === undefined ? "buyer@example.com" : options.email,
+          customer_id: "cust_1",
+          order_id: `order_${linkId}`,
+          offer_id: options.offerId ?? null,
+        },
+      },
+      order: {
+        entity: {
+          id: `order_${linkId}`,
+          amount: amountPaid,
+          amount_paid: amountPaid,
+          currency: "INR",
+          status: "paid",
+          customer_id: "cust_1",
+          offer_id: options.offerId ?? null,
+        },
+      },
     },
   };
 }
 
-describe("polar webhook", () => {
+function refundCreated(
+  refundId: string,
+  paymentId: string,
+): Record<string, unknown> {
+  return {
+    event: "refund.created",
+    payload: {
+      refund: {
+        entity: {
+          id: refundId,
+          payment_id: paymentId,
+          amount: 380000,
+          currency: "INR",
+          status: "processed",
+        },
+      },
+      payment: {
+        entity: {
+          id: paymentId,
+          amount: 380000,
+          base_amount: 380000,
+          currency: "INR",
+          status: "captured",
+          captured: true,
+          order_id: "order_refunded",
+        },
+      },
+    },
+  };
+}
+
+describe("razorpay webhook", () => {
   beforeEach(() => {
     sentEmails.length = 0;
     emailResult = { ok: true, id: "email_1" };
@@ -544,7 +621,7 @@ describe("polar webhook", () => {
 
   test("an invalid signature is rejected with 401", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1"), { signature: "v1,ZmFrZQ==" }),
+      webhookRequest(paymentLinkPaid("plink_1"), { signature: "00" }),
     );
 
     expect(response.status).toBe(401);
@@ -552,9 +629,9 @@ describe("polar webhook", () => {
     expect(store.licensesById.size).toBe(0);
   });
 
-  test("order.paid mints a licence and emails the key", async () => {
+  test("payment_link.paid mints a licence and emails the key", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1")),
+      webhookRequest(paymentLinkPaid("plink_1")),
     );
 
     expect(response.status).toBe(200);
@@ -584,7 +661,7 @@ describe("polar webhook", () => {
 
   test("the buyer is linked to a user row by email", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1")),
+      webhookRequest(paymentLinkPaid("plink_1")),
     );
     const body = (await response.json()) as { licenseId: string };
     const userId = store.userIdsByEmail.get("buyer@example.com");
@@ -596,10 +673,10 @@ describe("polar webhook", () => {
   test("a custom order mints the requested machine count", async () => {
     const response = await webhookRoute.POST(
       webhookRequest(
-        orderPaid("order-custom", {
-          product_id: "prod_custom",
-          subtotal_amount: 13500,
-          metadata: { plan_id: "custom", machines: 12 },
+        paymentLinkPaid("plink_custom", {
+          planId: "custom",
+          machines: "12",
+          linkAmount: 1145000,
         }),
       ),
     );
@@ -615,10 +692,52 @@ describe("polar webhook", () => {
   test("a custom order above the cap is refused", async () => {
     const response = await webhookRoute.POST(
       webhookRequest(
-        orderPaid("order-big", {
-          product_id: "prod_custom",
-          subtotal_amount: 52500,
-          metadata: { plan_id: "custom", machines: 51 },
+        paymentLinkPaid("plink_big", {
+          planId: "custom",
+          machines: "51",
+          linkAmount: 4460000,
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(store.licensesById.size).toBe(0);
+  });
+
+  test("an underpaid order is refused and mints nothing", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(paymentLinkPaid("plink_underpaid", { linkAmount: 100 })),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "amount_mismatch" });
+    expect(store.licensesById.size).toBe(0);
+    expect(sentEmails).toHaveLength(0);
+  });
+
+  test("a discounted payment is accepted", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        paymentLinkPaid("plink_discounted", {
+          amountPaid: 300000,
+          paymentAmount: 300000,
+          baseAmount: 380000,
+          offerId: "offer_1",
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.licensesById.size).toBe(1);
+  });
+
+  test("an unknown plan is refused", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        paymentLinkPaid("plink_unknown", {
+          planId: "enterprise",
+          machines: "3",
         }),
       ),
     );
@@ -628,125 +747,9 @@ describe("polar webhook", () => {
     expect(store.licensesById.size).toBe(0);
   });
 
-  test("an underpaid order is refused and mints nothing", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1", { subtotal_amount: 100 })),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "amount_mismatch" });
-    expect(store.licensesById.size).toBe(0);
-    expect(sentEmails).toHaveLength(0);
-  });
-
-  test("a partly discounted order is accepted", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(
-        orderPaid("order-1", { subtotal_amount: 3600, discount_amount: 900 }),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    expect(store.licensesById.size).toBe(1);
-  });
-
-  test("a fully discounted order is accepted", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(
-        orderPaid("order-1", {
-          subtotal_amount: 0,
-          discount_amount: 4500,
-          total_amount: 0,
-        }),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    expect(store.licensesById.size).toBe(1);
-  });
-
-  test("a discount that does not reconcile to the list price is refused", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(
-        orderPaid("order-1", { subtotal_amount: 100, discount_amount: 900 }),
-      ),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "amount_mismatch" });
-    expect(store.licensesById.size).toBe(0);
-  });
-
-  test("a non-usd order skips the amount check", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(
-        orderPaid("order-inr", { currency: "inr", subtotal_amount: 375000 }),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-  });
-
-  test("falls back to the product id when metadata is missing", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1", { metadata: {} })),
-    );
-
-    expect(response.status).toBe(200);
-
-    const body = (await response.json()) as { licenseId: string };
-    const license = await store.getLicenseById(body.licenseId);
-
-    expect(license).toMatchObject({ planId: "personal_3", maxMachines: 3 });
-  });
-
-  test("a custom order without metadata is refused rather than guessed", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(
-        orderPaid("order-1", { product_id: "prod_custom", metadata: {} }),
-      ),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "unknown_plan" });
-    expect(store.licensesById.size).toBe(0);
-  });
-
-  test("an unknown product records a failed event and mints nothing", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(
-        orderPaid("order-1", { product_id: "prod_mystery", metadata: {} }),
-      ),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "unknown_plan" });
-    expect(store.licensesById.size).toBe(0);
-
-    const event = await store.getPaymentEvent("polar", "order.paid:order-1");
-
-    expect(event).toMatchObject({
-      processingState: "failed",
-      error: "unknown_plan",
-    });
-  });
-
-  test("an unpaid order is ignored without minting", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(
-        orderPaid("order-1", { status: "pending", paid: false }),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, ignored: true });
-    expect(store.licensesById.size).toBe(0);
-    expect(sentEmails).toHaveLength(0);
-  });
-
   test("a licence is still minted when the buyer has no email", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1", { customer: { email: null } })),
+      webhookRequest(paymentLinkPaid("plink_no_email", { email: null })),
     );
 
     expect(response.status).toBe(200);
@@ -763,7 +766,7 @@ describe("polar webhook", () => {
     emailResult = { ok: false, error: "send_failed_500" };
 
     const response = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1")),
+      webhookRequest(paymentLinkPaid("plink_email_failure")),
     );
 
     expect(response.status).toBe(200);
@@ -778,10 +781,14 @@ describe("polar webhook", () => {
   });
 
   test("a replayed event returns the original result without a new licence", async () => {
-    const payload = orderPaid("order-1");
-    const first = await webhookRoute.POST(webhookRequest(payload));
+    const payload = paymentLinkPaid("plink_replay");
+    const first = await webhookRoute.POST(
+      webhookRequest(payload, { eventId: "evt_replay" }),
+    );
     const firstBody = (await first.json()) as { licenseId: string };
-    const replay = await webhookRoute.POST(webhookRequest(payload));
+    const replay = await webhookRoute.POST(
+      webhookRequest(payload, { eventId: "evt_replay" }),
+    );
 
     expect(replay.status).toBe(200);
     expect(await replay.json()).toEqual({
@@ -801,9 +808,13 @@ describe("polar webhook", () => {
       return lookups <= 2 ? null : original(provider, providerEventId);
     };
 
-    const payload = orderPaid("order-1");
-    const first = await webhookRoute.POST(webhookRequest(payload));
-    const second = await webhookRoute.POST(webhookRequest(payload));
+    const payload = paymentLinkPaid("plink_concurrent");
+    const first = await webhookRoute.POST(
+      webhookRequest(payload, { eventId: "evt_concurrent" }),
+    );
+    const second = await webhookRoute.POST(
+      webhookRequest(payload, { eventId: "evt_concurrent" }),
+    );
     store.getPaymentEvent = original;
 
     expect(first.status).toBe(200);
@@ -815,16 +826,14 @@ describe("polar webhook", () => {
     expect(store.licensesById.size).toBe(1);
   });
 
-  test("order.refunded marks the licence refunded", async () => {
+  test("refund.created marks the licence refunded", async () => {
+    const paymentId = "pay_refunded";
     const created = await webhookRoute.POST(
-      webhookRequest(orderPaid("order-1")),
+      webhookRequest(paymentLinkPaid("plink_refunded", { paymentId })),
     );
     const createdBody = (await created.json()) as { licenseId: string };
     const refunded = await webhookRoute.POST(
-      webhookRequest({
-        type: "order.refunded",
-        data: { id: "order-1" },
-      }),
+      webhookRequest(refundCreated("rfnd_1", paymentId)),
     );
 
     expect(refunded.status).toBe(200);
@@ -834,9 +843,55 @@ describe("polar webhook", () => {
     expect(license).toMatchObject({ status: "refunded", active: false });
   });
 
+  test("a partial refund does not revoke the licence", async () => {
+    const paymentId = "pay_partial";
+    const created = await webhookRoute.POST(
+      webhookRequest(paymentLinkPaid("plink_partial", { paymentId })),
+    );
+    const createdBody = (await created.json()) as { licenseId: string };
+    const partial = refundCreated("rfnd_partial", paymentId);
+    const payload = partial.payload as Record<string, Record<string, Record<string, unknown>>>;
+    payload.refund.entity.amount = 50000;
+    payload.payment.entity.amount_refunded = 50000;
+
+    const response = await webhookRoute.POST(webhookRequest(partial));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, partial: true });
+
+    const license = await store.getLicenseById(createdBody.licenseId);
+
+    expect(license).toMatchObject({ status: "active", active: true });
+    expect(
+      store.securityEvents.some(
+        (event) => event.eventType === "partial_refund_recorded",
+      ),
+    ).toBe(true);
+  });
+
+  test("partial refunds that cumulatively reach the full amount do revoke", async () => {
+    const paymentId = "pay_cumulative";
+    const created = await webhookRoute.POST(
+      webhookRequest(paymentLinkPaid("plink_cumulative", { paymentId })),
+    );
+    const createdBody = (await created.json()) as { licenseId: string };
+    const second = refundCreated("rfnd_second", paymentId);
+    const payload = second.payload as Record<string, Record<string, Record<string, unknown>>>;
+    payload.refund.entity.amount = 180000;
+    payload.payment.entity.amount_refunded = 380000;
+
+    const response = await webhookRoute.POST(webhookRequest(second));
+
+    expect(response.status).toBe(200);
+
+    const license = await store.getLicenseById(createdBody.licenseId);
+
+    expect(license).toMatchObject({ status: "refunded", active: false });
+  });
+
   test("a refund for an unknown order is refused", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest({ type: "order.refunded", data: { id: "order-ghost" } }),
+      webhookRequest(refundCreated("rfnd_ghost", "pay_ghost")),
     );
 
     expect(response.status).toBe(422);
@@ -845,7 +900,21 @@ describe("polar webhook", () => {
 
   test("an unrelated event is acknowledged and ignored", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest({ type: "checkout.updated", data: { id: "chk-1" } }),
+      webhookRequest({
+        event: "payment_link.cancelled",
+        payload: {
+          payment_link: {
+            entity: {
+              id: "plink_cancelled",
+              amount: 380000,
+              amount_paid: 0,
+              currency: "INR",
+              status: "cancelled",
+              notes: null,
+            },
+          },
+        },
+      }),
     );
 
     expect(response.status).toBe(200);
@@ -853,4 +922,3 @@ describe("polar webhook", () => {
     expect(store.licensesById.size).toBe(0);
   });
 });
-

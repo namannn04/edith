@@ -11,12 +11,11 @@ import {
 } from "@/lib/license-key";
 import { readCeilings, validatePlanAllowance } from "@/lib/plans";
 import {
-  type PolarEvent,
-  planIdForProduct,
-  polarEventSchema,
-  polarProvider,
-} from "@/lib/polar";
-import { customTier, getTier, priceCentsFor } from "@/lib/pricing";
+  type RazorpayEvent,
+  razorpayEventSchema,
+  razorpayProvider,
+} from "@/lib/razorpay";
+import { customTier, getTier, pricePaiseFor } from "@/lib/pricing";
 
 export type WebhookResult = {
   status: number;
@@ -60,26 +59,20 @@ export type ResolvedOrder = {
   machines: number;
 };
 
-export function resolveOrder(envelope: PolarEvent): ResolvedOrder | null {
-  const metadata = envelope.data.metadata ?? {};
-  const planId =
-    typeof metadata.plan_id === "string" ? metadata.plan_id : null;
-  const machines = Number(metadata.machines);
+export function resolveOrder(envelope: RazorpayEvent): ResolvedOrder | null {
+  const notes = envelope.payload.payment_link?.entity.notes;
+  const planId = notes?.plan_id;
+  const machineNote = notes?.machines;
 
-  if (planId && Number.isInteger(machines) && machines > 0) {
-    return { planId, machines };
-  }
-
-  const productId = envelope.data.product_id;
-  const fallbackPlanId = productId ? planIdForProduct(productId) : null;
-
-  if (!fallbackPlanId || fallbackPlanId === customTier.id) {
+  if (!planId || !machineNote || !/^\d+$/.test(machineNote)) {
     return null;
   }
 
-  const tier = getTier(fallbackPlanId);
+  const machines = Number(machineNote);
 
-  return tier ? { planId: tier.id, machines: tier.maxMachines } : null;
+  return Number.isInteger(machines) && machines > 0
+    ? { planId, machines }
+    : null;
 }
 
 export function planNameFor(planId: string | null): string {
@@ -93,30 +86,33 @@ export function planNameFor(planId: string | null): string {
 }
 
 function chargedAmountMatches(
-  envelope: PolarEvent,
-  expectedCents: number,
+  envelope: RazorpayEvent,
+  expectedPaise: number,
 ): boolean {
-  const currency = envelope.data.currency;
+  const link = envelope.payload.payment_link?.entity;
 
-  if (currency && currency.toLowerCase() !== "usd") {
-    return true;
-  }
-
-  const charged = envelope.data.subtotal_amount;
-
-  if (typeof charged !== "number") {
-    return true;
-  }
-
-  const discount = envelope.data.discount_amount ?? 0;
-
-  return charged + discount === expectedCents;
+  return (
+    link?.currency.toLowerCase() === "inr" && link.amount === expectedPaise
+  );
 }
 
-async function handleOrderPaid(
+export function isFullRefund(envelope: RazorpayEvent): boolean {
+  const refund = envelope.payload.refund?.entity;
+  const payment = envelope.payload.payment?.entity;
+
+  if (!refund || !payment || payment.amount <= 0) {
+    return false;
+  }
+
+  const refundedTotal = payment.amount_refunded ?? refund.amount;
+
+  return refundedTotal >= payment.amount;
+}
+
+async function handlePaymentLinkPaid(
   access: LicenseAccess,
   eventId: string,
-  envelope: PolarEvent,
+  envelope: RazorpayEvent,
   now: Date,
 ): Promise<{ result: WebhookResult; fulfilment?: Fulfilment }> {
   async function fail(error: string, status = 422) {
@@ -134,21 +130,23 @@ async function handleOrderPaid(
     return fail("unknown_plan");
   }
 
-  let expectedCents: number;
+  let expectedPaise: number;
 
   try {
     validatePlanAllowance(resolved.planId, resolved.machines, readCeilings());
-    expectedCents = priceCentsFor(resolved.planId, resolved.machines);
+    expectedPaise = pricePaiseFor(resolved.planId, resolved.machines);
   } catch {
     return fail("invalid_order");
   }
 
-  if (!chargedAmountMatches(envelope, expectedCents)) {
+  if (!chargedAmountMatches(envelope, expectedPaise)) {
     return fail("amount_mismatch");
   }
 
-  const email = envelope.data.customer?.email ?? null;
-  const name = envelope.data.customer?.name ?? null;
+  const link = envelope.payload.payment_link?.entity;
+  const payment = envelope.payload.payment?.entity;
+  const email = link?.customer?.email ?? payment?.email ?? null;
+  const name = link?.customer?.name ?? null;
   const userId = email ? await access.upsertUserByEmail(email, name) : null;
   const key = generateLicenseKey();
   const { id: licenseId } = await access.insertLicense({
@@ -171,7 +169,7 @@ async function handleOrderPaid(
     licenseId,
     actor: "webhook",
     nextStatus: "active",
-    detail: envelope.type,
+    detail: envelope.event,
   });
 
   return {
@@ -198,21 +196,32 @@ async function handleOrderPaid(
 async function handleEvent(
   access: LicenseAccess,
   providerEventId: string,
-  envelope: PolarEvent,
+  envelope: RazorpayEvent,
 ): Promise<{ result: WebhookResult; fulfilment?: Fulfilment }> {
   const now = new Date();
+  const link = envelope.payload.payment_link?.entity;
+  const payment = envelope.payload.payment?.entity;
+  const refund = envelope.payload.refund?.entity;
   const event = await access.insertPaymentEvent({
-    provider: polarProvider,
+    provider: razorpayProvider,
     providerEventId,
-    eventType: envelope.type,
-    orderId: envelope.data.id,
-    customerId: envelope.data.customer_id ?? null,
-    priceId: envelope.data.product_id ?? null,
+    eventType: envelope.event,
+    orderId: payment?.id ?? refund?.payment_id ?? link?.id ?? null,
+    customerId:
+      payment?.customer_id ??
+      envelope.payload.order?.entity.customer_id ??
+      null,
+    priceId: link?.id ?? null,
     processingState: "received",
   });
 
-  if (envelope.type === "order.paid") {
-    if (envelope.data.paid === false || envelope.data.status === "pending") {
+  if (envelope.event === "payment_link.paid") {
+    if (
+      link?.status !== "paid" ||
+      payment?.status !== "captured" ||
+      payment.captured === false ||
+      envelope.payload.order?.entity.status !== "paid"
+    ) {
       await access.updatePaymentEvent(event.id, {
         processingState: "ignored",
         processedAt: now,
@@ -220,13 +229,14 @@ async function handleEvent(
       return { result: { status: 200, body: { ok: true, ignored: true } } };
     }
 
-    return handleOrderPaid(access, event.id, envelope, now);
+    return handlePaymentLinkPaid(access, event.id, envelope, now);
   }
 
-  if (envelope.type === "order.refunded") {
+  if (envelope.event === "refund.created") {
+    const paymentId = refund?.payment_id ?? payment?.id;
     const licenseId = await access.getLicenseIdByOrderId(
-      polarProvider,
-      envelope.data.id,
+      razorpayProvider,
+      paymentId ?? "",
     );
 
     if (!licenseId) {
@@ -238,15 +248,32 @@ async function handleEvent(
       return { result: { status: 422, body: { error: "license_not_found" } } };
     }
 
+    if (!isFullRefund(envelope)) {
+      await access.insertSecurityEvent({
+        eventType: "partial_refund_recorded",
+        licenseId,
+        actor: "webhook",
+        detail: envelope.event,
+      });
+      await access.updatePaymentEvent(event.id, {
+        processingState: "processed",
+        licenseId,
+        processedAt: now,
+      });
+      return {
+        result: { status: 200, body: { ok: true, licenseId, partial: true } },
+      };
+    }
+
     const license = await access.getLicenseById(licenseId);
-    await access.updateLicenseStatus(licenseId, "refunded", envelope.type);
+    await access.updateLicenseStatus(licenseId, "refunded", envelope.event);
     await access.insertSecurityEvent({
       eventType: "license_status_changed",
       licenseId,
       actor: "webhook",
       previousStatus: license?.status ?? null,
       nextStatus: "refunded",
-      detail: envelope.type,
+      detail: envelope.event,
     });
     await access.updatePaymentEvent(event.id, {
       processingState: "processed",
@@ -292,18 +319,36 @@ async function deliver(
   });
 }
 
-export async function processPolarWebhook(
+function fallbackProviderEventId(envelope: RazorpayEvent): string | null {
+  const entityId =
+    envelope.payload.payment_link?.entity.id ??
+    envelope.payload.refund?.entity.id ??
+    envelope.payload.payment?.entity.id;
+
+  return entityId ? `${envelope.event}:${entityId}` : null;
+}
+
+export async function processRazorpayWebhook(
   store: LicenseStore,
   payload: unknown,
+  eventId?: string | null,
 ): Promise<WebhookResult> {
-  const parsed = polarEventSchema.safeParse(payload);
+  const parsed = razorpayEventSchema.safeParse(payload);
 
   if (!parsed.success) {
     return { status: 400, body: { error: "invalid_request" } };
   }
 
-  const providerEventId = `${parsed.data.type}:${parsed.data.data.id}`;
-  const existing = await store.getPaymentEvent(polarProvider, providerEventId);
+  const providerEventId = eventId?.trim() || fallbackProviderEventId(parsed.data);
+
+  if (!providerEventId) {
+    return { status: 400, body: { error: "invalid_request" } };
+  }
+
+  const existing = await store.getPaymentEvent(
+    razorpayProvider,
+    providerEventId,
+  );
 
   if (existing) {
     return replayResult(existing);
@@ -318,7 +363,7 @@ export async function processPolarWebhook(
   } catch (error) {
     if (isUniqueViolation(error)) {
       const replay = await store.getPaymentEvent(
-        polarProvider,
+        razorpayProvider,
         providerEventId,
       );
 

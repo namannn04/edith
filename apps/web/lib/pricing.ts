@@ -5,12 +5,31 @@ export type Tier = {
   name: string;
   maxMachines: number;
   priceCents: number;
+  pricePaise: number;
 };
 
 export const tiers: readonly Tier[] = [
-  { id: "individual_1", name: "Individual", maxMachines: 1, priceCents: 2500 },
-  { id: "personal_3", name: "Personal", maxMachines: 3, priceCents: 4500 },
-  { id: "power_5", name: "Power", maxMachines: 5, priceCents: 6500 },
+  {
+    id: "individual_1",
+    name: "Individual",
+    maxMachines: 1,
+    priceCents: 2500,
+    pricePaise: 210000,
+  },
+  {
+    id: "personal_3",
+    name: "Personal",
+    maxMachines: 3,
+    priceCents: 4500,
+    pricePaise: 380000,
+  },
+  {
+    id: "power_5",
+    name: "Power",
+    maxMachines: 5,
+    priceCents: 6500,
+    pricePaise: 550000,
+  },
 ];
 
 export const customTier = {
@@ -21,6 +40,8 @@ export const customTier = {
   baseMachines: 5,
   baseCents: 6500,
   perAdditionalMachineCents: 1000,
+  basePaise: 550000,
+  perAdditionalMachinePaise: 85000,
 } as const;
 
 export const customMachinesSchema = z.coerce
@@ -35,6 +56,15 @@ export function customPriceCents(machines: number): number {
   return (
     customTier.baseCents +
     (count - customTier.baseMachines) * customTier.perAdditionalMachineCents
+  );
+}
+
+export function customPricePaise(machines: number): number {
+  const count = customMachinesSchema.parse(machines);
+
+  return (
+    customTier.basePaise +
+    (count - customTier.baseMachines) * customTier.perAdditionalMachinePaise
   );
 }
 
@@ -60,6 +90,26 @@ export function priceCentsFor(tierId: string, machines: number): number {
   }
 
   return tier.priceCents;
+}
+
+export function pricePaiseFor(tierId: string, machines: number): number {
+  if (tierId === customTier.id) {
+    return customPricePaise(machines);
+  }
+
+  const tier = getTier(tierId);
+
+  if (!tier) {
+    throw new Error(`Unknown tier ${tierId}`);
+  }
+
+  if (tier.maxMachines !== machines) {
+    throw new Error(
+      `Tier ${tierId} covers ${tier.maxMachines} machines, got ${machines}`,
+    );
+  }
+
+  return tier.pricePaise;
 }
 
 export function resolveMachines(

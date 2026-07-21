@@ -1,17 +1,18 @@
 import { licenseStore } from "@/lib/db";
 import { rateLimited } from "@/lib/device-session";
 import { apiJson } from "@/lib/http";
-import { processPolarWebhook } from "@/lib/payments";
-import { verifyPolarSignature } from "@/lib/polar";
+import { processRazorpayWebhook } from "@/lib/payments";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+import { verifyRazorpaySignature } from "@/lib/razorpay";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const route = "/api/payments/polar/webhook";
-
 export async function POST(request: Request): Promise<Response> {
-  const limit = await checkRateLimit(getClientIp(request.headers), route);
+  const limit = await checkRateLimit(
+    getClientIp(request.headers),
+    "/api/payments/razorpay/webhook",
+  );
 
   if (!limit.allowed) {
     return rateLimited(limit.retryAfterSeconds);
@@ -19,7 +20,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const rawBody = await request.text();
 
-  if (!verifyPolarSignature(rawBody, request.headers)) {
+  if (!verifyRazorpaySignature(rawBody, request.headers)) {
     return apiJson({ error: "invalid_signature" }, 401);
   }
 
@@ -32,7 +33,11 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await processPolarWebhook(licenseStore, payload);
+    const result = await processRazorpayWebhook(
+      licenseStore,
+      payload,
+      request.headers.get("x-razorpay-event-id"),
+    );
     return apiJson(result.body, result.status);
   } catch {
     return apiJson({ error: "internal" }, 500);

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { customTier, tiers } from "@/lib/pricing";
 
-export const paymentProvider = "polar";
+export const paymentProvider = "razorpay";
 
 export type Plan = {
   id: string;

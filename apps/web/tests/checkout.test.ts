@@ -3,14 +3,6 @@ import { resolveMachines } from "@/lib/pricing";
 
 const checkoutRoute = await import("@/app/api/checkout/route");
 
-function setPolarEnv(): void {
-  process.env.POLAR_ACCESS_TOKEN = "polar_test_token";
-  process.env.POLAR_PRODUCT_INDIVIDUAL_1 = "prod_individual_1";
-  process.env.POLAR_PRODUCT_PERSONAL_3 = "prod_personal_3";
-  process.env.POLAR_PRODUCT_POWER_5 = "prod_power_5";
-  process.env.POLAR_PRODUCT_CUSTOM = "prod_custom";
-}
-
 type Captured = {
   url: string;
   authorization: string | null;
@@ -39,14 +31,14 @@ function checkoutRequest(body: unknown): Request {
 }
 
 beforeEach(() => {
-  setPolarEnv();
+  process.env.RAZORPAY_KEY_ID = "rzp_test_checkout";
+  process.env.RAZORPAY_KEY_SECRET = "checkout_secret";
   captured = [];
   nextStatus = 200;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     captured.push({
       url: String(input),
-      authorization:
-        new Headers(init?.headers).get("authorization") ?? null,
+      authorization: new Headers(init?.headers).get("authorization"),
       body: JSON.parse(String(init?.body ?? "{}")),
     });
 
@@ -54,18 +46,17 @@ beforeEach(() => {
       return new Response("nope", { status: nextStatus });
     }
 
-    return new Response(
-      JSON.stringify({
-        id: "chk_1",
-        url: "https://sandbox.polar.sh/checkout/chk_1",
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
+    return Response.json({
+      id: "plink_1",
+      short_url: "https://rzp.io/i/plink_1",
+    });
   }) as typeof fetch;
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  delete process.env.RAZORPAY_KEY_ID;
+  delete process.env.RAZORPAY_KEY_SECRET;
 });
 
 describe("machine resolution", () => {
@@ -75,96 +66,59 @@ describe("machine resolution", () => {
   });
 
   test("a fixed tier rejects a mismatched seat count", () => {
-    expect(resolveMachines("personal_3", 9)).toBeNull();
+    expect(resolveMachines("personal_3", 2)).toBeNull();
   });
 
-  test("custom accepts its documented range only", () => {
+  test("custom accepts 6 through 50 only", () => {
     expect(resolveMachines("custom", 6)).toBe(6);
     expect(resolveMachines("custom", 50)).toBe(50);
     expect(resolveMachines("custom", 5)).toBeNull();
     expect(resolveMachines("custom", 51)).toBeNull();
     expect(resolveMachines("custom", undefined)).toBeNull();
   });
-
-  test("unknown plans are rejected", () => {
-    expect(resolveMachines("enterprise", 3)).toBeNull();
-  });
 });
 
 describe("checkout route", () => {
-  test("creates a catalog checkout for a fixed tier", async () => {
+  test("creates a Razorpay payment link for a fixed tier", async () => {
     const response = await checkoutRoute.POST(
       checkoutRequest({ planId: "personal_3" }),
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    expect(await response.json()).toEqual({
       ok: true,
-      url: "https://sandbox.polar.sh/checkout/chk_1",
-      checkoutId: "chk_1",
+      url: "https://rzp.io/i/plink_1",
+      checkoutId: "plink_1",
     });
-
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.url).toBe("https://sandbox-api.polar.sh/v1/checkouts/");
-    expect(captured[0]?.authorization).toBe("Bearer polar_test_token");
-    expect(captured[0]?.body).toMatchObject({
-      products: ["prod_personal_3"],
-      metadata: { plan_id: "personal_3", machines: 3 },
+    expect(captured[0]?.url).toBe(
+      "https://api.razorpay.com/v1/payment_links",
+    );
+    expect(captured[0]?.authorization).toBe(
+      `Basic ${Buffer.from("rzp_test_checkout:checkout_secret").toString("base64")}`,
+    );
+    expect(captured[0]?.body).toEqual({
+      amount: 380000,
+      currency: "INR",
+      accept_partial: false,
+      description: "Edith Personal licence for 3 Macs",
+      notes: { plan_id: "personal_3", machines: "3" },
+      callback_url: "https://edith.pulkit.page/thanks",
+      callback_method: "get",
     });
   });
 
-  test("does not send an ad-hoc price for a fixed tier", async () => {
-    await checkoutRoute.POST(checkoutRequest({ planId: "individual_1" }));
-
-    expect(captured[0]?.body.prices).toBeUndefined();
-  });
-
-  test("sends a server-computed ad-hoc price for the custom tier", async () => {
+  test("uses the server-computed INR amount for custom seats", async () => {
     const response = await checkoutRoute.POST(
       checkoutRequest({ planId: "custom", machines: 12 }),
     );
 
     expect(response.status).toBe(200);
     expect(captured[0]?.body).toMatchObject({
-      products: ["prod_custom"],
-      metadata: { plan_id: "custom", machines: 12 },
-      prices: {
-        prod_custom: [
-          {
-            amount_type: "fixed",
-            price_amount: 13500,
-            price_currency: "usd",
-          },
-        ],
-      },
+      amount: 1145000,
+      currency: "INR",
+      notes: { plan_id: "custom", machines: "12" },
     });
-  });
-
-  test("forwards the buyer's ip so Polar picks their local currency", async () => {
-    const request = new Request("https://edith.test/api/checkout", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-forwarded-for": "49.36.0.1",
-      },
-      body: JSON.stringify({ planId: "personal_3" }),
-    });
-
-    await checkoutRoute.POST(request);
-
-    expect(captured[0]?.body.customer_ip_address).toBe("49.36.0.1");
-  });
-
-  test("omits an unresolvable ip rather than sending the literal unknown", async () => {
-    const request = new Request("https://edith.test/api/checkout", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ planId: "personal_3" }),
-    });
-
-    await checkoutRoute.POST(request);
-
-    expect(captured[0]?.body.customer_ip_address).toBeUndefined();
   });
 
   test("passes the buyer email through when supplied", async () => {
@@ -172,26 +126,12 @@ describe("checkout route", () => {
       checkoutRequest({ planId: "personal_3", email: "buyer@example.com" }),
     );
 
-    expect(captured[0]?.body.customer_email).toBe("buyer@example.com");
+    expect(captured[0]?.body.customer).toEqual({ email: "buyer@example.com" });
   });
 
-  test("omits the email field when absent", async () => {
-    await checkoutRoute.POST(checkoutRequest({ planId: "personal_3" }));
-
-    expect(captured[0]?.body.customer_email).toBeUndefined();
-  });
-
-  test("includes the checkout id placeholder in the success url", async () => {
-    await checkoutRoute.POST(checkoutRequest({ planId: "personal_3" }));
-
-    expect(String(captured[0]?.body.success_url)).toContain(
-      "{CHECKOUT_ID}",
-    );
-  });
-
-  test("rejects a seat count outside the custom range without calling polar", async () => {
+  test("rejects a mismatched fixed-tier seat count", async () => {
     const response = await checkoutRoute.POST(
-      checkoutRequest({ planId: "custom", machines: 51 }),
+      checkoutRequest({ planId: "personal_3", machines: 2 }),
     );
 
     expect(response.status).toBe(400);
@@ -199,7 +139,32 @@ describe("checkout route", () => {
     expect(captured).toHaveLength(0);
   });
 
-  test("rejects an unknown plan without calling polar", async () => {
+  test("rejects custom seat counts below and above the allowed range", async () => {
+    for (const machines of [5, 51]) {
+      const response = await checkoutRoute.POST(
+        checkoutRequest({ planId: "custom", machines }),
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "invalid_plan" });
+    }
+
+    expect(captured).toHaveLength(0);
+  });
+
+  test("accepts both custom range boundaries", async () => {
+    for (const machines of [6, 50]) {
+      const response = await checkoutRoute.POST(
+        checkoutRequest({ planId: "custom", machines }),
+      );
+
+      expect(response.status).toBe(200);
+    }
+
+    expect(captured).toHaveLength(2);
+  });
+
+  test("rejects an unknown plan without calling Razorpay", async () => {
     const response = await checkoutRoute.POST(
       checkoutRequest({ planId: "enterprise" }),
     );
@@ -208,7 +173,7 @@ describe("checkout route", () => {
     expect(captured).toHaveLength(0);
   });
 
-  test("rejects a malformed body", async () => {
+  test("rejects malformed JSON", async () => {
     const response = await checkoutRoute.POST(checkoutRequest("not json"));
 
     expect(response.status).toBe(400);
@@ -226,8 +191,8 @@ describe("checkout route", () => {
     expect(await response.json()).toEqual({ error: "checkout_failed" });
   });
 
-  test("reports missing configuration as unavailable, not a gateway error", async () => {
-    delete process.env.POLAR_PRODUCT_PERSONAL_3;
+  test("surfaces missing configuration as 503", async () => {
+    delete process.env.RAZORPAY_KEY_SECRET;
 
     const response = await checkoutRoute.POST(
       checkoutRequest({ planId: "personal_3" }),
@@ -235,17 +200,6 @@ describe("checkout route", () => {
 
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: "checkout_unavailable" });
-    expect(captured).toHaveLength(0);
-  });
-
-  test("a missing access token is also configuration, not upstream", async () => {
-    delete process.env.POLAR_ACCESS_TOKEN;
-
-    const response = await checkoutRoute.POST(
-      checkoutRequest({ planId: "personal_3" }),
-    );
-
-    expect(response.status).toBe(503);
     expect(captured).toHaveLength(0);
   });
 });

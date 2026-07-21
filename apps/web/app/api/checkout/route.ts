@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { rateLimited } from "@/lib/device-session";
 import { apiJson, siteUrl } from "@/lib/http";
-import { createCheckoutSession, PolarConfigError } from "@/lib/polar";
-import { priceCentsFor, resolveMachines } from "@/lib/pricing";
+import { customTier, getTier, pricePaiseFor, resolveMachines } from "@/lib/pricing";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+import { createPaymentLink, RazorpayConfigError } from "@/lib/razorpay";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,13 +45,17 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const session = await createCheckoutSession({
+    const planName =
+      parsed.data.planId === customTier.id
+        ? customTier.name
+        : (getTier(parsed.data.planId)?.name ?? parsed.data.planId);
+    const session = await createPaymentLink({
       planId: parsed.data.planId,
+      planName,
       machines,
-      priceCents: priceCentsFor(parsed.data.planId, machines),
-      successUrl: `${siteUrl()}/thanks?checkout_id={CHECKOUT_ID}`,
+      amountPaise: pricePaiseFor(parsed.data.planId, machines),
+      callbackUrl: `${siteUrl()}/thanks`,
       customerEmail: parsed.data.email,
-      customerIp: clientIp,
     });
 
     return apiJson({ ok: true, url: session.url, checkoutId: session.id }, 200);
@@ -59,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
     const reason = error instanceof Error ? error.message : "unknown";
     console.error(`checkout failed for ${parsed.data.planId}: ${reason}`);
 
-    if (error instanceof PolarConfigError) {
+    if (error instanceof RazorpayConfigError) {
       return apiJson({ error: "checkout_unavailable" }, 503);
     }
 

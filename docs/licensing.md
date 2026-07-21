@@ -106,10 +106,10 @@ just the fixed message prefix, not a URL or protocol version.
   Marks the device deactivated, revokes its credentials, frees the seat, records a
   security event.
 - `POST /api/checkout` `{planId, machines?, email?}` -> `{ok, url, checkoutId}`. Creates a
-  Polar hosted checkout (see below).
+  Razorpay hosted Payment Link (see below).
 - `POST /api/licenses/resend` `{email}` -> always `{ok, message}`. Emails every active key
   for that address (see below).
-- `POST /api/payments/polar/webhook`: signature-verified, idempotent (see below).
+- `POST /api/payments/razorpay/webhook`: signature-verified, idempotent (see below).
 - `GET /api/download/dmg`: **Bearer access token only**. Streams the latest `Edith-v*.dmg`
   from the private GitHub release using the server `GITHUB_TOKEN`. 403 `unlicensed`
   otherwise.
@@ -189,12 +189,12 @@ the grace ceiling.
 The price ladder lives in `lib/pricing.ts` and is the single source of truth; `lib/plans.ts`
 derives its catalog from it.
 
-| Plan | Macs | Price |
-| --- | --- | --- |
-| `individual_1` | 1 | $25 |
-| `personal_3` | 3 | $45 |
-| `power_5` | 5 | $65 |
-| `custom` | 6 to 50 | $65 + $10 per Mac above 5 |
+| Plan | Macs | USD price | INR price |
+| --- | --- | --- | --- |
+| `individual_1` | 1 | $25 | Rs 2,100 |
+| `personal_3` | 3 | $45 | Rs 3,800 |
+| `power_5` | 5 | $65 | Rs 5,500 |
+| `custom` | 6 to 50 | $65 + $10 per Mac above 5 | Rs 5,500 + Rs 850 per Mac above 5 |
 
 `custom` allowances live on the license as an explicit `custom_max_machines` override;
 `effectiveAllowance` is `custom_max_machines ?? max_machines`.
@@ -204,49 +204,55 @@ Env ceilings `LICENSE_STANDARD_MAX_MACHINES_CAP` (default 5) and
 allowance above its ceiling throws at issuance rather than being silently reduced
 (`validatePlanAllowance`).
 
-Polar product ids live in env (`POLAR_PRODUCT_*`), not in the `plans` table, because they
-differ between the sandbox and production Polar environments while the database schema
-does not.
+Razorpay Payment Links carry `plan_id` and `machines` as string values in their `notes`
+object. Razorpay does not use a product id for this flow, so the plan remains an Edith
+identifier and the database schema does not depend on Razorpay catalogue data.
 
 ## Checkout
 
 `POST /api/checkout` (`app/api/checkout/route.ts`) takes `{ planId, machines?, email? }`
-and returns a Polar hosted checkout URL.
+and returns a Razorpay hosted Payment Link `short_url`.
 
-Fixed tiers use their catalog price. The custom tier sends an **ad-hoc fixed price**
-computed server-side from `customPriceCents`. This matters: Polar's `amount` field is only
-a prefill for pay-what-you-want prices and the buyer can edit it down to the minimum, so a
-PWYW-based custom tier would let someone select 50 Macs and pay 50 cents. An ad-hoc fixed
-price is not buyer-editable.
+Every link uses INR and an integer amount in paise. Fixed tiers use the INR ladder, while
+the custom tier uses the server-computed `customPricePaise` value. Partial payments are
+disabled. Checkout creation uses HTTP Basic authentication with
+`RAZORPAY_KEY_ID:RAZORPAY_KEY_SECRET` against `https://api.razorpay.com/v1`; test and live
+mode use the same host and are selected by the `rzp_test_` or `rzp_live_` key prefix.
 
-Seat counts are validated before Polar is called: a fixed tier rejects any count other
+Seat counts are validated before Razorpay is called: a fixed tier rejects any count other
 than its own, and custom accepts 6 to 50 only.
 
 ## Payments webhook
 
-`POST /api/payments/polar/webhook` (`lib/payments.ts`):
+`POST /api/payments/razorpay/webhook` (`lib/payments.ts`):
 
-- Verifies the Standard Webhooks signature (`webhook-id`, `webhook-timestamp`,
-  `webhook-signature`) against `POLAR_WEBHOOK_SECRET` before parsing anything. The HMAC key
-  is the **raw UTF-8 bytes** of the secret, and stale or future timestamps outside a five
-  minute window are rejected.
-- Idempotent on `provider_event_id` (`<type>:<order id>`): a replayed event returns the
-  stored result, and a unique-violation race falls back to the recorded outcome.
-- Fulfils on **`order.paid`, not `order.created`**. UPI settles asynchronously, so an order
-  can exist before the money arrives; `order.created` would hand out a licence too early.
-- Resolves the plan from checkout metadata (`plan_id`, `machines`), falling back to the
-  product id for fixed tiers. A custom order without metadata is refused rather than
-  guessed, because there is no way to infer the seat count.
-- Re-derives the expected price from the ladder and compares it to `subtotal_amount`
-  before minting. `subtotal_amount` is pre-discount, so coupon codes still pass. The check
-  is skipped for non-USD orders, where Polar has converted the presentment amount.
+- Verifies `x-razorpay-signature` against the raw request body with HMAC-SHA256 and
+  `RAZORPAY_WEBHOOK_SECRET` before parsing anything. The hex digest is compared in constant
+  time after checking its length.
+- Razorpay does not sign a timestamp header. The endpoint therefore cannot enforce a
+  replay-age window. Signature validation proves authenticity but not freshness;
+  persistent idempotency is the replay defence.
+- Idempotent on `provider_event_id`: it uses `x-razorpay-event-id` when present and falls
+  back to `<event>:<payment link id>`. The official refund payload has no Payment Link
+  entity, so `refund.created` falls back to its refund id. A replay returns the stored
+  result, and a unique-violation race falls back to the recorded outcome.
+- Fulfils only on **`payment_link.paid`**. The link, order, and payment must report paid or
+  captured state before a licence is minted.
+- Resolves the plan only from Payment Link notes (`plan_id`, `machines`). Notes are
+  strings; non-integer, out-of-range, unknown, or allowance-breaking values are refused.
+- Re-derives the expected INR price from the ladder and compares it to the signed
+  `payment_link.amount`, the original amount configured on the link. Razorpay reports
+  `amount_paid` and whether an offer is associated, but the Payment Link webhook does not
+  provide a numeric discount amount or a customer-tax subtotal that can reconstruct list
+  price from the gross charge. Comparing the original link amount preserves the list-price
+  check, permits a valid offer to reduce `amount_paid`, and avoids treating Razorpay fee
+  tax as customer tax.
 - Links the buyer to a `users` row by email, mints the key, and stores its digest and
-  last4. `order.refunded` moves the license to `refunded`. Every transition writes a
-  `security_events` row.
+  last4. `refund.created` moves the license to `refunded`, using the refund's payment id to
+  locate the original paid event. Every transition writes a `security_events` row.
 - Sends the key through Resend **after** the transaction commits, so a delivery failure
   never rolls back a paid order. The outcome is recorded as `license_delivered`,
-  `license_delivery_failed`, or `license_delivery_skipped` (buyer had no email on file,
-  which Polar permits).
+  `license_delivery_failed`, or `license_delivery_skipped` when no buyer email is present.
 
 ## Key recovery
 
@@ -278,17 +284,13 @@ else's inbox.
 `SITE_URL` (default `https://edith.pulkit.page`), `UPSTASH_REDIS_REST_URL`,
 `UPSTASH_REDIS_REST_TOKEN`.
 
-**Payments env**: `POLAR_SERVER` (`sandbox` unless set to `production`),
-`POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`, `POLAR_PRODUCT_INDIVIDUAL_1`,
-`POLAR_PRODUCT_PERSONAL_3`, `POLAR_PRODUCT_POWER_5`, `POLAR_PRODUCT_CUSTOM`,
-`RESEND_API_KEY`, `LICENSE_EMAIL_FROM`.
+**Payments env**: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
+`RAZORPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `LICENSE_EMAIL_FROM`.
 
-**Sandbox testing**: Polar's sandbox is a separate instance with its own account, so sign
-up at `sandbox.polar.sh` and mint a sandbox token. Point `POLAR_SERVER=sandbox`, forward
-webhooks with `polar login && polar listen http://localhost:3000/api/payments/polar/webhook`
-(which prints the signing secret to use), and pay with Stripe's test card
-`4242 4242 4242 4242`. Sandbox only delivers customer email to members of your Polar
-organization.
+**Test mode**: use a Razorpay `rzp_test_` key id with its secret. The API remains
+`https://api.razorpay.com/v1`; there is no separate sandbox host. Configure a test-mode
+webhook for `/api/payments/razorpay/webhook` with a dedicated webhook secret and subscribe
+to `payment_link.paid` and `refund.created`.
 
 **Mint a license by hand** (billing mints the rest automatically):
 
@@ -327,16 +329,11 @@ build for use until a Developer ID exists.
 
 **Go-live checklist still pending**:
 
-- Complete Polar organization onboarding. Until details are submitted the org reports
-  `checkout_payments: false` and cannot take money.
-- Create the four products in production Polar and set the `POLAR_PRODUCT_*` env vars.
-- Set `POLAR_WEBHOOK_SECRET`, register the production webhook against `order.paid` and
-  `order.refunded`, and flip `POLAR_SERVER=production`.
-- Verify a UPI checkout end to end. Polar shipped UPI on 2026-07-10 and
-  [polarsource/polar#13280](https://github.com/polarsource/polar/issues/13280) reports it
-  failing for consumer buyers who do not tick "I'm purchasing as a business", because
-  Stripe requires a full billing address for UPI. Consider setting
-  `require_billing_address` on checkout if the bug is still open.
+- Complete Razorpay account activation and settlement configuration.
+- Set the live `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
+- Set `RAZORPAY_WEBHOOK_SECRET` and register the production webhook for
+  `payment_link.paid` and `refund.created`.
+- Verify card and UPI Payment Link checkout end to end in test mode and live mode.
 - Verify the `pulkit.page` sending domain in Resend and set `RESEND_API_KEY`.
 - Obtain a Developer ID Application identity and drop `EDITH_RELEASE_ALLOW_DEV_SIGNING`.
 - Provision Upstash Redis env vars for production rate limiting.
