@@ -22,3 +22,4 @@ apps/promo-video/out/
 apps/macos/*.dmg
 apps/macos/dmg-root/
 apps/macos/dist/
+.vercel
