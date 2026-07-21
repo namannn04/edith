@@ -1,5 +1,19 @@
 import AppKit
+import EdithKit
 import SwiftUI
+
+struct ZoomableRoot<Content: View>: View {
+    @AppStorage(WindowZoom.defaultsKey, store: SharedDefaults.store) private var zoom = 1.0
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        GeometryReader { geo in
+            content
+                .frame(width: geo.size.width / zoom, height: geo.size.height / zoom)
+                .scaleEffect(zoom, anchor: .topLeading)
+        }
+    }
+}
 
 @MainActor
 enum MainWindow {
@@ -69,7 +83,8 @@ enum MainWindow {
         w.titlebarSeparatorStyle = .none
         w.isReleasedWhenClosed = false
         w.contentMinSize = NSSize(width: 720, height: 500)
-        let hosting = NSHostingController(rootView: MainWindowView(updater: updater))
+        let hosting = NSHostingController(
+            rootView: ZoomableRoot { MainWindowView(updater: updater) })
         hosting.sizingOptions = []
         w.contentViewController = hosting
         w.setContentSize(NSSize(width: 900, height: 680))
