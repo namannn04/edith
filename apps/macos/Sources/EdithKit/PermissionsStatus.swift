@@ -2,24 +2,30 @@ import Foundation
 
 public enum PermissionsStatus {
     public static var current: Bool {
-        let d = SharedDefaults.store
-        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? false }
-        return needsAttention(
-            usageTab: on("tabUsageEnabled"), calendarTab: on("tabCalendarEnabled"),
-            systemTab: on("tabSystemEnabled"),
-            notifyMaster: d.bool(forKey: "notifyMaster"),
-            calendar: d.bool(forKey: "permCalendarGranted"),
-            accessibility: d.bool(forKey: "permAccessibilityGranted"),
-            inputMonitoring: d.bool(forKey: "permInputMonitoringGranted"),
-            notifications: d.bool(forKey: "permNotificationsGranted"))
+        let defaults = SharedDefaults.store
+        if defaults.bool(forKey: "tabUsageEnabled"), defaults.bool(forKey: "notifyMaster"),
+            !defaults.bool(forKey: "permNotificationsGranted")
+        {
+            return true
+        }
+        return PermissionCatalog.needsAttention(usages)
     }
 
-    public static func needsAttention(
-        usageTab: Bool, calendarTab: Bool, systemTab _: Bool, notifyMaster: Bool,
-        calendar: Bool, accessibility _: Bool, inputMonitoring _: Bool, notifications: Bool
-    ) -> Bool {
-        if calendarTab, !calendar { return true }
-        if usageTab, notifyMaster, !notifications { return true }
-        return false
+    public static var granted: [ExtensionPermission: Bool] {
+        let defaults = SharedDefaults.store
+        return ExtensionPermission.allCases.reduce(into: [:]) { result, permission in
+            guard let key = permission.grantedDefaultsKey else {
+                result[permission] = false
+                return
+            }
+            result[permission] = defaults.bool(forKey: key)
+        }
+    }
+
+    public static var usages: [PermissionUsage] {
+        let defaults = SharedDefaults.store
+        let enabledKeys = Set(
+            ExtensionRegistry.entries.map(\.defaultsKey).filter { defaults.bool(forKey: $0) })
+        return PermissionCatalog.usages(enabledKeys: enabledKeys, granted: granted)
     }
 }

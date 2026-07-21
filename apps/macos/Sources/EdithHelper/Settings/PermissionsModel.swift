@@ -80,16 +80,7 @@ final class PermissionsModel: ObservableObject {
         IPC.post(IPC.Name.permissionsRefreshed)
     }
 
-    var needsAttention: Bool {
-        let d = SharedDefaults.store
-        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? false }
-        return PermissionsStatus.needsAttention(
-            usageTab: on("tabUsageEnabled"), calendarTab: on("tabCalendarEnabled"),
-            systemTab: on("tabSystemEnabled"),
-            notifyMaster: d.bool(forKey: "notifyMaster"),
-            calendar: calendar, accessibility: accessibility,
-            inputMonitoring: inputMonitoring, notifications: notifications)
-    }
+    var needsAttention: Bool { PermissionsStatus.current }
 
     func grantCalendar() {
         Task { @MainActor in
