@@ -297,7 +297,7 @@ enum FocusDimHotKey {
     }
 
     static func register() {
-        guard SharedDefaults.store.bool(forKey: "focusDimEnabled") else {
+        guard SharedDefaults.store.bool(forKey: FocusDimState.enabledKey) else {
             unregister()
             return
         }
@@ -312,8 +312,8 @@ enum FocusDimHotKey {
 }
 
 func toggleFocusDim() {
-    let enabled = !SharedDefaults.store.bool(forKey: "focusDimEnabled")
-    SharedDefaults.store.set(enabled, forKey: "focusDimEnabled")
+    let active = !SharedDefaults.store.bool(forKey: FocusDimState.activeKey)
+    SharedDefaults.store.set(active, forKey: FocusDimState.activeKey)
     IPC.post(IPC.Name.settingsChanged)
 }
 

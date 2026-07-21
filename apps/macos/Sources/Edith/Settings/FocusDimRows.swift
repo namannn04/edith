@@ -11,9 +11,16 @@ struct FocusDimRows: View {
     private var animationDuration = FocusDimMath.defaultAnimationDuration
     @AppStorage("focusDimOtherDisplaysMode", store: SharedDefaults.store)
     private var otherDisplaysMode = FocusDimDisplayMode.perScreenFront
+    @AppStorage(FocusDimState.activeKey, store: SharedDefaults.store) private var active = false
 
     var body: some View {
         Section {
+            Toggle("Dim now", isOn: $active)
+                .pointerCursor()
+            Text(
+                "Turns the dimming on and off. The shortcut keeps working either way; removing the extension is a separate switch."
+            )
+            .font(.caption).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 6) {
                 LabeledContent("Intensity") {
                     Text("\(Int(intensity * 100))%")
