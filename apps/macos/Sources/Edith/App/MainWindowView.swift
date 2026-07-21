@@ -98,22 +98,24 @@ struct TitlebarChrome: View {
                 Image(systemName: "sidebar.left")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 22, height: 22)
             }
             .buttonStyle(HoverButtonStyle())
             .help("Toggle sidebar (⌘B)")
             .keyboardShortcut("b", modifiers: .command)
 
             if sidebarOpen, width >= 130 {
-                HStack(alignment: .center, spacing: 7) {
+                HStack(alignment: .center, spacing: 6) {
                     if let icon = Brand.icon {
                         Image(nsImage: icon)
                             .resizable()
                             .interpolation(.high)
-                            .frame(width: 19, height: 19)
+                            .frame(width: 17, height: 17)
                     }
                     Text("Edith")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .medium))
+                        .tracking(-0.2)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -135,36 +137,36 @@ private struct SidebarNavRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 11) {
+            HStack(spacing: UIScale.pt(11)) {
                 Image(systemName: item.icon)
-                    .font(.system(size: 14, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(.primary)
-                    .frame(width: 22)
+                    .font(.system(size: UIScale.pt(14), weight: .medium))
+                    .foregroundStyle(selected ? .primary : .secondary)
+                    .frame(width: UIScale.pt(22))
                 Text(item.title)
-                    .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: UIScale.pt(13.5), weight: .medium))
+                    .foregroundStyle(selected ? .primary : .secondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 if let shortcutHint {
                     Text(shortcutHint)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: UIScale.pt(11), weight: .medium))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 10)
+            .padding(.vertical, UIScale.pt(8))
+            .padding(.horizontal, UIScale.pt(10))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background {
             ZStack {
                 if hovering && !selected {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: UIScale.pt(10), style: .continuous)
                         .fill(.primary.opacity(0.07))
                 }
                 if selected {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: UIScale.pt(10), style: .continuous)
                         .fill(theme.opacity(0.16))
                         .matchedGeometryEffect(
                             id: "sidebarSelection", in: selectionNamespace, isSource: true)
@@ -233,6 +235,7 @@ struct MainWindowView: View {
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("creditHidden", store: SharedDefaults.store) private var creditHidden = false
     @AppStorage(WindowZoom.defaultsKey, store: SharedDefaults.store) private var zoom = 1.0
+    @AppStorage("EdithMainWindowFullScreen") private var windowFullScreen = false
     @State private var dragBaseWidth: Double?
     @State private var musicKeyMonitor: Any?
     @State private var windowKeyMonitor: Any?
@@ -250,10 +253,16 @@ struct MainWindowView: View {
 
     private static let minSidebarWidth = 180.0
     private static let maxSidebarWidth = 320.0
+    private static let defaultSidebarWidth = 230.0
+    private static let trafficLightsInset = 94.0
+    private static let chromeHeight = 31.0
+    private static let fullScreenControlsInset = 12.0
 
     private var clampedSidebarWidth: Double {
         min(Self.maxSidebarWidth, max(Self.minSidebarWidth, sidebarWidth))
     }
+
+    private var displaySidebarWidth: Double { UIScale.pt(clampedSidebarWidth) }
 
     private var destination: MainDestination {
         let requested = MainDestination.resolve(navigationSelection.mainWindowSection)
@@ -297,7 +306,7 @@ struct MainWindowView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let bandHeight = max(geo.safeAreaInsets.top, 28)
+            let bandHeight = Self.chromeHeight + UIScale.pt(10)
             VStack(spacing: 0) {
                 mainArea(bandHeight)
                 if musicFooterVisible {
@@ -306,7 +315,7 @@ struct MainWindowView: View {
                 }
             }
             .ignoresSafeArea()
-            .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
+            .overlay(alignment: .topLeading) { chromeOverlay() }
             .animation(
                 Motion.animation(Motion.glide, reduceMotion: reduceMotion),
                 value: visibleHomeItems
@@ -417,7 +426,7 @@ struct MainWindowView: View {
     private func mainArea(_ bandHeight: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
             sidebar(bandHeight)
-                .frame(width: clampedSidebarWidth, alignment: .leading)
+                .frame(width: displaySidebarWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             detailColumn(bandHeight)
@@ -427,12 +436,12 @@ struct MainWindowView: View {
                         topLeadingRadius: detailCorner, bottomLeadingRadius: detailCorner,
                         style: .continuous)
                 )
-                .padding(.leading, sidebarOpen ? clampedSidebarWidth : 0)
-                .shadow(color: detailShadow, radius: 18, x: -6, y: 0)
+                .padding(.leading, sidebarOpen ? displaySidebarWidth : 0)
+                .shadow(color: detailShadow, radius: UIScale.pt(18), x: -6, y: 0)
 
             sidebarEdge
                 .frame(maxHeight: .infinity)
-                .offset(x: sidebarOpen ? clampedSidebarWidth : 0)
+                .offset(x: sidebarOpen ? displaySidebarWidth : 0)
                 .opacity(sidebarOpen ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -448,14 +457,15 @@ struct MainWindowView: View {
         }
     }
 
-    private func chromeOverlay(_ bandHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
+    private func chromeOverlay() -> some View {
+        let inset = windowFullScreen ? Self.fullScreenControlsInset : Self.trafficLightsInset
+        return VStack(spacing: 0) {
             TitlebarChrome(
-                height: min(bandHeight, 52),
-                width: sidebarOpen ? max(clampedSidebarWidth - 94, 60) : 200)
+                height: Self.chromeHeight,
+                width: sidebarOpen ? max(displaySidebarWidth - inset, 60) : UIScale.pt(200))
             Spacer(minLength: 0)
         }
-        .padding(.leading, 94)
+        .padding(.leading, inset)
         .ignoresSafeArea(edges: .top)
     }
 
@@ -466,7 +476,7 @@ struct MainWindowView: View {
     }
 
     private func detailColumn(_ bandHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
+        VStack(spacing: UIScale.pt(0)) {
             band(
                 destination.usesPaperBackground
                     ? DashSkin.paper(scheme == .dark) : Color(nsColor: .windowBackgroundColor),
@@ -483,16 +493,16 @@ struct MainWindowView: View {
     private func sidebar(_ bandHeight: CGFloat) -> some View {
         ZStack {
             SidebarMaterial()
-            VStack(spacing: 0) {
+            VStack(spacing: UIScale.pt(0)) {
                 band(.clear, height: bandHeight)
-                VStack(spacing: 0) {
+                VStack(spacing: UIScale.pt(0)) {
                     sidebarList
                     if footerVisible {
                         Divider()
                         sidebarFooter
                     }
                     credit
-                        .padding(.vertical, 8)
+                        .padding(.vertical, UIScale.pt(8))
                 }
             }
         }
@@ -500,7 +510,7 @@ struct MainWindowView: View {
 
     private var sidebarList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: UIScale.pt(2)) {
                 ForEach(visibleHomeItems) { item in
                     SidebarNavRow(
                         item: item, selected: destination == item, theme: theme,
@@ -511,11 +521,11 @@ struct MainWindowView: View {
                     }
                 }
                 Text("App")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: UIScale.pt(11), weight: .semibold))
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 8)
-                    .padding(.top, 14)
-                    .padding(.bottom, 4)
+                    .padding(.horizontal, UIScale.pt(8))
+                    .padding(.top, UIScale.pt(14))
+                    .padding(.bottom, UIScale.pt(4))
                 ForEach(MainDestination.appItems) { item in
                     SidebarNavRow(
                         item: item, selected: destination == item, theme: theme,
@@ -526,8 +536,8 @@ struct MainWindowView: View {
                     }
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
+            .padding(.horizontal, UIScale.pt(8))
+            .padding(.top, UIScale.pt(8))
         }
         .frame(maxHeight: .infinity)
         .animation(
@@ -593,7 +603,7 @@ struct MainWindowView: View {
     }
 
     private var sidebarFooter: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: UIScale.pt(8)) {
             if let version = updater.updateReady {
                 updateReadyPill(version)
             }
@@ -604,26 +614,26 @@ struct MainWindowView: View {
                 permissionsPill
             }
         }
-        .padding(10)
+        .padding(UIScale.pt(10))
     }
 
     private func updateReadyPill(_ version: String) -> some View {
         Button {
             updater.checkForUpdates()
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: UIScale.pt(6)) {
                 Image(systemName: "arrow.down.circle.fill")
                 Text("Update ready")
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(.system(size: UIScale.pt(11.5), weight: .semibold))
                 Text("v\(version)")
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: UIScale.pt(10.5), weight: .medium))
                     .opacity(0.75)
                 Spacer(minLength: 0)
             }
             .foregroundStyle(DashSkin.sage)
-            .padding(.horizontal, 9)
-            .frame(height: 28)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 9))
+            .padding(.horizontal, UIScale.pt(9))
+            .frame(height: UIScale.pt(28))
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: UIScale.pt(9)))
         }
         .buttonStyle(.plain)
         .pointerCursor()
@@ -649,12 +659,12 @@ struct MainWindowView: View {
                 preventSleep.toggle()
             },
         ]
-        VStack(spacing: 8) {
+        VStack(spacing: UIScale.pt(8)) {
             if systemEnabled {
                 if clampedSidebarWidth < 220 {
                     tiles[0]; tiles[1]
                 } else {
-                    HStack(spacing: 8) {
+                    HStack(spacing: UIScale.pt(8)) {
                         tiles[0]; tiles[1]
                     }
                 }
@@ -666,20 +676,20 @@ struct MainWindowView: View {
     }
 
     private var presenterQuickActionTile: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: UIScale.pt(0)) {
             Button {
                 presenterMode.toggle()
             } label: {
-                VStack(spacing: 4) {
+                VStack(spacing: UIScale.pt(4)) {
                     Image(systemName: "theatermasks.fill")
-                        .font(.system(size: 14))
+                        .font(.system(size: UIScale.pt(14)))
                         .symbolEffect(.bounce, value: presenterMode)
                     Text("Presenter mode")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: UIScale.pt(10), weight: .medium))
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+                .padding(.vertical, UIScale.pt(8))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -688,15 +698,15 @@ struct MainWindowView: View {
 
             Rectangle()
                 .fill(presenterMode ? Color.white.opacity(0.24) : Color.primary.opacity(0.08))
-                .frame(width: 1, height: 28)
+                .frame(width: UIScale.pt(1), height: UIScale.pt(28))
 
             Button {
                 presenterQuickActionsPresented.toggle()
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: UIScale.pt(10), weight: .semibold))
                     .symbolEffect(.bounce, value: presenterQuickActionsPresented)
-                    .frame(width: 30, height: 46)
+                    .frame(width: UIScale.pt(30), height: UIScale.pt(46))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -709,16 +719,16 @@ struct MainWindowView: View {
         .foregroundStyle(presenterMode ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
         .background(
             presenterMode ? AnyShapeStyle(theme) : AnyShapeStyle(.thinMaterial),
-            in: RoundedRectangle(cornerRadius: 9)
+            in: RoundedRectangle(cornerRadius: UIScale.pt(9))
         )
-        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .clipShape(RoundedRectangle(cornerRadius: UIScale.pt(9)))
     }
 
     private var presenterQuickActionsPopover: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: UIScale.pt(0)) {
             Text("Presenter mode")
-                .font(.system(size: 13, weight: .semibold))
-                .padding(.bottom, 10)
+                .font(.system(size: UIScale.pt(13), weight: .semibold))
+                .padding(.bottom, UIScale.pt(10))
             presenterQuickActionToggle("Blur music", isOn: $presenterBlurMusic)
             Divider()
             presenterQuickActionToggle("Blur cost figures", isOn: $presenterBlurMoney)
@@ -727,15 +737,15 @@ struct MainWindowView: View {
             Divider()
             presenterQuickActionToggle("Blur calendar events", isOn: $presenterBlurCalendar)
         }
-        .padding(14)
-        .frame(width: 250)
+        .padding(UIScale.pt(14))
+        .frame(width: UIScale.pt(250))
         .disabled(!presenterMode && !presenterAutoEnabled)
     }
 
     private func presenterQuickActionToggle(_ title: String, isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: UIScale.pt(12)) {
             Text(title)
-                .font(.system(size: 12.5))
+                .font(.system(size: UIScale.pt(12.5)))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Toggle("", isOn: isOn)
                 .labelsHidden()
@@ -744,8 +754,8 @@ struct MainWindowView: View {
                 .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
+        .padding(.horizontal, UIScale.pt(8))
+        .padding(.vertical, UIScale.pt(8))
         .background(
             hoveredPresenterQuickAction == title ? Color.primary.opacity(0.06) : Color.clear
         )
@@ -769,20 +779,20 @@ struct MainWindowView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: UIScale.pt(4)) {
                 Image(systemName: icon)
-                    .font(.system(size: 14))
+                    .font(.system(size: UIScale.pt(14)))
                     .symbolEffect(.bounce, value: trigger)
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: UIScale.pt(10), weight: .medium))
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.vertical, UIScale.pt(8))
             .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             .background(
                 active ? AnyShapeStyle(theme) : AnyShapeStyle(.thinMaterial),
-                in: RoundedRectangle(cornerRadius: 9)
+                in: RoundedRectangle(cornerRadius: UIScale.pt(9))
             )
             .contentShape(Rectangle())
         }
@@ -794,10 +804,10 @@ struct MainWindowView: View {
     private var sidebarEdge: some View {
         Rectangle()
             .fill(Color(nsColor: .separatorColor))
-            .frame(width: 1)
+            .frame(width: UIScale.pt(1))
             .overlay {
                 Color.clear
-                    .frame(width: 9)
+                    .frame(width: UIScale.pt(9))
                     .contentShape(Rectangle())
                     .onHover { inside in
                         if inside {
@@ -809,21 +819,24 @@ struct MainWindowView: View {
                     .gesture(
                         DragGesture(coordinateSpace: .global)
                             .onChanged { value in
-                                let base = dragBaseWidth ?? clampedSidebarWidth
+                                let base = dragBaseWidth ?? displaySidebarWidth
                                 dragBaseWidth = base
                                 sidebarWidth = min(
                                     Self.maxSidebarWidth,
-                                    max(Self.minSidebarWidth, base + value.translation.width))
+                                    max(
+                                        Self.minSidebarWidth,
+                                        (base + value.translation.width) / UIScale.current))
                             }
                             .onEnded { _ in dragBaseWidth = nil }
                     )
+                    .onTapGesture(count: 2) { sidebarWidth = Self.defaultSidebarWidth }
             }
     }
 
     @ViewBuilder
     private var credit: some View {
         if !creditHidden {
-            HStack(spacing: 3) {
+            HStack(spacing: UIScale.pt(3)) {
                 Spacer(minLength: 0)
                 Text("Made with ♥ by")
                     .foregroundStyle(.tertiary)
@@ -840,15 +853,15 @@ struct MainWindowView: View {
                     withAnimation(.easeOut(duration: 0.2)) { creditHidden = true }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.system(size: UIScale.pt(8), weight: .semibold))
                         .foregroundStyle(.tertiary)
-                        .frame(width: 16, height: 16)
+                        .frame(width: UIScale.pt(16), height: UIScale.pt(16))
                 }
                 .buttonStyle(HoverButtonStyle())
                 .help("Hide this")
             }
-            .font(.system(size: 10))
-            .padding(.horizontal, 8)
+            .font(.system(size: UIScale.pt(10)))
+            .padding(.horizontal, UIScale.pt(8))
             .frame(maxWidth: .infinity)
         }
     }
@@ -858,16 +871,17 @@ struct MainWindowView: View {
             settingsTab = SettingsPane.Tab.permissions.rawValue
             mainWindowSection = MainDestination.settings.rawValue
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: UIScale.pt(6)) {
                 Image(systemName: "exclamationmark.triangle.fill")
                 Text("Permissions need attention")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: UIScale.pt(11), weight: .medium))
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.orange)
-            .padding(.horizontal, 8)
-            .frame(height: 26)
-            .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+            .padding(.horizontal, UIScale.pt(8))
+            .frame(height: UIScale.pt(26))
+            .background(
+                Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: UIScale.pt(7)))
         }
         .buttonStyle(.plain)
         .pointerCursor()
