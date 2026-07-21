@@ -131,13 +131,22 @@ struct RateLimitsDialsView: View {
         LimitProvider.claude.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var providers: [LimitProvider] { DashLimits.availableProviders() }
+    @State private var providers: [LimitProvider] = []
+
     private var selected: LimitProvider {
         get {
             let saved = LimitProvider(rawValue: selectedRaw) ?? .claude
             return providers.contains(saved) ? saved : providers.first ?? saved
         }
         nonmutating set { selectedRaw = newValue.rawValue }
+    }
+
+    private func reload() {
+        let found = DashLimits.availableProviders()
+        providers = found
+        let saved = LimitProvider(rawValue: selectedRaw) ?? .claude
+        point = DashLimits.loadLatest(
+            provider: found.contains(saved) ? saved : found.first ?? saved)
     }
 
     var body: some View {
@@ -150,9 +159,7 @@ struct RateLimitsDialsView: View {
                 Spacer()
                 Text("session · weekly").font(.system(size: 11.5))
                     .foregroundStyle(DashSkin.inkFaint(dark))
-                LimitsRefreshButton(dark: dark) {
-                    point = DashLimits.loadLatest(provider: selected)
-                }
+                LimitsRefreshButton(dark: dark) { reload() }
             }
             HStack(spacing: 24) {
                 dial("SESSION (5H)", pct: point?.s, reset: point?.sr)
@@ -174,15 +181,15 @@ struct RateLimitsDialsView: View {
             RoundedRectangle(cornerRadius: 16).strokeBorder(DashSkin.line(dark), lineWidth: 1)
         )
         .shadow(color: .black.opacity(dark ? 0.32 : 0.05), radius: 12, y: 8)
-        .task { point = DashLimits.loadLatest(provider: selected) }
-        .onChange(of: selectedRaw) { point = DashLimits.loadLatest(provider: selected) }
+        .task { reload() }
+        .onChange(of: selectedRaw) { reload() }
         .onReceive(
             DistributedNotificationCenter.default().publisher(for: IPC.Name.limitsUpdated)
         ) { _ in
-            point = DashLimits.loadLatest(provider: selected)
+            reload()
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
-            point = DashLimits.loadLatest(provider: selected)
+            reload()
         }
     }
 
@@ -213,11 +220,15 @@ struct RateLimitsDialsView: View {
         }
     }
 
-    private func resetText(_ d: Date?) -> String {
-        guard let d else { return " " }
+    private static let resetFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .full
-        return "Resets " + f.localizedString(for: d, relativeTo: Date())
+        return f
+    }()
+
+    private func resetText(_ d: Date?) -> String {
+        guard let d else { return " " }
+        return "Resets " + Self.resetFormatter.localizedString(for: d, relativeTo: Date())
     }
 
     private func color(for percent: Double) -> Color {
@@ -280,7 +291,8 @@ struct LimitsCardView: View {
         LimitProvider.claude.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var providers: [LimitProvider] { DashLimits.availableProviders() }
+    @State private var providers: [LimitProvider] = []
+
     private var selectedProvider: LimitProvider {
         get {
             let saved = LimitProvider(rawValue: selectedProviderRaw) ?? .claude
@@ -338,6 +350,7 @@ struct LimitsCardView: View {
     }
 
     private func reloadAll() {
+        providers = DashLimits.availableProviders()
         all = DashLimits.loadAll(provider: selectedProvider)
         let now = all.last?.t ?? Date()
         downsampled = DashLimits.downsample(all, now: now)

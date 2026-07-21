@@ -52,8 +52,13 @@ extension View {
         }
     }
 
+    @ViewBuilder
     public func presenterBlur(_ on: Bool) -> some View {
-        blur(radius: on ? 4 : 0)
+        if on {
+            blur(radius: 4)
+        } else {
+            self
+        }
     }
 
     public func card() -> some View {
