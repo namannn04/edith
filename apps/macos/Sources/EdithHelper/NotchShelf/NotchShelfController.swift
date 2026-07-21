@@ -12,8 +12,8 @@ extension NSScreen {
 @MainActor
 final class NotchShelfController: ObservableObject, FeatureModule {
     @Published private(set) var items: [ShelfItem] = []
-    @Published private(set) var isExpanded = false
-    @Published private(set) var collapsedHover = false
+    @Published private(set) var expandedDisplay: CGDirectDisplayID?
+    @Published private(set) var hoverDisplay: CGDirectDisplayID?
     @Published private(set) var nowPlaying: NotchNowPlaying?
     @Published private(set) var nowPlayingArtwork: NSImage?
     @Published var activeTab: NotchTab = .home
@@ -48,6 +48,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var dragMonitor: Any?
     private var moveMonitorGlobal: Any?
     private var moveMonitorLocal: Any?
+    private var gateDisplay: CGDirectDisplayID?
     private var gate = NotchHoverGate(
         openDwell: NotchShelfController.openDwell, closeGrace: NotchShelfController.closeGrace)
     private var gateWorkItem: DispatchWorkItem?
@@ -261,7 +262,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
             let fullScreen = isFullScreenSpace(screen)
             if fullScreen {
                 fullScreenDisplays.insert(id)
-                if isExpanded { collapseNow() }
+                if expandedDisplay == id { collapseNow() }
             } else {
                 fullScreenDisplays.remove(id)
             }
@@ -281,7 +282,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         if let host = panel.contentView?.subviews.first as? NSHostingView<AnyView> {
             host.rootView = AnyView(
                 NotchShelfContentView(
-                    controller: self, collapsedBase: base, isBuiltin: id == builtinDisplayID))
+                    controller: self, displayID: id, collapsedBase: base,
+                    isBuiltin: id == builtinDisplayID))
         }
         applyExactFrame(panel, screen: screen, id: id)
         updateInteractiveShape(panel, id: id)
@@ -342,7 +344,9 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     }
 
     private func targetShapeSize(for id: CGDirectDisplayID) -> CGSize {
-        shapeSize(for: id, expanded: isExpanded, alert: currentAlert, music: nowPlaying != nil)
+        shapeSize(
+            for: id, expanded: expandedDisplay == id, alert: currentAlert,
+            music: nowPlaying != nil)
     }
 
     private func applyExactFrame(_ panel: NSPanel, screen: NSScreen, id: CGDirectDisplayID) {
@@ -375,7 +379,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         for screen in NSScreen.screens {
             guard let id = screen.displayID, let panel = panels[id] else { continue }
             let allowMouse: Bool
-            if isExpanded {
+            if expandedDisplay == id {
                 allowMouse = true
             } else if currentAlert != nil, id == builtinDisplayID {
                 allowMouse = shapeFrame(of: panel).contains(cursor)
@@ -390,7 +394,13 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         !requireOption || NSEvent.modifierFlags.contains(.option)
     }
 
-    func expand() {
+    var isExpanded: Bool { expandedDisplay != nil }
+
+    func isExpanded(on id: CGDirectDisplayID) -> Bool { expandedDisplay == id }
+
+    func isHovering(on id: CGDirectDisplayID) -> Bool { hoverDisplay == id }
+
+    func expand(on id: CGDirectDisplayID) {
         collapseWorkItem?.cancel()
         gateWorkItem?.cancel()
         gateWorkItem = nil
@@ -398,10 +408,11 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         alertWorkItem?.cancel()
         alertWorkItem = nil
         gate.forceOpen()
-        guard !isExpanded else { return }
-        collapsedHover = false
+        gateDisplay = id
+        guard expandedDisplay != id else { return }
+        hoverDisplay = nil
         currentAlert = nil
-        isExpanded = true
+        expandedDisplay = id
         syncFrames()
         fireHaptic()
     }
@@ -415,7 +426,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     func collapseNow() {
         guard isExpanded, !isSharing else { return }
-        isExpanded = false
+        expandedDisplay = nil
         selectedIDs = []
         gate.forceClosed()
         gateWorkItem?.cancel()
@@ -424,20 +435,22 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         flushPendingAlert()
     }
 
-    func hoverChanged(_ hovering: Bool) {
+    func hoverChanged(_ hovering: Bool, on id: CGDirectDisplayID?) {
         let hoverState = hovering && !isExpanded && currentAlert == nil
-        if collapsedHover != hoverState { collapsedHover = hoverState }
+        let next = hoverState ? id : nil
+        if hoverDisplay != next { hoverDisplay = next }
         guard !isExpanded else { return }
-        applyProximity(hovering ? .open : .outside)
+        applyProximity(hovering ? .open : .outside, on: id)
     }
 
     private func monotonicNow() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
 
-    private func applyProximity(_ raw: NotchProximity) {
+    private func applyProximity(_ raw: NotchProximity, on id: CGDirectDisplayID?) {
         var proximity = raw
         if !gate.isOpen, proximity == .open, !(openOnHover && optionSatisfied()) {
             proximity = .outside
         }
+        if proximity != .outside, let id { gateDisplay = id }
         handleGate(gate.sample(proximity, now: monotonicNow()))
     }
 
@@ -461,7 +474,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         gateWorkItem = nil
         switch gate.fire(now: monotonicNow()) {
         case .opened:
-            expand()
+            if let gateDisplay { expand(on: gateDisplay) }
         case .closed:
             if isSharing {
                 gate.forceOpen()
@@ -475,22 +488,30 @@ final class NotchShelfController: ObservableObject, FeatureModule {
 
     private func handleMouseMoved() {
         refreshMouseTransparency()
-        guard let frames = builtinFrames() else { return }
         let point = NSEvent.mouseLocation
-        if isExpanded {
+        if let expandedDisplay, let frames = frames(for: expandedDisplay) {
             applyProximity(
                 NotchGeometry.proximity(
                     point: point, collapsedFrame: frames.collapsed,
-                    expandedFrame: frames.expanded))
+                    expandedFrame: frames.expanded),
+                on: expandedDisplay)
         } else if currentAlert == nil {
-            let near = NotchGeometry.openFrame(around: frames.collapsed).contains(point)
-            hoverChanged(near)
+            let id = displayID(under: point)
+            let near =
+                id.flatMap { frames(for: $0) }
+                .map { NotchGeometry.openFrame(around: $0.collapsed).contains(point) } ?? false
+            hoverChanged(near, on: id)
         }
     }
 
-    private func builtinFrames() -> (collapsed: CGRect, expanded: CGRect)? {
-        guard let id = builtinDisplayID,
-            let screen = NSScreen.screens.first(where: { $0.displayID == id })
+    private func displayID(under point: CGPoint) -> CGDirectDisplayID? {
+        NSScreen.screens.first { $0.frame.contains(point) }?.displayID.flatMap {
+            panels[$0] != nil ? $0 : nil
+        }
+    }
+
+    private func frames(for id: CGDirectDisplayID) -> (collapsed: CGRect, expanded: CGRect)? {
+        guard let screen = NSScreen.screens.first(where: { $0.displayID == id })
         else { return nil }
         let collapsedSize = NotchGeometry.collapsedSize(
             base: collapsedSizes[id] ?? NotchGeometry.fallbackSize,
@@ -531,24 +552,28 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         case .leftMouseDown:
             lastDragChangeCount = NSPasteboard(name: .drag).changeCount
             internalDragItemIDs = []
-            if !isExpanded, currentAlert == nil, let frames = builtinFrames(),
-                NotchGeometry.openFrame(around: frames.collapsed).contains(NSEvent.mouseLocation)
+            let point = NSEvent.mouseLocation
+            if !isExpanded, currentAlert == nil, let id = displayID(under: point),
+                let frames = frames(for: id),
+                NotchGeometry.openFrame(around: frames.collapsed).contains(point)
             {
-                expand()
+                expand(on: id)
             }
         case .leftMouseDragged:
             guard openOnDrag else { return }
             guard NSPasteboard(name: .drag).changeCount != lastDragChangeCount else { return }
-            guard optionSatisfied(), isNearNotch(NSEvent.mouseLocation) else { return }
+            let point = NSEvent.mouseLocation
+            guard optionSatisfied(), let id = displayID(under: point), isNearNotch(point, on: id)
+            else { return }
             activeTab = .files
-            expand()
+            expand(on: id)
         default:
             break
         }
     }
 
-    private func isNearNotch(_ point: CGPoint) -> Bool {
-        guard let frames = builtinFrames() else { return false }
+    private func isNearNotch(_ point: CGPoint, on id: CGDirectDisplayID) -> Bool {
+        guard let frames = frames(for: id) else { return false }
         return NotchGeometry.interactionFrame(around: frames.collapsed).contains(point)
     }
 
