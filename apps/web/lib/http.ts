@@ -1,5 +1,18 @@
 export function siteUrl(): string {
-  return process.env.SITE_URL ?? "https://edith.pulkit.page";
+  const configured = process.env.SITE_URL;
+
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  const deployment =
+    process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL ?? null;
+
+  if (deployment) {
+    return `https://${deployment.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  }
+
+  return "https://edith.pulkit.page";
 }
 
 export function apiHeaders(initial?: HeadersInit): Headers {
