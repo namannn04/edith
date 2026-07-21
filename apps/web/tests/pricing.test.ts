@@ -76,6 +76,34 @@ describe("custom pricing", () => {
   });
 });
 
+describe("plan seed coverage", () => {
+  test("every plan the pricing module can emit is seeded", async () => {
+    const seed = await Bun.file(
+      new URL("../drizzle/0005_polar_plans.sql", import.meta.url),
+    ).text();
+
+    for (const planId of [...tiers.map((tier) => tier.id), customTier.id]) {
+      expect(seed).toContain(`'${planId}'`);
+    }
+  });
+
+  test("seeded machine counts match the tiers", async () => {
+    const seed = await Bun.file(
+      new URL("../drizzle/0005_polar_plans.sql", import.meta.url),
+    ).text();
+
+    for (const tier of tiers) {
+      expect(seed).toMatch(
+        new RegExp(`'${tier.id}'[^\\n]*,\\s*${tier.maxMachines},`),
+      );
+    }
+
+    expect(seed).toMatch(
+      new RegExp(`'${customTier.id}'[^\\n]*,\\s*${customTier.maxMachines},`),
+    );
+  });
+});
+
 describe("formatting", () => {
   test("drops trailing zero cents", () => {
     expect(formatUsd(2500)).toBe("$25");
