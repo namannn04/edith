@@ -83,6 +83,25 @@ import Testing
         }
     }
 
+    @Test func iCloudBackupIsOnOutOfTheBox() {
+        let defaults = UserDefaults(suiteName: "test.icloud.default")!
+        defaults.removePersistentDomain(forName: "test.icloud.default")
+        defaults.register(defaults: SharedDefaults.registeredDefaults)
+        #expect(defaults.bool(forKey: OnboardingFlow.iCloudBackupKey))
+        #expect(OnboardingFlow.initialICloudBackup)
+        OnboardingFlow.skip(defaults: defaults)
+        #expect(defaults.bool(forKey: OnboardingFlow.iCloudBackupKey))
+        defaults.removePersistentDomain(forName: "test.icloud.default")
+    }
+
+    @Test func finishingOnboardingWithoutACloudBackupStillEnablesIt() {
+        let defaults = UserDefaults(suiteName: "test.icloud.finish")!
+        defaults.removePersistentDomain(forName: "test.icloud.finish")
+        OnboardingFlow.finish(selectedIDs: [], defaults: defaults)
+        #expect(defaults.bool(forKey: OnboardingFlow.iCloudBackupKey))
+        defaults.removePersistentDomain(forName: "test.icloud.finish")
+    }
+
     @Test func sweepKeepsBackupsCurrentWithoutNotifications() {
         #expect(SettingsBackup.sweepInterval > 0)
         #expect(SettingsBackup.sweepInterval <= 60)

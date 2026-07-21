@@ -213,7 +213,7 @@ struct OnboardingView: View {
             let restored = found ? OnboardingFlow.cloudBackupSelection() : nil
             DispatchQueue.main.async {
                 cloudBackupFound = found
-                icloudBackup = found
+                if found { icloudBackup = true }
                 if let restored {
                     selectedIDs = restored
                 }

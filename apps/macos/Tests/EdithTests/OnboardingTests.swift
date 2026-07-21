@@ -126,14 +126,14 @@ import Testing
         #expect(count == 0)
     }
 
-    @Test func skipEnablesNothing() {
+    @Test func skipEnablesNothingButKeepsBackupsOn() {
         let (defaults, suiteName) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         OnboardingFlow.skip(defaults: defaults)
 
         #expect(defaults.bool(forKey: OnboardingFlow.completionKey))
-        #expect(defaults.object(forKey: OnboardingFlow.iCloudBackupKey) == nil)
+        #expect(defaults.bool(forKey: OnboardingFlow.iCloudBackupKey))
         for entry in ExtensionRegistry.entries {
             #expect(defaults.object(forKey: entry.defaultsKey) == nil)
             #expect(defaults.object(forKey: OnboardingFlow.seenKey(for: entry)) == nil)
@@ -148,8 +148,8 @@ import Testing
         OnboardingFlow.finish(selectedIDs: selectedIDs, defaults: defaults)
 
         #expect(defaults.bool(forKey: OnboardingFlow.completionKey))
-        #expect(!OnboardingFlow.initialICloudBackup)
-        #expect(defaults.object(forKey: OnboardingFlow.iCloudBackupKey) as? Bool == false)
+        #expect(OnboardingFlow.initialICloudBackup)
+        #expect(defaults.object(forKey: OnboardingFlow.iCloudBackupKey) as? Bool == true)
         for entry in ExtensionRegistry.entries {
             if selectedIDs.contains(entry.id) {
                 #expect(defaults.object(forKey: entry.defaultsKey) as? Bool == true)

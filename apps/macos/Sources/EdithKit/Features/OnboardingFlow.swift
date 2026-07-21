@@ -14,7 +14,7 @@ public enum OnboardingFlow {
     public static let completionKey = "onboardingCompleted"
     public static let iCloudBackupKey = "icloudBackup"
     public static let initialSelectedIDs: Set<String> = []
-    public static let initialICloudBackup = false
+    public static let initialICloudBackup = true
 
     public static func shouldShowOnboarding(defaults: UserDefaults = SharedDefaults.store) -> Bool {
         !defaults.bool(forKey: completionKey)
@@ -110,6 +110,7 @@ public enum OnboardingFlow {
     }
 
     public static func skip(defaults: UserDefaults = SharedDefaults.store) {
+        defaults.set(initialICloudBackup, forKey: iCloudBackupKey)
         defaults.set(true, forKey: completionKey)
     }
 }
