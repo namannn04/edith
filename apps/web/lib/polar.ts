@@ -141,6 +141,7 @@ export type CheckoutRequest = {
   priceCents: number;
   successUrl: string;
   customerEmail?: string;
+  customerIp?: string;
 };
 
 export type CheckoutSession = {
@@ -174,6 +175,10 @@ export async function createCheckoutSession(
 
   if (request.customerEmail) {
     body.customer_email = request.customerEmail;
+  }
+
+  if (request.customerIp && request.customerIp !== "unknown") {
+    body.customer_ip_address = request.customerIp;
   }
 
   if (request.planId === customTier.id) {

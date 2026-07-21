@@ -17,7 +17,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request): Promise<Response> {
-  const limit = await checkRateLimit(getClientIp(request.headers), route);
+  const clientIp = getClientIp(request.headers);
+  const limit = await checkRateLimit(clientIp, route);
 
   if (!limit.allowed) {
     return rateLimited(limit.retryAfterSeconds);
@@ -50,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
       priceCents: priceCentsFor(parsed.data.planId, machines),
       successUrl: `${siteUrl()}/thanks?checkout_id={CHECKOUT_ID}`,
       customerEmail: parsed.data.email,
+      customerIp: clientIp,
     });
 
     return apiJson({ ok: true, url: session.url, checkoutId: session.id }, 200);

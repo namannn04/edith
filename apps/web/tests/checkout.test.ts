@@ -140,6 +140,33 @@ describe("checkout route", () => {
     });
   });
 
+  test("forwards the buyer's ip so Polar picks their local currency", async () => {
+    const request = new Request("https://edith.test/api/checkout", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-for": "49.36.0.1",
+      },
+      body: JSON.stringify({ planId: "personal_3" }),
+    });
+
+    await checkoutRoute.POST(request);
+
+    expect(captured[0]?.body.customer_ip_address).toBe("49.36.0.1");
+  });
+
+  test("omits an unresolvable ip rather than sending the literal unknown", async () => {
+    const request = new Request("https://edith.test/api/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ planId: "personal_3" }),
+    });
+
+    await checkoutRoute.POST(request);
+
+    expect(captured[0]?.body.customer_ip_address).toBeUndefined();
+  });
+
   test("passes the buyer email through when supplied", async () => {
     await checkoutRoute.POST(
       checkoutRequest({ planId: "personal_3", email: "buyer@example.com" }),
