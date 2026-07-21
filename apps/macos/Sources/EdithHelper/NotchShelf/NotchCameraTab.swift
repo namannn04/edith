@@ -21,6 +21,7 @@ struct NotchCameraTab: View {
                     .onAppear(perform: refreshDevices)
             case .notDetermined:
                 prompt("Enable the camera") {
+                    PermissionPromptTracker.record()
                     AVCaptureDevice.requestAccess(for: .video) { granted in
                         Task { @MainActor in
                             status = granted ? .authorized : .denied

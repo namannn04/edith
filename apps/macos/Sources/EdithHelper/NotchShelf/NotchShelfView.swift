@@ -726,6 +726,11 @@ private struct NotchAlertDropView: View {
                 }
             }
             Spacer(minLength: 0)
+            if alert.settingsTab != nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 40)
@@ -733,7 +738,7 @@ private struct NotchAlertDropView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onHover { controller.alertHover($0) }
-        .onTapGesture { controller.dismissAlert() }
+        .onTapGesture { controller.alertTapped(alert) }
         .onAppear {
             withAnimation(glide.delay(0.05)) { appeared = true }
         }

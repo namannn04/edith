@@ -95,6 +95,7 @@ final class SystemStore: ObservableObject, FeatureModule {
     }
 
     func requestInputMonitoring() {
+        PermissionPromptTracker.record()
         CGRequestListenEventAccess()
         openInputMonitoringSettings()
         IPC.post(IPC.Name.requestPermissionsRefresh)
@@ -102,6 +103,7 @@ final class SystemStore: ObservableObject, FeatureModule {
     }
 
     func requestAccessibility() {
+        PermissionPromptTracker.record()
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
         openAccessibilitySettings()

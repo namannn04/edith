@@ -156,6 +156,12 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         }
     }
 
+    func alertTapped(_ alert: NotchAlert) {
+        dismissAlert()
+        guard let tab = alert.settingsTab else { return }
+        MainApp.openSettings(tab: tab)
+    }
+
     func dismissAlert() {
         alertPinned = false
         hideAlert()

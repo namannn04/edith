@@ -90,6 +90,14 @@ struct EdithApp: App {
         _ = IPC.observe(IPC.Name.presenterAutoActiveChanged) {
             services.usage?.refreshMenuBarItem()
         }
+        _ = IPC.observe(IPC.Name.permissionHintDue) {
+            services.notchShelf?.postAlert(
+                NotchAlert(
+                    id: "permissions.hint", icon: "hand.raised.fill",
+                    title: "Grant access in one place",
+                    subtitle: "Settings > Permissions lists every one", priority: .high,
+                    autoHide: 6, settingsTab: "permissions"))
+        }
         _ = IPC.observe(IPC.Name.requestKeyboardClean) {
             services.system?.beginCleaning()
         }

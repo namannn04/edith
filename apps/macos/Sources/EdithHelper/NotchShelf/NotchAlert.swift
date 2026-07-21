@@ -15,10 +15,12 @@ struct NotchAlert: Equatable, Identifiable, Sendable {
     let subtitle: String?
     let priority: NotchAlertPriority
     let autoHide: TimeInterval
+    let settingsTab: String?
 
     init(
         id: String, icon: String, tint: String = "#e0a83f", title: String, subtitle: String? = nil,
-        priority: NotchAlertPriority = .medium, autoHide: TimeInterval = 3
+        priority: NotchAlertPriority = .medium, autoHide: TimeInterval = 3,
+        settingsTab: String? = nil
     ) {
         self.id = id
         self.icon = icon
@@ -27,6 +29,7 @@ struct NotchAlert: Equatable, Identifiable, Sendable {
         self.subtitle = subtitle
         self.priority = priority
         self.autoHide = autoHide
+        self.settingsTab = settingsTab
     }
 }
 

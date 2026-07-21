@@ -176,7 +176,7 @@ final class SettingsBackup: ObservableObject {
         "extensionsExpand", "hasPromptedPermissions", "lastBackupAt", "lastMusicBackupAt",
         "lastClipboardBackupAt", "micMuted", "migratedFromControlCenter",
         "notifSessionLevel", "notifSessionPacing", "notifTokenExpiredAt", "notifWeeklyLevel",
-        "notifWeeklyPacing", "permissionsFilter",
+        "notifWeeklyPacing", "permissionsFilter", "permissionPromptCount", "permissionHintShown",
         "permAccessibilityGranted", "permCalendarGranted",
         "permCameraGranted", "permFullDiskGranted", "permInputMonitoringGranted",
         "permNotificationsGranted",
