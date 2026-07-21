@@ -90,8 +90,11 @@ final class FocusDimEngine: FeatureModule {
         FocusDimHotKey.register()
         let previousMode = displayMode
         loadSettings()
-        guard CGPreflightScreenCaptureAccess() else {
-            overlays.values.forEach { $0.alphaValue = 0 }
+        guard CGPreflightScreenCaptureAccess(), FocusDimState.isActive() else {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = animationDuration
+                overlays.values.forEach { $0.animator().alphaValue = 0 }
+            }
             return
         }
         if displayMode != previousMode {
@@ -132,7 +135,7 @@ final class FocusDimEngine: FeatureModule {
     }
 
     private func reposition(animateIn: Bool) {
-        guard CGPreflightScreenCaptureAccess() else {
+        guard CGPreflightScreenCaptureAccess(), FocusDimState.isActive() else {
             overlays.values.forEach { $0.alphaValue = 0 }
             return
         }

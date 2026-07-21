@@ -20,7 +20,8 @@ struct NotchCameraTab: View {
                     }
                     .onAppear(perform: refreshDevices)
             case .notDetermined:
-                prompt("Enable the camera") {
+                prompt {
+                    PermissionPromptTracker.record()
                     AVCaptureDevice.requestAccess(for: .video) { granted in
                         Task { @MainActor in
                             status = granted ? .authorized : .denied
@@ -70,16 +71,34 @@ struct NotchCameraTab: View {
         selectedID = ids[(index + 1) % ids.count]
     }
 
-    private func prompt(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: "camera.fill").font(.system(size: 20))
-                Text(title).font(.system(size: 12))
+    private func prompt(action: @escaping () -> Void) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "camera.fill").font(.system(size: 20))
+                .foregroundStyle(.white.opacity(0.7))
+            Text("Mirror check, right in the notch")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+            Text("macOS asks for camera access once. Nothing is recorded or sent anywhere.")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.white.opacity(0.5))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            HStack(spacing: 8) {
+                Button("Allow Camera", action: action)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .shelfPointer()
+                Button("All Permissions") {
+                    MainApp.openSettings(tab: "permissions")
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.55))
+                .shelfPointer()
             }
-            .foregroundStyle(.white.opacity(0.7))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.top, 2)
         }
-        .buttonStyle(.plain).shelfPointer()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var denied: some View {

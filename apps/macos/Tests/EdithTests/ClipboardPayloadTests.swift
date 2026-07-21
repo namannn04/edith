@@ -8,6 +8,21 @@ import Testing
     private let options = ClipboardCaptureOptions(
         saveFiles: true, saveImages: true, saveText: true)
 
+    @Test func uuidNamedFilesShowTheirKindInsteadOfTheUUID() {
+        let uuid = "86789B21-5238-4B94-8DCC-BAC684D59D6E"
+        #expect(ClipboardPayloadExtractor.isOpaqueName("\(uuid).png"))
+        #expect(ClipboardPayloadExtractor.isOpaqueName(uuid))
+        #expect(!ClipboardPayloadExtractor.isOpaqueName("budget.png"))
+        #expect(!ClipboardPayloadExtractor.isOpaqueName("Screenshot 2026-07-21.png"))
+
+        let url = URL(fileURLWithPath: "/tmp/\(uuid).png")
+        let kind = ClipboardPayloadExtractor.kindDescription(for: url)
+        #expect(kind?.isEmpty == false)
+        #expect(kind?.localizedCaseInsensitiveContains("png") == true)
+        let extensionless = URL(fileURLWithPath: "/tmp/x")
+        #expect(ClipboardPayloadExtractor.kindDescription(for: extensionless) == nil)
+    }
+
     @Test @MainActor func symbolHeavyTextHasPreview() throws {
         let input = ".^!7JY555555YJ?7!^:.:~?5GGBBB#BBBBBGGGGGGGGPY7"
         let pasteboard = makePasteboard()

@@ -176,7 +176,9 @@ final class SettingsBackup: ObservableObject {
         "extensionsExpand", "hasPromptedPermissions", "lastBackupAt", "lastMusicBackupAt",
         "lastClipboardBackupAt", "micMuted", "migratedFromControlCenter",
         "notifSessionLevel", "notifSessionPacing", "notifTokenExpiredAt", "notifWeeklyLevel",
-        "notifWeeklyPacing", "permAccessibilityGranted", "permCalendarGranted",
+        "notifWeeklyPacing", "permissionsFilter", "permissionPromptCount", "permissionHintShown",
+        "focusDimActive",
+        "permAccessibilityGranted", "permCalendarGranted",
         "permCameraGranted", "permFullDiskGranted", "permInputMonitoringGranted",
         "permNotificationsGranted",
         "permScreenRecordingGranted", "presenterAutoActive", "presenterAutoPaused",
@@ -193,6 +195,8 @@ final class SettingsBackup: ObservableObject {
     }
 
     private var debounce: Timer?
+    private var sweep: Timer?
+    static let sweepInterval: TimeInterval = 30
     private var localFile: URL { AppData.supportDir.appendingPathComponent("settings.json") }
     private var cloudFile: URL { AppData.cloudDir.appendingPathComponent("settings.json") }
 
@@ -590,6 +594,12 @@ final class SettingsBackup: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.scheduleExport() }
         }
+        sweep?.invalidate()
+        sweep = Timer.scheduledTimer(
+            withTimeInterval: Self.sweepInterval, repeats: true
+        ) { _ in
+            Task { @MainActor in SettingsBackup.shared.export() }
+        }
         if !restored.music {
             backupMusic()
         }
@@ -653,6 +663,8 @@ final class SettingsBackup: ObservableObject {
     }
 
     private func shutdown() {
+        sweep?.invalidate()
+        sweep = nil
         for task in restoreTasks.values {
             task.cancel()
         }
@@ -953,5 +965,6 @@ final class SettingsBackup: ObservableObject {
         Repo.prepareStoredPaths()
         try? data.write(to: localFile)
         HotKey.register()
+        IPC.post(IPC.Name.settingsChanged)
     }
 }

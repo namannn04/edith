@@ -138,7 +138,22 @@ public enum ClipboardPayloadExtractor {
         if let content = initialFileText(url) {
             return "\(name.isEmpty ? url.path : name) · \(content)"
         }
+        if let kind = kindDescription(for: url), isOpaqueName(name) {
+            return kind
+        }
         return name.isEmpty ? url.path : name
+    }
+
+    static func isOpaqueName(_ name: String) -> Bool {
+        UUID(uuidString: (name as NSString).deletingPathExtension) != nil
+    }
+
+    static func kindDescription(for url: URL) -> String? {
+        let ext = url.pathExtension.lowercased()
+        guard !ext.isEmpty, let type = UTType(filenameExtension: ext),
+            let description = type.localizedDescription
+        else { return nil }
+        return description.prefix(1).uppercased() + description.dropFirst()
     }
 
     private static func initialFileText(_ url: URL) -> String? {

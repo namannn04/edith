@@ -24,29 +24,33 @@ final class PermissionsModel: ObservableObject {
 
     func startIPCBridge() {
         guard ipcTokens.isEmpty else { return }
-        ipcTokens = [
-            IPC.observe(IPC.Name.requestPermissionsRefresh) { [weak self] in self?.refresh() },
-            IPC.observe(IPC.Name.grantCalendar) { [weak self] in self?.grantCalendar() },
-            IPC.observe(IPC.Name.grantNotifications) { [weak self] in
-                self?.grantNotifications()
-            },
-            IPC.observe(IPC.Name.grantAccessibility) { [weak self] in
-                self?.grantAccessibility()
-            },
-            IPC.observe(IPC.Name.grantInputMonitoring) { [weak self] in
-                self?.grantInputMonitoring()
-            },
-            IPC.observe(IPC.Name.grantFullDisk) { [weak self] in self?.grantFullDisk() },
-            IPC.observe(IPC.Name.grantScreenRecording) { [weak self] in
-                self?.grantScreenRecording()
-            },
-            IPC.observe(IPC.Name.grantCamera) { [weak self] in self?.grantCamera() },
-            NotificationCenter.default.addObserver(
-                forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.refresh() }
-            },
-        ]
+        let grantTokens = ExtensionPermission.allCases.compactMap { permission in
+            permission.grantRequest.map { request in
+                IPC.observe(request) { [weak self] in self?.grant(permission) }
+            }
+        }
+        let activeToken = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refresh() }
+        }
+        ipcTokens =
+            [IPC.observe(IPC.Name.requestPermissionsRefresh) { [weak self] in self?.refresh() }]
+            + grantTokens + [activeToken]
+    }
+
+    func grant(_ permission: ExtensionPermission) {
+        PermissionPromptTracker.record()
+        switch permission {
+        case .calendar: grantCalendar()
+        case .notifications: grantNotifications()
+        case .accessibility: grantAccessibility()
+        case .inputMonitoring: grantInputMonitoring()
+        case .fullDisk: grantFullDisk()
+        case .screenRecording: grantScreenRecording()
+        case .camera: grantCamera()
+        case .bluetooth, .automation: break
+        }
     }
 
     func refresh() {
@@ -80,16 +84,7 @@ final class PermissionsModel: ObservableObject {
         IPC.post(IPC.Name.permissionsRefreshed)
     }
 
-    var needsAttention: Bool {
-        let d = SharedDefaults.store
-        func on(_ key: String) -> Bool { d.object(forKey: key) as? Bool ?? false }
-        return PermissionsStatus.needsAttention(
-            usageTab: on("tabUsageEnabled"), calendarTab: on("tabCalendarEnabled"),
-            systemTab: on("tabSystemEnabled"),
-            notifyMaster: d.bool(forKey: "notifyMaster"),
-            calendar: calendar, accessibility: accessibility,
-            inputMonitoring: inputMonitoring, notifications: notifications)
-    }
+    var needsAttention: Bool { PermissionsStatus.current }
 
     func grantCalendar() {
         Task { @MainActor in

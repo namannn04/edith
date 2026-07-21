@@ -59,7 +59,7 @@ enum MainNavigationFallback {
             return MainNavigationSelection(mainWindowSection: "settings", settingsTab: "shortcuts")
         }
         let section = MainDestination(rawValue: mainWindowSection)?.rawValue ?? "home"
-        let validSettingsTabs = ["general", "shortcuts", "icloud", "updates"]
+        let validSettingsTabs = ["general", "permissions", "shortcuts", "icloud", "updates"]
         let resolvedSettingsTab =
             validSettingsTabs.contains(settingsTab) ? settingsTab : "general"
         return MainNavigationSelection(
@@ -792,7 +792,8 @@ struct MainWindowView: View {
 
     private var permissionsPill: some View {
         Button {
-            mainWindowSection = MainDestination.extensions.rawValue
+            settingsTab = SettingsPane.Tab.permissions.rawValue
+            mainWindowSection = MainDestination.settings.rawValue
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")

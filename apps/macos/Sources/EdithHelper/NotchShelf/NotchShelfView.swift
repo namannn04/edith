@@ -15,10 +15,14 @@ extension View {
 
 struct NotchShelfContentView: View {
     @ObservedObject var controller: NotchShelfController
+    var displayID: CGDirectDisplayID = 0
     var collapsedBase: CGSize = NotchGeometry.fallbackSize
     var isBuiltin = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var tabPill
+
+    private var isExpanded: Bool { controller.isExpanded(on: displayID) }
+    private var isHovering: Bool { controller.isHovering(on: displayID) }
 
     var body: some View {
         GeometryReader { geo in
@@ -35,24 +39,25 @@ struct NotchShelfContentView: View {
                     topRadius: topRadius, bottomRadius: bottomRadius)
             }
             .scaleEffect(x: hoverScale.width, y: hoverScale.height, anchor: .top)
-            .animation(glide, value: controller.isExpanded)
+            .animation(glide, value: isExpanded)
             .animation(glide, value: controller.currentAlert)
             .animation(glide, value: controller.activeTab)
             .animation(glide, value: controller.nowPlaying == nil)
-            .animation(glide, value: controller.collapsedHover)
+            .animation(glide, value: isHovering)
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let point):
-                    controller.hoverChanged(hoverRect(in: geo.size).contains(point))
+                    controller.hoverChanged(
+                        hoverRect(in: geo.size).contains(point), on: displayID)
                 case .ended:
-                    controller.hoverChanged(false)
+                    controller.hoverChanged(false, on: displayID)
                 }
             }
         }
     }
 
     @ViewBuilder private var layers: some View {
-        if controller.isExpanded {
+        if isExpanded {
             let size = expandedShape
             expanded
                 .frame(width: size.width, height: size.height, alignment: .top)
@@ -81,7 +86,7 @@ struct NotchShelfContentView: View {
     }
 
     private var shapeSize: CGSize {
-        if controller.isExpanded { return expandedShape }
+        if isExpanded { return expandedShape }
         if isBuiltin, controller.currentAlert != nil { return NotchGeometry.alertDropSize }
         return NotchGeometry.collapsedSize(
             base: collapsedBase, hasLiveActivity: controller.nowPlaying != nil)
@@ -115,7 +120,7 @@ struct NotchShelfContentView: View {
     }
 
     private var hoverScale: CGSize {
-        guard !reduceMotion, controller.collapsedHover, !controller.isExpanded,
+        guard !reduceMotion, isHovering, !isExpanded,
             controller.currentAlert == nil
         else { return CGSize(width: 1, height: 1) }
         let shape = shapeSize
@@ -125,15 +130,15 @@ struct NotchShelfContentView: View {
     }
 
     private var topRadius: CGFloat {
-        controller.isExpanded || (isBuiltin && controller.currentAlert != nil)
+        isExpanded || (isBuiltin && controller.currentAlert != nil)
             ? NotchGeometry.expandedTopRadius : 0
     }
 
     private var bottomRadius: CGFloat {
-        if isBuiltin, controller.currentAlert != nil, !controller.isExpanded {
+        if isBuiltin, controller.currentAlert != nil, !isExpanded {
             return NotchGeometry.alertBottomRadius
         }
-        return controller.isExpanded
+        return isExpanded
             ? NotchGeometry.expandedBottomRadius : NotchGeometry.collapsedBottomRadius
     }
 
@@ -721,6 +726,11 @@ private struct NotchAlertDropView: View {
                 }
             }
             Spacer(minLength: 0)
+            if alert.settingsTab != nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 40)
@@ -728,7 +738,7 @@ private struct NotchAlertDropView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onHover { controller.alertHover($0) }
-        .onTapGesture { controller.dismissAlert() }
+        .onTapGesture { controller.alertTapped(alert) }
         .onAppear {
             withAnimation(glide.delay(0.05)) { appeared = true }
         }

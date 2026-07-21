@@ -29,6 +29,84 @@ import Testing
             keys.intersection(SettingsBackup.backedKeys).isSubset(of: SettingsBackup.sharedKeys))
     }
 
+    static func sourceFiles() -> [String] {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources")
+        let files = FileManager.default.enumerator(at: sourceRoot, includingPropertiesForKeys: nil)
+        var sources: [String] = []
+        while let url = files?.nextObject() as? URL {
+            guard url.pathExtension == "swift",
+                let source = try? String(contentsOf: url, encoding: .utf8)
+            else { continue }
+            sources.append(source)
+        }
+        return sources
+    }
+
+    static func matches(_ pattern: String) throws -> Set<String> {
+        let regex = try NSRegularExpression(pattern: pattern)
+        var keys = Set<String>()
+        for source in sourceFiles() {
+            let range = NSRange(source.startIndex..., in: source)
+            for match in regex.matches(in: source, range: range) {
+                guard let keyRange = Range(match.range(at: 1), in: source) else { continue }
+                keys.insert(String(source[keyRange]))
+            }
+        }
+        return keys
+    }
+
+    @Test func everyDirectlyWrittenPreferenceIsBackedUpOrDeviceLocal() throws {
+        let keys = try Self.matches(#"store\.set\([^\n]*forKey:\s*"([^"]+)"\)"#)
+            .filter { !$0.contains("\\(") }
+        let covered = Set(SettingsBackup.backedKeys).union(SettingsBackup.deviceLocalKeys)
+        #expect(!keys.isEmpty)
+        #expect(keys.subtracting(covered).isEmpty)
+        #expect(
+            keys.intersection(SettingsBackup.backedKeys).isSubset(of: SettingsBackup.sharedKeys))
+    }
+
+    @Test func everyRecordedShortcutIsBackedUp() throws {
+        let prefixes = try Self.matches(#"HotKeyRecorderControl\(keyPrefix:\s*"([^"]+)""#)
+        #expect(prefixes.count >= 5)
+        for prefix in prefixes {
+            for suffix in ["Code", "Mods", "Label"] {
+                let key = prefix + suffix
+                #expect(
+                    SettingsBackup.backedKeys.contains(key),
+                    "\(key) is not backed up, so the shortcut is lost on reinstall")
+                #expect(SettingsBackup.sharedKeys.contains(key), "\(key) reads the wrong suite")
+            }
+        }
+    }
+
+    @Test func iCloudBackupIsOnOutOfTheBox() {
+        let defaults = UserDefaults(suiteName: "test.icloud.default")!
+        defaults.removePersistentDomain(forName: "test.icloud.default")
+        defaults.register(defaults: SharedDefaults.registeredDefaults)
+        #expect(defaults.bool(forKey: OnboardingFlow.iCloudBackupKey))
+        #expect(OnboardingFlow.initialICloudBackup)
+        OnboardingFlow.skip(defaults: defaults)
+        #expect(defaults.bool(forKey: OnboardingFlow.iCloudBackupKey))
+        defaults.removePersistentDomain(forName: "test.icloud.default")
+    }
+
+    @Test func finishingOnboardingWithoutACloudBackupStillEnablesIt() {
+        let defaults = UserDefaults(suiteName: "test.icloud.finish")!
+        defaults.removePersistentDomain(forName: "test.icloud.finish")
+        OnboardingFlow.finish(selectedIDs: [], defaults: defaults)
+        #expect(defaults.bool(forKey: OnboardingFlow.iCloudBackupKey))
+        defaults.removePersistentDomain(forName: "test.icloud.finish")
+    }
+
+    @Test func sweepKeepsBackupsCurrentWithoutNotifications() {
+        #expect(SettingsBackup.sweepInterval > 0)
+        #expect(SettingsBackup.sweepInterval <= 60)
+    }
+
     @Test func configurableNonAppStoragePreferencesAreBackedUp() {
         let expected: Set<String> = [
             "micHotKeyCode", "micHotKeyMods", "micHotKeyLabel", "notchAudioMixerEnabled",

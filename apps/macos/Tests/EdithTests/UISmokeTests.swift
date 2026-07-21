@@ -72,6 +72,23 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
         #expect(renders(SettingsPane(updater: UpdaterModel())))
     }
 
+    @Test func permissionsPaneRenders() {
+        #expect(renders(PermissionsPane()))
+    }
+
+    @Test func permissionsSettingsTabRenders() {
+        let saved = SharedDefaults.store.string(forKey: "settingsTab")
+        defer {
+            if let saved {
+                SharedDefaults.store.set(saved, forKey: "settingsTab")
+            } else {
+                SharedDefaults.store.removeObject(forKey: "settingsTab")
+            }
+        }
+        SharedDefaults.store.set("permissions", forKey: "settingsTab")
+        #expect(renders(SettingsPane(updater: UpdaterModel())))
+    }
+
     @Test func calendarPageRenders() {
         #expect(renders(CalendarPage()))
     }

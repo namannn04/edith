@@ -18,7 +18,8 @@ public enum MainApp {
         openDashboard()
     }
 
-    public static func openSettings() {
+    public static func openSettings(tab: String? = nil) {
+        if let tab { SharedDefaults.store.set(tab, forKey: "settingsTab") }
         open(section: "settings")
     }
 }

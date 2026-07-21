@@ -107,11 +107,12 @@ final class AppServices: ObservableObject {
         notchShelf?.attachCalendar(calendar)
         notchShelf?.attachColorPicker(colorPicker)
 
-        let focusDimOn = SharedDefaults.store.bool(forKey: "focusDimEnabled")
+        let focusDimOn = FocusDimState.isEnabled()
         if focusDimOn, focusDim == nil { focusDim = FocusDimEngine() }
         if !focusDimOn, let engine = focusDim {
             engine.shutdown()
             focusDim = nil
+            FocusDimState.setActive(false)
         }
 
         let presenterExtensionOn = Self.extensionEnabled("presenterEnabled")
@@ -149,6 +150,7 @@ final class AppServices: ObservableObject {
         usage?.refreshMenuBarItem()
         usage?.notifier.clearStateIfMasterOff()
         notchShelf?.syncAlerts()
+        notchShelf?.rebuildPanels()
         system?.syncPreventSleep()
         focusDim?.applySettings()
         presenter?.applySettings()

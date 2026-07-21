@@ -5,10 +5,11 @@ import SwiftUI
 
 struct SettingsPane: View {
     enum Tab: String, CaseIterable {
-        case general, shortcuts, icloud, updates
+        case general, permissions, shortcuts, icloud, updates
         var label: String {
             switch self {
             case .general: return "General"
+            case .permissions: return "Permissions"
             case .shortcuts: return "Shortcuts"
             case .icloud: return "iCloud"
             case .updates: return "Updates"
@@ -41,6 +42,7 @@ struct SettingsPane: View {
             Group {
                 switch tab.wrappedValue {
                 case .general: GeneralPane()
+                case .permissions: PermissionsPane()
                 case .shortcuts: ShortcutsSettingsPane()
                 case .icloud: ICloudPane()
                 case .updates: UpdatesPane(updater: updater)
@@ -128,6 +130,8 @@ struct GeneralPane: View {
     @AppStorage("showDockIcon", store: SharedDefaults.store) private var showDockIcon = true
     @AppStorage("mainWindowSection", store: SharedDefaults.store) private var mainWindowSection =
         MainDestination.home.rawValue
+    @AppStorage("settingsTab", store: SharedDefaults.store) private var settingsTab =
+        SettingsPane.Tab.general.rawValue
     @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
     @State private var licenseLabel = "Licensed"
     @State private var maskedLicenseKey = "EDITH-****-****-****-****"
@@ -191,17 +195,25 @@ struct GeneralPane: View {
 
             Section {
                 Button {
-                    mainWindowSection = MainDestination.extensions.rawValue
+                    settingsTab = SettingsPane.Tab.permissions.rawValue
                 } label: {
                     LabeledContent("Permissions") {
-                        Text(permissionSummary)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Text(permissionSummary)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
                 .buttonStyle(.plain)
                 .pointerCursor()
             } header: {
                 Text("Access")
+            } footer: {
+                Text("Every permission Edith can ask for, in one place.")
+                    .font(.caption)
             }
 
             Section {

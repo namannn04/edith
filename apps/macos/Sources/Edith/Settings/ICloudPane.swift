@@ -3,7 +3,7 @@ import EdithKit
 import SwiftUI
 
 struct ICloudPane: View {
-    @AppStorage("icloudBackup", store: SharedDefaults.store) private var icloudBackup = false
+    @AppStorage("icloudBackup", store: SharedDefaults.store) private var icloudBackup = true
     @AppStorage("lastBackupAt", store: SharedDefaults.store) private var lastBackupAt = 0.0
     @AppStorage("backupSettings", store: SharedDefaults.store) private var backupSettings = true
     @AppStorage("backupUsage", store: SharedDefaults.store) private var backupUsage = true
