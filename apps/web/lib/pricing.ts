@@ -62,6 +62,28 @@ export function priceCentsFor(tierId: string, machines: number): number {
   return tier.priceCents;
 }
 
+export function resolveMachines(
+  planId: string,
+  requested: number | undefined,
+): number | null {
+  if (planId === customTier.id) {
+    const parsed = customMachinesSchema.safeParse(requested);
+    return parsed.success ? parsed.data : null;
+  }
+
+  const tier = getTier(planId);
+
+  if (!tier) {
+    return null;
+  }
+
+  if (requested !== undefined && requested !== tier.maxMachines) {
+    return null;
+  }
+
+  return tier.maxMachines;
+}
+
 export function formatUsd(cents: number): string {
   return `$${(cents / 100).toFixed(2).replace(/\.00$/, "")}`;
 }

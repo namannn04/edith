@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { resolveMachines } from "@/lib/pricing";
 
 const checkoutRoute = await import("@/app/api/checkout/route");
 
@@ -69,24 +70,24 @@ afterEach(() => {
 
 describe("machine resolution", () => {
   test("fixed tiers use their own seat count", () => {
-    expect(checkoutRoute.resolveMachines("individual_1", undefined)).toBe(1);
-    expect(checkoutRoute.resolveMachines("power_5", 5)).toBe(5);
+    expect(resolveMachines("individual_1", undefined)).toBe(1);
+    expect(resolveMachines("power_5", 5)).toBe(5);
   });
 
   test("a fixed tier rejects a mismatched seat count", () => {
-    expect(checkoutRoute.resolveMachines("personal_3", 9)).toBeNull();
+    expect(resolveMachines("personal_3", 9)).toBeNull();
   });
 
   test("custom accepts its documented range only", () => {
-    expect(checkoutRoute.resolveMachines("custom", 6)).toBe(6);
-    expect(checkoutRoute.resolveMachines("custom", 50)).toBe(50);
-    expect(checkoutRoute.resolveMachines("custom", 5)).toBeNull();
-    expect(checkoutRoute.resolveMachines("custom", 51)).toBeNull();
-    expect(checkoutRoute.resolveMachines("custom", undefined)).toBeNull();
+    expect(resolveMachines("custom", 6)).toBe(6);
+    expect(resolveMachines("custom", 50)).toBe(50);
+    expect(resolveMachines("custom", 5)).toBeNull();
+    expect(resolveMachines("custom", 51)).toBeNull();
+    expect(resolveMachines("custom", undefined)).toBeNull();
   });
 
   test("unknown plans are rejected", () => {
-    expect(checkoutRoute.resolveMachines("enterprise", 3)).toBeNull();
+    expect(resolveMachines("enterprise", 3)).toBeNull();
   });
 });
 

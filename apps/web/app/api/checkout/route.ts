@@ -1,13 +1,8 @@
 import { z } from "zod";
 import { rateLimited } from "@/lib/device-session";
-import { apiJson } from "@/lib/http";
+import { apiJson, siteUrl } from "@/lib/http";
 import { createCheckoutSession } from "@/lib/polar";
-import {
-  customMachinesSchema,
-  customTier,
-  getTier,
-  priceCentsFor,
-} from "@/lib/pricing";
+import { priceCentsFor, resolveMachines } from "@/lib/pricing";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -20,32 +15,6 @@ const bodySchema = z.object({
   machines: z.coerce.number().int().optional(),
   email: z.string().email().max(320).optional(),
 });
-
-export function siteUrl(): string {
-  return process.env.SITE_URL ?? "https://edith.pulkit.page";
-}
-
-export function resolveMachines(
-  planId: string,
-  requested: number | undefined,
-): number | null {
-  if (planId === customTier.id) {
-    const parsed = customMachinesSchema.safeParse(requested);
-    return parsed.success ? parsed.data : null;
-  }
-
-  const tier = getTier(planId);
-
-  if (!tier) {
-    return null;
-  }
-
-  if (requested !== undefined && requested !== tier.maxMachines) {
-    return null;
-  }
-
-  return tier.maxMachines;
-}
 
 export async function POST(request: Request): Promise<Response> {
   const limit = await checkRateLimit(getClientIp(request.headers), route);

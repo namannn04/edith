@@ -1,3 +1,7 @@
+export function siteUrl(): string {
+  return process.env.SITE_URL ?? "https://edith.pulkit.page";
+}
+
 export function apiHeaders(initial?: HeadersInit): Headers {
   const headers = new Headers(initial);
   headers.set("cache-control", "no-store");
