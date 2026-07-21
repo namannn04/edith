@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { customTier, tiers } from "@/lib/pricing";
+
+export const paymentProvider = "polar";
 
 export type Plan = {
   id: string;
@@ -8,29 +11,18 @@ export type Plan = {
   billingModel: string;
 };
 
-const planCatalog: Record<string, Plan> = {
-  individual_1: {
-    id: "individual_1",
-    name: "Individual",
-    provider: "lemonsqueezy",
-    maxMachines: 1,
-    billingModel: "one_time",
-  },
-  personal_3: {
-    id: "personal_3",
-    name: "Personal",
-    provider: "lemonsqueezy",
-    maxMachines: 3,
-    billingModel: "one_time",
-  },
-  power_5: {
-    id: "power_5",
-    name: "Power",
-    provider: "lemonsqueezy",
-    maxMachines: 5,
-    billingModel: "one_time",
-  },
-};
+const planCatalog: Record<string, Plan> = Object.fromEntries(
+  tiers.map((tier) => [
+    tier.id,
+    {
+      id: tier.id,
+      name: tier.name,
+      provider: paymentProvider,
+      maxMachines: tier.maxMachines,
+      billingModel: "one_time",
+    },
+  ]),
+);
 
 export type Ceilings = {
   standardMaxMachinesCap: number;
@@ -39,11 +31,11 @@ export type Ceilings = {
 
 const capSchema = z.coerce.number().int().positive();
 
-function readCap(name: string): number {
+function readCap(name: string, fallback: number): number {
   const raw = process.env[name];
 
   if (raw === undefined || raw === "") {
-    return 5;
+    return fallback;
   }
 
   return capSchema.parse(raw);
@@ -51,8 +43,11 @@ function readCap(name: string): number {
 
 export function readCeilings(): Ceilings {
   return {
-    standardMaxMachinesCap: readCap("LICENSE_STANDARD_MAX_MACHINES_CAP"),
-    customMaxMachinesCap: readCap("LICENSE_CUSTOM_MAX_MACHINES_CAP"),
+    standardMaxMachinesCap: readCap("LICENSE_STANDARD_MAX_MACHINES_CAP", 5),
+    customMaxMachinesCap: readCap(
+      "LICENSE_CUSTOM_MAX_MACHINES_CAP",
+      customTier.maxMachines,
+    ),
   };
 }
 
