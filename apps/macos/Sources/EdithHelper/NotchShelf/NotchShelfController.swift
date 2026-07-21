@@ -195,7 +195,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     private var showMusic: Bool { flag("notchShelfShowMusic", default: true) }
     private var requireOption: Bool { flag("notchShelfRequireOption", default: false) }
     private var removeAfterDragOut: Bool { flag("notchShelfRemoveAfterDragOut", default: true) }
-    private var showOnExternal: Bool { flag("notchShelfShowOnExternal", default: false) }
+    private var showOnExternal: Bool { flag("notchShelfShowOnExternal", default: true) }
     private var hapticsOn: Bool { flag("notchShelfHaptics", default: true) }
     private var keepDuration: ShelfKeepDuration {
         ShelfKeepDuration(
@@ -203,7 +203,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
             ?? .forever
     }
 
-    private func rebuildPanels() {
+    func rebuildPanels() {
         let builtin = NSScreen.screens.first {
             $0.displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? false
         }

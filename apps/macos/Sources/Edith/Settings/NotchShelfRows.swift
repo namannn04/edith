@@ -14,7 +14,7 @@ struct NotchShelfRows: View {
     @AppStorage("notchShelfRemoveAfterDragOut", store: SharedDefaults.store)
     private var removeAfterDragOut = true
     @AppStorage("notchShelfShowOnExternal", store: SharedDefaults.store)
-    private var showOnExternal = false
+    private var showOnExternal = true
     @AppStorage("notchShelfHaptics", store: SharedDefaults.store) private var haptics = true
     @AppStorage("notchShelfShowMusic", store: SharedDefaults.store) private var showMusic = true
     @AppStorage("notchAlertsEnabled", store: SharedDefaults.store) private var showAlerts = true

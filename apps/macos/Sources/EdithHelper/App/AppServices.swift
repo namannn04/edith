@@ -149,6 +149,7 @@ final class AppServices: ObservableObject {
         usage?.refreshMenuBarItem()
         usage?.notifier.clearStateIfMasterOff()
         notchShelf?.syncAlerts()
+        notchShelf?.rebuildPanels()
         system?.syncPreventSleep()
         focusDim?.applySettings()
         presenter?.applySettings()
