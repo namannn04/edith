@@ -57,19 +57,15 @@ struct ExtensionsPane: View {
             categoryRow
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVGrid(columns: gridColumns, spacing: 14) {
-                        ForEach(filteredEntries) { entry in
-                            ExtensionMarketplaceCard(
-                                entry: entry,
-                                enabled: permissionAwareBinding(for: entry),
-                                dark: colorScheme == .dark,
-                                open: { openSettings(for: entry) }
-                            )
-                            .id(entry.id)
-                        }
+                    LazyVStack(alignment: .leading, spacing: 18) {
+                        section("ENABLED", entries: enabledEntries)
+                        section("AVAILABLE", entries: availableEntries)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
+                    .animation(
+                        Motion.animation(Motion.snap, reduceMotion: reduceMotion),
+                        value: enabledEntries.map(\.id))
                 }
                 .scrollIndicators(.never)
                 .onAppear { handleDeepLink(using: proxy) }
@@ -164,6 +160,39 @@ struct ExtensionsPane: View {
     private var filteredEntries: [ExtensionRegistryEntry] {
         ExtensionMarketplaceFilter.filter(
             entries: ExtensionRegistry.entries, query: query, category: category)
+    }
+
+    private var enabledEntries: [ExtensionRegistryEntry] {
+        filteredEntries.filter { enabledBinding(for: $0).wrappedValue }
+    }
+
+    private var availableEntries: [ExtensionRegistryEntry] {
+        filteredEntries.filter { !enabledBinding(for: $0).wrappedValue }
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, entries: [ExtensionRegistryEntry]) -> some View {
+        if !entries.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    eyebrow(title)
+                    Text("\(entries.count)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.quaternary)
+                }
+                LazyVGrid(columns: gridColumns, spacing: 14) {
+                    ForEach(entries) { entry in
+                        ExtensionMarketplaceCard(
+                            entry: entry,
+                            enabled: permissionAwareBinding(for: entry),
+                            dark: colorScheme == .dark,
+                            open: { openSettings(for: entry) }
+                        )
+                        .id(entry.id)
+                    }
+                }
+            }
+        }
     }
 
     private var gridColumns: [GridItem] {
@@ -392,9 +421,7 @@ private struct ExtensionMarketplaceCard: View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(
-                    enabled ? brandAccent : DashSkin.line(dark),
-                    lineWidth: enabled || hovering ? 1.5 : 1)
+                .strokeBorder(DashSkin.line(dark), lineWidth: hovering ? 1.5 : 1)
         }
         .shadow(color: .black.opacity(hovering ? 0.1 : 0), radius: 8, y: 3)
         .onHover { hovering = $0 }

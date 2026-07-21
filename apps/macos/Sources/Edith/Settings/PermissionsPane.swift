@@ -25,21 +25,49 @@ struct PermissionsPane: View {
         PermissionCatalog.grantable(usages)
     }
 
+    private var granted: [PermissionUsage] {
+        visible.filter(\.isGranted)
+    }
+
+    private var ungranted: [PermissionUsage] {
+        visible.filter { !$0.isGranted }
+            .sorted { $0.blocksEnabledExtension && !$1.blocksEnabledExtension }
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, usages sectionUsages: [PermissionUsage]) -> some View {
+        if !sectionUsages.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    eyebrow(title)
+                    Text("\(sectionUsages.count)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.quaternary)
+                }
+                ForEach(sectionUsages) { usage in
+                    PermissionCard(usage: usage, grant: grant)
+                }
+            }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             summary
             filterRow
             ScrollView {
-                LazyVStack(spacing: 10) {
-                    ForEach(visible) { usage in
-                        PermissionCard(usage: usage, grant: grant)
-                    }
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    section("NOT GRANTED", usages: ungranted)
+                    section("GRANTED", usages: granted)
                     if visible.isEmpty {
                         emptyState
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
+                .animation(
+                    Motion.animation(Motion.snap, reduceMotion: reduceMotion),
+                    value: granted.map(\.id))
             }
         }
         .padding(.top, 4)
