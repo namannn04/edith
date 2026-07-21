@@ -198,4 +198,27 @@ describe("checkout route", () => {
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: "checkout_failed" });
   });
+
+  test("reports missing configuration as unavailable, not a gateway error", async () => {
+    delete process.env.POLAR_PRODUCT_PERSONAL_3;
+
+    const response = await checkoutRoute.POST(
+      checkoutRequest({ planId: "personal_3" }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "checkout_unavailable" });
+    expect(captured).toHaveLength(0);
+  });
+
+  test("a missing access token is also configuration, not upstream", async () => {
+    delete process.env.POLAR_ACCESS_TOKEN;
+
+    const response = await checkoutRoute.POST(
+      checkoutRequest({ planId: "personal_3" }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(captured).toHaveLength(0);
+  });
 });

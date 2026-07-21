@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { rateLimited } from "@/lib/device-session";
 import { apiJson, siteUrl } from "@/lib/http";
-import { createCheckoutSession } from "@/lib/polar";
+import { createCheckoutSession, PolarConfigError } from "@/lib/polar";
 import { priceCentsFor, resolveMachines } from "@/lib/pricing";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 
@@ -53,7 +53,14 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     return apiJson({ ok: true, url: session.url, checkoutId: session.id }, 200);
-  } catch {
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown";
+    console.error(`checkout failed for ${parsed.data.planId}: ${reason}`);
+
+    if (error instanceof PolarConfigError) {
+      return apiJson({ error: "checkout_unavailable" }, 503);
+    }
+
     return apiJson({ error: "checkout_failed" }, 502);
   }
 }

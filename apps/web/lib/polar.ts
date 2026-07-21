@@ -13,6 +13,8 @@ const productEnvByPlan: Record<string, string> = {
   [customTier.id]: "POLAR_PRODUCT_CUSTOM",
 };
 
+export class PolarConfigError extends Error {}
+
 export function polarApiBase(): string {
   return process.env.POLAR_SERVER === "production"
     ? "https://api.polar.sh"
@@ -24,7 +26,7 @@ export function productIdForPlan(planId: string): string {
   const value = name ? process.env[name] : undefined;
 
   if (!value) {
-    throw new Error(`Missing Polar product id for plan ${planId}`);
+    throw new PolarConfigError(`Missing Polar product id for plan ${planId}`);
   }
 
   return value;
@@ -141,7 +143,7 @@ export async function createCheckoutSession(
   const token = process.env.POLAR_ACCESS_TOKEN;
 
   if (!token) {
-    throw new Error("Missing POLAR_ACCESS_TOKEN");
+    throw new PolarConfigError("Missing POLAR_ACCESS_TOKEN");
   }
 
   const productId = productIdForPlan(request.planId);
