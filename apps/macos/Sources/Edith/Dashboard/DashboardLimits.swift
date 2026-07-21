@@ -176,11 +176,14 @@ struct RateLimitsDialsView: View {
         }
         .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
         .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 16))
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(DashSkin.paper2(dark))
+                .shadow(color: .black.opacity(dark ? 0.32 : 0.05), radius: 12, y: 8)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 16).strokeBorder(DashSkin.line(dark), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(dark ? 0.32 : 0.05), radius: 12, y: 8)
         .task { reload() }
         .onChange(of: selectedRaw) { reload() }
         .onReceive(

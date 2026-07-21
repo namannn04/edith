@@ -177,8 +177,10 @@ struct DashboardView: View {
         }
     }
 
+    private static let kpiColumns = [GridItem(.adaptive(minimum: 158), spacing: 12)]
+
     private var kpiGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 158), spacing: 12)], spacing: 12) {
+        LazyVGrid(columns: Self.kpiColumns, spacing: 12) {
             ForEach(model.kpis) { kpi in
                 HStack(spacing: 0) {
                     Rectangle().fill(kpi.hot ? acc : Color.clear).frame(width: 3)
@@ -217,7 +219,11 @@ struct DashboardView: View {
                         DashSkin.line(dark), lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 14))
-                .shadow(color: .black.opacity(dark ? 0.3 : 0.05), radius: 8, y: 4)
+                .background {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(DashSkin.paper2(dark))
+                        .shadow(color: .black.opacity(dark ? 0.3 : 0.05), radius: 8, y: 4)
+                }
             }
         }
     }
