@@ -88,10 +88,10 @@ const structuredData = {
       mainEntity: [
         {
           "@type": "Question",
-          name: "When can I purchase Edith?",
+          name: "How much does Edith cost?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Edith is in early preview. Mail kpulkit15234@gmail.com and you will get a license key. Purchasing will be supported very soon, and the app will be opened to public use shortly after.",
+            text: "Edith is a one-time purchase, not a subscription. $25 for 1 Mac, $45 for 3, $65 for 5, and a custom tier up to 50 Macs. Pay once and the licence never expires.",
           },
         },
         {
@@ -145,10 +145,11 @@ export default function HomePage() {
           <nav className="hidden gap-8 md:flex [&>a:hover]:text-fg [&>a]:text-[13px] [&>a]:text-muted">
             <a href="#features">Features</a>
             <a href="#performance">Performance</a>
+            <a href="/pricing">Pricing</a>
             <a href="#faq">FAQ</a>
           </nav>
-          <a href="/api/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-4! px-6 py-1.5! py-3 font-medium text-[13px]! text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
-            Download
+          <a href="/pricing" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-4! px-6 py-1.5! py-3 font-medium text-[13px]! text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
+            Buy
           </a>
         </div>
       </header>
@@ -175,11 +176,11 @@ export default function HomePage() {
               tracking, usage analytics, local music, and system tools.
             </p>
             <div className="mt-10 flex animate-hero-rise flex-wrap gap-3 [animation-delay:320ms] motion-reduce:animate-none">
-              <a href="/api/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-6 py-3 font-medium text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
+              <a href="/pricing" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-6 py-3 font-medium text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
                 <svg className="size-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M16.365 1.43c0 1.14-.42 2.23-1.24 3.05-.83.83-2.19 1.45-3.31 1.36-.14-1.1.43-2.24 1.2-2.98.85-.83 2.32-1.42 3.35-1.43zM20.5 17.29c-.57 1.31-.85 1.9-1.59 3.06-1.03 1.61-2.48 3.62-4.28 3.63-1.6.01-2.01-1.05-4.18-1.04-2.17.01-2.62 1.06-4.22 1.05-1.8-.02-3.18-1.83-4.21-3.44C-.36 16.72-1.02 10.6 2.87 8.4c1.4-.8 2.86-1.24 4.24-1.26 1.61-.03 3.13 1.09 4.19 1.09 1.05 0 2.87-1.35 4.85-1.15.83.03 3.16.33 4.66 2.52-.12.08-2.78 1.62-2.75 4.82.03 3.83 3.36 5.1 3.4 5.11-.03.09-.53 1.82-1.96 3.76z" />
                 </svg>
-                Download for macOS
+                Get Edith for macOS
               </a>
             </div>
             <p className="text-[12px] text-subtle">Requires macOS. Apple Silicon and Intel.</p>
@@ -1165,19 +1166,18 @@ export default function HomePage() {
           <div className="mx-auto flex max-w-190 flex-col gap-3 [&_summary::-webkit-details-marker]:hidden [&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:items-baseline [&_summary]:justify-between [&_summary]:gap-4 [&_summary]:font-medium [&_summary]:text-[16px]" data-reveal-group="">
             <details className="group rounded-card border border-line bg-surface px-6 py-5">
               <summary>
-                When can I purchase Edith?
+                How much does Edith cost?
                 <span className="shrink-0 text-subtle transition-transform group-open:rotate-45 motion-reduce:transition-none" aria-hidden="true">
                   +
                 </span>
               </summary>
               <p className="mt-3 max-w-160 text-[15px] text-muted leading-[1.6]">
-                Edith is in early preview. Mail{" "}
-                <a href="mailto:kpulkit15234@gmail.com" className="text-fg underline underline-offset-2">
-                  kpulkit15234@gmail.com
+                Edith is a one-time purchase, not a subscription. $25 for 1 Mac,
+                $45 for 3, $65 for 5, and a{" "}
+                <a href="/pricing" className="text-fg underline underline-offset-2">
+                  custom tier
                 </a>{" "}
-                and you will get a license key. Purchasing will be supported
-                very soon, and the app will be opened to public use shortly
-                after.
+                up to 50 Macs. Pay once and the licence never expires.
               </p>
             </details>
             <details className="group rounded-card border border-line bg-surface px-6 py-5">
@@ -1237,14 +1237,14 @@ export default function HomePage() {
         </section>
 
         <section id="download" className="mx-auto w-full max-w-280 border-line border-t px-6 pt-24 pb-28 text-center [&>a]:mt-8 [&>h2]:mx-auto [&>h2]:max-w-160 [&>p]:mt-3" data-reveal-group="">
-          <h2>Try Edith on your Mac.</h2>
-          <a href="/api/download/installer" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-accent px-6 py-3 font-medium text-[14px] text-accent-fg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
+          <h2>Get Edith on your Mac.</h2>
+          <a href="/pricing" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-accent px-6 py-3 font-medium text-[14px] text-accent-fg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
             <svg className="size-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M16.365 1.43c0 1.14-.42 2.23-1.24 3.05-.83.83-2.19 1.45-3.31 1.36-.14-1.1.43-2.24 1.2-2.98.85-.83 2.32-1.42 3.35-1.43zM20.5 17.29c-.57 1.31-.85 1.9-1.59 3.06-1.03 1.61-2.48 3.62-4.28 3.63-1.6.01-2.01-1.05-4.18-1.04-2.17.01-2.62 1.06-4.22 1.05-1.8-.02-3.18-1.83-4.21-3.44C-.36 16.72-1.02 10.6 2.87 8.4c1.4-.8 2.86-1.24 4.24-1.26 1.61-.03 3.13 1.09 4.19 1.09 1.05 0 2.87-1.35 4.85-1.15.83.03 3.16.33 4.66 2.52-.12.08-2.78 1.62-2.75 4.82.03 3.83 3.36 5.1 3.4 5.11-.03.09-.53 1.82-1.96 3.76z" />
             </svg>
-            Download for macOS
+            See pricing
           </a>
-          <p className="text-[12px] text-subtle">Requires macOS. Apple Silicon and Intel.</p>
+          <p className="text-[12px] text-subtle">One-time purchase. Requires macOS. Apple Silicon and Intel.</p>
         </section>
       </main>
 
@@ -1263,7 +1263,8 @@ export default function HomePage() {
           <div className="flex gap-6 text-[13px] text-muted [&>a:hover]:text-fg">
             <a href="#features">Features</a>
             <a href="#faq">FAQ</a>
-            <a href="#download">Download</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/license">License</a>
             <a href="/terms">Terms</a>
             <a href="/privacy">Privacy</a>
           </div>

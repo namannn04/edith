@@ -15,9 +15,10 @@ export function SiteHeader() {
         <nav className="hidden gap-8 md:flex [&>a:hover]:text-fg [&>a]:text-[13px] [&>a]:text-muted">
           <a href="/#features">Features</a>
           <a href="/#performance">Performance</a>
+          <a href="/pricing">Pricing</a>
         </nav>
-        <a href="/#download" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-4! px-6 py-1.5! py-3 font-medium text-[13px]! text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
-          Download
+        <a href="/pricing" className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-transparent bg-fg px-4! px-6 py-1.5! py-3 font-medium text-[13px]! text-[14px] text-bg transition-[transform_0.35s_cubic-bezier(0.16,1,0.3,1),border-color_0.35s_ease,box-shadow_0.35s_ease] hover:-translate-y-px motion-reduce:transition-none">
+          Buy
         </a>
       </div>
     </header>
@@ -40,7 +41,8 @@ export function SiteFooter() {
         </div>
         <div className="flex gap-6 text-[13px] text-muted [&>a:hover]:text-fg">
           <a href="/#features">Features</a>
-          <a href="/#download">Download</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/license">License</a>
           <a href="/terms">Terms</a>
           <a href="/privacy">Privacy</a>
         </div>
