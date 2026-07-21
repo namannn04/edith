@@ -123,6 +123,7 @@ enum DashLimits {
 struct RateLimitsDialsView: View {
     let dark: Bool
     var fill = false
+    var showsJumpLink = false
     @AppStorage("warnPercent") private var warn = 60
     @AppStorage("critPercent") private var crit = 85
     @State private var point: DashLimitPoint?
@@ -162,6 +163,9 @@ struct RateLimitsDialsView: View {
                 Text("As of \(point.t.formatted(.dateTime.hour().minute()))")
                     .font(DashSkin.mono(10)).foregroundStyle(DashSkin.inkFaint(dark))
             }
+            if showsJumpLink {
+                JumpLink(title: "Open Agent Usage", destination: .dashboard, dark: dark)
+            }
         }
         .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
         .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
@@ -175,6 +179,9 @@ struct RateLimitsDialsView: View {
         .onReceive(
             DistributedNotificationCenter.default().publisher(for: IPC.Name.limitsUpdated)
         ) { _ in
+            point = DashLimits.loadLatest(provider: selected)
+        }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
             point = DashLimits.loadLatest(provider: selected)
         }
     }
@@ -216,7 +223,7 @@ struct RateLimitsDialsView: View {
     private func color(for percent: Double) -> Color {
         if percent >= Double(crit) { return .red }
         if percent >= Double(warn) { return .orange }
-        return DashSkin.accent(dark)
+        return DashSkin.sage
     }
 }
 
