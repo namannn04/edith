@@ -2,11 +2,6 @@ import Charts
 import EdithKit
 import SwiftUI
 
-private struct DashboardWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 struct DashboardView: View {
     @StateObject private var refresh = DashboardRefreshBridge()
     @ObservedObject private var model = DashboardModel.shared
@@ -18,7 +13,6 @@ struct DashboardView: View {
         false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var compact = false
     @State private var showLog = false
     @State private var customFrom = Date()
     @State private var customTo = Date()
@@ -31,54 +25,48 @@ struct DashboardView: View {
     private var blurUsage: Bool { presenterState.active && presenterBlurUsage }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if model.loaded {
-                controlsBar
-            }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    masthead(compact: compact)
-                        .padding(.horizontal, compact ? 18 : 24).padding(.top, 18)
-                    if showLog {
-                        logView.padding(.horizontal, compact ? 18 : 24)
-                    }
-                    if model.loaded {
-                        kpiGrid.padding(.horizontal, compact ? 18 : 24)
-                        LazyVStack(spacing: 16) {
-                            activityRow(compact: compact)
-                            LimitsCardView(theme: acc, dark: dark)
-                            BudgetCardView(theme: acc, dark: dark)
-                            charts
-                        }
-                        .padding(.horizontal, compact ? 18 : 24).padding(.bottom, 28)
-                        .animation(
-                            Motion.animation(Motion.settle, reduceMotion: reduceMotion),
-                            value: model.revision)
-                    } else if !model.loadAttempted {
-                        ProgressView("Loading usage data…")
-                            .controlSize(.small)
-                            .frame(maxWidth: .infinity, minHeight: 240)
-                    } else {
-                        ContentUnavailableView(
-                            "No usage data yet", systemImage: "chart.bar",
-                            description: Text("Hit reload to run the bundled collector.")
-                        )
-                        .frame(maxWidth: .infinity, minHeight: 240)
-                    }
+        GeometryReader { geo in
+            let compact = geo.size.width < 640
+            VStack(spacing: 0) {
+                if model.loaded {
+                    controlsBar
                 }
-                .frame(maxWidth: .infinity)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        masthead(compact: compact)
+                            .padding(.horizontal, compact ? 18 : 24).padding(.top, 18)
+                        if showLog {
+                            logView.padding(.horizontal, compact ? 18 : 24)
+                        }
+                        if model.loaded {
+                            kpiGrid.padding(.horizontal, compact ? 18 : 24)
+                            LazyVStack(spacing: 16) {
+                                activityRow(compact: compact)
+                                LimitsCardView(theme: acc, dark: dark)
+                                BudgetCardView(theme: acc, dark: dark)
+                                charts(compact: compact)
+                            }
+                            .padding(.horizontal, compact ? 18 : 24).padding(.bottom, 28)
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: model.revision)
+                        } else if !model.loadAttempted {
+                            ProgressView("Loading usage data…")
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity, minHeight: 240)
+                        } else {
+                            ContentUnavailableView(
+                                "No usage data yet", systemImage: "chart.bar",
+                                description: Text("Hit reload to run the bundled collector.")
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 240)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
             }
-        }
-        .background(background)
-        .environment(\.compactLayout, compact)
-        .background {
-            GeometryReader { geo in
-                Color.clear.preference(key: DashboardWidthKey.self, value: geo.size.width)
-            }
-        }
-        .onPreferenceChange(DashboardWidthKey.self) { width in
-            let next = width < 640
-            if next != compact { compact = next }
+            .background(background)
+            .environment(\.compactLayout, compact)
         }
         .navigationTitle("Agent Usage")
         .task {
@@ -427,7 +415,7 @@ struct DashboardView: View {
         TerminalLogView(log: refresh.log, theme: appTheme, height: 150)
     }
 
-    @ViewBuilder private var charts: some View {
+    @ViewBuilder private func charts(compact: Bool) -> some View {
         SkinCard(title: "Daily usage", dark: dark) {
             ComboChart(
                 points: model.chartData.daily, barColor: acc, lineColor: gold, dark: dark,
