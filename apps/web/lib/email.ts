@@ -1,0 +1,88 @@
+import { z } from "zod";
+
+const defaultFrom = "Edith <licenses@pulkit.page>";
+
+export type LicenseEmailInput = {
+  to: string;
+  licenseKey: string;
+  planName: string;
+  maxMachines: number;
+};
+
+export type EmailResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
+
+const sendResponseSchema = z.object({ id: z.string().min(1) });
+
+export function licenseEmailSubject(): string {
+  return "Your Edith license key";
+}
+
+export function licenseEmailText(input: LicenseEmailInput): string {
+  const seats =
+    input.maxMachines === 1 ? "1 Mac" : `${input.maxMachines} Macs`;
+
+  return [
+    "Thanks for buying Edith.",
+    "",
+    `License key: ${input.licenseKey}`,
+    `Plan: ${input.planName} (${seats})`,
+    "",
+    "To activate, open Edith, choose Enter License Key, and paste the key above.",
+    "Your licence is a one-time purchase and does not expire.",
+    "",
+    "Keep this email. The key is the only way to activate on a new Mac.",
+  ].join("\n");
+}
+
+export function licenseEmailHtml(input: LicenseEmailInput): string {
+  const seats =
+    input.maxMachines === 1 ? "1 Mac" : `${input.maxMachines} Macs`;
+
+  return [
+    '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:15px;line-height:1.6;color:#111">',
+    "<p>Thanks for buying Edith.</p>",
+    `<p style="font-size:20px;font-weight:600;letter-spacing:0.04em;margin:24px 0">${input.licenseKey}</p>`,
+    `<p>Plan: <strong>${input.planName}</strong> (${seats})</p>`,
+    "<p>To activate, open Edith, choose <strong>Enter License Key</strong>, and paste the key above.</p>",
+    "<p>Your licence is a one-time purchase and does not expire.</p>",
+    "<p>Keep this email. The key is the only way to activate on a new Mac.</p>",
+    "</div>",
+  ].join("");
+}
+
+export async function sendLicenseEmail(
+  input: LicenseEmailInput,
+): Promise<EmailResult> {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    return { ok: false, error: "missing_api_key" };
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: process.env.LICENSE_EMAIL_FROM ?? defaultFrom,
+        to: [input.to],
+        subject: licenseEmailSubject(),
+        text: licenseEmailText(input),
+        html: licenseEmailHtml(input),
+      }),
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: `send_failed_${response.status}` };
+    }
+
+    return { ok: true, id: sendResponseSchema.parse(await response.json()).id };
+  } catch {
+    return { ok: false, error: "send_error" };
+  }
+}

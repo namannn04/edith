@@ -6,9 +6,24 @@ import { FakeStore, makeDeviceKey, signChallenge } from "./fakes";
 process.env.LICENSE_KEY_LOOKUP_PEPPER = "route-test-pepper";
 process.env.LICENSE_ACCESS_TOKEN_SECRET = "route-test-access-secret";
 process.env.LICENSE_SIGNING_PRIVATE_KEY = randomBytes(32).toString("base64");
-process.env.PAYMENT_WEBHOOK_SECRET = "route-test-webhook-secret";
+process.env.POLAR_WEBHOOK_SECRET = "route-test-webhook-secret";
+process.env.POLAR_PRODUCT_PERSONAL_3 = "prod_personal_3";
+process.env.POLAR_PRODUCT_CUSTOM = "prod_custom";
 
 const store = new FakeStore();
+
+const sentEmails: { to: string; licenseKey: string }[] = [];
+let emailResult: { ok: true; id: string } | { ok: false; error: string } = {
+  ok: true,
+  id: "email_1",
+};
+
+mock.module("@/lib/email", () => ({
+  sendLicenseEmail: async (input: { to: string; licenseKey: string }) => {
+    sentEmails.push(input);
+    return emailResult;
+  },
+}));
 
 mock.module("@/lib/db", () => ({ licenseStore: store }));
 mock.module("@/lib/github", () => ({
@@ -41,9 +56,7 @@ const refreshChallengeRoute = await import(
 );
 const refreshRoute = await import("@/app/api/devices/refresh/route");
 const deactivateRoute = await import("@/app/api/devices/deactivate/route");
-const webhookRoute = await import(
-  "@/app/api/payments/lemonsqueezy/webhook/route"
-);
+const webhookRoute = await import("@/app/api/payments/polar/webhook/route");
 const dmgRoute = await import("@/app/api/download/dmg/route");
 const appcastRoute = await import("@/app/api/appcast/route");
 const legacyAppcastRoute = await import("@/app/api/v1/appcast/route");
@@ -470,75 +483,89 @@ describe("protected downloads", () => {
   });
 });
 
-function signWebhook(rawBody: string): string {
-  return createHmac("sha256", "route-test-webhook-secret")
-    .update(rawBody, "utf8")
-    .digest("hex");
+let webhookCounter = 0;
+
+function signPolar(rawBody: string, id: string, timestamp: number): string {
+  return createHmac("sha256", Buffer.from("route-test-webhook-secret", "utf8"))
+    .update(`${id}.${timestamp}.${rawBody}`, "utf8")
+    .digest("base64");
 }
 
 function webhookRequest(
   payload: unknown,
-  options: { signature?: string; ip?: string } = {},
+  options: { signature?: string; id?: string } = {},
 ): Request {
   const rawBody = JSON.stringify(payload);
-  return new Request(
-    "https://edith.test/api/payments/lemonsqueezy/webhook",
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-forwarded-for": options.ip ?? nextIp(),
-        "x-signature": options.signature ?? signWebhook(rawBody),
-      },
-      body: rawBody,
+  webhookCounter += 1;
+  const id = options.id ?? `msg_${webhookCounter}`;
+  const timestamp = Math.floor(Date.now() / 1000);
+
+  return new Request("https://edith.test/api/payments/polar/webhook", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-forwarded-for": nextIp(),
+      "webhook-id": id,
+      "webhook-timestamp": String(timestamp),
+      "webhook-signature":
+        options.signature ?? `v1,${signPolar(rawBody, id, timestamp)}`,
     },
-  );
+    body: rawBody,
+  });
 }
 
-function orderCreatedPayload(orderId: string, variantId: string) {
+function orderPaid(
+  orderId: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
-    meta: { event_name: "order_created" },
+    type: "order.paid",
     data: {
       id: orderId,
-      attributes: {
-        customer_id: 42,
-        first_order_item: { variant_id: variantId },
-      },
+      status: "paid",
+      paid: true,
+      product_id: "prod_personal_3",
+      currency: "usd",
+      subtotal_amount: 4500,
+      customer_id: "cus_1",
+      customer: { email: "buyer@example.com", name: "Buyer" },
+      metadata: { plan_id: "personal_3", machines: 3 },
+      ...overrides,
     },
   };
 }
 
-describe("lemonsqueezy webhook", () => {
+describe("polar webhook", () => {
+  beforeEach(() => {
+    sentEmails.length = 0;
+    emailResult = { ok: true, id: "email_1" };
+  });
+
   test("an invalid signature is rejected with 401", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest(orderCreatedPayload("order-1", "variant-3"), {
-        signature: "0".repeat(64),
-      }),
+      webhookRequest(orderPaid("order-1"), { signature: "v1,ZmFrZQ==" }),
     );
 
     expect(response.status).toBe(401);
     expect(store.paymentEvents.size).toBe(0);
+    expect(store.licensesById.size).toBe(0);
   });
 
-  test("order_created mints a license from the plan mapping", async () => {
-    store.addPlan({
-      id: "personal_3",
-      provider: "lemonsqueezy",
-      externalPriceId: "variant-3",
-      maxMachines: 3,
-    });
+  test("order.paid mints a licence and emails the key", async () => {
     const response = await webhookRoute.POST(
-      webhookRequest(orderCreatedPayload("order-1", "variant-3")),
+      webhookRequest(orderPaid("order-1")),
     );
 
     expect(response.status).toBe(200);
 
     const body = (await response.json()) as Record<string, unknown>;
 
-    expect(body).toMatchObject({ ok: true, planId: "personal_3", maxMachines: 3 });
-    expect(String(body.licenseKey)).toMatch(
-      /^EDITH-[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/,
-    );
+    expect(body).toMatchObject({
+      ok: true,
+      planId: "personal_3",
+      maxMachines: 3,
+    });
+    expect(body.licenseKey).toBeUndefined();
 
     const license = await store.getLicenseById(String(body.licenseId));
 
@@ -547,16 +574,182 @@ describe("lemonsqueezy webhook", () => {
       maxMachines: 3,
       status: "active",
     });
+    expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0]?.to).toBe("buyer@example.com");
+    expect(sentEmails[0]?.licenseKey).toMatch(
+      /^EDITH-[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/,
+    );
   });
 
-  test("a replayed event returns the original result without a new license", async () => {
-    store.addPlan({
-      id: "personal_3",
-      provider: "lemonsqueezy",
-      externalPriceId: "variant-3",
-      maxMachines: 3,
+  test("the buyer is linked to a user row by email", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(orderPaid("order-1")),
+    );
+    const body = (await response.json()) as { licenseId: string };
+    const userId = store.userIdsByEmail.get("buyer@example.com");
+
+    expect(userId).toBeDefined();
+    expect(store.licenseUserIds.get(body.licenseId)).toBe(String(userId));
+  });
+
+  test("a custom order mints the requested machine count", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-custom", {
+          product_id: "prod_custom",
+          subtotal_amount: 13500,
+          metadata: { plan_id: "custom", machines: 12 },
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as { licenseId: string };
+    const license = await store.getLicenseById(body.licenseId);
+
+    expect(license).toMatchObject({ planId: "custom", maxMachines: 12 });
+  });
+
+  test("a custom order above the cap is refused", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-big", {
+          product_id: "prod_custom",
+          subtotal_amount: 52500,
+          metadata: { plan_id: "custom", machines: 51 },
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "invalid_order" });
+    expect(store.licensesById.size).toBe(0);
+  });
+
+  test("an underpaid order is refused and mints nothing", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(orderPaid("order-1", { subtotal_amount: 100 })),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "amount_mismatch" });
+    expect(store.licensesById.size).toBe(0);
+    expect(sentEmails).toHaveLength(0);
+  });
+
+  test("a discounted order still passes the subtotal check", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-1", { subtotal_amount: 4500, net_amount: 3600 }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  test("a non-usd order skips the amount check", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-inr", { currency: "inr", subtotal_amount: 375000 }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  test("falls back to the product id when metadata is missing", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(orderPaid("order-1", { metadata: {} })),
+    );
+
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as { licenseId: string };
+    const license = await store.getLicenseById(body.licenseId);
+
+    expect(license).toMatchObject({ planId: "personal_3", maxMachines: 3 });
+  });
+
+  test("a custom order without metadata is refused rather than guessed", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-1", { product_id: "prod_custom", metadata: {} }),
+      ),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "unknown_plan" });
+    expect(store.licensesById.size).toBe(0);
+  });
+
+  test("an unknown product records a failed event and mints nothing", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-1", { product_id: "prod_mystery", metadata: {} }),
+      ),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "unknown_plan" });
+    expect(store.licensesById.size).toBe(0);
+
+    const event = await store.getPaymentEvent("polar", "order.paid:order-1");
+
+    expect(event).toMatchObject({
+      processingState: "failed",
+      error: "unknown_plan",
     });
-    const payload = orderCreatedPayload("order-1", "variant-3");
+  });
+
+  test("an unpaid order is ignored without minting", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(
+        orderPaid("order-1", { status: "pending", paid: false }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, ignored: true });
+    expect(store.licensesById.size).toBe(0);
+    expect(sentEmails).toHaveLength(0);
+  });
+
+  test("a licence is still minted when the buyer has no email", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest(orderPaid("order-1", { customer: { email: null } })),
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.licensesById.size).toBe(1);
+    expect(sentEmails).toHaveLength(0);
+    expect(
+      store.securityEvents.some(
+        (event) => event.eventType === "license_delivery_skipped",
+      ),
+    ).toBe(true);
+  });
+
+  test("a failed send does not undo the licence", async () => {
+    emailResult = { ok: false, error: "send_failed_500" };
+
+    const response = await webhookRoute.POST(
+      webhookRequest(orderPaid("order-1")),
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.licensesById.size).toBe(1);
+    expect(
+      store.securityEvents.some(
+        (event) =>
+          event.eventType === "license_delivery_failed" &&
+          event.detail === "send_failed_500",
+      ),
+    ).toBe(true);
+  });
+
+  test("a replayed event returns the original result without a new licence", async () => {
+    const payload = orderPaid("order-1");
     const first = await webhookRoute.POST(webhookRequest(payload));
     const firstBody = (await first.json()) as { licenseId: string };
     const replay = await webhookRoute.POST(webhookRequest(payload));
@@ -568,16 +761,10 @@ describe("lemonsqueezy webhook", () => {
       replayed: true,
     });
     expect(store.licensesById.size).toBe(1);
+    expect(sentEmails).toHaveLength(1);
   });
 
-  test("a concurrent duplicate hits the unique violation and one license exists", async () => {
-    store.addPlan({
-      id: "personal_3",
-      provider: "lemonsqueezy",
-      externalPriceId: "variant-3",
-      maxMachines: 3,
-    });
-
+  test("a concurrent duplicate hits the unique violation and one licence exists", async () => {
     const original = store.getPaymentEvent.bind(store);
     let lookups = 0;
     store.getPaymentEvent = async (provider, providerEventId) => {
@@ -585,7 +772,7 @@ describe("lemonsqueezy webhook", () => {
       return lookups <= 2 ? null : original(provider, providerEventId);
     };
 
-    const payload = orderCreatedPayload("order-1", "variant-3");
+    const payload = orderPaid("order-1");
     const first = await webhookRoute.POST(webhookRequest(payload));
     const second = await webhookRoute.POST(webhookRequest(payload));
     store.getPaymentEvent = original;
@@ -599,41 +786,15 @@ describe("lemonsqueezy webhook", () => {
     expect(store.licensesById.size).toBe(1);
   });
 
-  test("an unknown price records a failed event and mints nothing", async () => {
-    const response = await webhookRoute.POST(
-      webhookRequest(orderCreatedPayload("order-1", "variant-unknown")),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "unknown_price" });
-    expect(store.licensesById.size).toBe(0);
-
-    const event = await store.getPaymentEvent(
-      "lemonsqueezy",
-      "order_created:order-1",
-    );
-
-    expect(event).toMatchObject({
-      processingState: "failed",
-      error: "unknown_price",
-    });
-  });
-
-  test("order_refunded marks the license refunded", async () => {
-    store.addPlan({
-      id: "personal_3",
-      provider: "lemonsqueezy",
-      externalPriceId: "variant-3",
-      maxMachines: 3,
-    });
+  test("order.refunded marks the licence refunded", async () => {
     const created = await webhookRoute.POST(
-      webhookRequest(orderCreatedPayload("order-1", "variant-3")),
+      webhookRequest(orderPaid("order-1")),
     );
     const createdBody = (await created.json()) as { licenseId: string };
     const refunded = await webhookRoute.POST(
       webhookRequest({
-        meta: { event_name: "order_refunded" },
-        data: { id: "order-1", attributes: {} },
+        type: "order.refunded",
+        data: { id: "order-1" },
       }),
     );
 
@@ -644,28 +805,23 @@ describe("lemonsqueezy webhook", () => {
     expect(license).toMatchObject({ status: "refunded", active: false });
   });
 
-  test("order_chargeback marks the license chargeback", async () => {
-    store.addPlan({
-      id: "personal_3",
-      provider: "lemonsqueezy",
-      externalPriceId: "variant-3",
-      maxMachines: 3,
-    });
-    const created = await webhookRoute.POST(
-      webhookRequest(orderCreatedPayload("order-1", "variant-3")),
-    );
-    const createdBody = (await created.json()) as { licenseId: string };
-    const chargeback = await webhookRoute.POST(
-      webhookRequest({
-        meta: { event_name: "order_chargeback" },
-        data: { id: "order-1", attributes: {} },
-      }),
+  test("a refund for an unknown order is refused", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest({ type: "order.refunded", data: { id: "order-ghost" } }),
     );
 
-    expect(chargeback.status).toBe(200);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "license_not_found" });
+  });
 
-    const license = await store.getLicenseById(createdBody.licenseId);
+  test("an unrelated event is acknowledged and ignored", async () => {
+    const response = await webhookRoute.POST(
+      webhookRequest({ type: "checkout.updated", data: { id: "chk-1" } }),
+    );
 
-    expect(license).toMatchObject({ status: "chargeback", active: false });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, ignored: true });
+    expect(store.licensesById.size).toBe(0);
   });
 });
+

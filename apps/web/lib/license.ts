@@ -85,6 +85,7 @@ export type NewLicenseInput = {
   label: string | null;
   planId: string;
   maxMachines: number;
+  userId?: string | null;
 };
 
 export type PlanPriceRecord = {
@@ -179,6 +180,7 @@ export interface LicenseAccess {
     now: Date,
   ): Promise<void>;
   insertLicense(input: NewLicenseInput): Promise<{ id: string }>;
+  upsertUserByEmail(email: string, name: string | null): Promise<string>;
   getPlanByPriceId(
     provider: string,
     priceId: string,

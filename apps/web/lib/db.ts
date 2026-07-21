@@ -12,6 +12,7 @@ import {
   paymentEvents,
   plans,
   securityEvents,
+  users,
 } from "@/lib/schema";
 
 type Database = PostgresJsDatabase<typeof schema>;
@@ -321,6 +322,7 @@ function createAccess(database: Database): LicenseAccess {
           label: input.label,
           planId: input.planId,
           maxMachines: input.maxMachines,
+          userId: input.userId ?? null,
         })
         .returning({ id: licenses.id });
 
@@ -329,6 +331,25 @@ function createAccess(database: Database): LicenseAccess {
       }
 
       return license;
+    },
+    async upsertUserByEmail(email, name) {
+      const [user] = await database
+        .insert(users)
+        .values({ email, name })
+        .onConflictDoUpdate({
+          target: users.email,
+          set: {
+            name: name ?? sql`${users.name}`,
+            updatedAt: sql`now()`,
+          },
+        })
+        .returning({ id: users.id });
+
+      if (!user) {
+        throw new Error("User upsert returned no row");
+      }
+
+      return user.id;
     },
     async getPlanByPriceId(provider, priceId) {
       const [plan] = await database
@@ -489,6 +510,9 @@ export const licenseStore: LicenseStore = {
   },
   async insertLicense(input) {
     return createAccess(getDb()).insertLicense(input);
+  },
+  async upsertUserByEmail(email, name) {
+    return createAccess(getDb()).upsertUserByEmail(email, name);
   },
   async getPlanByPriceId(provider, priceId) {
     return createAccess(getDb()).getPlanByPriceId(provider, priceId);
