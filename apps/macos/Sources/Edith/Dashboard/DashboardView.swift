@@ -12,6 +12,7 @@ struct DashboardView: View {
     @AppStorage("presenterBlurUsage", store: SharedDefaults.store) private var presenterBlurUsage =
         false
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showLog = false
     @State private var customFrom = Date()
     @State private var customTo = Date()
@@ -185,10 +186,21 @@ struct DashboardView: View {
                         Text(kpi.value)
                             .font(DashSkin.serif(26))
                             .foregroundStyle(DashSkin.ink(dark))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: kpi.value
+                            )
                             .presenterBlur(
                                 (kpi.sensitiveValue && blurMoney) || (kpi.usageValue && blurUsage))
                         Text(kpi.sub)
                             .font(.system(size: 11.5)).foregroundStyle(DashSkin.inkSoft(dark))
+                            .contentTransition(.numericText())
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: kpi.sub
+                            )
                             .presenterBlur(
                                 (kpi.sensitiveSub && blurMoney) || (kpi.usageSub && blurUsage))
                     }

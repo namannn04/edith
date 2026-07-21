@@ -238,7 +238,7 @@ struct ProjTreeRow: Identifiable, ProjSortable {
 }
 
 struct KPI: Identifiable {
-    let id = UUID()
+    var id: String { label }
     let label: String
     let value: String
     let sub: String
