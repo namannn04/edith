@@ -496,7 +496,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
                     expandedFrame: frames.expanded),
                 on: expandedDisplay)
         } else if currentAlert == nil {
-            let id = displayID(under: point)
+            let id = notchDisplay(near: point)
             let near =
                 id.flatMap { frames(for: $0) }
                 .map { NotchGeometry.openFrame(around: $0.collapsed).contains(point) } ?? false
@@ -504,9 +504,10 @@ final class NotchShelfController: ObservableObject, FeatureModule {
         }
     }
 
-    private func displayID(under point: CGPoint) -> CGDirectDisplayID? {
-        NSScreen.screens.first { $0.frame.contains(point) }?.displayID.flatMap {
-            panels[$0] != nil ? $0 : nil
+    private func notchDisplay(near point: CGPoint) -> CGDirectDisplayID? {
+        panels.keys.first { id in
+            guard let frames = frames(for: id) else { return false }
+            return NotchGeometry.interactionFrame(around: frames.collapsed).contains(point)
         }
     }
 
@@ -553,7 +554,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
             lastDragChangeCount = NSPasteboard(name: .drag).changeCount
             internalDragItemIDs = []
             let point = NSEvent.mouseLocation
-            if !isExpanded, currentAlert == nil, let id = displayID(under: point),
+            if !isExpanded, currentAlert == nil, let id = notchDisplay(near: point),
                 let frames = frames(for: id),
                 NotchGeometry.openFrame(around: frames.collapsed).contains(point)
             {
@@ -563,7 +564,7 @@ final class NotchShelfController: ObservableObject, FeatureModule {
             guard openOnDrag else { return }
             guard NSPasteboard(name: .drag).changeCount != lastDragChangeCount else { return }
             let point = NSEvent.mouseLocation
-            guard optionSatisfied(), let id = displayID(under: point), isNearNotch(point, on: id)
+            guard optionSatisfied(), let id = notchDisplay(near: point), isNearNotch(point, on: id)
             else { return }
             activeTab = .files
             expand(on: id)
