@@ -11,10 +11,10 @@ afterEach(() => {
 });
 
 describe("plan ceilings", () => {
-  test("defaults both caps to 5", () => {
+  test("defaults the standard cap to 5 and the custom cap to 50", () => {
     expect(readCeilings()).toEqual({
       standardMaxMachinesCap: 5,
-      customMaxMachinesCap: 5,
+      customMaxMachinesCap: 50,
     });
   });
 

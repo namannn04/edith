@@ -49,9 +49,15 @@ export class FakeStore implements LicenseStore {
   readonly securityEvents: SecurityEventInput[] = [];
   readonly paymentEvents = new Map<string, StoredPaymentEvent>();
   readonly plans = new Map<string, StoredPlan>();
+  readonly userIdsByEmail = new Map<string, string>();
+  readonly userNamesById = new Map<string, string | null>();
+  readonly licenseUserIds = new Map<string, string | null>();
 
   reset(): void {
     this.licensesById.clear();
+    this.userIdsByEmail.clear();
+    this.userNamesById.clear();
+    this.licenseUserIds.clear();
     this.devices.clear();
     this.challenges.clear();
     this.credentials.length = 0;
@@ -133,7 +139,43 @@ export class FakeStore implements LicenseStore {
       keyLast4: input.keyLast4,
     };
     this.licensesById.set(license.id, license);
+    this.licenseUserIds.set(license.id, input.userId ?? null);
     return { id: license.id };
+  }
+
+  async upsertUserByEmail(email: string, name: string | null) {
+    const existing = this.userIdsByEmail.get(email);
+
+    if (existing) {
+      this.userNamesById.set(existing, name ?? this.userNamesById.get(existing) ?? null);
+      return existing;
+    }
+
+    const id = randomUUID();
+    this.userIdsByEmail.set(email, id);
+    this.userNamesById.set(id, name);
+    return id;
+  }
+
+  async getActiveLicensesByEmail(email: string) {
+    const userId = this.userIdsByEmail.get(email);
+
+    if (!userId) {
+      return [];
+    }
+
+    return [...this.licensesById.entries()]
+      .filter(
+        ([licenseId, license]) =>
+          this.licenseUserIds.get(licenseId) === userId &&
+          license.status === "active",
+      )
+      .map(([, license]) => ({
+        key: license.key,
+        planId: license.planId,
+        maxMachines: license.maxMachines,
+        customMaxMachines: license.customMaxMachines,
+      }));
   }
 
   async getPlanByPriceId(provider: string, priceId: string) {

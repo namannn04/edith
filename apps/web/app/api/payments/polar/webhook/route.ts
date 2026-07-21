@@ -1,16 +1,14 @@
 import { licenseStore } from "@/lib/db";
-import { apiJson } from "@/lib/http";
-import {
-  processLemonSqueezyWebhook,
-  verifyWebhookSignature,
-} from "@/lib/payments";
-import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 import { rateLimited } from "@/lib/device-session";
+import { apiJson } from "@/lib/http";
+import { processPolarWebhook } from "@/lib/payments";
+import { verifyPolarSignature } from "@/lib/polar";
+import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const route = "/api/payments/lemonsqueezy/webhook";
+const route = "/api/payments/polar/webhook";
 
 export async function POST(request: Request): Promise<Response> {
   const limit = await checkRateLimit(getClientIp(request.headers), route);
@@ -21,7 +19,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const rawBody = await request.text();
 
-  if (!verifyWebhookSignature(rawBody, request.headers.get("x-signature"))) {
+  if (!verifyPolarSignature(rawBody, request.headers)) {
     return apiJson({ error: "invalid_signature" }, 401);
   }
 
@@ -34,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await processLemonSqueezyWebhook(licenseStore, payload);
+    const result = await processPolarWebhook(licenseStore, payload);
     return apiJson(result.body, result.status);
   } catch {
     return apiJson({ error: "internal" }, 500);
