@@ -12,6 +12,7 @@ struct DashboardView: View {
     @AppStorage("presenterBlurUsage", store: SharedDefaults.store) private var presenterBlurUsage =
         false
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showLog = false
     @State private var customFrom = Date()
     @State private var customTo = Date()
@@ -43,9 +44,12 @@ struct DashboardView: View {
                                 activityRow(compact: compact)
                                 LimitsCardView(theme: acc, dark: dark)
                                 BudgetCardView(theme: acc, dark: dark)
-                                charts
+                                charts(compact: compact)
                             }
                             .padding(.horizontal, compact ? 18 : 24).padding(.bottom, 28)
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: model.revision)
                         } else if !model.loadAttempted {
                             ProgressView("Loading usage data…")
                                 .controlSize(.small)
@@ -173,8 +177,10 @@ struct DashboardView: View {
         }
     }
 
+    private static let kpiColumns = [GridItem(.adaptive(minimum: 158), spacing: 12)]
+
     private var kpiGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 158), spacing: 12)], spacing: 12) {
+        LazyVGrid(columns: Self.kpiColumns, spacing: 12) {
             ForEach(model.kpis) { kpi in
                 HStack(spacing: 0) {
                     Rectangle().fill(kpi.hot ? acc : Color.clear).frame(width: 3)
@@ -185,10 +191,21 @@ struct DashboardView: View {
                         Text(kpi.value)
                             .font(DashSkin.serif(26))
                             .foregroundStyle(DashSkin.ink(dark))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: kpi.value
+                            )
                             .presenterBlur(
                                 (kpi.sensitiveValue && blurMoney) || (kpi.usageValue && blurUsage))
                         Text(kpi.sub)
                             .font(.system(size: 11.5)).foregroundStyle(DashSkin.inkSoft(dark))
+                            .contentTransition(.numericText())
+                            .animation(
+                                Motion.animation(Motion.settle, reduceMotion: reduceMotion),
+                                value: kpi.sub
+                            )
                             .presenterBlur(
                                 (kpi.sensitiveSub && blurMoney) || (kpi.usageSub && blurUsage))
                     }
@@ -202,7 +219,11 @@ struct DashboardView: View {
                         DashSkin.line(dark), lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 14))
-                .shadow(color: .black.opacity(dark ? 0.3 : 0.05), radius: 8, y: 4)
+                .background {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(DashSkin.paper2(dark))
+                        .shadow(color: .black.opacity(dark ? 0.3 : 0.05), radius: 8, y: 4)
+                }
             }
         }
     }
@@ -400,7 +421,7 @@ struct DashboardView: View {
         TerminalLogView(log: refresh.log, theme: appTheme, height: 150)
     }
 
-    @ViewBuilder private var charts: some View {
+    @ViewBuilder private func charts(compact: Bool) -> some View {
         SkinCard(title: "Daily usage", dark: dark) {
             ComboChart(
                 points: model.chartData.daily, barColor: acc, lineColor: gold, dark: dark,
@@ -426,12 +447,13 @@ struct DashboardView: View {
                     blurTokens: blurUsage)
             }
         }
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 16) {
+        if compact {
+            VStack(spacing: 16) {
                 dowCard
                 shareByModelCard
             }
-            VStack(spacing: 16) {
+        } else {
+            HStack(alignment: .top, spacing: 16) {
                 dowCard
                 shareByModelCard
             }

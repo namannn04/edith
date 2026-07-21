@@ -123,6 +123,7 @@ enum DashLimits {
 struct RateLimitsDialsView: View {
     let dark: Bool
     var fill = false
+    var showsJumpLink = false
     @AppStorage("warnPercent") private var warn = 60
     @AppStorage("critPercent") private var crit = 85
     @State private var point: DashLimitPoint?
@@ -130,13 +131,22 @@ struct RateLimitsDialsView: View {
         LimitProvider.claude.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var providers: [LimitProvider] { DashLimits.availableProviders() }
+    @State private var providers: [LimitProvider] = []
+
     private var selected: LimitProvider {
         get {
             let saved = LimitProvider(rawValue: selectedRaw) ?? .claude
             return providers.contains(saved) ? saved : providers.first ?? saved
         }
         nonmutating set { selectedRaw = newValue.rawValue }
+    }
+
+    private func reload() {
+        let found = DashLimits.availableProviders()
+        providers = found
+        let saved = LimitProvider(rawValue: selectedRaw) ?? .claude
+        point = DashLimits.loadLatest(
+            provider: found.contains(saved) ? saved : found.first ?? saved)
     }
 
     var body: some View {
@@ -149,9 +159,7 @@ struct RateLimitsDialsView: View {
                 Spacer()
                 Text("session · weekly").font(.system(size: 11.5))
                     .foregroundStyle(DashSkin.inkFaint(dark))
-                LimitsRefreshButton(dark: dark) {
-                    point = DashLimits.loadLatest(provider: selected)
-                }
+                LimitsRefreshButton(dark: dark) { reload() }
             }
             HStack(spacing: 24) {
                 dial("SESSION (5H)", pct: point?.s, reset: point?.sr)
@@ -162,20 +170,29 @@ struct RateLimitsDialsView: View {
                 Text("As of \(point.t.formatted(.dateTime.hour().minute()))")
                     .font(DashSkin.mono(10)).foregroundStyle(DashSkin.inkFaint(dark))
             }
+            if showsJumpLink {
+                JumpLink(title: "Open Agent Usage", destination: .dashboard, dark: dark)
+            }
         }
         .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
         .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: 16))
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(DashSkin.paper2(dark))
+                .shadow(color: .black.opacity(dark ? 0.32 : 0.05), radius: 12, y: 8)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 16).strokeBorder(DashSkin.line(dark), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(dark ? 0.32 : 0.05), radius: 12, y: 8)
-        .task { point = DashLimits.loadLatest(provider: selected) }
-        .onChange(of: selectedRaw) { point = DashLimits.loadLatest(provider: selected) }
+        .task { reload() }
+        .onChange(of: selectedRaw) { reload() }
         .onReceive(
             DistributedNotificationCenter.default().publisher(for: IPC.Name.limitsUpdated)
         ) { _ in
-            point = DashLimits.loadLatest(provider: selected)
+            reload()
+        }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
+            reload()
         }
     }
 
@@ -206,17 +223,21 @@ struct RateLimitsDialsView: View {
         }
     }
 
-    private func resetText(_ d: Date?) -> String {
-        guard let d else { return " " }
+    private static let resetFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .full
-        return "Resets " + f.localizedString(for: d, relativeTo: Date())
+        return f
+    }()
+
+    private func resetText(_ d: Date?) -> String {
+        guard let d else { return " " }
+        return "Resets " + Self.resetFormatter.localizedString(for: d, relativeTo: Date())
     }
 
     private func color(for percent: Double) -> Color {
         if percent >= Double(crit) { return .red }
         if percent >= Double(warn) { return .orange }
-        return DashSkin.accent(dark)
+        return DashSkin.sage
     }
 }
 
@@ -273,7 +294,8 @@ struct LimitsCardView: View {
         LimitProvider.claude.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var providers: [LimitProvider] { DashLimits.availableProviders() }
+    @State private var providers: [LimitProvider] = []
+
     private var selectedProvider: LimitProvider {
         get {
             let saved = LimitProvider(rawValue: selectedProviderRaw) ?? .claude
@@ -331,6 +353,7 @@ struct LimitsCardView: View {
     }
 
     private func reloadAll() {
+        providers = DashLimits.availableProviders()
         all = DashLimits.loadAll(provider: selectedProvider)
         let now = all.last?.t ?? Date()
         downsampled = DashLimits.downsample(all, now: now)

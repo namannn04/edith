@@ -300,7 +300,11 @@ struct MainWindowView: View {
             .overlay(alignment: .topLeading) { chromeOverlay(bandHeight) }
             .animation(
                 Motion.animation(Motion.glide, reduceMotion: reduceMotion),
-                value: musicFooterVisible)
+                value: visibleHomeItems
+            )
+            .animation(
+                Motion.animation(Motion.glide, reduceMotion: reduceMotion),
+                value: footerVisible)
         }
         .background(historyShortcuts)
         .onChange(of: currentLocation) { _, location in

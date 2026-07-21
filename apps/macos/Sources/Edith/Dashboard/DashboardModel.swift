@@ -238,7 +238,7 @@ struct ProjTreeRow: Identifiable, ProjSortable {
 }
 
 struct KPI: Identifiable {
-    let id = UUID()
+    var id: String { label }
     let label: String
     let value: String
     let sub: String
@@ -328,6 +328,7 @@ final class DashboardModel: ObservableObject {
     @Published private(set) var calendarDays: [DayPoint] = []
     @Published private(set) var heatDetail: [String: HeatDay] = [:]
     @Published private(set) var chartData = DashChartData()
+    @Published private(set) var revision = 0
 
     private(set) var allModels: [String] = []
     private(set) var allSources: [SourceInfo] = []
@@ -725,6 +726,7 @@ final class DashboardModel: ObservableObject {
 
     private func recompute() {
         guard loaded, let data, let win = window() else { return }
+        revision &+= 1
         let fromStr = ymdStr(win.from)
         let toStr = ymdStr(win.to)
         let inRange = data.daily.filter { $0.period >= fromStr && $0.period <= toStr }

@@ -10,6 +10,13 @@ enum SettingsBackupDataClass: String, CaseIterable, Hashable, Sendable {
     case clipboard
 }
 
+func settingsBackupShouldImport(
+    localFileExists: Bool, freshInstall: Bool, cloudDate: Date, localDate: Date
+) -> Bool {
+    if !localFileExists || freshInstall { return true }
+    return cloudDate > localDate.addingTimeInterval(2)
+}
+
 func settingsBackupMissingNames(cloudNames: Set<String>, localNames: Set<String>) -> Set<String> {
     cloudNames.subtracting(localNames)
 }
@@ -212,6 +219,13 @@ final class SettingsBackup: ObservableObject {
             [:]
     private var pendingRestoreStates: [SettingsBackupDataClass: SettingsBackupPendingState] = [:]
     private var restoreTasks: [SettingsBackupDataClass: Task<Void, Never>] = [:]
+    private var settingsRestorePending = false
+    private var settingsRestoreDeadline: Date?
+    private var settingsRestoreRetry: Timer?
+    private var musicDebounce: Timer?
+    private var musicFolderObserver: NSObjectProtocol?
+    static let settingsRestoreRetryInterval: TimeInterval = 3
+    static let settingsRestoreDeadlineInterval: TimeInterval = 600
 
     private var cloudEnabled: Bool {
         SharedDefaults.store.bool(forKey: "icloudBackup") && AppData.cloudAvailable
@@ -585,6 +599,7 @@ final class SettingsBackup: ObservableObject {
             clearRestoreState(for: dataClass)
         }
         observedICloudBackup = SharedDefaults.store.bool(forKey: "icloudBackup")
+        beginSettingsRestore()
         let restored = restoreFromCloud()
         export()
         exportLimits()
@@ -605,6 +620,9 @@ final class SettingsBackup: ObservableObject {
         }
         if !restored.clipboard {
             backupClipboard()
+        }
+        musicFolderObserver = IPC.observe(IPC.Name.musicFolderChanged) {
+            Task { @MainActor in SettingsBackup.shared.scheduleMusicBackup() }
         }
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
@@ -810,6 +828,7 @@ final class SettingsBackup: ObservableObject {
     }
 
     func export() {
+        guard !settingsRestorePending else { return }
         guard let data = snapshot() else { return }
         if (try? Data(contentsOf: localFile)) != data {
             try? data.write(to: localFile)
@@ -926,21 +945,38 @@ final class SettingsBackup: ObservableObject {
     }
 
     private func importFromCloudIfNewer(decision: SettingsBackupTransferDecision) {
-        guard decision.shouldRestore else { return }
+        guard decision.shouldRestore else {
+            finishSettingsRestore()
+            return
+        }
         let fm = FileManager.default
-        let firstRun = !fm.fileExists(atPath: localFile.path)
+        guard cloudFileExists(at: cloudFile) else {
+            finishSettingsRestore()
+            return
+        }
         guard
             let cloudDate = (try? fm.attributesOfItem(atPath: cloudFile.path))?[.modificationDate]
                 as? Date
-        else { return }
+        else {
+            awaitSettingsDownload()
+            return
+        }
         let localDate =
             (try? fm.attributesOfItem(atPath: localFile.path))?[.modificationDate] as? Date
             ?? .distantPast
-        guard firstRun || cloudDate > localDate.addingTimeInterval(2) else { return }
+        guard
+            settingsBackupShouldImport(
+                localFileExists: fm.fileExists(atPath: localFile.path),
+                freshInstall: localSettingsAreEmpty,
+                cloudDate: cloudDate, localDate: localDate)
+        else {
+            finishSettingsRestore()
+            return
+        }
         guard let data = try? Data(contentsOf: cloudFile),
             let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            try? fm.startDownloadingUbiquitousItem(at: cloudFile)
+            awaitSettingsDownload()
             return
         }
         for (key, value) in dict where Self.backedKeys.contains(key) {
@@ -966,5 +1002,64 @@ final class SettingsBackup: ObservableObject {
         try? data.write(to: localFile)
         HotKey.register()
         IPC.post(IPC.Name.settingsChanged)
+        finishSettingsRestore()
+    }
+
+    private var localSettingsAreEmpty: Bool {
+        SharedDefaults.store.bool(forKey: ExtensionDefaultsMigration.freshInstallKey)
+    }
+
+    private func beginSettingsRestore() {
+        guard cloudEnabled, cloudFileExists(at: cloudFile) else {
+            finishSettingsRestore()
+            return
+        }
+        settingsRestorePending = true
+        settingsRestoreDeadline = Date().addingTimeInterval(Self.settingsRestoreDeadlineInterval)
+    }
+
+    private func awaitSettingsDownload() {
+        try? FileManager.default.startDownloadingUbiquitousItem(at: cloudFile)
+        guard settingsRestorePending else { return }
+        guard let deadline = settingsRestoreDeadline, Date() < deadline else {
+            finishSettingsRestore()
+            return
+        }
+        settingsRestoreRetry?.invalidate()
+        settingsRestoreRetry = Timer.scheduledTimer(
+            withTimeInterval: Self.settingsRestoreRetryInterval, repeats: false
+        ) { _ in
+            Task { @MainActor in
+                SettingsBackup.shared.retrySettingsRestore()
+            }
+        }
+    }
+
+    private func retrySettingsRestore() {
+        guard settingsRestorePending else { return }
+        importFromCloudIfNewer(decision: transferDecision(for: .settings))
+    }
+
+    private func finishSettingsRestore() {
+        settingsRestoreRetry?.invalidate()
+        settingsRestoreRetry = nil
+        settingsRestoreDeadline = nil
+        guard settingsRestorePending else { return }
+        settingsRestorePending = false
+        export()
+    }
+
+    func scheduleMusicBackup() {
+        guard cloudEnabled, transferDecision(for: .music).shouldExport,
+            pendingRestoreStates[.music] == nil
+        else {
+            musicDebounce?.invalidate()
+            musicDebounce = nil
+            return
+        }
+        musicDebounce?.invalidate()
+        musicDebounce = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { _ in
+            Task { @MainActor in SettingsBackup.shared.backupMusic() }
+        }
     }
 }

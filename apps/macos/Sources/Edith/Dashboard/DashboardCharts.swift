@@ -426,13 +426,18 @@ struct _WrapLayout: Layout {
     var spacing: CGFloat
     var lineSpacing: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+    func makeCache(subviews: Subviews) -> [CGSize] {
+        subviews.map { $0.sizeThatFits(.unspecified) }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout [CGSize])
+        -> CGSize
+    {
         let maxWidth = proposal.width ?? 300
         var x: CGFloat = 0
         var y: CGFloat = 0
         var lineHeight: CGFloat = 0
-        for view in subviews {
-            let size = view.sizeThatFits(.unspecified)
+        for size in cache {
             if x + size.width > maxWidth, x > 0 {
                 x = 0
                 y += lineHeight + lineSpacing
@@ -445,7 +450,7 @@ struct _WrapLayout: Layout {
     }
 
     func placeSubviews(
-        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout [CGSize]
     ) {
         var y: CGFloat = bounds.minY
         var line: [(view: LayoutSubviews.Element, size: CGSize)] = []
@@ -466,8 +471,9 @@ struct _WrapLayout: Layout {
             lineHeight = 0
         }
 
-        for view in subviews {
-            let size = view.sizeThatFits(.unspecified)
+        for (index, view) in subviews.enumerated() {
+            let size =
+                cache.indices.contains(index) ? cache[index] : view.sizeThatFits(.unspecified)
             if lineWidth + size.width > bounds.width, !line.isEmpty {
                 flushLine()
             }

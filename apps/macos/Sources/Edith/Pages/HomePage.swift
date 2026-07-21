@@ -52,7 +52,7 @@ struct HomePage: View {
                             if calendarEnabled { MeetingsCard(dark: dark) }
                             if usageEnabled {
                                 UsageSummaryCard(dark: dark)
-                                LimitsSummaryCard(dark: dark)
+                                RateLimitsDialsView(dark: dark, showsJumpLink: true)
                             }
                             if musicEnabled { MusicCard(dark: dark) }
                         }
@@ -683,7 +683,7 @@ private func jumpLink(_ title: String, to destination: MainDestination, dark: Bo
     JumpLink(title: title, destination: destination, dark: dark)
 }
 
-private struct JumpLink: View {
+struct JumpLink: View {
     let title: String
     let destination: MainDestination
     let dark: Bool
@@ -826,111 +826,6 @@ private struct UsageSummaryCard: View {
         }
         .chartYAxis(.hidden)
         .frame(height: 64)
-    }
-}
-
-private struct LimitsSummaryCard: View {
-    let dark: Bool
-    @AppStorage("warnPercent") private var warn = 60
-    @AppStorage("critPercent") private var crit = 85
-    @State private var latest: DashLimitPoint?
-    @AppStorage("limitsProvider", store: SharedDefaults.store) private var selectedRaw =
-        LimitProvider.claude.rawValue
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var providers: [LimitProvider] { DashLimits.availableProviders() }
-    private var selected: LimitProvider {
-        get {
-            let saved = LimitProvider(rawValue: selectedRaw) ?? .claude
-            return providers.contains(saved) ? saved : providers.first ?? saved
-        }
-        nonmutating set { selectedRaw = newValue.rawValue }
-    }
-
-    var body: some View {
-        SkinCard(title: "Rate limits", note: "session · weekly", dark: dark) {
-            VStack(alignment: .leading, spacing: 14) {
-                ProviderSwitchButton(
-                    selection: Binding(get: { selected }, set: { selected = $0 }),
-                    providers: providers, color: DashSkin.ink(dark), size: 15)
-                if let latest {
-                    HStack(alignment: .top, spacing: 20) {
-                        gauge("Session (5h)", value: latest.s, reset: latest.sr)
-                        gauge("Weekly", value: latest.w, reset: latest.wr)
-                    }
-                    .frame(maxWidth: .infinity)
-                    HStack {
-                        Text("As of \(latest.t.formatted(date: .omitted, time: .shortened))")
-                            .font(DashSkin.mono(9))
-                            .foregroundStyle(DashSkin.inkFaint(dark))
-                        Spacer()
-                        LimitsRefreshButton(dark: dark) { reload() }
-                    }
-                    jumpLink("Open Agent Usage", to: .dashboard, dark: dark)
-                } else {
-                    HStack {
-                        Text("Collecting limit history…")
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(DashSkin.inkFaint(dark))
-                            .frame(maxWidth: .infinity, minHeight: 90)
-                        LimitsRefreshButton(dark: dark) { reload() }
-                    }
-                }
-            }
-        }
-        .task { reload() }
-        .onChange(of: selectedRaw) { reload() }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
-            reload()
-        }
-    }
-
-    private func reload() {
-        latest = DashLimits.loadLatest(provider: selected)
-    }
-
-    private func barColor(_ value: Double) -> Color {
-        if value >= Double(crit) { return .red }
-        if value >= Double(warn) { return .orange }
-        return DashSkin.sage
-    }
-
-    private func gauge(_ label: String, value: Double?, reset: Date?) -> some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .stroke(.primary.opacity(0.08), style: StrokeStyle(lineWidth: 9))
-                if let value {
-                    Circle()
-                        .trim(from: 0, to: min(value, 100) / 100)
-                        .stroke(
-                            barColor(value),
-                            style: StrokeStyle(lineWidth: 9, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                }
-                Text(value.map { "\(Int($0))%" } ?? "-")
-                    .font(DashSkin.serif(22))
-                    .foregroundStyle(value.map(barColor) ?? DashSkin.inkFaint(dark))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .animation(
-                        Motion.animation(Motion.settle, reduceMotion: reduceMotion), value: value)
-            }
-            .frame(width: 92, height: 92)
-            .padding(5)
-            VStack(spacing: 2) {
-                Text(label.uppercased())
-                    .font(DashSkin.mono(9.5)).tracking(1.3)
-                    .foregroundStyle(DashSkin.inkFaint(dark))
-                if let reset {
-                    Text("Resets \(reset.formatted(.relative(presentation: .named)))")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(DashSkin.inkSoft(dark))
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
