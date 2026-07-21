@@ -179,6 +179,29 @@ import Testing
         #expect(state.remaining.isEmpty)
     }
 
+    @Test func settingsImportSurvivesLeftoverLocalFileOnReinstall() {
+        let now = Date()
+        let staleCloud = now.addingTimeInterval(-3600)
+
+        #expect(
+            settingsBackupShouldImport(
+                localFileExists: false, freshInstall: true, cloudDate: staleCloud, localDate: now))
+        #expect(
+            settingsBackupShouldImport(
+                localFileExists: true, freshInstall: true, cloudDate: staleCloud, localDate: now))
+        #expect(
+            !settingsBackupShouldImport(
+                localFileExists: true, freshInstall: false, cloudDate: staleCloud, localDate: now))
+        #expect(
+            settingsBackupShouldImport(
+                localFileExists: true, freshInstall: false, cloudDate: now,
+                localDate: now.addingTimeInterval(-10)))
+        #expect(
+            !settingsBackupShouldImport(
+                localFileExists: true, freshInstall: false, cloudDate: now,
+                localDate: now.addingTimeInterval(-1)))
+    }
+
     @Test func restoredPathValidationMatrix() {
         let home = URL(fileURLWithPath: "/Users/example")
         let cases: [(String, RestoredPathVerdict)] = [
