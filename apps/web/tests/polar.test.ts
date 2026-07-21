@@ -180,6 +180,41 @@ describe("polar webhook signatures", () => {
     }
   });
 
+  test("accepts a whsec_ secret hashed as raw utf8 bytes", () => {
+    const prefixed = "whsec_7PxkYhXUqm0rBrMf6THmujRtZ8BEtGLXsEfxQ0Qxugj";
+    process.env.POLAR_WEBHOOK_SECRET = prefixed;
+    const body = '{"type":"order.paid"}';
+    const signature = `v1,${sign(body, "msg_123", 1_700_000_000, prefixed)}`;
+
+    expect(
+      verifyPolarSignature(body, headersFor(body, { signature }), now),
+    ).toBe(true);
+  });
+
+  test("accepts a whsec_ secret hashed as base64-decoded bytes", () => {
+    const prefixed = "whsec_7PxkYhXUqm0rBrMf6THmujRtZ8BEtGLXsEfxQ0Qxugj";
+    process.env.POLAR_WEBHOOK_SECRET = prefixed;
+    const body = '{"type":"order.paid"}';
+    const decodedKey = Buffer.from(prefixed.slice(6), "base64");
+    const signature = `v1,${createHmac("sha256", decodedKey)
+      .update(`msg_123.1700000000.${body}`, "utf8")
+      .digest("base64")}`;
+
+    expect(
+      verifyPolarSignature(body, headersFor(body, { signature }), now),
+    ).toBe(true);
+  });
+
+  test("still rejects a wrong secret even with both encodings tried", () => {
+    process.env.POLAR_WEBHOOK_SECRET = "whsec_realsecretvalue";
+    const body = '{"type":"order.paid"}';
+    const forged = `v1,${sign(body, "msg_123", 1_700_000_000, "whsec_attackerguess")}`;
+
+    expect(
+      verifyPolarSignature(body, headersFor(body, { signature: forged }), now),
+    ).toBe(false);
+  });
+
   test("rejects when no secret is configured", () => {
     const body = '{"type":"order.paid"}';
 

@@ -68,9 +68,10 @@ export function verifyPolarSignature(
     return false;
   }
 
-  const expected = createHmac("sha256", Buffer.from(secret, "utf8"))
-    .update(`${id}.${timestamp}.${rawBody}`, "utf8")
-    .digest();
+  const signedContent = `${id}.${timestamp}.${rawBody}`;
+  const candidates = signingKeys(secret).map((key) =>
+    createHmac("sha256", key).update(signedContent, "utf8").digest(),
+  );
 
   return signature.split(" ").some((entry) => {
     const [version, value] = entry.split(",");
@@ -81,11 +82,26 @@ export function verifyPolarSignature(
 
     const provided = Buffer.from(value, "base64");
 
-    return (
-      provided.length === expected.length &&
-      timingSafeEqual(expected, provided)
+    return candidates.some(
+      (expected) =>
+        provided.length === expected.length &&
+        timingSafeEqual(expected, provided),
     );
   });
+}
+
+function signingKeys(secret: string): Buffer[] {
+  const keys = [Buffer.from(secret, "utf8")];
+
+  if (secret.startsWith("whsec_")) {
+    const decoded = Buffer.from(secret.slice("whsec_".length), "base64");
+
+    if (decoded.length > 0) {
+      keys.push(decoded);
+    }
+  }
+
+  return keys;
 }
 
 const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
