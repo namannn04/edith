@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   planIdForProduct,
   polarApiBase,
@@ -42,11 +42,25 @@ function headersFor(
 
 const now = new Date(1_700_000_000 * 1000);
 
+const productEnvNames = [
+  "POLAR_PRODUCT_INDIVIDUAL_1",
+  "POLAR_PRODUCT_PERSONAL_3",
+  "POLAR_PRODUCT_POWER_5",
+  "POLAR_PRODUCT_CUSTOM",
+];
+
+function clearProductEnv(): void {
+  for (const name of productEnvNames) {
+    delete process.env[name];
+  }
+}
+
+beforeEach(clearProductEnv);
+
 afterEach(() => {
   delete process.env.POLAR_WEBHOOK_SECRET;
   delete process.env.POLAR_SERVER;
-  delete process.env.POLAR_PRODUCT_INDIVIDUAL_1;
-  delete process.env.POLAR_PRODUCT_CUSTOM;
+  clearProductEnv();
 });
 
 describe("polar webhook signatures", () => {
