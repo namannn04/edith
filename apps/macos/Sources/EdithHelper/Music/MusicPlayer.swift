@@ -22,7 +22,14 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         }
     }
 
+    private enum QueueSource: Equatable {
+        case all
+        case folder(String)
+        case directory(String)
+    }
+
     private var player: AVAudioPlayer?
+    private var queueSource: QueueSource = .all
     private let fade: TimeInterval = 0.35
     private var saveTimer: Timer?
     private var folderChangedObserver: NSObjectProtocol?
@@ -57,16 +64,46 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         broadcastState()
     }
 
+    private func track(for relativePath: String) -> Track {
+        tracks.first { $0.relativePath == relativePath }
+            ?? Track(url: Repo.musicDir.appendingPathComponent(relativePath))
+    }
+
+    private func source(from info: [AnyHashable: Any]) -> QueueSource? {
+        guard let kind = info["sourceKind"] as? String else { return nil }
+        let path = info["sourcePath"] as? String ?? ""
+        switch kind {
+        case "folder": return .folder(path)
+        case "directory": return .directory(path)
+        case "all": return .all
+        default: return nil
+        }
+    }
+
+    private func currentQueue() -> [Track] {
+        switch queueSource {
+        case .all: return tracks
+        case .folder(let path): return TrackMeta.tracks(under: path)
+        case .directory(let path): return TrackMeta.entries(in: path).tracks
+        }
+    }
+
     private func handleCommand(_ info: [AnyHashable: Any]) {
         switch info["action"] as? String {
         case "playPause": playPause()
         case "next": next()
         case "previous": previous()
         case "toggle":
-            if let file = info["track"] as? String,
-                let track = tracks.first(where: { $0.url.lastPathComponent == file })
-            {
-                toggle(track)
+            if let file = info["track"] as? String {
+                toggle(track(for: file))
+            }
+        case "playSource":
+            if let source = source(from: info) {
+                playSource(source, start: (info["start"] as? String).map { track(for: $0) })
+            }
+        case "renamed":
+            if let from = info["from"] as? String, let to = info["to"] as? String {
+                handleRenamed(from: from, to: to)
             }
         case "seek":
             if let fraction = info["value"] as? Double { seek(to: fraction) }
@@ -78,11 +115,19 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         }
     }
 
+    private func handleRenamed(from: String, to: String) {
+        guard current?.relativePath == from else { return }
+        current = track(for: to)
+        updateNowPlaying()
+        persistPlayback()
+        broadcastState()
+    }
+
     private func broadcastState() {
         IPC.post(
             IPC.Name.musicState,
             userInfo: [
-                "track": current?.url.lastPathComponent ?? "",
+                "track": current?.relativePath ?? "",
                 "isPlaying": isPlaying,
                 "elapsed": elapsed,
                 "duration": trackDuration,
@@ -153,7 +198,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
 
     func rescan() {
         tracks = TrackMeta.scanMusicFolder()
-        if let current, !tracks.contains(current) {
+        if let current, !isPlaying, !tracks.contains(current) {
             stop()
         }
     }
@@ -162,8 +207,19 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
         if current == track {
             isPlaying ? pause() : resume()
         } else {
+            queueSource = .directory((track.relativePath as NSString).deletingLastPathComponent)
             play(track)
         }
+    }
+
+    private func playSource(_ source: QueueSource, start: Track?) {
+        let previousSource = queueSource
+        queueSource = source
+        guard let track = start ?? currentQueue().first else {
+            queueSource = previousSource
+            return
+        }
+        play(track)
     }
 
     func playPause() {
@@ -171,7 +227,7 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
             pause()
         } else if current != nil {
             resume()
-        } else if let first = tracks.first {
+        } else if let first = currentQueue().first {
             play(first)
         }
     }
@@ -179,14 +235,13 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
     func next() { step(1) }
     func previous() { step(-1) }
 
-    func playRandom() {
-        if let track = Shuffle.pool(tracks, excluding: current).randomElement() { play(track) }
-    }
-
     private func step(_ delta: Int) {
-        guard !tracks.isEmpty else { return }
-        let index = current.flatMap { tracks.firstIndex(of: $0) } ?? -delta
-        play(tracks[((index + delta) % tracks.count + tracks.count) % tracks.count])
+        let list = currentQueue()
+        let position = current.flatMap { list.firstIndex(of: $0) }
+        guard
+            let next = PlayQueue.index(after: position, delta: delta, count: list.count)
+        else { return }
+        play(list[next])
     }
 
     private func play(_ track: Track) {
@@ -310,14 +365,14 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
     private func persistPlayback() {
         guard let current else { return }
         PlaybackStore.save(
-            track: current.url.lastPathComponent, position: elapsed, playing: isPlaying,
+            track: current.relativePath, position: elapsed, playing: isPlaying,
             into: .standard)
     }
 
     private func restoreLastPlayback() {
         guard current == nil,
             let snapshot = PlaybackStore.load(from: .standard),
-            let track = tracks.first(where: { $0.url.lastPathComponent == snapshot.track })
+            let track = tracks.first(where: { $0.relativePath == snapshot.track })
         else { return }
         guard let p = try? AVAudioPlayer(contentsOf: track.url) else { return }
         player = p
@@ -344,16 +399,17 @@ final class MusicPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate, Feat
             if self.isLooping, let current = self.current {
                 self.play(current)
             } else {
-                self.playRandom()
+                self.step(1)
             }
         }
     }
 }
 
-enum Shuffle {
-    static func pool<T: Equatable>(_ all: [T], excluding current: T?) -> [T] {
-        let rest = all.filter { $0 != current }
-        return rest.isEmpty ? all : rest
+enum PlayQueue {
+    static func index(after current: Int?, delta: Int, count: Int) -> Int? {
+        guard count > 0 else { return nil }
+        let base = current ?? -delta
+        return ((base + delta) % count + count) % count
     }
 }
 

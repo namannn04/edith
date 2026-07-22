@@ -96,6 +96,49 @@ public final class YoutubeDownloader: ObservableObject {
         public static func == (lhs: DownloadItem, rhs: DownloadItem) -> Bool {
             lhs.id == rhs.id
         }
+
+        public var resolvedTitle: String? {
+            if case let .done(output) = status {
+                let first = output.components(separatedBy: ", ").first ?? output
+                let stem = (first as NSString).deletingPathExtension
+                return stem.isEmpty ? nil : stem
+            }
+            for line in logs.components(separatedBy: .newlines).reversed() {
+                guard let range = line.range(of: "Destination: ") else { continue }
+                let path = String(line[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+                let stem = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+                if !stem.isEmpty { return stem }
+            }
+            return nil
+        }
+
+        public var thumbnailURL: URL? { YoutubeDownloader.thumbnailURL(for: url) }
+    }
+
+    nonisolated public static func videoID(from url: URL) -> String? {
+        let host = url.host?.lowercased() ?? ""
+        if host.contains("youtu.be") {
+            let id = url.lastPathComponent
+            return id.isEmpty || id == "/" ? nil : id
+        }
+        guard host.contains("youtube.com") else { return nil }
+        if let v = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "v" })?.value, !v.isEmpty
+        {
+            return v
+        }
+        let parts = url.pathComponents.filter { $0 != "/" }
+        if let idx = parts.firstIndex(where: { $0 == "shorts" || $0 == "embed" }),
+            idx + 1 < parts.count
+        {
+            return parts[idx + 1]
+        }
+        return nil
+    }
+
+    nonisolated public static func thumbnailURL(for url: URL) -> URL? {
+        guard let id = videoID(from: url) else { return nil }
+        return URL(string: "https://img.youtube.com/vi/\(id)/mqdefault.jpg")
     }
 
     private var persistenceURL: URL {
@@ -280,6 +323,14 @@ public final class YoutubeDownloader: ObservableObject {
         }
     }
 
+    public func sourceURL(forFileNamed name: String) -> URL? {
+        for item in items {
+            guard case let .done(output) = item.status else { continue }
+            if output.components(separatedBy: ", ").contains(name) { return item.url }
+        }
+        return nil
+    }
+
     public func retry(_ item: DownloadItem) {
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         items[idx].status = .queued
@@ -390,6 +441,7 @@ public final class YoutubeDownloader: ObservableObject {
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty && FileManager.default.fileExists(atPath: $0) }
                 if proc.terminationStatus == 0 || !producedPaths.isEmpty {
+                    YoutubeDownloader.cleanupIntermediates(for: producedPaths)
                     let files = producedPaths.map { ($0 as NSString).lastPathComponent }
                     let label = files.isEmpty ? "done" : files.joined(separator: ", ")
                     self.items[index].status = .done(label)
@@ -424,6 +476,27 @@ public final class YoutubeDownloader: ObservableObject {
 
     private func indexOfItem(with id: UUID) -> Int? {
         items.firstIndex(where: { $0.id == id })
+    }
+
+    nonisolated static let intermediateExtensions: Set<String> =
+        ["webm", "mkv", "opus", "ogg", "part", "ytdl", "temp"]
+
+    nonisolated static func cleanupIntermediates(for producedPaths: [String]) {
+        let fm = FileManager.default
+        for path in producedPaths {
+            let produced = URL(fileURLWithPath: path)
+            let stem = produced.deletingPathExtension().lastPathComponent
+            let directory = produced.deletingLastPathComponent()
+            let siblings =
+                (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+            for sibling in siblings
+            where sibling != produced
+                && sibling.deletingPathExtension().lastPathComponent == stem
+                && intermediateExtensions.contains(sibling.pathExtension.lowercased())
+            {
+                try? fm.removeItem(at: sibling)
+            }
+        }
     }
 
     private func ytdlpExecutable() -> (url: URL, prefix: [String]) {
