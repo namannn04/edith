@@ -29,16 +29,17 @@ struct SettingsPane: View {
 
     var body: some View {
         VStack(spacing: UIScale.pt(0)) {
-            Picker("", selection: tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .pointerCursor()
-            .frame(maxWidth: UIScale.pt(320))
-            .padding(.horizontal, UIScale.pt(20))
-            .padding(.top, UIScale.pt(16))
-            .padding(.bottom, UIScale.pt(12))
+            PageHeader(
+                "Settings",
+                accessory: {
+                    Picker("", selection: tab) {
+                        ForEach(Tab.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .pointerCursor()
+                    .frame(maxWidth: UIScale.pt(320), alignment: .leading)
+                })
             Group {
                 switch tab.wrappedValue {
                 case .general: GeneralPane()

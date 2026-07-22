@@ -24,48 +24,53 @@ struct HomePage: View {
     var body: some View {
         GeometryReader { geo in
             let compact = geo.size.width < 640
-            ScrollView {
-                VStack(alignment: .leading, spacing: UIScale.pt(16)) {
-                    HomeHeader(dark: dark)
-                    ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .top, spacing: UIScale.pt(16)) {
-                            WorldClocksCard(dark: dark)
-                            if systemEnabled || presenterEnabled { QuickActionsCard(dark: dark) }
-                        }
-                        VStack(spacing: UIScale.pt(16)) {
-                            WorldClocksCard(dark: dark)
-                            if systemEnabled || presenterEnabled { QuickActionsCard(dark: dark) }
-                        }
-                    }
-                    if usageEnabled, model.loaded {
-                        SkinCard(title: "Activity", note: "daily cost", dark: dark) {
-                            ActivityHeatmap(
-                                days: model.calendarDays, cuts: model.chartData.heatCuts,
-                                model: model, dark: dark, blur: blurMoney)
-                        }
-                    }
-                    LazyVGrid(
-                        columns: [
-                            GridItem(
-                                .adaptive(minimum: compact ? 260 : 340), spacing: UIScale.pt(16))
-                        ],
-                        alignment: .leading, spacing: UIScale.pt(16)
-                    ) {
-                        Group {
-                            if calendarEnabled { MeetingsCard(dark: dark) }
-                            if usageEnabled {
-                                UsageSummaryCard(dark: dark)
-                                RateLimitsDialsView(dark: dark, showsJumpLink: true)
+            VStack(spacing: UIScale.pt(0)) {
+                HomeHeader(dark: dark)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: UIScale.pt(16)) {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: UIScale.pt(16)) {
+                                WorldClocksCard(dark: dark)
+                                if systemEnabled || presenterEnabled {
+                                    QuickActionsCard(dark: dark)
+                                }
                             }
-                            if musicEnabled { MusicCard(dark: dark) }
+                            VStack(spacing: UIScale.pt(16)) {
+                                WorldClocksCard(dark: dark)
+                                if systemEnabled || presenterEnabled {
+                                    QuickActionsCard(dark: dark)
+                                }
+                            }
                         }
-                        .frame(maxHeight: .infinity, alignment: .top)
+                        if usageEnabled, model.loaded {
+                            SkinCard(title: "Activity", note: "daily cost", dark: dark) {
+                                ActivityHeatmap(
+                                    days: model.calendarDays, cuts: model.chartData.heatCuts,
+                                    model: model, dark: dark, blur: blurMoney)
+                            }
+                        }
+                        LazyVGrid(
+                            columns: [
+                                GridItem(
+                                    .adaptive(minimum: compact ? 260 : 340),
+                                    spacing: UIScale.pt(16))
+                            ],
+                            alignment: .leading, spacing: UIScale.pt(16)
+                        ) {
+                            Group {
+                                if calendarEnabled { MeetingsCard(dark: dark) }
+                                if usageEnabled {
+                                    UsageSummaryCard(dark: dark)
+                                    RateLimitsDialsView(dark: dark, showsJumpLink: true)
+                                }
+                                if musicEnabled { MusicCard(dark: dark) }
+                            }
+                            .frame(maxHeight: .infinity, alignment: .top)
+                        }
                     }
+                    .pageContent(compact)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, compact ? 18 : 24)
-                .padding(.top, UIScale.pt(18))
-                .padding(.bottom, UIScale.pt(28))
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(background)
             .environment(\.compactLayout, compact)
@@ -159,8 +164,6 @@ private struct HomeHeader: View {
     @Environment(\.compactLayout) private var compact
     @ObservedObject private var visibility = WindowVisibility.shared
 
-    private var titleSize: CGFloat { compact ? 28 : 40 }
-
     private var firstName: String {
         let licensed = SharedDefaults.store.string(forKey: LicenseState.nameKey) ?? ""
         let full = licensed.isEmpty ? NSFullUserName() : licensed
@@ -183,43 +186,36 @@ private struct HomeHeader: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = context.date
-            if compact {
-                VStack(alignment: .leading, spacing: UIScale.pt(8)) {
-                    greeting(now)
-                    clockBlock(now, alignment: .leading)
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline) {
-                    greeting(now)
-                    Spacer(minLength: 16)
-                    clockBlock(now, alignment: .trailing)
-                }
+            PageHeader {
+                greeting(now)
+            } trailing: {
+                if !compact { clockBlock(now, alignment: .trailing) }
+            } accessory: {
+                subtitle(now)
+                if compact { clockBlock(now, alignment: .leading) }
             }
         }
     }
 
     private func greeting(_ now: Date) -> some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(6)) {
-            (Text("\(salutation(now)), ")
-                + Text(firstName).italic().foregroundColor(DashSkin.accentDeep(dark))
-                + Text("."))
-                .font(DashSkin.serif(titleSize))
-                .foregroundStyle(DashSkin.ink(dark))
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-            Text(
-                now.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
-                    .uppercased()
-            )
-            .font(DashSkin.mono(11)).tracking(UIScale.pt(1.6))
-            .foregroundStyle(DashSkin.inkFaint(dark))
-            .lineLimit(1).minimumScaleFactor(0.7)
-        }
+        (Text("\(salutation(now)), ")
+            + Text(firstName).italic().foregroundColor(DashSkin.accentDeep(dark))
+            + Text("."))
+    }
+
+    private func subtitle(_ now: Date) -> some View {
+        Text(
+            now.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+                .uppercased()
+        )
+        .font(DashSkin.mono(11)).tracking(UIScale.pt(1.6))
+        .foregroundStyle(DashSkin.inkFaint(dark))
+        .lineLimit(1).minimumScaleFactor(0.7)
     }
 
     private func clockText(_ date: Date) -> some View {
         Text(clockString(date))
-            .font(DashSkin.serif(titleSize))
+            .font(PageMetrics.titleFont(compact))
             .foregroundStyle(DashSkin.ink(dark))
             .monospacedDigit()
             .lineLimit(1).minimumScaleFactor(0.6)

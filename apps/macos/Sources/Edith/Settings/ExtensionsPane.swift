@@ -50,19 +50,23 @@ struct ExtensionsPane: View {
     @State private var provisioningEntry: ExtensionRegistryEntry?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.compactLayout) private var compact
 
     var body: some View {
-        VStack(spacing: UIScale.pt(12)) {
-            searchField
-            categoryRow
+        VStack(spacing: UIScale.pt(0)) {
+            PageHeader(
+                "Extensions",
+                accessory: {
+                    searchField
+                    categoryRow
+                })
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: UIScale.pt(18)) {
                         section("ENABLED", entries: enabledEntries)
                         section("AVAILABLE", entries: availableEntries)
                     }
-                    .padding(.horizontal, UIScale.pt(20))
-                    .padding(.bottom, UIScale.pt(20))
+                    .pageContent(compact)
                     .animation(
                         Motion.animation(Motion.snap, reduceMotion: reduceMotion),
                         value: enabledEntries.map(\.id))
@@ -71,7 +75,6 @@ struct ExtensionsPane: View {
                 .onAppear { handleDeepLink(using: proxy) }
             }
         }
-        .padding(.top, UIScale.pt(16))
         .navigationTitle("Extensions")
         .animation(Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: category)
         .onChange(of: systemEnabled) {
@@ -123,7 +126,6 @@ struct ExtensionsPane: View {
             RoundedRectangle(cornerRadius: UIScale.pt(10), style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.5))
         }
-        .padding(.horizontal, UIScale.pt(20))
     }
 
     private var categoryRow: some View {
@@ -152,7 +154,6 @@ struct ExtensionsPane: View {
                     .pointerCursor()
                 }
             }
-            .padding(.horizontal, UIScale.pt(20))
         }
         .scrollIndicators(.never)
     }

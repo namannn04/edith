@@ -10,6 +10,7 @@ struct CalendarPage: View {
     private var presenterBlurCalendar = true
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.compactLayout) private var compact
 
     private var dark: Bool { scheme == .dark }
     private var theme: Color { themeColor(themeName) }
@@ -22,9 +23,6 @@ struct CalendarPage: View {
     var body: some View {
         VStack(spacing: UIScale.pt(0)) {
             pageHeader
-                .padding(.horizontal, UIScale.pt(24))
-                .padding(.top, UIScale.pt(18))
-                .padding(.bottom, UIScale.pt(12))
             if store.authStatus != .fullAccess {
                 permissionPrompt
                     .frame(maxWidth: UIScale.pt(420))
@@ -50,18 +48,17 @@ struct CalendarPage: View {
     }
 
     private var pageHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Calendar")
-                .font(DashSkin.serif(34))
-                .foregroundStyle(DashSkin.ink(dark))
-            Spacer()
-            Button {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Calendar.app"))
-            } label: {
-                Label("Open Calendar", systemImage: "arrow.up.forward.app")
-            }
-            .buttonStyle(HoverButtonStyle())
-        }
+        PageHeader(
+            "Calendar",
+            trailing: {
+                Button {
+                    NSWorkspace.shared.open(
+                        URL(fileURLWithPath: "/System/Applications/Calendar.app"))
+                } label: {
+                    Label("Open Calendar", systemImage: "arrow.up.forward.app")
+                }
+                .buttonStyle(HoverButtonStyle())
+            })
     }
 
     private var agenda: some View {
@@ -99,8 +96,7 @@ struct CalendarPage: View {
                 }
                 Color.clear.frame(height: UIScale.pt(1)).onAppear { store.loadMore() }
             }
-            .padding(.horizontal, UIScale.pt(24))
-            .padding(.bottom, UIScale.pt(28))
+            .pageContent(compact)
         }
     }
 

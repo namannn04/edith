@@ -13,6 +13,7 @@ struct DashboardView: View {
         false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.compactLayout) private var compactLayout
     @State private var showLog = false
     @State private var customFrom = Date()
     @State private var customTo = Date()
@@ -28,27 +29,24 @@ struct DashboardView: View {
         GeometryReader { geo in
             let compact = geo.size.width < 640
             VStack(spacing: UIScale.pt(0)) {
+                masthead
                 if model.loaded {
                     controlsBar
                 }
                 ScrollView {
                     VStack(alignment: .leading, spacing: UIScale.pt(16)) {
-                        masthead(compact: compact)
-                            .padding(.horizontal, compact ? 18 : 24).padding(.top, UIScale.pt(18))
                         if showLog {
-                            logView.padding(.horizontal, compact ? 18 : 24)
+                            logView.pageGutter(compact)
                         }
                         if model.loaded {
-                            kpiGrid.padding(.horizontal, compact ? 18 : 24)
+                            kpiGrid.pageGutter(compact)
                             LazyVStack(spacing: UIScale.pt(16)) {
                                 activityRow(compact: compact)
                                 LimitsCardView(theme: acc, dark: dark)
                                 BudgetCardView(theme: acc, dark: dark)
                                 charts(compact: compact)
                             }
-                            .padding(.horizontal, compact ? 18 : 24).padding(
-                                .bottom, UIScale.pt(28)
-                            )
+                            .pageContent(compact)
                             .animation(
                                 Motion.animation(Motion.settle, reduceMotion: reduceMotion),
                                 value: model.revision)
@@ -64,6 +62,7 @@ struct DashboardView: View {
                             .frame(maxWidth: .infinity, minHeight: UIScale.pt(240))
                         }
                     }
+                    .padding(.top, UIScale.pt(16))
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -104,18 +103,14 @@ struct DashboardView: View {
             .ignoresSafeArea(edges: .vertical)
     }
 
-    private func masthead(compact: Bool) -> some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(6)) {
-            HStack(alignment: .firstTextBaseline, spacing: UIScale.pt(8)) {
-                (Text("The cost of ").foregroundStyle(DashSkin.ink(dark))
-                    + Text("thinking").italic().foregroundStyle(DashSkin.accentDeep(dark))
-                    + Text(".").foregroundStyle(DashSkin.ink(dark)))
-                    .font(DashSkin.serif(compact ? 28 : 40))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                Spacer(minLength: 8)
-                mastheadButtons
-            }
+    private var masthead: some View {
+        PageHeader {
+            (Text("The cost of ").foregroundStyle(DashSkin.ink(dark))
+                + Text("thinking").italic().foregroundStyle(DashSkin.accentDeep(dark))
+                + Text(".").foregroundStyle(DashSkin.ink(dark)))
+        } trailing: {
+            mastheadButtons
+        } accessory: {
             WrapHStack(spacing: UIScale.pt(6), lineSpacing: 2) {
                 ForEach(metaSegments) { seg in
                     Text(seg.text)
@@ -295,9 +290,8 @@ struct DashboardView: View {
                 .padding(.vertical, UIScale.pt(5))
         }
         .foregroundStyle(DashSkin.inkSoft(dark))
-        .padding(.horizontal, UIScale.pt(24)).padding(.top, UIScale.pt(4)).padding(
-            .bottom, UIScale.pt(8)
-        )
+        .pageGutter(compactLayout)
+        .padding(.bottom, UIScale.pt(10))
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DashSkin.paper(dark))
         .overlay(alignment: .bottom) {

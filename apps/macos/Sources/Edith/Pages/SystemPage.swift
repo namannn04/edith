@@ -4,22 +4,25 @@ import SwiftUI
 struct SystemPage: View {
     @StateObject private var model = RunningAppsModel()
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.compactLayout) private var compact
     @State private var confirmQuitAll = false
     @State private var pendingQuit: RunningAppRow?
 
     private var dark: Bool { scheme == .dark }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: UIScale.pt(16)) {
-                header
-                summary
-                SkinCard(title: "Running apps", dark: dark) {
-                    appList
+        VStack(spacing: UIScale.pt(0)) {
+            header
+            ScrollView {
+                VStack(alignment: .leading, spacing: UIScale.pt(16)) {
+                    summary
+                    SkinCard(title: "Running apps", dark: dark) {
+                        appList
+                    }
+                    CleanerCard(dark: dark)
                 }
-                CleanerCard(dark: dark)
+                .pageContent(compact)
             }
-            .padding(UIScale.pt(24))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DashSkin.paper(dark))
@@ -46,25 +49,25 @@ struct SystemPage: View {
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("System").font(.system(size: UIScale.pt(30), weight: .bold))
-            Spacer()
-            Button(role: .destructive) {
-                confirmQuitAll = true
-            } label: {
-                Label("Quit all apps", systemImage: "xmark.circle")
-            }
-            .pointerCursor()
-            .confirmationDialog(
-                "Quit all apps?", isPresented: $confirmQuitAll, titleVisibility: .visible
-            ) {
-                Button("Quit \(max(0, model.apps.count - 1)) apps", role: .destructive) {
-                    model.quitAll()
+        PageHeader(
+            "System",
+            trailing: {
+                Button(role: .destructive) {
+                    confirmQuitAll = true
+                } label: {
+                    Label("Quit all apps", systemImage: "xmark.circle")
                 }
-            } message: {
-                Text("Finder and Edith stay open. Apps with unsaved changes will ask first.")
-            }
-        }
+                .pointerCursor()
+                .confirmationDialog(
+                    "Quit all apps?", isPresented: $confirmQuitAll, titleVisibility: .visible
+                ) {
+                    Button("Quit \(max(0, model.apps.count - 1)) apps", role: .destructive) {
+                        model.quitAll()
+                    }
+                } message: {
+                    Text("Finder and Edith stay open. Apps with unsaved changes will ask first.")
+                }
+            })
     }
 
     private var summary: some View {

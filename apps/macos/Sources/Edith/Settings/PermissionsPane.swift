@@ -10,6 +10,7 @@ struct PermissionsPane: View {
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @State private var usages: [PermissionUsage] = PermissionsStatus.usages
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.compactLayout) private var compact
 
     private var accent: Color { themeColor(themeName) }
 
@@ -63,14 +64,12 @@ struct PermissionsPane: View {
                         emptyState
                     }
                 }
-                .padding(.horizontal, UIScale.pt(20))
-                .padding(.bottom, UIScale.pt(20))
+                .pageContent(compact)
                 .animation(
                     Motion.animation(Motion.snap, reduceMotion: reduceMotion),
                     value: granted.map(\.id))
             }
         }
-        .padding(.top, UIScale.pt(4))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Permissions")
         .onAppear(perform: refresh)
@@ -110,7 +109,7 @@ struct PermissionsPane: View {
                 .pointerCursor()
             }
         }
-        .padding(.horizontal, UIScale.pt(20))
+        .pageGutter(compact)
     }
 
     private var headline: String {
@@ -157,7 +156,7 @@ struct PermissionsPane: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, UIScale.pt(20))
+        .pageGutter(compact)
     }
 
     private var attentionCount: Int {

@@ -310,6 +310,7 @@ struct MusicPage: View {
     private var musicFolderStale = false
     @StateObject private var presenterState = PresenterState.shared
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.compactLayout) private var compact
     @State private var search = ""
     @FocusState private var searchFocused: Bool
     @State private var showDownloader = false
@@ -350,20 +351,6 @@ struct MusicPage: View {
     var body: some View {
         VStack(spacing: UIScale.pt(0)) {
             pageHeader
-                .padding(.horizontal, UIScale.pt(24))
-                .padding(.top, UIScale.pt(18))
-                .padding(.bottom, UIScale.pt(12))
-            breadcrumbBar
-                .padding(.horizontal, UIScale.pt(24))
-                .padding(.bottom, UIScale.pt(10))
-            if tabMusicEnabled, remote.restorePending > 0 {
-                Text("Restoring your music from iCloud, \(remote.restorePending) remaining")
-                    .font(.system(size: UIScale.pt(10)))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, UIScale.pt(24))
-                    .padding(.bottom, UIScale.pt(8))
-            }
             trackList
         }
         .background(DashSkin.paper(dark).ignoresSafeArea(edges: .vertical))
@@ -454,69 +441,83 @@ struct MusicPage: View {
     }
 
     private var pageHeader: some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(12)) {
-            HStack(alignment: .center) {
-                Text("Music")
-                    .font(DashSkin.serif(34))
-                    .foregroundStyle(DashSkin.ink(dark))
-                Spacer()
-                Button {
-                    newFolderName = ""
-                    showNewFolder = true
-                } label: {
-                    Image(systemName: "folder.badge.plus")
-                }
-                .buttonStyle(HoverButtonStyle())
-                .help("New folder")
-                Button {
-                    try? FileManager.default.createDirectory(
-                        at: Repo.musicDir, withIntermediateDirectories: true)
-                    NSWorkspace.shared.open(Repo.musicDir)
-                } label: {
-                    Image(systemName: "folder")
-                }
-                .buttonStyle(HoverButtonStyle())
-                .help("Open music folder in Finder")
-                Button {
-                    remote.rescan()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(HoverButtonStyle())
-                .help("Rescan music folder")
-                Button {
-                    showDownloader = true
-                } label: {
-                    Image(systemName: "arrow.down.circle")
-                }
-                .buttonStyle(HoverButtonStyle())
-                .help("Download YouTube audio")
-            }
-            if musicFolderStale {
-                HStack(spacing: UIScale.pt(5)) {
-                    Text("A previous external music folder was skipped.")
-                    Button("Choose it again", action: chooseMusicFolder)
-                        .buttonStyle(.link)
-                }
-                .font(.system(size: UIScale.pt(11)))
-                .foregroundStyle(.secondary)
-            }
-            HStack(spacing: UIScale.pt(8)) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: UIScale.pt(12)))
+        PageHeader("Music") {
+            headerActions
+        } accessory: {
+            VStack(alignment: .leading, spacing: UIScale.pt(10)) {
+                if musicFolderStale {
+                    HStack(spacing: UIScale.pt(5)) {
+                        Text("A previous external music folder was skipped.")
+                        Button("Choose it again", action: chooseMusicFolder)
+                            .buttonStyle(.link)
+                    }
+                    .font(.system(size: UIScale.pt(11)))
                     .foregroundStyle(.secondary)
-                TextField("Search tracks", text: $search)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: UIScale.pt(13)))
-                    .focused($searchFocused)
+                }
+                searchField
+                breadcrumbBar
+                if tabMusicEnabled, remote.restorePending > 0 {
+                    Text("Restoring your music from iCloud, \(remote.restorePending) remaining")
+                        .font(.system(size: UIScale.pt(10)))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .padding(.horizontal, UIScale.pt(10))
-            .padding(.vertical, UIScale.pt(7))
-            .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(9)))
-            .overlay(
-                RoundedRectangle(cornerRadius: UIScale.pt(9)).strokeBorder(
-                    DashSkin.line(dark), lineWidth: UIScale.pt(1)))
         }
+    }
+
+    private var headerActions: some View {
+        HStack(spacing: UIScale.pt(4)) {
+            Button {
+                newFolderName = ""
+                showNewFolder = true
+            } label: {
+                Image(systemName: "folder.badge.plus")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("New folder")
+            Button {
+                try? FileManager.default.createDirectory(
+                    at: Repo.musicDir, withIntermediateDirectories: true)
+                NSWorkspace.shared.open(Repo.musicDir)
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Open music folder in Finder")
+            Button {
+                remote.rescan()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Rescan music folder")
+            Button {
+                showDownloader = true
+            } label: {
+                Image(systemName: "arrow.down.circle")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Download YouTube audio")
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: UIScale.pt(8)) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: UIScale.pt(12)))
+                .foregroundStyle(.secondary)
+            TextField("Search tracks", text: $search)
+                .textFieldStyle(.plain)
+                .font(.system(size: UIScale.pt(13)))
+                .focused($searchFocused)
+        }
+        .padding(.horizontal, UIScale.pt(10))
+        .padding(.vertical, UIScale.pt(7))
+        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(9)))
+        .overlay(
+            RoundedRectangle(cornerRadius: UIScale.pt(9)).strokeBorder(
+                DashSkin.line(dark), lineWidth: UIScale.pt(1)))
     }
 
     private var crumbSegments: [(name: String, path: String)] {
@@ -639,8 +640,7 @@ struct MusicPage: View {
                         )
                     }
                 }
-                .padding(.horizontal, UIScale.pt(24))
-                .padding(.bottom, UIScale.pt(8))
+                .pageContent(compact)
             }
         }
     }
