@@ -229,9 +229,6 @@ struct MainWindowView: View {
         false
     @AppStorage("presenterBlurCalendar", store: SharedDefaults.store)
     private var presenterBlurCalendar = true
-    @AppStorage("presenterAutoEnabled", store: SharedDefaults.store) private
-        var presenterAutoEnabled =
-        false
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("creditHidden", store: SharedDefaults.store) private var creditHidden = false
     @AppStorage(WindowZoom.defaultsKey, store: SharedDefaults.store) private var zoom = 1.0
@@ -243,6 +240,7 @@ struct MainWindowView: View {
     @State private var commandHintWork: DispatchWorkItem?
     @State private var showShortcutHints = false
     @State private var nav = NavStack()
+    @State private var musicFolderPath = ""
     @State private var restoringHistory = false
     @State private var permissionsNeedAttention = PermissionsStatus.current
     @State private var presenterQuickActionsPresented = false
@@ -284,16 +282,26 @@ struct MainWindowView: View {
     }
 
     private var currentLocation: String {
-        destination == .settings
-            ? "settings/\(navigationSelection.settingsTab)"
-            : navigationSelection.mainWindowSection
+        if destination == .settings {
+            return "settings/\(navigationSelection.settingsTab)"
+        }
+        if destination == .music, !musicFolderPath.isEmpty {
+            return "music/\(musicFolderPath)"
+        }
+        return navigationSelection.mainWindowSection
     }
 
     private func navigate(to location: String) {
         restoringHistory = true
+        let music = MainDestination.music.rawValue
         if location.hasPrefix("settings/") {
             settingsTab = String(location.dropFirst("settings/".count))
             mainWindowSection = MainDestination.settings.rawValue
+        } else if location == music || location.hasPrefix(music + "/") {
+            MusicRemote.shared.navigate(
+                to: location.hasPrefix(music + "/")
+                    ? String(location.dropFirst(music.count + 1)) : "")
+            mainWindowSection = music
         } else {
             mainWindowSection = location
         }
@@ -318,6 +326,7 @@ struct MainWindowView: View {
                 }
             }
             .ignoresSafeArea()
+            .overlay { MusicDetailOverlay() }
             .overlay(alignment: .topLeading) { chromeOverlay() }
             .animation(
                 Motion.animation(Motion.glide, reduceMotion: reduceMotion),
@@ -328,6 +337,7 @@ struct MainWindowView: View {
                 value: footerVisible)
         }
         .background(historyShortcuts)
+        .onReceive(MusicRemote.shared.$folderPath) { musicFolderPath = $0 }
         .onChange(of: currentLocation) { _, location in
             if restoringHistory {
                 restoringHistory = false
@@ -722,7 +732,7 @@ struct MainWindowView: View {
     private var presenterQuickActionTile: some View {
         HStack(spacing: UIScale.pt(0)) {
             Button {
-                presenterMode.toggle()
+                setPresenterMode(!presenterMode)
             } label: {
                 VStack(spacing: UIScale.pt(4)) {
                     Image(systemName: "theatermasks.fill")
@@ -773,6 +783,11 @@ struct MainWindowView: View {
             Text("Presenter mode")
                 .font(.system(size: UIScale.pt(13), weight: .semibold))
                 .padding(.bottom, UIScale.pt(10))
+            presenterQuickActionToggle(
+                "Presenter mode",
+                isOn: Binding(get: { presenterMode }, set: { setPresenterMode($0) })
+            )
+            Divider()
             presenterQuickActionToggle("Blur music", isOn: $presenterBlurMusic)
             Divider()
             presenterQuickActionToggle("Blur cost figures", isOn: $presenterBlurMoney)
@@ -783,7 +798,11 @@ struct MainWindowView: View {
         }
         .padding(UIScale.pt(14))
         .frame(width: UIScale.pt(250))
-        .disabled(!presenterMode && !presenterAutoEnabled)
+    }
+
+    private func setPresenterMode(_ on: Bool) {
+        presenterMode = on
+        if !on { IPC.post(IPC.Name.presenterPauseAuto) }
     }
 
     private func presenterQuickActionToggle(_ title: String, isOn: Binding<Bool>) -> some View {
@@ -805,7 +824,6 @@ struct MainWindowView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            guard presenterMode || presenterAutoEnabled else { return }
             isOn.wrappedValue.toggle()
         }
         .onHover { hovering in
