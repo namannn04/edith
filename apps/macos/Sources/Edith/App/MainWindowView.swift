@@ -481,13 +481,16 @@ struct MainWindowView: View {
     }
 
     private func detailColumn(_ bandHeight: CGFloat) -> some View {
-        VStack(spacing: UIScale.pt(0)) {
-            band(
-                destination.usesPaperBackground
-                    ? DashSkin.paper(scheme == .dark) : Color(nsColor: .windowBackgroundColor),
-                height: bandHeight)
-            detail
-                .tint(theme)
+        GeometryReader { geo in
+            VStack(spacing: UIScale.pt(0)) {
+                band(
+                    destination.usesPaperBackground
+                        ? DashSkin.paper(scheme == .dark) : Color(nsColor: .windowBackgroundColor),
+                    height: bandHeight)
+                detail
+                    .tint(theme)
+            }
+            .environment(\.compactLayout, geo.size.width < 640)
         }
     }
 
