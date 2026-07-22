@@ -239,6 +239,9 @@ struct MainWindowView: View {
     @State private var dragBaseWidth: Double?
     @State private var musicKeyMonitor: Any?
     @State private var windowKeyMonitor: Any?
+    @State private var commandHintMonitor: Any?
+    @State private var commandHintWork: DispatchWorkItem?
+    @State private var showShortcutHints = false
     @State private var nav = NavStack()
     @State private var restoringHistory = false
     @State private var permissionsNeedAttention = PermissionsStatus.current
@@ -335,6 +338,7 @@ struct MainWindowView: View {
         .onAppear {
             applyNavigationFallback()
             installWindowKeys()
+            installCommandHintMonitor()
             syncMusicResources()
             PresenterState.shared.syncEnabled(presenterEnabled)
             refreshPermissionsPill()
@@ -344,6 +348,7 @@ struct MainWindowView: View {
         .onChange(of: presenterEnabled) { _, on in PresenterState.shared.syncEnabled(on) }
         .onDisappear {
             removeWindowKeys()
+            removeCommandHintMonitor()
             removeMusicKeys()
             MusicRemote.shared.stop()
         }
@@ -541,7 +546,10 @@ struct MainWindowView: View {
         }
         .frame(maxHeight: .infinity)
         .animation(
-            Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: destination)
+            Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: destination
+        )
+        .animation(
+            Motion.animation(Motion.glide, reduceMotion: reduceMotion), value: showShortcutHints)
     }
 
     private var visibleHomeItems: [MainDestination] {
@@ -561,6 +569,7 @@ struct MainWindowView: View {
     }
 
     private func shortcutHint(for item: MainDestination) -> String? {
+        guard showShortcutHints else { return nil }
         let items = navigableItems
         guard let index = items.firstIndex(of: item) else { return nil }
         if index < WindowKeyCommand.directSelectLimit { return "⌘\(index + 1)" }
@@ -599,6 +608,38 @@ struct MainWindowView: View {
         if let monitor = windowKeyMonitor {
             NSEvent.removeMonitor(monitor)
             windowKeyMonitor = nil
+        }
+    }
+
+    private func installCommandHintMonitor() {
+        guard commandHintMonitor == nil else { return }
+        commandHintMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            let commandDown = event.modifierFlags.contains(.command)
+            MainActor.assumeIsolated {
+                if commandDown {
+                    guard commandHintWork == nil, !showShortcutHints else { return }
+                    let work = DispatchWorkItem {
+                        showShortcutHints = true
+                        commandHintWork = nil
+                    }
+                    commandHintWork = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
+                } else {
+                    commandHintWork?.cancel()
+                    commandHintWork = nil
+                    showShortcutHints = false
+                }
+            }
+            return event
+        }
+    }
+
+    private func removeCommandHintMonitor() {
+        commandHintWork?.cancel()
+        commandHintWork = nil
+        if let monitor = commandHintMonitor {
+            NSEvent.removeMonitor(monitor)
+            commandHintMonitor = nil
         }
     }
 
