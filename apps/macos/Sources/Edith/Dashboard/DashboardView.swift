@@ -15,6 +15,7 @@ struct DashboardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.compactLayout) private var compactLayout
     @State private var showLog = false
+    @State private var folderPickerOpen = false
     @State private var customFrom = Date()
     @State private var customTo = Date()
 
@@ -284,6 +285,7 @@ struct DashboardView: View {
             customRange
             sourceMenu
             modelMenu
+            projectMenu
             Button("Reset") { model.reset() }
                 .buttonStyle(.plain).pointerCursor().font(DashSkin.mono(11))
                 .foregroundStyle(acc)
@@ -367,6 +369,24 @@ struct DashboardView: View {
             return true
         default: return false
         }
+    }
+
+    private var projectMenu: some View {
+        Button {
+            folderPickerOpen = true
+        } label: {
+            Label(folderScopeLabel, systemImage: "folder")
+                .font(.system(size: UIScale.pt(11)))
+        }
+        .buttonStyle(.plain).pointerCursor().fixedSize()
+        .popover(isPresented: $folderPickerOpen, arrowEdge: .bottom) {
+            FolderScopePicker(model: model, dark: dark) { folderPickerOpen = false }
+        }
+    }
+
+    private var folderScopeLabel: String {
+        guard let path = model.selectedPath else { return "All folders" }
+        return URL(fileURLWithPath: path).lastPathComponent
     }
 
     private var sourceMenu: some View {
