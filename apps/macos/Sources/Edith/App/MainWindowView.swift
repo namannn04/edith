@@ -501,7 +501,7 @@ struct MainWindowView: View {
                 detail
                     .tint(theme)
             }
-            .environment(\.compactLayout, geo.size.width < 640)
+            .environment(\.compactLayout, geo.size.width < UIScale.pt(640))
         }
     }
 

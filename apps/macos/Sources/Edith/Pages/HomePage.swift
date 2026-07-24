@@ -23,7 +23,7 @@ struct HomePage: View {
 
     var body: some View {
         GeometryReader { geo in
-            let compact = geo.size.width < 640
+            let compact = geo.size.width < UIScale.pt(640)
             VStack(spacing: UIScale.pt(0)) {
                 HomeHeader(dark: dark)
                 ScrollView {
@@ -52,7 +52,7 @@ struct HomePage: View {
                         LazyVGrid(
                             columns: [
                                 GridItem(
-                                    .adaptive(minimum: compact ? 260 : 340),
+                                    .adaptive(minimum: UIScale.pt(compact ? 260 : 340)),
                                     spacing: UIScale.pt(16))
                             ],
                             alignment: .leading, spacing: UIScale.pt(16)

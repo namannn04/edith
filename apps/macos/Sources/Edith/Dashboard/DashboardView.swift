@@ -28,7 +28,7 @@ struct DashboardView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let compact = geo.size.width < 640
+            let compact = geo.size.width < UIScale.pt(640)
             VStack(spacing: UIScale.pt(0)) {
                 masthead
                 if model.loaded {
@@ -175,10 +175,12 @@ struct DashboardView: View {
         }
     }
 
-    private static let kpiColumns = [GridItem(.adaptive(minimum: 158), spacing: UIScale.pt(12))]
+    private var kpiColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: UIScale.pt(158)), spacing: UIScale.pt(12))]
+    }
 
     private var kpiGrid: some View {
-        LazyVGrid(columns: Self.kpiColumns, spacing: UIScale.pt(12)) {
+        LazyVGrid(columns: kpiColumns, spacing: UIScale.pt(12)) {
             ForEach(model.kpis) { kpi in
                 HStack(spacing: UIScale.pt(0)) {
                     Rectangle().fill(kpi.hot ? acc : Color.clear).frame(width: UIScale.pt(3))
