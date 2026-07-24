@@ -7,7 +7,7 @@ import Testing
 @MainActor
 @Suite struct DashboardProjectTreeTests {
     private func model(_ json: String) throws -> DashboardModel {
-        for key in ["projSort", "projSortAsc", "dashSort", "dashSortAsc"] {
+        for key in ["projSort", "projSortAsc", "dashSort", "dashSortAsc", "dashPaths"] {
             SharedDefaults.store.removeObject(forKey: key)
         }
         let parsed = try JSONDecoder().decode(DashUsage.self, from: Data(json.utf8))
@@ -16,6 +16,8 @@ import Testing
         m.range = .all
         return m
     }
+
+    private var todayStr: String { DashboardModel.ymd.string(from: Date()) }
 
     private func chat(
         _ id: String, tokens: Double, cost: Double = 1, title: String? = nil,
@@ -288,18 +290,18 @@ import Testing
                  "chats":[\(chat("old", tokens: 100, source: "cli"))]}
                 """)
         let latest = day(
-            "2026-06-02",
+            todayStr,
             projects: """
                 {"projectName":"new","tokens":200,"cost":2,
                  "chats":[\(chat("new", tokens: 200, source: "cli"))]}
                 """)
         let m = try model(usage(daily: "\(first),\(latest)"))
         m.range = .today
-        #expect(Set(m.heatDetail.keys) == ["2026-06-01", "2026-06-02"])
+        #expect(Set(m.heatDetail.keys) == ["2026-06-01", todayStr])
         #expect(m.calendarDays.count > 7)
         #expect(m.projectTree.map(\.name) == ["new"])
         #expect(abs(m.projectTree.reduce(0) { $0 + $1.tokens } - 200) < 0.0001)
-        let detail = try #require(m.heatDetail["2026-06-02"])
+        let detail = try #require(m.heatDetail[todayStr])
         #expect(abs(detail.projects.reduce(0) { $0 + $1.value } - 200) < 0.0001)
     }
 
@@ -317,7 +319,7 @@ import Testing
                 "codex":[{"modelName":"m","inputTokens":50,"cost":0.5}]
                 """)
         let quiet = day(
-            "2026-06-02",
+            todayStr,
             projects: """
                 {"projectName":"orbit","tokens":200,"cost":2,
                  "chats":[\(chat("o2", tokens: 200, cost: 2, source: "cli"))]}
@@ -351,19 +353,19 @@ import Testing
         let m = try model(usage(daily: d))
         #expect(m.allProjectPaths.map(\.path).sorted() == ["/drive/orbit", "/drive/other"])
 
-        m.selectedPath = "/drive/orbit"
+        m.selectedPaths = ["/drive/orbit"]
         #expect(m.projectTree.map(\.name) == ["orbit"])
         #expect(m.projectTree.first?.worktrees.map(\.name) == ["agent-1"])
         #expect(abs(m.series.reduce(0) { $0 + $1.tokens } - 300) < 0.0001)
         #expect(abs(m.projectTree.reduce(0) { $0 + $1.tokens } - 300) < 0.0001)
         #expect(abs(m.modelTotals.reduce(0) { $0 + $1.cost } - 3) < 0.0001)
 
-        m.selectedPath = "/drive"
+        m.selectedPaths = ["/drive"]
         #expect(abs(m.series.reduce(0) { $0 + $1.tokens } - 1000) < 0.0001)
-        m.selectedPath = "/drive/orbit/.claude/worktrees/agent-1"
+        m.selectedPaths = ["/drive/orbit/.claude/worktrees/agent-1"]
         #expect(abs(m.series.reduce(0) { $0 + $1.tokens } - 200) < 0.0001)
         #expect(m.projectTree.first?.chats.isEmpty == true)
-        m.selectedPath = nil
+        m.selectedPaths = []
         #expect(abs(m.series.reduce(0) { $0 + $1.tokens } - 1000) < 0.0001)
     }
 
@@ -387,7 +389,7 @@ import Testing
                 "cli":[{"modelName":"m","inputTokens":200,"cost":2}]
                 """)
         let m = try model(usage(daily: "\(legacy),\(current)"))
-        m.selectedPath = "/drive/orbit"
+        m.selectedPaths = ["/drive/orbit"]
         #expect(abs(m.series.reduce(0) { $0 + $1.tokens } - 300) < 0.0001)
     }
 
