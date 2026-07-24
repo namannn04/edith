@@ -377,6 +377,7 @@ struct DashboardView: View {
         } label: {
             Label(folderScopeLabel, systemImage: "folder")
                 .font(.system(size: UIScale.pt(11)))
+                .lineLimit(1)
         }
         .buttonStyle(.plain).pointerCursor().fixedSize()
         .popover(isPresented: $folderPickerOpen, arrowEdge: .bottom) {
@@ -385,8 +386,13 @@ struct DashboardView: View {
     }
 
     private var folderScopeLabel: String {
-        guard let path = model.selectedPath else { return "All folders" }
-        return URL(fileURLWithPath: path).lastPathComponent
+        let paths = model.selectedPaths
+        if paths.isEmpty { return "All folders" }
+        if paths.count == 1, let path = paths.first {
+            let name = URL(fileURLWithPath: path).lastPathComponent
+            return name.count > 18 ? String(name.prefix(17)) + "…" : name
+        }
+        return "\(paths.count) folders"
     }
 
     private var sourceMenu: some View {

@@ -21,9 +21,8 @@ struct FolderScopePicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UIScale.pt(8)) {
             SearchField(placeholder: "Search folders…", text: $query, compact: true)
-            row(label: "All folders", detail: nil, selected: model.selectedPath == nil) {
-                model.selectedPath = nil
-                dismiss()
+            row(label: "All folders", detail: nil, selected: model.selectedPaths.isEmpty) {
+                model.selectedPaths = []
             }
             if model.allProjectPaths.isEmpty {
                 Text("Usage data has no folder paths yet. Hit refresh to rebuild it.")
@@ -42,10 +41,9 @@ struct FolderScopePicker: View {
                     ForEach(matches) { entry in
                         row(
                             label: entry.name, detail: entry.path,
-                            selected: model.selectedPath == entry.path
+                            selected: model.selectedPaths.contains(entry.path)
                         ) {
-                            model.selectedPath = entry.path
-                            dismiss()
+                            toggle(entry.path)
                         }
                     }
                     if matches.isEmpty {
@@ -57,9 +55,34 @@ struct FolderScopePicker: View {
                 }
             }
             .frame(maxHeight: UIScale.pt(280))
+            HStack {
+                Text(scopeSummary)
+                    .font(DashSkin.mono(10))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                Spacer(minLength: 0)
+                Button("Done") { dismiss() }
+                    .buttonStyle(.plain).pointerCursor()
+                    .font(.system(size: UIScale.pt(11), weight: .semibold))
+                    .foregroundStyle(DashSkin.accent(dark))
+            }
+            .padding(.horizontal, UIScale.pt(6))
         }
         .padding(UIScale.pt(12))
         .frame(width: UIScale.pt(380))
+    }
+
+    private var scopeSummary: String {
+        let n = model.selectedPaths.count
+        if n == 0 { return "All folders" }
+        return n == 1 ? "1 folder selected" : "\(n) folders selected"
+    }
+
+    private func toggle(_ path: String) {
+        if model.selectedPaths.contains(path) {
+            model.selectedPaths.remove(path)
+        } else {
+            model.selectedPaths.insert(path)
+        }
     }
 
     private func row(
@@ -101,11 +124,10 @@ struct FolderScopePicker: View {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.prompt = "Scope"
-        if panel.runModal() == .OK, let url = panel.url {
-            model.selectedPath = url.path
-            dismiss()
+        if panel.runModal() == .OK {
+            model.selectedPaths.formUnion(panel.urls.map(\.path))
         }
     }
 }
