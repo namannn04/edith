@@ -266,9 +266,10 @@ struct DashboardView: View {
                         Button(c.label) { model.range = .cycle(c.id) }
                     }
                 } label: {
-                    Label("Cycle", systemImage: "calendar")
+                    Label("Cycle", systemImage: "calendar").font(.system(size: UIScale.pt(11)))
                 }
                 .menuStyle(.borderlessButton).pointerCursor().fixedSize()
+                .modifier(FilterChip(dark: dark))
             }
             if !model.monthOptions.isEmpty {
                 Menu {
@@ -277,8 +278,10 @@ struct DashboardView: View {
                     }
                 } label: {
                     Label("Month", systemImage: "calendar.badge.clock")
+                        .font(.system(size: UIScale.pt(11)))
                 }
                 .menuStyle(.borderlessButton).pointerCursor().fixedSize()
+                .modifier(FilterChip(dark: dark))
             }
             Stepper("Billing day \(model.billingDay)", value: $model.billingDay, in: 1...31)
                 .pointerCursor().font(.system(size: UIScale.pt(11))).fixedSize()
@@ -380,6 +383,7 @@ struct DashboardView: View {
                 .lineLimit(1)
         }
         .buttonStyle(.plain).pointerCursor().fixedSize()
+        .modifier(FilterChip(dark: dark))
         .popover(isPresented: $folderPickerOpen, arrowEdge: .bottom) {
             FolderScopePicker(model: model, dark: dark) { folderPickerOpen = false }
         }
@@ -412,8 +416,10 @@ struct DashboardView: View {
             }
         } label: {
             Label(sourceSummary, systemImage: "square.stack.3d.up")
+                .font(.system(size: UIScale.pt(11)))
         }
         .menuStyle(.borderlessButton).pointerCursor().fixedSize()
+        .modifier(FilterChip(dark: dark))
     }
 
     private var sourceSummary: String {
@@ -441,8 +447,10 @@ struct DashboardView: View {
             }
         } label: {
             Label("\(model.selectedModels.count) models", systemImage: "cpu")
+                .font(.system(size: UIScale.pt(11)))
         }
         .menuStyle(.borderlessButton).pointerCursor().fixedSize()
+        .modifier(FilterChip(dark: dark))
     }
 
     private var logView: some View {
@@ -601,6 +609,23 @@ struct DashboardView: View {
                 id: $0.model, label: DashFmt.shortModel($0.model), value: $0.tokens,
                 color: model.modelColor($0.model, dark: dark))
         }
+    }
+}
+
+private struct FilterChip: ViewModifier {
+    let dark: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, UIScale.pt(10))
+            .padding(.vertical, UIScale.pt(5))
+            .background(
+                DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(8))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: UIScale.pt(8))
+                    .strokeBorder(DashSkin.lineStrong(dark), lineWidth: UIScale.pt(1))
+            )
     }
 }
 
