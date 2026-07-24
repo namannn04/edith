@@ -338,7 +338,7 @@ final class DashboardModel: ObservableObject {
     @Published var range: DashRange = .cycle(nil) { didSet { persist(); recompute() } }
     @Published var selectedSources: Set<String> = [] { didSet { persist(); recompute() } }
     @Published var selectedModels: Set<String> = [] { didSet { persist(); recompute() } }
-    @Published var selectedPath: String? { didSet { recompute() } }
+    @Published var selectedPaths: Set<String> = [] { didSet { persist(); recompute() } }
     @Published var billingDay = 26 { didSet { persist(); rebuildCycles(); recompute() } }
     @Published var sortColumn: TableColumn = .cost { didSet { persist(); resortTotals() } }
     @Published var sortAscending = false { didSet { persist(); resortTotals() } }
@@ -555,6 +555,9 @@ final class DashboardModel: ObservableObject {
         } else if selectedModels.isEmpty || selectedModels.isDisjoint(with: validModels) {
             selectedModels = Set(defaultModels)
         }
+        if let raw = d.string(forKey: "dashPaths"), !raw.isEmpty {
+            selectedPaths = Set(raw.split(separator: "\n").map(String.init))
+        }
         if d.object(forKey: "dashBillingDay") != nil {
             billingDay = min(max(d.integer(forKey: "dashBillingDay"), 1), 31)
         }
@@ -603,6 +606,7 @@ final class DashboardModel: ObservableObject {
         d.set(knownSources.sorted().joined(separator: ","), forKey: "dashKnownSources")
         d.set(UsageSourceSelection.currentVersion, forKey: "dashSourceSelectionVersion")
         d.set(selectedModels.sorted().joined(separator: ","), forKey: "dashModels")
+        d.set(selectedPaths.sorted().joined(separator: "\n"), forKey: "dashPaths")
         d.set(billingDay, forKey: "dashBillingDay")
         d.set(sortColumn.rawValue, forKey: "dashSort")
         d.set(sortAscending, forKey: "dashSortAsc")
@@ -652,7 +656,7 @@ final class DashboardModel: ObservableObject {
         range = .cycle(nil)
         selectedSources = Set(defaultSources)
         selectedModels = Set(defaultModels)
-        selectedPath = nil
+        selectedPaths = []
         sortColumn = .cost
         sortAscending = false
         projSortKey = .cost
@@ -670,7 +674,7 @@ final class DashboardModel: ObservableObject {
         guard let first = sortedPeriods.first, let last = sortedPeriods.last,
             let e = parseYMD(first), let l = parseYMD(last)
         else { return nil }
-        return e...l
+        return e...max(l, cal.startOfDay(for: Date()))
     }
 
     func ymd(_ d: Date) -> String { ymdStr(d) }
@@ -744,27 +748,29 @@ final class DashboardModel: ObservableObject {
 
     private func window() -> (from: Date, to: Date)? {
         guard let first = sortedPeriods.first, let last = sortedPeriods.last,
-            let earliest = parseYMD(first), let latest = parseYMD(last)
+            let earliest = parseYMD(first), let dataLatest = parseYMD(last)
         else { return nil }
+        let today = cal.startOfDay(for: Date())
+        let latest = max(today, dataLatest)
         switch range {
         case .all: return (earliest, latest)
-        case .today: return (latest, latest)
+        case .today: return (today, today)
         case .yesterday:
-            let y = cal.date(byAdding: .day, value: -1, to: latest) ?? latest
+            let y = cal.date(byAdding: .day, value: -1, to: today) ?? today
             return (y, y)
         case .thisWeek:
-            let dow = (cal.component(.weekday, from: latest) + 5) % 7
-            let start = cal.date(byAdding: .day, value: -dow, to: latest) ?? latest
-            return (start, latest)
+            let dow = (cal.component(.weekday, from: today) + 5) % 7
+            let start = cal.date(byAdding: .day, value: -dow, to: today) ?? today
+            return (start, today)
         case .lastWeek:
-            let dow = (cal.component(.weekday, from: latest) + 5) % 7
-            let thisStart = cal.date(byAdding: .day, value: -dow, to: latest) ?? latest
+            let dow = (cal.component(.weekday, from: today) + 5) % 7
+            let thisStart = cal.date(byAdding: .day, value: -dow, to: today) ?? today
             let lastEnd = cal.date(byAdding: .day, value: -1, to: thisStart) ?? thisStart
             let lastStart = cal.date(byAdding: .day, value: -6, to: lastEnd) ?? lastEnd
             return (lastStart, lastEnd)
         case .cycle(let start):
-            let s = start.flatMap(parseYMD) ?? cycleStart(latest)
-            return (s, min(cycleEnd(s), latest))
+            let s = start.flatMap(parseYMD) ?? cycleStart(today)
+            return (s, min(cycleEnd(s), today))
         case .month(let ym):
             guard let d = DateFormatter.monthParser.date(from: ym) else {
                 return (earliest, latest)
@@ -911,11 +917,13 @@ final class DashboardModel: ObservableObject {
     }
 
     func pathInScope(_ path: String?) -> Bool {
-        guard let selectedPath, !selectedPath.isEmpty else { return true }
+        guard !selectedPaths.isEmpty else { return true }
         guard let path, !path.isEmpty else { return false }
-        let scope = selectedPath.hasSuffix("/") ? String(selectedPath.dropLast()) : selectedPath
-        if path.compare(scope, options: .caseInsensitive) == .orderedSame { return true }
-        return path.lowercased().hasPrefix(scope.lowercased() + "/")
+        let lower = path.lowercased()
+        return selectedPaths.contains { scope in
+            let s = (scope.hasSuffix("/") ? String(scope.dropLast()) : scope).lowercased()
+            return lower == s || lower.hasPrefix(s + "/")
+        }
     }
 
     private func chatInScope(_ c: DashUsage.Chat, fallback: String?) -> Bool {
@@ -943,7 +951,7 @@ final class DashboardModel: ObservableObject {
     }
 
     private func projectShare(_ day: DashUsage.Day) -> (tokens: Double, cost: Double) {
-        guard selectedPath != nil else { return (1, 1) }
+        guard !selectedPaths.isEmpty else { return (1, 1) }
         var all = (tokens: 0.0, cost: 0.0)
         var mine = (tokens: 0.0, cost: 0.0)
         for p in day.projects ?? [] {
@@ -1255,8 +1263,14 @@ final class DashboardModel: ObservableObject {
         let busiest = rows.max { $0.tokens < $1.tokens }
         let cacheRead = rows.reduce(0) { $0 + $1.cacheRead }
         let input = rows.reduce(0) { $0 + $1.input }
+        let output = rows.reduce(0) { $0 + $1.output }
+        let cacheCreate = rows.reduce(0) { $0 + $1.cacheCreate }
         let cacheRate = (cacheRead + input) > 0 ? cacheRead / (cacheRead + input) : 0
         let top = modelTotals.max { $0.cost < $1.cost }
+
+        func share(_ v: Double) -> String {
+            "\(DashFmt.pct(totalTokens > 0 ? v / totalTokens : 0)) of tokens"
+        }
 
         var out: [KPI] = [
             KPI(
@@ -1267,6 +1281,18 @@ final class DashboardModel: ObservableObject {
                 label: "Total cost", value: DashFmt.usd(totalCost),
                 sub: "\(DashFmt.tokensFull(totalTokens)) tokens", sensitiveValue: true,
                 usageSub: true),
+            KPI(
+                label: "Input", value: DashFmt.tokens(input), sub: share(input),
+                usageValue: true),
+            KPI(
+                label: "Output", value: DashFmt.tokens(output), sub: share(output),
+                usageValue: true),
+            KPI(
+                label: "Cache write", value: DashFmt.tokens(cacheCreate), sub: share(cacheCreate),
+                usageValue: true),
+            KPI(
+                label: "Cache read", value: DashFmt.tokens(cacheRead), sub: share(cacheRead),
+                usageValue: true),
         ]
         if let busiest {
             out.append(
