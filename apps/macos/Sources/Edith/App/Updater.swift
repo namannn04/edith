@@ -50,8 +50,14 @@ final class UpdaterModel: NSObject, ObservableObject,
         let updaterController = SPUStandardUpdaterController(
             startingUpdater: false, updaterDelegate: nil, userDriverDelegate: self)
         self.updaterController = updaterController
-        let updater = updaterController.updater
-        updater.httpHeaders = currentLicenseHeaders()
+        Task { [weak self] in
+            await self?.startUpdater()
+        }
+    }
+
+    private func startUpdater() async {
+        guard let updater else { return }
+        await refreshStaleTokenAndReapplyHeaders()
         do {
             try updater.start()
             updaterAvailable = true
@@ -125,17 +131,11 @@ final class UpdaterModel: NSObject, ObservableObject,
         refreshLicenseHeaders()
     }
 
-    func standardUserDriverShouldHandleShowingScheduledUpdate(
-        _ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool
-    ) -> Bool {
-        immediateFocus
-    }
-
     func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem,
         state: SPUUserUpdateState
     ) {
-        guard !handleShowingUpdate, !state.userInitiated else { return }
+        guard !state.userInitiated else { return }
         updateReady = update.displayVersionString
     }
 
