@@ -18,6 +18,8 @@ const ASSEMBLE = extractBlock("ASSEMBLE");
 const VALIDATE = extractBlock("VALIDATE");
 const WALK = extractBlock("WALK");
 const WALKC = extractBlock("WALKC");
+const WALKCC = extractBlock("WALKCC");
+const CCDAILY = extractBlock("CCDAILY");
 
 function jq(program, input, args = []) {
   const proc = Bun.spawnSync(["jq", "-c", ...args, program], {
@@ -244,6 +246,166 @@ describe("WALKC", () => {
   test("zero-token counts and files without session_meta emit nothing", () => {
     expect(walkc([sessionMeta(), tokenCount({ total_tokens: 0 })])).toEqual([]);
     expect(walkc([tokenCount()])).toEqual([]);
+  });
+});
+
+const walkcc = (lines, src = "commandcode", off = 0) =>
+  jq(WALKCC, lines.map((l) => JSON.stringify(l)).join("\n"), [
+    "--argjson",
+    "off",
+    String(off),
+    "--arg",
+    "src",
+    src,
+  ]);
+
+const ccSession = (over = {}) => ({
+  type: "session",
+  version: 3,
+  id: "cc-1",
+  timestamp: "2026-06-10T12:00:00.000Z",
+  cwd: "/repo/app",
+  ...over,
+});
+
+const ccAssistant = (usage = {}, over = {}) => ({
+  type: "message",
+  id: "m-1",
+  model: "deepseek/deepseek-v4-pro",
+  timestamp: "2026-06-10T12:30:00.123Z",
+  usage: {
+    inputTokens: 100,
+    outputTokens: 20,
+    cacheReadTokens: 60,
+    cacheWriteTokens: 5,
+    costUsd: 0.25,
+    ...usage,
+  },
+  message: { role: "assistant", content: [{ type: "text", text: "ok" }] },
+  ...over,
+});
+
+const ccUser = (text, over = {}) => ({
+  type: "message",
+  id: "u-1",
+  timestamp: "2026-06-10T12:01:00.000Z",
+  message: { role: "user", content: [{ type: "text", text }] },
+  ...over,
+});
+
+describe("WALKCC", () => {
+  test("assistant message becomes a rec carrying its own exact cost", () => {
+    const out = walkcc([
+      ccSession(),
+      ccAssistant(),
+      ccAssistant({}, { timestamp: "2026-06-10T13:30:00.123Z" }),
+    ]);
+    expect(out.length).toBe(2);
+    const [a, b] = out;
+    expect(a.t).toBe("rec");
+    expect(a.sid).toBe("cc-1");
+    expect(a.cwd).toBe("/repo/app");
+    expect(a.model).toBe("deepseek/deepseek-v4-pro");
+    expect(a.src).toBe("commandcode");
+    expect(a.inp).toBe(100);
+    expect(a.out).toBe(20);
+    expect(a.cr).toBe(60);
+    expect(a.cc).toBe(5);
+    expect(a.tok).toBe(185);
+    expect(a.cost).toBe(0.25);
+    expect(a.date).toBe("2026-06-10");
+    expect(a.hour).toBe(12);
+    expect(a.ts).toBe(Date.parse("2026-06-10T12:30:00Z"));
+    expect(a.wt).toBeNull();
+    expect(a.id).not.toBe(b.id);
+  });
+
+  test("user message becomes a text record, tag-prefixed and empty skipped", () => {
+    const out = walkcc([
+      ccSession(),
+      ccUser("  fix the bug  "),
+      ccUser("<system-reminder>x"),
+      ccUser(""),
+    ]);
+    expect(out).toEqual([
+      {
+        t: "text",
+        sid: "cc-1",
+        tms: "2026-06-10T12:01:00.000Z",
+        text: "fix the bug",
+      },
+    ]);
+  });
+
+  test("zero-token, session-less, and checkpoint files emit nothing", () => {
+    expect(
+      walkcc([
+        ccSession(),
+        ccAssistant({
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+        }),
+      ]),
+    ).toEqual([]);
+    expect(walkcc([ccAssistant()])).toEqual([]);
+    expect(
+      walkcc([
+        { type: "file-history-snapshot", messageId: "m-1", snapshot: {} },
+      ]),
+    ).toEqual([]);
+  });
+
+  test("timezone offset shifts the local date and hour", () => {
+    const [rec] = walkcc(
+      [ccSession(), ccAssistant({}, { timestamp: "2026-06-10T23:30:00.000Z" })],
+      "commandcode",
+      3600 * 2,
+    );
+    expect(rec.date).toBe("2026-06-11");
+    expect(rec.hour).toBe(1);
+  });
+});
+
+describe("CCDAILY", () => {
+  const ccdaily = (lines, off = 0) =>
+    jq(CCDAILY, lines.map((l) => JSON.stringify(l)).join("\n"), [
+      "-s",
+      "--argjson",
+      "off",
+      String(off),
+    ]);
+
+  test("groups by local date then model and maps cache write to creation", () => {
+    const [out] = ccdaily([
+      ccSession(),
+      ccAssistant(),
+      ccAssistant(),
+      ccAssistant({}, { model: "other-model" }),
+      ccAssistant({}, { timestamp: "2026-06-11T09:00:00.000Z" }),
+    ]);
+    expect(out.daily.map((d) => d.date)).toEqual(["2026-06-10", "2026-06-11"]);
+
+    const first = out.daily[0].modelBreakdowns;
+    expect(first.length).toBe(2);
+    const deepseek = first.find(
+      (m) => m.modelName === "deepseek/deepseek-v4-pro",
+    );
+    expect(deepseek.inputTokens).toBe(200);
+    expect(deepseek.outputTokens).toBe(40);
+    expect(deepseek.cacheReadTokens).toBe(120);
+    expect(deepseek.cacheCreationTokens).toBe(10);
+    expect(deepseek.cost).toBe(0.5);
+  });
+
+  test("records without usage are ignored and totals survive NORM", () => {
+    const [out] = ccdaily([ccSession(), ccUser("hi"), ccAssistant()]);
+    expect(out.daily.length).toBe(1);
+    const [norm] = jq(`${NORM} normDay`, JSON.stringify(out.daily[0]));
+    expect(norm.period).toBe("2026-06-10");
+    expect(norm.breakdowns[0].cost).toBe(0.25);
+    expect(norm.breakdowns[0].cacheCreationTokens).toBe(5);
   });
 });
 
