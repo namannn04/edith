@@ -413,8 +413,7 @@ if [ -s "$TMP/manifest.jsonl" ]; then
         'model', coalesce(json_extract(m.data, '\$.modelID'), 'unknown'),
         'cost', coalesce(json_extract(m.data, '\$.cost'), 0),
         'inp', coalesce(json_extract(m.data, '\$.tokens.input'), 0),
-        'out', coalesce(json_extract(m.data, '\$.tokens.output'), 0)
-             + coalesce(json_extract(m.data, '\$.tokens.reasoning'), 0),
+        'out', coalesce(json_extract(m.data, '\$.tokens.output'), 0),
         'cc', coalesce(json_extract(m.data, '\$.tokens.cache.write'), 0),
         'cr', coalesce(json_extract(m.data, '\$.tokens.cache.read'), 0))
       from message m
