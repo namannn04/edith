@@ -181,7 +181,10 @@ final class UsageStore: ObservableObject, FeatureModule {
     private func startPolling() {
         guard timer == nil else { return }
         let t = Timer(timeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.refreshLimits() }
+            Task { @MainActor in
+                await self?.refreshLimits()
+                self?.runUpdate()
+            }
         }
         t.tolerance = 30
         RunLoop.main.add(t, forMode: .common)
