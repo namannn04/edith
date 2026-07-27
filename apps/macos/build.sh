@@ -128,6 +128,7 @@ cp .build/release/Edith "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cp -R .build/release/Edith_EdithKit.bundle "$APP/Contents/Resources/"
+cp -R .build/release/Edith_Edith.bundle "$APP/Contents/Resources/"
 cp -R "$SPARKLE_FRAMEWORK" "$APP/Contents/Frameworks/"
 
 mkdir -p "$HELPER/Contents/MacOS" "$HELPER/Contents/Resources"

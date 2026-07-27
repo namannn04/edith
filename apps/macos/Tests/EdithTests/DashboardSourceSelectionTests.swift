@@ -11,6 +11,13 @@ import Testing
         return (UserDefaults(suiteName: name)!, name)
     }
 
+    private let period: String = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }()
+
     private func usage() throws -> DashUsage {
         let json = """
             {
@@ -22,7 +29,7 @@ import Testing
                 "codex": {"label": "Codex"}
               },
               "daily": [{
-                "period": "2026-07-15",
+                "period": "\(period)",
                 "bySource": {
                   "cli": [{
                     "modelName": "claude", "inputTokens": 403000, "outputTokens": 0,
@@ -58,7 +65,7 @@ import Testing
         secondLaunch.ingest(try usage())
 
         #expect(secondLaunch.selectedSources == ["cli", "codex"])
-        #expect(secondLaunch.series.first { $0.id == "2026-07-15" }?.tokens == 31_403_000)
+        #expect(secondLaunch.series.first { $0.id == period }?.tokens == 31_403_000)
     }
 
     @Test func versionedIntentionalDeselectionSurvivesRelaunch() throws {
@@ -73,6 +80,6 @@ import Testing
         model.ingest(try usage())
 
         #expect(model.selectedSources == ["cli"])
-        #expect(model.series.first { $0.id == "2026-07-15" }?.tokens == 403_000)
+        #expect(model.series.first { $0.id == period }?.tokens == 403_000)
     }
 }
