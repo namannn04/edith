@@ -37,7 +37,7 @@
 	<key>SUFeedURL</key>
 	<string>https://edith.pulkit.page/api/appcast</string>
 	<key>SUPublicEDKey</key>
-	<string>LzTwqzMep0oPKe7/jBHswPsGEqLvPTt8ud8owrn5M2w=</string>
+	<string>qz/e9EfPlNiHqJC9JA9RazcXGgnH2wxwpS+uw+x9qBM=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>3600</integer>
 </dict>
