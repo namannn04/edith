@@ -93,9 +93,7 @@ struct ActivationView: View {
 
     private var appIcon: some View {
         Group {
-            if let url = Bundle.module.url(forResource: "appicon", withExtension: "png"),
-                let icon = NSImage(contentsOf: url)
-            {
+            if let icon = AppArtwork.icon {
                 Image(nsImage: icon)
                     .resizable()
                     .interpolation(.high)
