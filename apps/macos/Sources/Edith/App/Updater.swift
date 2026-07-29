@@ -121,12 +121,11 @@ final class UpdaterModel: NSObject, ObservableObject,
     }
 
     private func refreshStaleTokenAndReapplyHeaders() async {
-        if licenseUpdaterTokenIsStale(
-            accessToken: StoredAccessToken.load(from: licenseCredentialStore),
-            hasRefreshCredential: ((try? licenseCredentialStore.read(.refreshCredential)) ?? nil)
-                != nil)
-        {
-            try? await LicenseSession(credentialStore: licenseCredentialStore).refresh()
+        let credentialStore = licenseCredentialStore
+        _ = try? await LicenseRefreshCoordinator.shared.refreshIfStale(
+            credentialStore: credentialStore
+        ) {
+            LicenseSession(credentialStore: credentialStore)
         }
         refreshLicenseHeaders()
     }

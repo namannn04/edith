@@ -105,7 +105,8 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
             guard ((try? licenseCredentialStore.read(.refreshCredential)) ?? nil) != nil else {
                 return
             }
-            try? await licenseSession().refresh()
+            let session = licenseSession()
+            _ = try? await LicenseRefreshCoordinator.shared.refresh { session }
             guard !Task.isCancelled else { return }
             if currentLaunchDecision() == .gate {
                 invalidateLicenseAndRegate()
