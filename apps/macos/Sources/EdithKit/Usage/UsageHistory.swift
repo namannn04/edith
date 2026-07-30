@@ -4,8 +4,11 @@ public enum UsageHistory {
     public static func merge(local: Data?, cloud: Data?) -> Data? {
         guard let local else { return cloud }
         guard let cloud else { return local }
-        guard let l = decode(local) else { return cloud }
-        guard let c = decode(cloud) else { return local }
+        guard let rawLocal = decode(local) else { return cloud }
+        guard let rawCloud = decode(cloud) else { return local }
+        let l = foldLegacyCloudSource(rawLocal)
+        let c = foldLegacyCloudSource(rawCloud)
+        let preferLocalDays = intOf(l["schemaVersion"]) > intOf(c["schemaVersion"])
 
         var best: [String: [String: Any]] = [:]
         for day in daily(c) {
@@ -14,7 +17,7 @@ public enum UsageHistory {
         }
         for day in daily(l) {
             guard let p = day["period"] as? String else { continue }
-            if let cur = best[p], dayTokens(cur) > dayTokens(day) { continue }
+            if !preferLocalDays, let cur = best[p], dayTokens(cur) > dayTokens(day) { continue }
             best[p] = day
         }
         let mergedDaily = best.keys.sorted().compactMap { best[$0] }
@@ -31,6 +34,98 @@ public enum UsageHistory {
         out["totals"] = totals(of: mergedDaily)
 
         return try? JSONSerialization.data(withJSONObject: out, options: [.sortedKeys])
+    }
+
+    private static let legacyCloudSource = "cc-cloud"
+
+    static func foldLegacyCloudSource(_ obj: [String: Any]) -> [String: Any] {
+        var out = obj
+        out["sources"] = foldedSourceList(strings(obj["sources"]))
+        out["defaultSources"] = foldedSourceList(strings(obj["defaultSources"]))
+        if var meta = obj["sourceMeta"] as? [String: Any], meta[legacyCloudSource] != nil {
+            meta[legacyCloudSource] = nil
+            out["sourceMeta"] = meta
+        }
+        if let sessions = obj["sessions"] as? [[String: Any]] {
+            out["sessions"] = sessions.map(relabeledSession)
+        }
+        out["daily"] = daily(obj).map(foldedDay)
+        return out
+    }
+
+    private static func foldedSourceList(_ sources: [String]) -> [String] {
+        guard sources.contains(legacyCloudSource) else { return sources }
+        var kept = sources.filter { $0 != legacyCloudSource }
+        if !kept.contains("cli") { kept.append("cli") }
+        return kept
+    }
+
+    private static func relabeledSession(_ session: [String: Any]) -> [String: Any] {
+        guard session["source"] as? String == legacyCloudSource else { return session }
+        var out = session
+        out["source"] = "cli"
+        return out
+    }
+
+    private static func foldedDay(_ day: [String: Any]) -> [String: Any] {
+        var out = day
+        if var by = day["bySource"] as? [String: Any],
+            let legacyRows = by[legacyCloudSource] as? [[String: Any]]
+        {
+            var rows = by["cli"] as? [[String: Any]] ?? []
+            for row in legacyRows {
+                let name = row["modelName"] as? String ?? "unknown"
+                if let i = rows.firstIndex(where: {
+                    ($0["modelName"] as? String ?? "unknown") == name
+                }) {
+                    rows[i] = combinedRow(rows[i], row)
+                } else {
+                    rows.append(row)
+                }
+            }
+            by["cli"] = rows
+            by[legacyCloudSource] = nil
+            out["bySource"] = by
+        }
+        if let projects = day["projects"] as? [[String: Any]] {
+            out["projects"] = projects.map(relabeledProject)
+        }
+        return out
+    }
+
+    private static func combinedRow(_ a: [String: Any], _ b: [String: Any]) -> [String: Any] {
+        var out = a
+        let numericKeys = [
+            "inputTokens", "outputTokens", "cacheCreationTokens", "cacheReadTokens", "cost",
+        ]
+        for key in numericKeys {
+            out[key] = num(a[key]) + num(b[key])
+        }
+        return out
+    }
+
+    private static func relabeledProject(_ project: [String: Any]) -> [String: Any] {
+        var out = project
+        if let chats = project["chats"] as? [[String: Any]] {
+            out["chats"] = chats.map(relabeledChat)
+        }
+        if let worktrees = project["worktrees"] as? [[String: Any]] {
+            out["worktrees"] = worktrees.map { wt -> [String: Any] in
+                var next = wt
+                if let chats = wt["chats"] as? [[String: Any]] {
+                    next["chats"] = chats.map(relabeledChat)
+                }
+                return next
+            }
+        }
+        return out
+    }
+
+    private static func relabeledChat(_ chat: [String: Any]) -> [String: Any] {
+        guard chat["source"] as? String == legacyCloudSource else { return chat }
+        var out = chat
+        out["source"] = "cli"
+        return out
     }
 
     private static func decode(_ data: Data) -> [String: Any]? {

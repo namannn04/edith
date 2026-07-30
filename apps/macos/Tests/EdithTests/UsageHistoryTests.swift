@@ -178,4 +178,77 @@ import Testing
         #expect(by["codex"]?["tokens"] == 500)
         #expect(by["codex"]?["cost"] == 5)
     }
+
+    @Test func foldsLegacyCloudSourceIntoCli() {
+        var c = decode(usage(days: [("2026-06-10", 100, 1)]))
+        c["sources"] = ["cli", "cc-cloud"]
+        c["defaultSources"] = ["cli", "cc-cloud"]
+        c["sourceMeta"] = [
+            "cli": ["label": "Claude Code"], "cc-cloud": ["label": "Claude Code Cloud"],
+        ]
+        c["sessions"] = [["id": "a", "source": "cc-cloud"], ["id": "a", "source": "cli"]]
+        var day = (c["daily"] as! [[String: Any]])[0]
+        var by = day["bySource"] as! [String: Any]
+        by["cc-cloud"] = [
+            [
+                "modelName": "m", "inputTokens": 7.0, "outputTokens": 3.0,
+                "cacheCreationTokens": 0.0, "cacheReadTokens": 40.0, "cost": 2.0,
+            ]
+        ]
+        day["bySource"] = by
+        day["projects"] = [
+            [
+                "projectName": "p",
+                "chats": [["id": "s1", "tokens": 10.0, "cost": 1.0, "source": "cc-cloud"]],
+                "worktrees": [["name": "wt", "chats": [["id": "s2", "source": "cc-cloud"]]]],
+            ]
+        ]
+        c["daily"] = [day]
+        let local = usage(days: [("2026-06-11", 5, 1)])
+        let merged = decode(
+            UsageHistory.merge(
+                local: local, cloud: try! JSONSerialization.data(withJSONObject: c)))
+        #expect(Set(merged["sources"] as! [String]) == ["cli"])
+        #expect(Set(merged["defaultSources"] as! [String]) == ["cli"])
+        #expect((merged["sourceMeta"] as! [String: Any])["cc-cloud"] == nil)
+        let sessions = merged["sessions"] as! [[String: Any]]
+        #expect(sessions.count == 1)
+        #expect(sessions.first?["source"] as? String == "cli")
+        let mergedDay = (merged["daily"] as! [[String: Any]]).first {
+            $0["period"] as? String == "2026-06-10"
+        }!
+        let rows = mergedDay["bySource"] as! [String: [[String: Any]]]
+        #expect(rows["cc-cloud"] == nil)
+        let row = rows["cli"]!.first!
+        #expect(row["inputTokens"] as! Double == 107)
+        #expect(row["outputTokens"] as! Double == 3)
+        #expect(row["cacheReadTokens"] as! Double == 40)
+        #expect(row["cost"] as! Double == 3)
+        let project = (mergedDay["projects"] as! [[String: Any]]).first!
+        let chat = (project["chats"] as! [[String: Any]]).first!
+        #expect(chat["source"] as? String == "cli")
+        let worktree = (project["worktrees"] as! [[String: Any]]).first!
+        let wtChat = (worktree["chats"] as! [[String: Any]]).first!
+        #expect(wtChat["source"] as? String == "cli")
+        let totals = merged["totals"] as! [String: Any]
+        #expect(totals["tokens"] as! Double == 155)
+        let byTotals = totals["bySource"] as! [String: [String: Double]]
+        #expect(byTotals["cc-cloud"] == nil)
+        #expect(byTotals["cli"]?["tokens"] == 155)
+    }
+
+    @Test func newerLocalSchemaWinsOverlappingDays() {
+        var l = decode(usage(days: [("2026-06-10", 40, 1)]))
+        l["schemaVersion"] = 5
+        let cloud = usage(days: [("2026-05-01", 9, 1), ("2026-06-10", 900, 9)])
+        let merged = decode(
+            UsageHistory.merge(
+                local: try! JSONSerialization.data(withJSONObject: l), cloud: cloud))
+        #expect(periods(merged) == ["2026-05-01", "2026-06-10"])
+        let overlap = (merged["daily"] as! [[String: Any]]).first {
+            $0["period"] as? String == "2026-06-10"
+        }!
+        #expect(UsageHistory.dayTokens(overlap) == 40)
+        #expect(merged["schemaVersion"] as? Int == 5)
+    }
 }
