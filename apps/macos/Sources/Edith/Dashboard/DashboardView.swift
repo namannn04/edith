@@ -16,6 +16,8 @@ struct DashboardView: View {
     @Environment(\.compactLayout) private var compactLayout
     @State private var showLog = false
     @State private var folderPickerOpen = false
+    @State private var sourcePickerOpen = false
+    @State private var modelPickerOpen = false
     @State private var customFrom = Date()
     @State private var customTo = Date()
 
@@ -402,26 +404,20 @@ struct DashboardView: View {
     }
 
     private var sourceMenu: some View {
-        Menu {
-            ForEach(model.allSources) { s in
-                Toggle(
-                    s.label,
-                    isOn: Binding(
-                        get: { model.selectedSources.contains(s.id) },
-                        set: { on in
-                            if on {
-                                model.selectedSources.insert(s.id)
-                            } else if model.selectedSources.count > 1 {
-                                model.selectedSources.remove(s.id)
-                            }
-                        }))
-            }
+        Button {
+            sourcePickerOpen = true
         } label: {
             Label(sourceSummary, systemImage: "square.stack.3d.up")
                 .font(.system(size: UIScale.pt(11)))
         }
-        .menuStyle(.borderlessButton).pointerCursor().fixedSize()
+        .buttonStyle(.plain).pointerCursor().fixedSize()
         .modifier(FilterChip(dark: dark))
+        .popover(isPresented: $sourcePickerOpen, arrowEdge: .bottom) {
+            FilterMultiSelect(
+                options: model.allSources.map { FilterSelectOption(id: $0.id, label: $0.label) },
+                selection: $model.selectedSources, dark: dark
+            ) { sourcePickerOpen = false }
+        }
     }
 
     private var sourceSummary: String {
@@ -433,26 +429,22 @@ struct DashboardView: View {
     }
 
     private var modelMenu: some View {
-        Menu {
-            ForEach(model.allModels, id: \.self) { m in
-                Toggle(
-                    DashFmt.shortModel(m),
-                    isOn: Binding(
-                        get: { model.selectedModels.contains(m) },
-                        set: { on in
-                            if on {
-                                model.selectedModels.insert(m)
-                            } else if model.selectedModels.count > 1 {
-                                model.selectedModels.remove(m)
-                            }
-                        }))
-            }
+        Button {
+            modelPickerOpen = true
         } label: {
             Label("\(model.selectedModels.count) models", systemImage: "cpu")
                 .font(.system(size: UIScale.pt(11)))
         }
-        .menuStyle(.borderlessButton).pointerCursor().fixedSize()
+        .buttonStyle(.plain).pointerCursor().fixedSize()
         .modifier(FilterChip(dark: dark))
+        .popover(isPresented: $modelPickerOpen, arrowEdge: .bottom) {
+            FilterMultiSelect(
+                options: model.allModels.map {
+                    FilterSelectOption(id: $0, label: DashFmt.shortModel($0))
+                },
+                selection: $model.selectedModels, dark: dark
+            ) { modelPickerOpen = false }
+        }
     }
 
     private var logView: some View {
