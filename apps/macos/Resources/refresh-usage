@@ -30,7 +30,6 @@ label_for() {
   case "$1" in
     cli) echo "Claude Code" ;;
     cowork) echo "Cowork" ;;
-    cc-cloud) echo "Claude Code Cloud" ;;
     codex) echo "Codex" ;;
     opencode) echo "OpenCode" ;;
     commandcode) echo "Command Code" ;;
@@ -51,19 +50,19 @@ def normDay:
     { period: .date, breakdowns: [ .modelBreakdowns[] | {
         modelName: (.modelName // "unknown"),
         inputTokens: (.inputTokens // 0),
-        outputTokens: ((.outputTokens // 0) + (.reasoningOutputTokens // 0)),
+        outputTokens: (.outputTokens // 0),
         cacheCreationTokens: (.cacheCreationTokens // 0),
         cacheReadTokens: (.cacheReadTokens // 0),
         cost: (.cost // .costUSD // 0)
       } ] }
   elif (.models | type) == "object" then
     (.costUSD // .totalCost // 0) as $cost
-    | [ .models | to_entries[] | . + { tok: ((.value.inputTokens // 0) + (.value.outputTokens // 0) + (.value.reasoningOutputTokens // 0) + (.value.cacheCreationTokens // 0) + (.value.cacheReadTokens // 0)) } ] as $m
+    | [ .models | to_entries[] | . + { tok: ((.value.inputTokens // 0) + (.value.outputTokens // 0) + (.value.cacheCreationTokens // 0) + (.value.cacheReadTokens // 0)) } ] as $m
     | ([ $m[].tok ] | add // 0) as $tot
     | { period: .date, breakdowns: [ $m[] | {
         modelName: .key,
         inputTokens: (.value.inputTokens // 0),
-        outputTokens: ((.value.outputTokens // 0) + (.value.reasoningOutputTokens // 0)),
+        outputTokens: (.value.outputTokens // 0),
         cacheCreationTokens: (.value.cacheCreationTokens // 0),
         cacheReadTokens: (.value.cacheReadTokens // 0),
         cost: (if $tot > 0 then $cost * (.tok / $tot) else 0 end)
@@ -73,7 +72,7 @@ def normDay:
     | { period: .date, breakdowns: [ $mu[] | {
         modelName: .,
         inputTokens: (($d.inputTokens // 0) / $n),
-        outputTokens: ((($d.outputTokens // 0) + ($d.reasoningOutputTokens // 0)) / $n),
+        outputTokens: (($d.outputTokens // 0) / $n),
         cacheCreationTokens: (($d.cacheCreationTokens // 0) / $n),
         cacheReadTokens: (($d.cacheReadTokens // 0) / $n),
         cost: (($d.totalCost // $d.costUSD // 0) / $n)
@@ -244,14 +243,6 @@ if [ -s "$TMP/manifest.jsonl" ]; then
           ((($m.inputTokens // 0) + ($m.outputTokens // 0) + ($m.cacheCreationTokens // 0) + ($m.cacheReadTokens // 0))) as $t
           | .[$d.date][$m.modelName] = (if $t > 0 then ($m.cost // 0) / $t else 0 end)))
   ' "$TMP/cli.daily.json" "$TMP/cowork.daily.json" >"$TMP/rates.json"
-
-  echo "[]" >"$TMP/cloud.json"
-  CLOUD_RAW="$(perl -e 'alarm 20; exec @ARGV' claude agents --json --all 2>/dev/null || true)"
-  if [ -n "$CLOUD_RAW" ]; then
-    printf '%s' "$CLOUD_RAW" \
-      | jq -c '[.[] | select(.kind == "background" and .sessionId) | .sessionId] | unique' \
-        >"$TMP/cloud.json" 2>/dev/null || echo "[]" >"$TMP/cloud.json"
-  fi
 
   WALK='
     def usertext:
@@ -459,7 +450,7 @@ if [ -s "$TMP/manifest.jsonl" ]; then
 
   jq -c '
     reduce ((.daily // [])[]) as $d ({};
-      ([ $d.models[]? | ((.inputTokens // 0) + (.outputTokens // 0) + (.reasoningOutputTokens // 0)
+      ([ $d.models[]? | ((.inputTokens // 0) + (.outputTokens // 0)
           + (.cacheCreationTokens // 0) + (.cacheReadTokens // 0)) ] | add // 0) as $t
       | .[$d.date] = (if $t > 0 then ($d.costUSD // $d.totalCost // 0) / $t else 0 end))
   ' "$TMP/codex.daily.json" >"$TMP/codex-rates.json" 2>/dev/null || echo '{}' >"$TMP/codex-rates.json"
@@ -516,12 +507,10 @@ if [ -s "$TMP/manifest.jsonl" ]; then
   jq \
     --slurpfile usage "$TMP/usage.json" \
     --slurpfile titles "$TMP/titles.json" \
-    --slurpfile cloud "$TMP/cloud.json" \
     --slurpfile nm <(jq -s 'map({(.cwd): .name}) | add // {}' "$TMP/cwdmap.jsonl") \
     --slurpfile rt <(jq -s 'map({(.cwd): (.root // .cwd)}) | add // {}' "$TMP/cwdmap.jsonl") '
     . as $R | $usage[0] as $usage | ($nm[0] // {}) as $NAME | ($titles[0] // {}) as $T |
     ($rt[0] // {}) as $ROOT |
-    (($cloud[0] // []) | map({(.): true}) | add // {}) as $CS |
     def chatsort: sort_by([-.tokens, .id]);
     ( $R | group_by(.date) | map({
         key: .[0].date,
@@ -539,7 +528,7 @@ if [ -s "$TMP/manifest.jsonl" ]; then
                       cost: (map(.cost) | add),
                       firstTs: (map(.ts) | min),
                       lastTs: (map(.ts) | max),
-                      source: (if $CS[.[0].sid] then "cc-cloud" else .[0].src end)
+                      source: .[0].src
                     } }
                 ) ) as $chats
               | { projectName: .[0].p,
@@ -554,7 +543,7 @@ if [ -s "$TMP/manifest.jsonl" ]; then
             )
           | sort_by([-.tokens, .projectName]) )
       }) | map({(.key): {hours: .hours, projects: .projects}}) | add // {} ) as $BY |
-    $usage | .schemaVersion = 4 | .daily = [ .daily[] |
+    $usage | .schemaVersion = 5 | .daily = [ .daily[] |
       ($BY[.period]) as $b |
       .hours = ( [range(0; 24)] | map( . as $h |
         ($b.hours // [] | map(select(.hour == $h)) | .[0]) as $x
@@ -563,54 +552,6 @@ if [ -s "$TMP/manifest.jsonl" ]; then
     ]
   ' "$TMP/recs.json" >"$TMP/merged.json" && mv "$TMP/merged.json" "$TMP/usage.json"
   _phase "merge" "hours + projects merged"
-
-  NCLOUD=$(jq 'length' "$TMP/cloud.json" 2>/dev/null || echo 0)
-  if [ "${NCLOUD:-0}" -gt 0 ]; then
-    jq --slurpfile cloud "$TMP/cloud.json" '
-      ($cloud[0] // [] | map({(.): true}) | add // {}) as $CS |
-      [ .[] | select($CS[.sid]) | select(.model != "<synthetic>" or .tok > 0) ]
-      | group_by(.date + "|" + .model)
-      | map({ date: .[0].date, model: .[0].model,
-              inputTokens: (map(.inp) | add), outputTokens: (map(.out) | add),
-              cacheCreationTokens: (map(.cc) | add), cacheReadTokens: (map(.cr) | add),
-              cost: (map(.cost) | add) })
-      | reduce .[] as $x ({}; .[$x.date][$x.model] = $x)
-    ' "$TMP/recs.json" >"$TMP/cloudagg.json"
-
-    jq --slurpfile ca "$TMP/cloudagg.json" '
-      ($ca[0] // {}) as $CA |
-      .daily = [ .daily[] | . as $d | ($CA[$d.period] // {}) as $cm |
-        if ($cm | length) == 0 then . else
-          .bySource.cli = [ (.bySource.cli // [])[] | . as $b | ($cm[$b.modelName]) as $c |
-            if $c == null then $b else
-              $b
-              | .inputTokens = ([(.inputTokens // 0) - $c.inputTokens, 0] | max)
-              | .outputTokens = ([(.outputTokens // 0) - $c.outputTokens, 0] | max)
-              | .cacheCreationTokens = ([(.cacheCreationTokens // 0) - $c.cacheCreationTokens, 0] | max)
-              | .cacheReadTokens = ([(.cacheReadTokens // 0) - $c.cacheReadTokens, 0] | max)
-              | .cost = ([(.cost // 0) - $c.cost, 0] | max)
-            end ]
-          | .bySource["cc-cloud"] = [ $cm | to_entries[] | .value
-              | {modelName: .model, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, cost} ]
-        end
-      ]
-      | if (.daily | map(.bySource | has("cc-cloud")) | any) then
-          .sources = ((.sources // []) + (["cc-cloud"] - (.sources // [])))
-          | .defaultSources = ((.defaultSources // []) + (["cc-cloud"] - (.defaultSources // [])))
-          | .sourceMeta += {"cc-cloud": {label: "Claude Code Cloud", tool: "Claude Code Cloud"}}
-        else . end
-      | ([.daily[].bySource[][]]) as $all
-      | .totals = {
-          cost: ([$all[].cost] | add // 0),
-          tokens: ([$all[] | ((.inputTokens // 0) + (.outputTokens // 0) + (.cacheCreationTokens // 0) + (.cacheReadTokens // 0))] | add // 0),
-          inputTokens: ([$all[].inputTokens] | add // 0),
-          outputTokens: ([$all[].outputTokens] | add // 0),
-          cacheCreationTokens: ([$all[].cacheCreationTokens] | add // 0),
-          cacheReadTokens: ([$all[].cacheReadTokens] | add // 0)
-        }
-    ' "$TMP/usage.json" >"$TMP/split.json" && mv "$TMP/split.json" "$TMP/usage.json"
-    _phase "cc-cloud" "$NCLOUD cloud sessions split out"
-  fi
 fi
 
 if ! jq -e "$VALIDATE" "$TMP/usage.json" >/dev/null; then

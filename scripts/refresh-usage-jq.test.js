@@ -416,7 +416,7 @@ describe("NORM", () => {
       JSON.stringify({ daily }),
     )[0];
 
-  test("claude shape keeps per-model rows and folds reasoning into output", () => {
+  test("claude shape keeps per-model rows without re-adding reasoning", () => {
     const [day] = norm([
       {
         date: "2026-06-10",
@@ -434,7 +434,7 @@ describe("NORM", () => {
       },
     ]);
     expect(day.period).toBe("2026-06-10");
-    expect(day.breakdowns[0].outputTokens).toBe(5);
+    expect(day.breakdowns[0].outputTokens).toBe(2);
     expect(day.breakdowns[0].cost).toBe(9);
   });
 
@@ -559,12 +559,12 @@ describe("usage pipeline", () => {
     );
     expect(out.sources).toEqual(["cli", "codex"]);
     expect(out.defaultSources).toEqual(["cli", "codex"]);
-    expect(out.totals.tokens).toBe(1_520_260_444);
+    expect(out.totals.tokens).toBe(1_519_567_923);
     expect(out.totals.inputTokens).toBe(43_285_368);
-    expect(out.totals.outputTokens).toBe(3_623_428);
+    expect(out.totals.outputTokens).toBe(2_930_907);
     expect(out.totals.cacheReadTokens).toBe(1_473_351_648);
     expect(out.daily[0].bySource.cli[0].inputTokens).toBe(12_989);
-    expect(out.daily[0].bySource.codex[0].outputTokens).toBe(3_523_428);
+    expect(out.daily[0].bySource.codex[0].outputTokens).toBe(2_830_907);
     expect(out.sessions).toHaveLength(2);
     expect(jqExit(VALIDATE, JSON.stringify(out))).toBe(0);
   });
