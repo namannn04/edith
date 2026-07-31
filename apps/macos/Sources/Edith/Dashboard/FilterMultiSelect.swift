@@ -14,35 +14,62 @@ struct FilterMultiSelect: View {
     let dismiss: () -> Void
 
     @State private var anchor: String?
+    @State private var anchorSelected = true
+    @State private var query = ""
 
-    private var order: [String] { options.map(\.id) }
+    private var searchable: Bool { options.count > 8 }
+
+    private var visible: [FilterSelectOption] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard searchable, !q.isEmpty else { return options }
+        return options.filter { $0.label.localizedCaseInsensitiveContains(q) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIScale.pt(6)) {
+            if searchable {
+                SearchField(placeholder: "Search…", text: $query, compact: true)
+            }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: UIScale.pt(1)) {
-                    ForEach(options) { option in
+                    ForEach(visible) { option in
                         FilterSelectRow(
                             label: option.label,
                             checked: selection.contains(option.id),
                             actionLabel: MultiSelectLogic.actionLabel(
                                 option.id, selection: selection),
                             dark: dark,
-                            onToggle: {
-                                apply(MultiSelectLogic.toggle(option.id, selection: selection))
+                            onToggle: { rangeModifier in
+                                apply(
+                                    rangeModifier
+                                        ? MultiSelectLogic.rangeApply(
+                                            option.id, order: visible.map(\.id),
+                                            selection: selection, anchor: anchor,
+                                            anchorSelected: anchorSelected)
+                                        : MultiSelectLogic.toggle(
+                                            option.id, selection: selection))
                             },
                             onRowClick: { toggleModifier, rangeModifier in
                                 apply(
                                     MultiSelectLogic.rowClick(
-                                        option.id, order: order, selection: selection,
-                                        anchor: anchor, toggleModifier: toggleModifier,
+                                        option.id, order: visible.map(\.id),
+                                        selection: selection, anchor: anchor,
+                                        anchorSelected: anchorSelected,
+                                        toggleModifier: toggleModifier,
                                         rangeModifier: rangeModifier))
                             },
                             onAction: {
                                 apply(
                                     MultiSelectLogic.actionClick(
-                                        option.id, order: order, selection: selection))
+                                        option.id, order: visible.map(\.id),
+                                        selection: selection))
                             })
+                    }
+                    if visible.isEmpty {
+                        Text("No matches")
+                            .font(.system(size: UIScale.pt(11)))
+                            .foregroundStyle(DashSkin.inkFaint(dark))
+                            .padding(UIScale.pt(8))
                     }
                 }
             }
@@ -54,10 +81,12 @@ struct FilterMultiSelect: View {
                     .foregroundStyle(DashSkin.inkFaint(dark))
                 Spacer(minLength: 0)
                 if selection.count < options.count {
-                    Button("Select all") { apply(MultiSelectLogic.selectAll(order: order)) }
-                        .buttonStyle(.plain).pointerCursor()
-                        .font(.system(size: UIScale.pt(10.5)))
-                        .foregroundStyle(DashSkin.inkSoft(dark))
+                    Button("Select all") {
+                        apply(MultiSelectLogic.selectAll(order: options.map(\.id)))
+                    }
+                    .buttonStyle(.plain).pointerCursor()
+                    .font(.system(size: UIScale.pt(10.5)))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
                 }
                 Button("Done") { dismiss() }
                     .buttonStyle(.plain).pointerCursor()
@@ -78,6 +107,7 @@ struct FilterMultiSelect: View {
     private func apply(_ outcome: MultiSelectLogic.Outcome<String>) {
         selection = outcome.selection
         anchor = outcome.anchor
+        anchorSelected = outcome.anchorSelected
         if outcome.dismiss { dismiss() }
     }
 }
@@ -87,18 +117,26 @@ private struct FilterSelectRow: View {
     let checked: Bool
     let actionLabel: String
     let dark: Bool
-    let onToggle: () -> Void
+    let onToggle: (Bool) -> Void
     let onRowClick: (Bool, Bool) -> Void
     let onAction: () -> Void
 
     @State private var hovering = false
 
+    private var modifiers: NSEvent.ModifierFlags {
+        NSApp.currentEvent?.modifierFlags ?? []
+    }
+
     var body: some View {
         HStack(spacing: UIScale.pt(8)) {
-            Button(action: onToggle) { checkbox }
-                .buttonStyle(.plain).pointerCursor()
             Button {
-                let flags = NSApp.currentEvent?.modifierFlags ?? []
+                onToggle(modifiers.contains(.shift))
+            } label: {
+                checkbox
+            }
+            .buttonStyle(.plain).pointerCursor()
+            Button {
+                let flags = modifiers
                 onRowClick(
                     flags.contains(.command) || flags.contains(.control),
                     flags.contains(.shift))
