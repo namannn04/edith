@@ -113,24 +113,24 @@ private struct FilterSelectRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain).pointerCursor()
-            if hovering {
-                Button(action: onAction) {
-                    Text(actionLabel)
-                        .font(.system(size: UIScale.pt(10)))
-                        .foregroundStyle(DashSkin.inkSoft(dark))
-                        .padding(.horizontal, UIScale.pt(6))
-                        .padding(.vertical, UIScale.pt(2))
-                        .background(
-                            DashSkin.paper2(dark),
-                            in: RoundedRectangle(cornerRadius: UIScale.pt(5))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: UIScale.pt(5))
-                                .strokeBorder(DashSkin.line(dark), lineWidth: UIScale.pt(1))
-                        )
-                }
-                .buttonStyle(.plain).pointerCursor()
+            Button(action: onAction) {
+                Text(actionLabel)
+                    .font(.system(size: UIScale.pt(10)))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
+                    .padding(.horizontal, UIScale.pt(6))
+                    .padding(.vertical, UIScale.pt(2))
+                    .background(
+                        DashSkin.paper2(dark),
+                        in: RoundedRectangle(cornerRadius: UIScale.pt(5))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: UIScale.pt(5))
+                            .strokeBorder(DashSkin.line(dark), lineWidth: UIScale.pt(1))
+                    )
             }
+            .buttonStyle(.plain).pointerCursor()
+            .opacity(hovering ? 1 : 0)
+            .allowsHitTesting(hovering)
         }
         .padding(.horizontal, UIScale.pt(6))
         .padding(.vertical, UIScale.pt(4))
