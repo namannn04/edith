@@ -101,6 +101,9 @@ struct EdithApp: App {
         _ = IPC.observe(IPC.Name.presenterPauseAuto) {
             services.presenter?.pauseUntilShareEnds()
         }
+        _ = IPC.observe(IPC.Name.toggleLidAwake) {
+            services.lidAwake?.toggle()
+        }
         _ = IPC.observe(IPC.Name.requestTestNotification) {
             Task { _ = await services.usage?.notifier.sendTest() }
         }

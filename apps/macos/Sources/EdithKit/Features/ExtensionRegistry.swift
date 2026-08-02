@@ -209,6 +209,11 @@ public enum ExtensionRegistry {
             symbolName: "mic.slash.fill", group: .system, featured: false,
             defaultsKey: "micMuteEnabled"),
         ExtensionRegistryEntry(
+            id: "lidAwake", title: "Lid Awake",
+            subtitle: "Keeps this Mac running with the lid shut, on battery and unplugged.",
+            symbolName: "laptopcomputer", group: .system, featured: false,
+            defaultsKey: LidAwakeState.enabledKey),
+        ExtensionRegistryEntry(
             id: "music", title: "Music",
             subtitle: "Plays your local music folder, with media keys.",
             symbolName: "music.note", group: .media, featured: false,

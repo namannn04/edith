@@ -28,6 +28,7 @@ Requires macOS 14 or later on Apple Silicon.
 - **Focus dim** - dims every screen except the window you are working in.
 - **Calendar** - EventKit agenda grouped by day, blur-aware in presenter mode.
 - **System tools** - prevent-sleep toggle, system stats readout and a keyboard-cleaning lock with a 60s auto-restore.
+- **Lid awake** - keeps the Mac running with the lid shut, on battery and with nothing plugged in; toggled from the notch shelf and restored automatically when Edith quits.
 - **Presenter mode** - blurs track names, calendar entries and spend figures for screen sharing, with automatic screen-share detection.
 - **Global shortcut** - toggle the panel from anywhere (default ⌥⌘E), re-recordable.
 - **Local-first** - usage data never leaves your Mac; optional iCloud backup that merges across machines.

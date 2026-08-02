@@ -283,6 +283,7 @@ private struct NotchHomeTab: View {
         true
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = true
     @AppStorage("notchShelfShowMusic", store: SharedDefaults.store) private var showMusic = true
+    @AppStorage("lidAwakeActive", store: SharedDefaults.store) private var lidAwakeActive = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -302,7 +303,9 @@ private struct NotchHomeTab: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            if systemEnabled || presenterEnabled || controller.canPickColor {
+            if systemEnabled || presenterEnabled || controller.canPickColor
+                || controller.canToggleLidAwake
+            {
                 quickActions
             }
         }
@@ -320,6 +323,11 @@ private struct NotchHomeTab: View {
                 ) {
                     preventSleep.toggle()
                     controller.collapseNow()
+                }
+            }
+            if controller.canToggleLidAwake {
+                actionTile("laptopcomputer", "Lid awake", active: lidAwakeActive) {
+                    controller.toggleLidAwake()
                 }
             }
             if presenterEnabled {

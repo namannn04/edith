@@ -43,6 +43,7 @@ public enum ExtensionDefaultsMigration {
         "tabSystemEnabled": true,
         "menuBarSystemStats": false,
         "micMuteEnabled": false,
+        "lidAwakeEnabled": false,
         "tabMusicEnabled": true,
         "tabCalendarEnabled": true,
         "notchShelfEnabled": false,

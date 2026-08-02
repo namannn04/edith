@@ -53,6 +53,8 @@ public enum IPC {
             "com.pulkit.edith.musicRevealFolder")
         public static let presenterPauseAuto = Notification.Name(
             "com.pulkit.edith.presenterPauseAuto")
+        public static let toggleLidAwake = Notification.Name("com.pulkit.edith.toggleLidAwake")
+        public static let lidAwakeChanged = Notification.Name("com.pulkit.edith.lidAwakeChanged")
     }
 
     public static func post(_ name: Notification.Name, userInfo: [String: Any]? = nil) {

@@ -21,6 +21,8 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     weak var clipboardStore: ClipboardStore?
     private weak var colorPickerStore: ColorPickerStore?
     @Published private(set) var canPickColor = false
+    private weak var lidAwakeEngine: LidAwakeEngine?
+    @Published private(set) var canToggleLidAwake = false
     @Published private(set) var usageStore: UsageStore?
     @Published private(set) var calendarStore: CalendarStore?
     private var externalVolume: Double = 0.7
@@ -739,6 +741,16 @@ final class NotchShelfController: ObservableObject, FeatureModule {
     func pickColor() {
         collapseNow()
         colorPickerStore?.pick()
+    }
+
+    func attachLidAwake(_ engine: LidAwakeEngine?) {
+        lidAwakeEngine = engine
+        canToggleLidAwake = engine != nil
+    }
+
+    func toggleLidAwake() {
+        collapseNow()
+        lidAwakeEngine?.toggle()
     }
 
     func openNowPlayingApp() {

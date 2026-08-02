@@ -37,6 +37,7 @@ struct ExtensionsPane: View {
         false
     @AppStorage("focusDimEnabled", store: SharedDefaults.store) private var focusDimEnabled = false
     @AppStorage("micMuteEnabled", store: SharedDefaults.store) private var micMuteEnabled = false
+    @AppStorage("lidAwakeEnabled", store: SharedDefaults.store) private var lidAwakeEnabled = false
     @AppStorage("colorPickerEnabled", store: SharedDefaults.store) private var colorPickerEnabled =
         false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
@@ -238,6 +239,7 @@ struct ExtensionsPane: View {
         case "tabSystemEnabled": $systemEnabled
         case "menuBarSystemStats": $systemStats
         case "micMuteEnabled": $micMuteEnabled
+        case "lidAwakeEnabled": $lidAwakeEnabled
         case "tabMusicEnabled": $musicEnabled
         case "tabCalendarEnabled": $calendarEnabled
         case "notchShelfEnabled": $notchShelfEnabled
@@ -457,6 +459,7 @@ private struct ExtensionSettingsSheet: View {
     private var idealHeight: CGFloat {
         switch entry.id {
         case "micMute", "systemStats": 300
+        case "lidAwake": 400
         case "music": 460
         case "focusDim", "colorPicker": 430
         case "system": 500
@@ -519,6 +522,7 @@ private struct ExtensionDetailRows: View {
         case "system": SystemRows()
         case "systemStats": SystemStatsRows()
         case "micMute": MicMuteRows()
+        case "lidAwake": LidAwakeRows()
         case "music": MusicRows()
         case "notchShelf": NotchShelfRows()
         case "clipboard": ClipboardRows()
