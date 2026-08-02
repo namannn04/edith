@@ -563,13 +563,13 @@ final class UsageStore: ObservableObject, FeatureModule {
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         req.timeoutInterval = 15
         let (data, resp) = try await URLSession.shared.data(for: req)
-        let code = resp.statusCode
+        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if code != 200 { Log.usage.error("GET /oauth/usage -> HTTP \(code, privacy: .public)") }
         switch code {
         case 200: return try JSONDecoder().decode(OAuthUsage.self, from: data)
         case 401, 403: throw FetchError.unauthorized
         case 429:
-            let after = resp.value(forHTTPHeaderField: "Retry-After")
+            let after = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After")
                 .flatMap(TimeInterval.init)
             throw FetchError.rateLimited(after: after)
         default: throw FetchError.http(code)
@@ -626,14 +626,14 @@ final class UsageStore: ObservableObject, FeatureModule {
             "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
         ])
         let (data, response) = try await URLSession.shared.data(for: request)
-        let code = response.statusCode
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         switch code {
         case 200:
             return try JSONDecoder().decode(ClaudeOAuthRefreshResponse.self, from: data)
         case 400, 401, 403:
             throw FetchError.unauthorized
         case 429:
-            let after = response.value(forHTTPHeaderField: "Retry-After")
+            let after = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After")
                 .flatMap(TimeInterval.init)
             throw FetchError.rateLimited(after: after)
         default:
