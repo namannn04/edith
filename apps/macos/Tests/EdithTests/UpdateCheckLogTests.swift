@@ -102,4 +102,49 @@ import Testing
         #expect(Set(seconds).count == seconds.count)
         #expect(seconds == seconds.sorted())
     }
+
+    @Test func presetsAreRecognised() {
+        #expect(UpdateCheckInterval.isPreset(86_400))
+        #expect(!UpdateCheckInterval.isPreset(5_400))
+        #expect(!UpdateCheckInterval.isPreset(UpdateCheckInterval.customTag))
+    }
+
+    @Test func clampRaisesValuesBelowSparklesFloor() {
+        #expect(UpdateCheckInterval.clamp(0) == UpdateCheckInterval.minimumSeconds)
+        #expect(UpdateCheckInterval.clamp(60) == UpdateCheckInterval.minimumSeconds)
+        #expect(UpdateCheckInterval.clamp(-500) == UpdateCheckInterval.minimumSeconds)
+        #expect(UpdateCheckInterval.clamp(3_599) == UpdateCheckInterval.minimumSeconds)
+    }
+
+    @Test func clampKeepsValuesInRangeAndCapsTheTop() {
+        #expect(UpdateCheckInterval.clamp(5_400) == 5_400)
+        #expect(UpdateCheckInterval.clamp(3_600) == 3_600)
+        #expect(
+            UpdateCheckInterval.clamp(99_999_999) == UpdateCheckInterval.maximumSeconds)
+    }
+
+    @Test func clampRejectsNonFiniteInput() {
+        #expect(UpdateCheckInterval.clamp(.nan) == UpdateCheckInterval.fallback.seconds)
+        #expect(UpdateCheckInterval.clamp(.infinity) == UpdateCheckInterval.fallback.seconds)
+    }
+
+    @Test func describeUsesPresetLabelsWhenItCan() {
+        #expect(UpdateCheckInterval.describe(3_600) == "Every hour")
+        #expect(UpdateCheckInterval.describe(86_400) == "Every day")
+    }
+
+    @Test func describeBreaksCustomValuesIntoUnits() {
+        #expect(UpdateCheckInterval.describe(5_400) == "Every 1h 30m")
+        #expect(UpdateCheckInterval.describe(90_000) == "Every 1d 1h")
+        #expect(UpdateCheckInterval.describe(7_200) == "Every 2h")
+        #expect(UpdateCheckInterval.describe(172_800) == "Every 2d")
+    }
+
+    @Test func customTagIsNeverMistakenForARealInterval() {
+        #expect(UpdateCheckInterval.customTag < UpdateCheckInterval.minimumSeconds)
+        #expect(
+            !UpdateCheckInterval.choices.contains {
+                $0.seconds == UpdateCheckInterval.customTag
+            })
+    }
 }

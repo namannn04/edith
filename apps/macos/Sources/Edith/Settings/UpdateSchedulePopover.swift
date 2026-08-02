@@ -3,11 +3,41 @@ import SwiftUI
 
 struct UpdateSchedulePopover: View {
     @ObservedObject var updater: UpdaterModel
+    @State private var editingCustom = false
+    @State private var customSeconds = ""
+    @FocusState private var customFocused: Bool
+
+    private var showsCustomField: Bool {
+        editingCustom || !UpdateCheckInterval.isPreset(updater.checkInterval)
+    }
 
     private var interval: Binding<TimeInterval> {
         Binding(
-            get: { UpdateCheckInterval.nearest(to: updater.checkInterval).seconds },
-            set: { updater.checkInterval = $0 })
+            get: {
+                showsCustomField
+                    ? UpdateCheckInterval.customTag : updater.checkInterval
+            },
+            set: { value in
+                guard value != UpdateCheckInterval.customTag else {
+                    customSeconds = String(Int(updater.checkInterval))
+                    editingCustom = true
+                    customFocused = true
+                    return
+                }
+                editingCustom = false
+                updater.checkInterval = value
+            })
+    }
+
+    private func commitCustomSeconds() {
+        guard let entered = TimeInterval(customSeconds.trimmingCharacters(in: .whitespaces)) else {
+            customSeconds = String(Int(updater.checkInterval))
+            return
+        }
+        let clamped = UpdateCheckInterval.clamp(entered)
+        updater.checkInterval = clamped
+        customSeconds = String(Int(clamped))
+        editingCustom = !UpdateCheckInterval.isPreset(clamped)
     }
 
     private var automaticChecks: Binding<Bool> {
@@ -54,16 +84,49 @@ struct UpdateSchedulePopover: View {
                 ForEach(UpdateCheckInterval.choices) { choice in
                     Text(choice.label).tag(choice.seconds)
                 }
+                Divider()
+                Text("Custom…").tag(UpdateCheckInterval.customTag)
             }
             .pickerStyle(.menu)
             .pointerCursor()
             .disabled(!updater.automaticallyChecksForUpdates)
+            if showsCustomField { customField }
             if let next = nextCheckDescription {
                 Text(next)
                     .font(.system(size: UIScale.pt(10)))
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    private var customField: some View {
+        VStack(alignment: .leading, spacing: UIScale.pt(4)) {
+            HStack(spacing: UIScale.pt(6)) {
+                TextField("", text: $customSeconds)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: UIScale.pt(96))
+                    .focused($customFocused)
+                    .onSubmit(commitCustomSeconds)
+                    .onChange(of: customFocused) { _, focused in
+                        if !focused { commitCustomSeconds() }
+                    }
+                Text("seconds")
+                    .font(.system(size: UIScale.pt(11)))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(UpdateCheckInterval.describe(updater.checkInterval))
+                    .font(.system(size: UIScale.pt(10)))
+                    .foregroundStyle(.tertiary)
+            }
+            Text(
+                "Sparkle ignores anything under \(Int(UpdateCheckInterval.minimumSeconds)) seconds, "
+                    + "so shorter values are raised to one hour."
+            )
+            .font(.system(size: UIScale.pt(10)))
+            .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .disabled(!updater.automaticallyChecksForUpdates)
     }
 
     private var nextCheckDescription: String? {

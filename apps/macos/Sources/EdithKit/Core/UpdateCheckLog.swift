@@ -113,7 +113,36 @@ public struct UpdateCheckInterval: Identifiable, Equatable, Sendable {
 
     public static let fallback = UpdateCheckInterval(seconds: 86_400, label: "Every day")
 
+    public static let customTag: TimeInterval = -1
+
+    public static let minimumSeconds: TimeInterval = 3_600
+
+    public static let maximumSeconds: TimeInterval = 2_592_000
+
     public static func nearest(to seconds: TimeInterval) -> UpdateCheckInterval {
         choices.min { abs($0.seconds - seconds) < abs($1.seconds - seconds) } ?? fallback
+    }
+
+    public static func isPreset(_ seconds: TimeInterval) -> Bool {
+        choices.contains { $0.seconds == seconds }
+    }
+
+    public static func clamp(_ seconds: TimeInterval) -> TimeInterval {
+        guard seconds.isFinite else { return fallback.seconds }
+        return min(max(seconds.rounded(), minimumSeconds), maximumSeconds)
+    }
+
+    public static func describe(_ seconds: TimeInterval) -> String {
+        if let preset = choices.first(where: { $0.seconds == seconds }) { return preset.label }
+        let total = Int(seconds.rounded())
+        let days = total / 86_400
+        let hours = (total % 86_400) / 3_600
+        let minutes = (total % 3_600) / 60
+        var parts: [String] = []
+        if days > 0 { parts.append("\(days)d") }
+        if hours > 0 { parts.append("\(hours)h") }
+        if minutes > 0 { parts.append("\(minutes)m") }
+        if parts.isEmpty { parts.append("\(total)s") }
+        return "Every " + parts.joined(separator: " ")
     }
 }
