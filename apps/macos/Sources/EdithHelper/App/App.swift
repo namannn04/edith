@@ -92,6 +92,11 @@ struct EdithApp: App {
                     subtitle: "Settings > Permissions lists every one", priority: .high,
                     autoHide: 6, settingsTab: "permissions"))
         }
+        _ = IPC.observe(IPC.Name.updateReadyToInstall) { info in
+            guard let version = UpdateNotifier.version(from: info) else { return }
+            services.notchShelf?.postAlert(UpdateNotifier.alert(for: version))
+            UpdateNotifier.notify(version: version)
+        }
         _ = IPC.observe(IPC.Name.requestKeyboardClean) {
             services.system?.beginCleaning()
         }

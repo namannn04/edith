@@ -65,6 +65,7 @@ struct SettingsPane: View {
 
 private struct UpdatesPane: View {
     @ObservedObject var updater: UpdaterModel
+    @State private var showingSchedule = false
 
     private var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
@@ -106,6 +107,18 @@ private struct UpdatesPane: View {
                     Section {
                         Toggle("Automatic updates", isOn: automaticDownloads)
                             .pointerCursor()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .highPriorityGesture(
+                                TapGesture().modifiers(.command).onEnded {
+                                    showingSchedule = true
+                                }
+                            )
+                            .sheet(isPresented: $showingSchedule) {
+                                UpdateSchedulePanel(updater: updater)
+                            }
+                            .accessibilityHint(
+                                "Command-click to configure the check schedule and see history")
                     } header: {
                         Text("Updates")
                     }

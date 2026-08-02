@@ -12,6 +12,8 @@ public enum IPC {
             "com.pulkit.edith.requestLimitsRefresh")
         public static let limitsUpdated = Notification.Name("com.pulkit.edith.limitsUpdated")
         public static let quitMainApp = Notification.Name("com.pulkit.edith.quitMainApp")
+        public static let updateReadyToInstall = Notification.Name(
+            "com.pulkit.edith.updateReadyToInstall")
         public static let settingsChanged = Notification.Name("com.pulkit.edith.settingsChanged")
         public static let requestPermissionsRefresh = Notification.Name(
             "com.pulkit.edith.requestPermissionsRefresh")
