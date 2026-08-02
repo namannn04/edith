@@ -129,23 +129,30 @@ EDITH_SIGN_IDENTITY="Edith Dev" ./build.sh --install
 
 ## Release & updates
 
-Bump `CFBundleShortVersionString` in `apps/macos/Resources/Info.plist` and
-`HelperInfo.plist`, then push a matching tag:
+Merging anything under `apps/macos/` into `main` releases a new patch version.
+The `Release on merge` workflow bumps the last version component (`0.0.1`
+becomes `0.0.2`, never `0.1.1`), builds and signs the app, generates a signed
+Sparkle appcast, commits the bump, tags it, and publishes the GitHub release.
+
+It needs one secret beyond the signing certificate:
 
 ```bash
-git tag v1.8.0 && git push origin v1.8.0
+gh secret set SPARKLE_PRIVATE_KEY < sparkle-private.key
 ```
 
-The Release workflow builds `Edith.dmg` (drag-to-Applications layout) and
-attaches it to the GitHub release. The name is stable so that
+That is the EdDSA key `generate_keys -x` exports, the private half of the
+`SUPublicEDKey` in `Info.plist`. The workflow refuses to publish without it,
+because a release whose `appcast.xml` is missing or unsigned breaks in-app
+updates for everyone: Sparkle resolves the feed from
+`releases/latest/download/appcast.xml`, so the newest release always owns the
+feed.
+
+The DMG is published as `Edith.dmg` rather than a versioned name, so
 `releases/latest/download/Edith.dmg` always resolves to the newest build, which
 is what the website's download button uses.
 
-`make release V=1.8.0` automates the whole sequence, including the Sparkle
-appcast. Sparkle reads the feed from
-`releases/latest/download/appcast.xml`, so updates need no server: the appcast
-is published as a release asset and its enclosure points straight at the DMG in
-that release.
+`make release V=1.8.0` does the same sequence locally when you need to cut a
+release by hand.
 
 ### Signing the release (so permissions survive reinstalls)
 
