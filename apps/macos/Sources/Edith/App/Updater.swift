@@ -124,6 +124,11 @@ final class UpdaterModel: NSObject, ObservableObject,
         updaterController?.checkForUpdates(nil)
     }
 
+    func checkForUpdatesInBackground() {
+        guard updaterAvailable, let updater, !updater.sessionInProgress else { return }
+        updater.checkForUpdatesInBackground()
+    }
+
     func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem,
         state: SPUUserUpdateState

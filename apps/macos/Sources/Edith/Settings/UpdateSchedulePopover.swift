@@ -96,6 +96,15 @@ struct UpdateSchedulePopover: View {
             .pointerCursor()
             .disabled(!updater.automaticallyChecksForUpdates)
             if showsCustomField { customField }
+            HStack(spacing: UIScale.pt(6)) {
+                Button("Run a background check now", action: updater.checkForUpdatesInBackground)
+                    .controlSize(.small)
+                    .pointerCursor()
+                    .disabled(!updater.canCheckForUpdates)
+                Text("same path as the scheduled check")
+                    .font(.system(size: UIScale.pt(10)))
+                    .foregroundStyle(.tertiary)
+            }
             if let next = nextCheckDescription {
                 Text(next)
                     .font(.system(size: UIScale.pt(10)))
