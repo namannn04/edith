@@ -1,4 +1,3 @@
-import EdithKit
 import Sparkle
 import SwiftUI
 
@@ -34,19 +33,10 @@ final class UpdaterModel: NSObject, ObservableObject,
     private var automaticChecksObservation: NSKeyValueObservation?
     private var automaticDownloadsObservation: NSKeyValueObservation?
     private var updater: SPUUpdater? { updaterController?.updater }
-    private let licenseCredentialStore: any LicenseCredentialStoring
 
-    init(
-        startingUpdater: Bool = false,
-        licenseCredentialStore: any LicenseCredentialStoring = FileLicenseCredentialStore()
-    ) {
-        self.licenseCredentialStore = licenseCredentialStore
+    init(startingUpdater: Bool = false) {
         super.init()
         guard startingUpdater else { return }
-        guard
-            LicenseCoordinator.currentRiskState(credentialStore: licenseCredentialStore)
-                .launchDecision != .gate
-        else { return }
         let updaterController = SPUStandardUpdaterController(
             startingUpdater: false, updaterDelegate: nil, userDriverDelegate: self)
         self.updaterController = updaterController
@@ -57,7 +47,6 @@ final class UpdaterModel: NSObject, ObservableObject,
 
     private func startUpdater() async {
         guard let updater else { return }
-        await refreshStaleTokenAndReapplyHeaders()
         do {
             try updater.start()
             updaterAvailable = true
@@ -79,7 +68,6 @@ final class UpdaterModel: NSObject, ObservableObject,
             Task { @MainActor [weak self] in
                 self?.canCheckForUpdates = canCheckForUpdates
                 self?.lastUpdateCheckDate = lastUpdateCheckDate
-                await self?.refreshStaleTokenAndReapplyHeaders()
             }
         }
         automaticChecksObservation = updater.observe(
@@ -104,30 +92,7 @@ final class UpdaterModel: NSObject, ObservableObject,
 
     func checkForUpdates() {
         guard updaterAvailable else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            await refreshStaleTokenAndReapplyHeaders()
-            updaterController?.checkForUpdates(nil)
-        }
-    }
-
-    private func currentLicenseHeaders() -> [String: String] {
-        licenseUpdaterHeaders(
-            accessToken: StoredAccessToken.load(from: licenseCredentialStore))
-    }
-
-    private func refreshLicenseHeaders() {
-        updater?.httpHeaders = currentLicenseHeaders()
-    }
-
-    private func refreshStaleTokenAndReapplyHeaders() async {
-        let credentialStore = licenseCredentialStore
-        _ = try? await LicenseRefreshCoordinator.shared.refreshIfStale(
-            credentialStore: credentialStore
-        ) {
-            LicenseSession(credentialStore: credentialStore)
-        }
-        refreshLicenseHeaders()
+        updaterController?.checkForUpdates(nil)
     }
 
     func standardUserDriverWillHandleShowingUpdate(
