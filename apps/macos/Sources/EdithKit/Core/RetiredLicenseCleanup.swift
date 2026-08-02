@@ -1,12 +1,12 @@
 import Foundation
 
 public enum RetiredLicenseCleanup {
-    static let files = [
+    public static let files = [
         "license-key", "license-receipt", "access-token", "refresh-credential",
         "entitlement", "trusted-time", "device-id", "device-key",
     ]
 
-    static let defaultsKeys = ["licenseActivated", "licenseLabel", "licenseName"]
+    public static let defaultsKeys = ["licenseActivated", "licenseLabel", "licenseName"]
 
     public static func run(
         directory: URL = AppData.supportDir, defaults: UserDefaults = SharedDefaults.store
