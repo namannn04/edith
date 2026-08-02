@@ -1,8 +1,9 @@
 import EdithKit
 import SwiftUI
 
-struct UpdateSchedulePopover: View {
+struct UpdateSchedulePanel: View {
     @ObservedObject var updater: UpdaterModel
+    @Environment(\.dismiss) private var dismiss
     @State private var editingCustom = false
     @State private var customSeconds = ""
     @State private var clampNotice: String?
@@ -14,10 +15,7 @@ struct UpdateSchedulePopover: View {
 
     private var interval: Binding<TimeInterval> {
         Binding(
-            get: {
-                showsCustomField
-                    ? UpdateCheckInterval.customTag : updater.checkInterval
-            },
+            get: { showsCustomField ? UpdateCheckInterval.customTag : updater.checkInterval },
             set: { value in
                 guard value != UpdateCheckInterval.customTag else {
                     customSeconds = String(Int(updater.checkInterval))
@@ -30,6 +28,12 @@ struct UpdateSchedulePopover: View {
                 clampNotice = nil
                 updater.checkInterval = value
             })
+    }
+
+    private var automaticChecks: Binding<Bool> {
+        Binding(
+            get: { updater.automaticallyChecksForUpdates },
+            set: { updater.automaticallyChecksForUpdates = $0 })
     }
 
     private func commitCustomSeconds() {
@@ -45,69 +49,79 @@ struct UpdateSchedulePopover: View {
         clampNotice = UpdateCheckInterval.clampNotice(entered: entered, applied: clamped)
     }
 
-    private var automaticChecks: Binding<Bool> {
-        Binding(
-            get: { updater.automaticallyChecksForUpdates },
-            set: { updater.automaticallyChecksForUpdates = $0 })
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(14)) {
+        VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            schedule
+            ScrollView {
+                VStack(alignment: .leading, spacing: UIScale.pt(20)) {
+                    schedule
+                    Divider()
+                    history
+                }
+                .padding(UIScale.pt(20))
+            }
             Divider()
-            history
+            footer
         }
-        .padding(UIScale.pt(16))
-        .frame(width: UIScale.pt(360))
+        .frame(width: UIScale.pt(540), height: UIScale.pt(620))
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+        VStack(alignment: .leading, spacing: UIScale.pt(3)) {
             Text("Update checks")
-                .font(.system(size: UIScale.pt(13), weight: .semibold))
+                .font(.system(size: UIScale.pt(17), weight: .semibold))
             Text(countSummary)
-                .font(.system(size: UIScale.pt(11)))
+                .font(.system(size: UIScale.pt(12)))
                 .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(UIScale.pt(20))
     }
 
     private var countSummary: String {
         let automatic = updater.automaticCheckCount
         let total = updater.checkHistory.count
-        if total == 0 { return "No checks recorded yet" }
+        guard total > 0 else { return "No checks recorded yet" }
         let auto = automatic == 1 ? "1 automatic check" : "\(automatic) automatic checks"
         return "\(auto) of \(total) recorded"
     }
 
     private var schedule: some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(10)) {
+        VStack(alignment: .leading, spacing: UIScale.pt(12)) {
+            Text("Schedule")
+                .font(.system(size: UIScale.pt(12), weight: .medium))
+                .foregroundStyle(.secondary)
             Toggle("Check automatically", isOn: automaticChecks)
                 .pointerCursor()
-            Picker("Frequency", selection: interval) {
-                ForEach(UpdateCheckInterval.choices) { choice in
-                    Text(choice.label).tag(choice.seconds)
+            HStack(spacing: UIScale.pt(10)) {
+                Text("Frequency")
+                Picker("", selection: interval) {
+                    ForEach(UpdateCheckInterval.choices) { choice in
+                        Text(choice.label).tag(choice.seconds)
+                    }
+                    Divider()
+                    Text("Custom…").tag(UpdateCheckInterval.customTag)
                 }
-                Divider()
-                Text("Custom…").tag(UpdateCheckInterval.customTag)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .pointerCursor()
+                .frame(width: UIScale.pt(190))
+                Spacer()
             }
-            .pickerStyle(.menu)
-            .pointerCursor()
             .disabled(!updater.automaticallyChecksForUpdates)
             if showsCustomField { customField }
-            HStack(spacing: UIScale.pt(6)) {
+            HStack(spacing: UIScale.pt(10)) {
                 Button("Run a background check now", action: updater.checkForUpdatesInBackground)
-                    .controlSize(.small)
                     .pointerCursor()
                     .disabled(!updater.canCheckForUpdates)
-                Text("same path as the scheduled check")
-                    .font(.system(size: UIScale.pt(10)))
+                Text("uses the scheduled check path")
+                    .font(.system(size: UIScale.pt(11)))
                     .foregroundStyle(.tertiary)
             }
             if let next = nextCheckDescription {
                 Text(next)
-                    .font(.system(size: UIScale.pt(10)))
+                    .font(.system(size: UIScale.pt(11)))
                     .foregroundStyle(.tertiary)
             }
         }
@@ -124,26 +138,26 @@ struct UpdateSchedulePopover: View {
     }
 
     private var customField: some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(4)) {
-            HStack(spacing: UIScale.pt(6)) {
+        VStack(alignment: .leading, spacing: UIScale.pt(5)) {
+            HStack(spacing: UIScale.pt(8)) {
                 TextField("", text: $customSeconds)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: UIScale.pt(96))
+                    .frame(width: UIScale.pt(110))
                     .focused($customFocused)
                     .onSubmit(commitCustomSeconds)
                     .onChange(of: customFocused) { _, focused in
                         if !focused { commitCustomSeconds() }
                     }
                 Text("seconds")
-                    .font(.system(size: UIScale.pt(11)))
+                    .font(.system(size: UIScale.pt(12)))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text(UpdateCheckInterval.describe(updater.checkInterval))
-                    .font(.system(size: UIScale.pt(10)))
+                    .font(.system(size: UIScale.pt(11)))
                     .foregroundStyle(.tertiary)
             }
             Text(clampNotice ?? rangeHint)
-                .font(.system(size: UIScale.pt(10)))
+                .font(.system(size: UIScale.pt(11)))
                 .foregroundStyle(noticeStyle)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -154,58 +168,61 @@ struct UpdateSchedulePopover: View {
         guard updater.automaticallyChecksForUpdates else { return "Automatic checks are off" }
         guard let last = updater.lastUpdateCheckDate else { return nil }
         let next = last.addingTimeInterval(updater.checkInterval)
-        let formatted = next.formatted(.dateTime.month().day().hour().minute())
-        return "Next check around \(formatted)"
+        return "Next check around \(next.formatted(.dateTime.month().day().hour().minute()))"
     }
 
     private var history: some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(8)) {
+        VStack(alignment: .leading, spacing: UIScale.pt(10)) {
             HStack {
                 Text("History")
-                    .font(.system(size: UIScale.pt(11), weight: .medium))
+                    .font(.system(size: UIScale.pt(12), weight: .medium))
+                    .foregroundStyle(.secondary)
                 Spacer()
                 if !updater.checkHistory.isEmpty {
                     Button("Clear", action: updater.clearCheckHistory)
                         .buttonStyle(.link)
-                        .font(.system(size: UIScale.pt(10)))
+                        .font(.system(size: UIScale.pt(11)))
                         .pointerCursor()
                 }
             }
             if updater.checkHistory.isEmpty {
                 Text("Checks appear here once Edith has looked for an update.")
-                    .font(.system(size: UIScale.pt(11)))
+                    .font(.system(size: UIScale.pt(12)))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: UIScale.pt(6)) {
-                        ForEach(updater.checkHistory) { record in
-                            row(record)
-                        }
+                VStack(spacing: 0) {
+                    ForEach(Array(updater.checkHistory.enumerated()), id: \.element.id) {
+                        index, entry in
+                        if index > 0 { Divider() }
+                        row(entry)
                     }
                 }
-                .frame(maxHeight: UIScale.pt(190))
+                .background(Color.primary.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: UIScale.pt(8)))
             }
         }
     }
 
     private func row(_ record: UpdateCheckRecord) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: UIScale.pt(8)) {
+        HStack(spacing: UIScale.pt(10)) {
             Circle()
                 .fill(color(for: record.outcome))
-                .frame(width: UIScale.pt(6), height: UIScale.pt(6))
-            VStack(alignment: .leading, spacing: UIScale.pt(1)) {
-                Text(record.date.formatted(.dateTime.month().day().hour().minute()))
-                    .font(.system(size: UIScale.pt(11), design: .monospaced))
-                Text(record.summary)
-                    .font(.system(size: UIScale.pt(10)))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+                .frame(width: UIScale.pt(7), height: UIScale.pt(7))
+            Text(record.date.formatted(.dateTime.month().day().hour().minute()))
+                .font(.system(size: UIScale.pt(12), design: .monospaced))
+                .frame(width: UIScale.pt(140), alignment: .leading)
+            Text(record.summary)
+                .font(.system(size: UIScale.pt(12)))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Spacer(minLength: UIScale.pt(8))
             Text(record.kind.label)
-                .font(.system(size: UIScale.pt(9)))
+                .font(.system(size: UIScale.pt(10)))
                 .foregroundStyle(.tertiary)
         }
+        .padding(.horizontal, UIScale.pt(12))
+        .padding(.vertical, UIScale.pt(9))
     }
 
     private func color(for outcome: UpdateCheckRecord.Outcome) -> Color {
@@ -214,5 +231,15 @@ struct UpdateSchedulePopover: View {
         case .updateFound: return .accentColor
         case .failed: return .red
         }
+    }
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+            Button("Done") { dismiss() }
+                .keyboardShortcut(.defaultAction)
+                .pointerCursor()
+        }
+        .padding(UIScale.pt(16))
     }
 }

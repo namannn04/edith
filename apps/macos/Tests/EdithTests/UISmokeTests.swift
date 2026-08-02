@@ -76,7 +76,7 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
         #expect(renders(PermissionsPane()))
     }
 
-    @Test func updateSchedulePopoverRenders() {
+    @Test func updateSchedulePanelRenders() {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("smoke-update-checks-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -85,17 +85,17 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
         updater.recordCheck(kind: .manual, outcome: .updateFound, version: "0.0.25")
         updater.recordCheck(kind: .automatic, outcome: .failed, detail: "Offline")
         #expect(updater.automaticCheckCount == 2)
-        #expect(renders(UpdateSchedulePopover(updater: updater), width: 360, height: 420))
+        #expect(renders(UpdateSchedulePanel(updater: updater), width: 560, height: 640))
     }
 
-    @Test func updateSchedulePopoverRendersWithNoHistory() {
+    @Test func updateSchedulePanelRendersWithNoHistory() {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("smoke-update-empty-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         #expect(
             renders(
-                UpdateSchedulePopover(updater: UpdaterModel(logURL: url)),
-                width: 360, height: 260))
+                UpdateSchedulePanel(updater: UpdaterModel(logURL: url)),
+                width: 560, height: 640))
     }
 
     @Test func permissionsSettingsTabRenders() {

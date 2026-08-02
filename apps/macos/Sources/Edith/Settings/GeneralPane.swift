@@ -114,8 +114,8 @@ private struct UpdatesPane: View {
                                     showingSchedule = true
                                 }
                             )
-                            .popover(isPresented: $showingSchedule, arrowEdge: .bottom) {
-                                UpdateSchedulePopover(updater: updater)
+                            .sheet(isPresented: $showingSchedule) {
+                                UpdateSchedulePanel(updater: updater)
                             }
                             .accessibilityHint(
                                 "Command-click to configure the check schedule and see history")
