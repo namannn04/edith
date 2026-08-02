@@ -62,12 +62,6 @@ struct EdithApp: App {
     @NSApplicationDelegateAdaptor(MenuBarAppDelegate.self) private var appDelegate
 
     init() {
-        guard LicenseCoordinator.currentRiskState().launchDecision != .gate else { exit(0) }
-        Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { _ in
-            if LicenseCoordinator.currentRiskState().launchDecision == .gate {
-                exit(0)
-            }
-        }
         _ = ProcessUptime.launchedAt
 
         NotificationCenter.default.addObserver(

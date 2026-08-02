@@ -122,8 +122,6 @@ private struct UpdatesPane: View {
 }
 
 struct GeneralPane: View {
-    private let licenseState = LicenseState()
-    private let licenseCredentialStore = FileLicenseCredentialStore()
     @AppStorage("appearance", store: SharedDefaults.store) private var appearance = "system"
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @AppStorage("lastPaletteTheme", store: SharedDefaults.store) private var lastPaletteTheme =
@@ -134,11 +132,6 @@ struct GeneralPane: View {
     @AppStorage("settingsTab", store: SharedDefaults.store) private var settingsTab =
         SettingsPane.Tab.general.rawValue
     @State private var grantedPermissions: [ExtensionPermission: Bool] = [:]
-    @State private var licenseLabel = "Licensed"
-    @State private var maskedLicenseKey = "EDITH-****-****-****-****"
-    @State private var planAllowance: String?
-    @State private var licenseError: String?
-    @State private var deactivating = false
 
     var body: some View {
         Form {
@@ -227,45 +220,11 @@ struct GeneralPane: View {
                 Text("Welcome tour")
             }
 
-            Section {
-                LabeledContent("License") {
-                    VStack(alignment: .trailing, spacing: UIScale.pt(3)) {
-                        Text(licenseLabel)
-                            .foregroundStyle(.secondary)
-                        Text(maskedLicenseKey)
-                            .font(.system(size: UIScale.pt(10), design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                if let planAllowance {
-                    LabeledContent("Plan") {
-                        Text(planAllowance)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Button(
-                    licenseError == nil ? "Deactivate" : "Retry Deactivation",
-                    role: .destructive, action: deactivateLicense
-                )
-                .disabled(deactivating)
-                .pointerCursor()
-                if let licenseError {
-                    Text(licenseError)
-                        .font(.system(size: UIScale.pt(10)))
-                        .foregroundStyle(.red)
-                }
-            } header: {
-                Text("License")
-            } footer: {
-                Text("Deactivation takes effect the next time Edith launches.")
-                    .font(.system(size: UIScale.pt(10)))
-            }
         }
         .formStyle(.grouped)
         .navigationTitle("General")
         .onAppear {
             refreshPermissionState()
-            refreshLicenseState()
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -299,46 +258,6 @@ struct GeneralPane: View {
     private func refreshPermissionState() {
         grantedPermissions = ExtensionPermissionState.readGrantedPermissions()
         IPC.post(IPC.Name.requestPermissionsRefresh)
-    }
-
-    private func refreshLicenseState() {
-        licenseLabel = licenseState.label ?? "Licensed"
-        if let key = try? licenseState.licenseKey() {
-            maskedLicenseKey = LicenseKeyFormatting.masked(key)
-        }
-        if let raw = ((try? licenseCredentialStore.read(.entitlement)) ?? nil),
-            let payload = LicenseEntitlement.decodePayload(raw)
-        {
-            planAllowance = "\(payload.planId), up to \(payload.maxMachines) Macs"
-        } else {
-            planAllowance = nil
-        }
-    }
-
-    private func deactivateLicense() {
-        guard !deactivating else { return }
-        deactivating = true
-        Task {
-            defer { deactivating = false }
-            do {
-                try await LicenseSession(credentialStore: licenseCredentialStore).deactivate()
-            } catch {
-                licenseError =
-                    "This Mac could not be released, so nothing was removed. "
-                    + "Check your connection and try again."
-                return
-            }
-            do {
-                try licenseState.deactivate()
-            } catch {
-                licenseError = "The license could not be removed from this Mac."
-                return
-            }
-            licenseLabel = "Deactivated"
-            maskedLicenseKey = "EDITH-****-****-****-****"
-            planAllowance = nil
-            licenseError = nil
-        }
     }
 
     private func swatch(_ name: String, color: Color) -> some View {

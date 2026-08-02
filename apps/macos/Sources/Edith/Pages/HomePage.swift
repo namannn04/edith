@@ -165,8 +165,7 @@ private struct HomeHeader: View {
     @ObservedObject private var visibility = WindowVisibility.shared
 
     private var firstName: String {
-        let licensed = SharedDefaults.store.string(forKey: LicenseState.nameKey) ?? ""
-        let full = licensed.isEmpty ? NSFullUserName() : licensed
+        let full = NSFullUserName()
         let name = full.isEmpty ? NSUserName() : full
         return name.split(separator: " ").first.map(String.init) ?? name
     }

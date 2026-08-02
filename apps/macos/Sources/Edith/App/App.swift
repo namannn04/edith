@@ -9,42 +9,22 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     private var quitObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
     private var settingsChangeDebounce: Timer?
-    private var licenseVerificationTimer: Timer?
-    private var licenseVerificationTask: Task<Void, Never>?
-    private let licenseState = LicenseState()
-    private let licenseClient = LicenseClient()
-    private let licenseCredentialStore = FileLicenseCredentialStore()
-    private var licensedAppStarted = false
+    private var appStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
         InputFocus.install()
         ScrollForwarding.install()
-        switch currentLaunchDecision() {
-        case .start:
-            startLicensedApp()
-        case .gate:
-            terminateHelper()
-            presentActivationGate()
-        }
+        RetiredLicenseCleanup.run()
+        startApp()
     }
 
-    private func currentLaunchDecision() -> LicenseLaunchDecision {
-        LicenseCoordinator.currentRiskState(credentialStore: licenseCredentialStore)
-            .launchDecision
-    }
-
-    private func licenseSession() -> LicenseSession {
-        LicenseSession(client: licenseClient, credentialStore: licenseCredentialStore)
-    }
-
-    private func startLicensedApp() {
-        guard !licensedAppStarted else {
+    private func startApp() {
+        guard !appStarted else {
             showInitialWindow()
             return
         }
-        licensedAppStarted = true
-        scheduleLicenseVerification()
+        appStarted = true
         ExtensionDefaultsMigration.migrate()
         Repo.prepareStoredPaths()
         applyConfiguredActivationPolicy()
@@ -67,7 +47,6 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
                 self?.scheduleSettingsChangedBroadcast()
             }
         }
-        verifyLicenseInBackground()
     }
 
     private func applyConfiguredActivationPolicy() {
@@ -83,80 +62,6 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func presentActivationGate() {
-        NSApp.setActivationPolicy(.regular)
-        for window in NSApp.windows where window.identifier != ActivationWindow.identifier {
-            window.orderOut(nil)
-        }
-        ActivationWindow.open(licenseState: licenseState, client: licenseClient) { [weak self] in
-            self?.startLicensedApp()
-        }
-    }
-
-    private func verifyLicenseInBackground() {
-        guard licenseVerificationTask == nil else { return }
-        guard currentLaunchDecision() != .gate else {
-            invalidateLicenseAndRegate()
-            return
-        }
-        licenseVerificationTask = Task { [weak self] in
-            guard let self else { return }
-            defer { licenseVerificationTask = nil }
-            guard ((try? licenseCredentialStore.read(.refreshCredential)) ?? nil) != nil else {
-                return
-            }
-            let session = licenseSession()
-            _ = try? await LicenseRefreshCoordinator.shared.refresh { session }
-            guard !Task.isCancelled else { return }
-            if currentLaunchDecision() == .gate {
-                invalidateLicenseAndRegate()
-            }
-        }
-    }
-
-    private func scheduleLicenseVerification() {
-        licenseVerificationTimer?.invalidate()
-        let jitter = Double.random(in: -3_600...3_600)
-        licenseVerificationTimer = Timer.scheduledTimer(
-            withTimeInterval: 12 * 60 * 60 + jitter, repeats: false
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.verifyLicenseInBackground()
-                self?.scheduleLicenseVerification()
-            }
-        }
-    }
-
-    private func invalidateLicenseAndRegate() {
-        try? licenseState.deactivate()
-        for item in [
-            LicenseCredentialItem.entitlement, .refreshCredential, .accessToken, .trustedTime,
-        ] {
-            try? licenseCredentialStore.delete(item)
-        }
-        stopLicensedApp()
-        presentActivationGate()
-    }
-
-    private func stopLicensedApp() {
-        licenseVerificationTask?.cancel()
-        licenseVerificationTask = nil
-        licenseVerificationTimer?.invalidate()
-        licenseVerificationTimer = nil
-        settingsChangeDebounce?.invalidate()
-        settingsChangeDebounce = nil
-        if let quitObserver {
-            NotificationCenter.default.removeObserver(quitObserver)
-            self.quitObserver = nil
-        }
-        if let settingsObserver {
-            NotificationCenter.default.removeObserver(settingsObserver)
-            self.settingsObserver = nil
-        }
-        terminateHelper()
-        licensedAppStarted = false
-    }
-
     private func scheduleSettingsChangedBroadcast() {
         settingsChangeDebounce?.invalidate()
         settingsChangeDebounce = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
@@ -165,32 +70,15 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        guard currentLaunchDecision() != .gate else {
-            invalidateLicenseAndRegate()
-            return true
-        }
-        if !licensedAppStarted {
-            startLicensedApp()
+        if !appStarted {
+            startApp()
         } else if !hasVisibleWindows {
             showInitialWindow()
         }
         return true
     }
 
-    func applicationDidBecomeActive(_ notification: Notification) {
-        guard licensedAppStarted else { return }
-        guard currentLaunchDecision() != .gate else {
-            invalidateLicenseAndRegate()
-            return
-        }
-        verifyLicenseInBackground()
-    }
-
     func applicationWillTerminate(_ notification: Notification) {
-        licenseVerificationTask?.cancel()
-        licenseVerificationTask = nil
-        licenseVerificationTimer?.invalidate()
-        licenseVerificationTimer = nil
         if settingsChangeDebounce?.isValid == true {
             IPC.post(IPC.Name.settingsChanged)
         }
@@ -232,14 +120,6 @@ private func launchHelperIfNeeded() {
     }
     NSWorkspace.shared.openApplication(
         at: helperURL, configuration: NSWorkspace.OpenConfiguration())
-}
-
-private func terminateHelper() {
-    for helper in NSRunningApplication.runningApplications(
-        withBundleIdentifier: helperBundleIdentifier
-    ) {
-        helper.forceTerminate()
-    }
 }
 
 private func helperInstalledDate(_ helperURL: URL) -> Date? {
@@ -285,9 +165,7 @@ private struct SettingsRedirect: View {
                     {
                         window.close()
                     }
-                    if LicenseCoordinator.currentRiskState().launchDecision != .gate {
-                        MainWindow.open()
-                    }
+                    MainWindow.open()
                 }
             }
     }
