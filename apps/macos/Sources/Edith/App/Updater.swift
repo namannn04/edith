@@ -1,14 +1,22 @@
+import EdithKit
 import Sparkle
 import SwiftUI
 
 @MainActor
 final class UpdaterModel: NSObject, ObservableObject,
-    @preconcurrency SPUStandardUserDriverDelegate
+    @preconcurrency SPUStandardUserDriverDelegate, @preconcurrency SPUUpdaterDelegate
 {
     @Published private(set) var updateReady: String?
     @Published private(set) var updaterAvailable = false
     @Published private(set) var canCheckForUpdates = false
     @Published private(set) var lastUpdateCheckDate: Date?
+    @Published private(set) var checkHistory: [UpdateCheckRecord] = []
+    @Published var checkInterval: TimeInterval = UpdateCheckInterval.fallback.seconds {
+        didSet {
+            guard let updater, updater.updateCheckInterval != checkInterval else { return }
+            updater.updateCheckInterval = checkInterval
+        }
+    }
     @Published var automaticallyChecksForUpdates = true {
         didSet {
             guard
@@ -33,16 +41,36 @@ final class UpdaterModel: NSObject, ObservableObject,
     private var automaticChecksObservation: NSKeyValueObservation?
     private var automaticDownloadsObservation: NSKeyValueObservation?
     private var updater: SPUUpdater? { updaterController?.updater }
+    private var pendingUpdateVersion: String?
+    private let logURL: URL
 
-    init(startingUpdater: Bool = false) {
+    init(startingUpdater: Bool = false, logURL: URL = UpdateCheckLog.url) {
+        self.logURL = logURL
         super.init()
+        checkHistory = UpdateCheckLog.load(from: logURL)
         guard startingUpdater else { return }
         let updaterController = SPUStandardUpdaterController(
-            startingUpdater: false, updaterDelegate: nil, userDriverDelegate: self)
+            startingUpdater: false, updaterDelegate: self, userDriverDelegate: self)
         self.updaterController = updaterController
         Task { [weak self] in
             await self?.startUpdater()
         }
+    }
+
+    var automaticCheckCount: Int { UpdateCheckLog.count(of: .automatic, in: checkHistory) }
+
+    func clearCheckHistory() {
+        UpdateCheckLog.clear(at: logURL)
+        checkHistory = []
+    }
+
+    func recordCheck(
+        kind: UpdateCheckRecord.Kind, outcome: UpdateCheckRecord.Outcome,
+        version: String? = nil, detail: String? = nil, date: Date = Date()
+    ) {
+        let entry = UpdateCheckRecord(
+            date: date, kind: kind, outcome: outcome, version: version, detail: detail)
+        checkHistory = UpdateCheckLog.append(entry, to: logURL)
     }
 
     private func startUpdater() async {
@@ -59,6 +87,7 @@ final class UpdaterModel: NSObject, ObservableObject,
         }
         automaticallyChecksForUpdates = updater.automaticallyChecksForUpdates
         automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
+        checkInterval = updater.updateCheckInterval
         lastUpdateCheckDate = updater.lastUpdateCheckDate
         canCheckObservation = updater.observe(
             \.canCheckForUpdates, options: [.initial, .new]
@@ -110,5 +139,36 @@ final class UpdaterModel: NSObject, ObservableObject,
     func standardUserDriverWillFinishUpdateSession() {
         updateReady = nil
         lastUpdateCheckDate = updater?.lastUpdateCheckDate
+    }
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        pendingUpdateVersion = item.displayVersionString
+    }
+
+    func updater(
+        _ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
+        error: (any Error)?
+    ) {
+        let version = pendingUpdateVersion
+        pendingUpdateVersion = nil
+        lastUpdateCheckDate = updater.lastUpdateCheckDate
+        let kind: UpdateCheckRecord.Kind =
+            updateCheck == .updatesInBackground ? .automatic : .manual
+        if let error {
+            let code = (error as NSError).code
+            guard code != Int(Sparkle.SUError.noUpdateError.rawValue) else {
+                recordCheck(kind: kind, outcome: .upToDate)
+                return
+            }
+            recordCheck(
+                kind: kind, outcome: .failed,
+                detail: (error as NSError).localizedDescription)
+            return
+        }
+        guard let version else {
+            recordCheck(kind: kind, outcome: .upToDate)
+            return
+        }
+        recordCheck(kind: kind, outcome: .updateFound, version: version)
     }
 }
