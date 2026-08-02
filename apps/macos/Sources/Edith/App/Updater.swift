@@ -134,7 +134,10 @@ final class UpdaterModel: NSObject, ObservableObject,
         state: SPUUserUpdateState
     ) {
         guard !state.userInitiated else { return }
-        updateReady = update.displayVersionString
+        let version = update.displayVersionString
+        guard updateReady != version else { return }
+        updateReady = version
+        IPC.post(IPC.Name.updateReadyToInstall, userInfo: ["version": version])
     }
 
     func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
