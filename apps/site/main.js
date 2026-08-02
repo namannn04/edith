@@ -107,7 +107,10 @@ function startReveals() {
     const index = groups.get(parent) ?? 0;
     groups.set(parent, index + 1);
     element.dataset.reveal = "pending";
-    element.style.setProperty("--reveal-delay", `${Math.min(index * 0.07, 0.42)}s`);
+    element.style.setProperty(
+      "--reveal-delay",
+      `${Math.min(index * 0.07, 0.42)}s`,
+    );
   }
   const observer = new IntersectionObserver(
     (entries) => {

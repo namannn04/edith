@@ -26,10 +26,14 @@
   --color-track-ochre: #7a5c14;
   --color-warm-5: rgb(241 233 220 / 5%);
   --color-warm-10: rgb(241 233 220 / 10%);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
-  --font-serif: Georgia, "Iowan Old Style", "Palatino", "Times New Roman", serif;
+  --font-mono:
+    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas,
+    monospace;
+  --font-serif:
+    Georgia, "Iowan Old Style", "Palatino", "Times New Roman", serif;
   --radius-card: 16px;
   --shadow-brand-icon: 0 0 0 1px rgb(255 255 255 / 6%);
   --shadow-hero-icon: 0 20px 60px -20px rgb(0 0 0 / 70%);
@@ -804,7 +808,11 @@ label.action {
   height: 3rem;
   flex-shrink: 0;
   border-radius: 10px;
-  background: linear-gradient(145deg, var(--color-art-coral), var(--color-art-rust));
+  background: linear-gradient(
+    145deg,
+    var(--color-art-coral),
+    var(--color-art-rust)
+  );
 }
 
 .now-playing.bare .art {
@@ -1155,7 +1163,11 @@ label.action {
   height: 2.25rem;
   flex-shrink: 0;
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--color-accent), var(--color-art-rust));
+  background: linear-gradient(
+    180deg,
+    var(--color-accent),
+    var(--color-art-rust)
+  );
 }
 
 .notif-body {
@@ -1402,12 +1414,12 @@ label.action {
   border: 2px solid var(--color-accent);
   background:
     conic-gradient(
-        var(--color-line-2) 0 25%,
-        transparent 0 50%,
-        var(--color-line-2) 0 75%,
-        transparent 0
-      )
-      0 0 / 10px 10px,
+      var(--color-line-2) 0 25%,
+      transparent 0 50%,
+      var(--color-line-2) 0 75%,
+      transparent 0
+    )
+    0 0 / 10px 10px,
     var(--color-surface);
 }
 
@@ -1427,7 +1439,9 @@ label.action {
   width: 4.5rem;
   border-radius: 0.5rem;
   border: 1px solid var(--color-line-2);
-  background: linear-gradient(var(--color-line-2) 10px, transparent 0), var(--color-surface);
+  background:
+    linear-gradient(var(--color-line-2) 10px, transparent 0),
+    var(--color-surface);
 }
 
 .win-ghost.back {

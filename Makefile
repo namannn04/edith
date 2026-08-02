@@ -1,50 +1,13 @@
 FLAGS := $(if $(PR),--pr $(PR)) $(if $(BRANCH),--branch $(BRANCH))
 
-.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-promo ci-swift ci-swift-check ci-web db-migrate db-generate db-push db-studio license web-dev env-check env-generate env-rotate env-sync
+.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-promo ci-swift ci-swift-check site-dev
 
 ci:
 	bun install --frozen-lockfile
-	$(MAKE) ci-comments ci-secrets ci-lint ci-scripts ci-web ci-promo ci-swift-check
+	$(MAKE) ci-comments ci-secrets ci-lint ci-scripts ci-promo ci-swift-check
 
-ci-web:
-	cd apps/web && bun test tests
-	cd apps/web && bunx tsc --noEmit
-
-env-check:
-	cd apps/web && bun -e 'const { missingEnvVars } = await import("./lib/required-env.ts"); const dotenv = Object.fromEntries((await Bun.file(".env").text()).split("\n").filter(l => l.includes("=")).map(l => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])); const missing = missingEnvVars(dotenv); if (missing.length) { console.error("missing in apps/web/.env: " + missing.join(", ")); process.exit(1); } console.log("apps/web/.env has every required variable");'
-
-env-generate:
-	bash scripts/generate-env.sh --missing
-
-env-rotate:
-	bash scripts/generate-env.sh --rotate $(if $(filter 1,$(CONFIRM)),--confirm,--dry)
-
-env-sync: env-check
-	bash scripts/sync-env.sh $(if $(filter 1,$(CONFIRM)),--confirm,--dry)
-
-license:
-	@test -n "$(MACHINES)" || { echo "license blocked: set MACHINES, for example make license MACHINES=3 LABEL=\"Pulkit\" NAME=\"Pulkit Garg\" EMAIL=\"pulkit@example.com\" PHONE=\"+911234567890\"" >&2; exit 1; }
-	bash scripts/mint-license.sh $(MACHINES) "$(LABEL)" "$(NAME)" "$(EMAIL)" "$(PHONE)"
-
-web-dev:
-	cd apps/web && bun run dev
-
-db-generate:
-	cd apps/web && bun run db:generate
-
-db-push:
-	cd apps/web && bun run db:push
-
-db-studio:
-	cd apps/web && bun run db:studio
-
-db-migrate:
-	@set -eu; \
-	test -n "$(FILE)" || { echo "db-migrate blocked: set FILE, for example make db-migrate FILE=apps/web/drizzle/0001_licensing_v2.sql" >&2; exit 1; }; \
-	test -f "$(FILE)" || { echo "db-migrate blocked: $(FILE) does not exist" >&2; exit 1; }; \
-	DB_URL=$$(grep '^DATABASE_URL=' apps/web/.env | cut -d= -f2- | tr -d '"' | sed 's/&channel_binding=[^&]*//;s/channel_binding=[^&]*&//'); \
-	test -n "$$DB_URL" || { echo "db-migrate blocked: DATABASE_URL missing from apps/web/.env" >&2; exit 1; }; \
-	psql "$$DB_URL" -v ON_ERROR_STOP=1 -f "$(FILE)"
+site-dev:
+	cd apps/site && python3 -m http.server 8000
 
 ci-comments:
 	bun scripts/strip-comments.mjs --selftest

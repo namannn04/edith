@@ -7,7 +7,7 @@ pre-push:
     secrets:
       run: make ci-secrets
     lint:
-      glob: "{scripts/**,apps/web/**}"
+      glob: "{scripts/**,apps/site/**}"
       run: make ci-lint
     scripts:
       glob: "scripts/**"
