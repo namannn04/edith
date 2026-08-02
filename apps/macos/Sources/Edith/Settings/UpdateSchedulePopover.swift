@@ -5,6 +5,7 @@ struct UpdateSchedulePopover: View {
     @ObservedObject var updater: UpdaterModel
     @State private var editingCustom = false
     @State private var customSeconds = ""
+    @State private var clampNotice: String?
     @FocusState private var customFocused: Bool
 
     private var showsCustomField: Bool {
@@ -20,24 +21,28 @@ struct UpdateSchedulePopover: View {
             set: { value in
                 guard value != UpdateCheckInterval.customTag else {
                     customSeconds = String(Int(updater.checkInterval))
+                    clampNotice = nil
                     editingCustom = true
                     customFocused = true
                     return
                 }
                 editingCustom = false
+                clampNotice = nil
                 updater.checkInterval = value
             })
     }
 
     private func commitCustomSeconds() {
-        guard let entered = TimeInterval(customSeconds.trimmingCharacters(in: .whitespaces)) else {
+        let typed = customSeconds.trimmingCharacters(in: .whitespaces)
+        guard !typed.isEmpty, let entered = TimeInterval(typed) else {
             customSeconds = String(Int(updater.checkInterval))
+            clampNotice = nil
             return
         }
         let clamped = UpdateCheckInterval.clamp(entered)
         updater.checkInterval = clamped
         customSeconds = String(Int(clamped))
-        editingCustom = !UpdateCheckInterval.isPreset(clamped)
+        clampNotice = UpdateCheckInterval.clampNotice(entered: entered, applied: clamped)
     }
 
     private var automaticChecks: Binding<Bool> {
@@ -99,6 +104,16 @@ struct UpdateSchedulePopover: View {
         }
     }
 
+    private var rangeHint: String {
+        let low = Int(UpdateCheckInterval.minimumSeconds)
+        let high = Int(UpdateCheckInterval.maximumSeconds)
+        return "Between \(low) and \(high) seconds."
+    }
+
+    private var noticeStyle: AnyShapeStyle {
+        clampNotice == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Color.orange)
+    }
+
     private var customField: some View {
         VStack(alignment: .leading, spacing: UIScale.pt(4)) {
             HStack(spacing: UIScale.pt(6)) {
@@ -118,13 +133,10 @@ struct UpdateSchedulePopover: View {
                     .font(.system(size: UIScale.pt(10)))
                     .foregroundStyle(.tertiary)
             }
-            Text(
-                "Sparkle ignores anything under \(Int(UpdateCheckInterval.minimumSeconds)) seconds, "
-                    + "so shorter values are raised to one hour."
-            )
-            .font(.system(size: UIScale.pt(10)))
-            .foregroundStyle(.tertiary)
-            .fixedSize(horizontal: false, vertical: true)
+            Text(clampNotice ?? rangeHint)
+                .font(.system(size: UIScale.pt(10)))
+                .foregroundStyle(noticeStyle)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .disabled(!updater.automaticallyChecksForUpdates)
     }

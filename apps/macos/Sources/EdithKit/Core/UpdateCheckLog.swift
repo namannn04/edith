@@ -132,6 +132,19 @@ public struct UpdateCheckInterval: Identifiable, Equatable, Sendable {
         return min(max(seconds.rounded(), minimumSeconds), maximumSeconds)
     }
 
+    public static func clampNotice(entered: TimeInterval, applied: TimeInterval) -> String? {
+        guard entered.isFinite else { return "That is not a number, so nothing changed." }
+        guard Int(entered.rounded()) != Int(applied.rounded()) else { return nil }
+        if applied == minimumSeconds {
+            return "Sparkle will not check more often than hourly, so this was raised to "
+                + "\(Int(minimumSeconds)) seconds."
+        }
+        if applied == maximumSeconds {
+            return "Capped at \(Int(maximumSeconds)) seconds, the longest interval Edith offers."
+        }
+        return "Rounded to \(Int(applied)) seconds."
+    }
+
     public static func describe(_ seconds: TimeInterval) -> String {
         if let preset = choices.first(where: { $0.seconds == seconds }) { return preset.label }
         let total = Int(seconds.rounded())

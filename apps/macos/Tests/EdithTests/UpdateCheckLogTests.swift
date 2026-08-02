@@ -140,6 +140,30 @@ import Testing
         #expect(UpdateCheckInterval.describe(172_800) == "Every 2d")
     }
 
+    @Test func clampNoticeExplainsARaiseToTheFloor() {
+        let notice = UpdateCheckInterval.clampNotice(
+            entered: 1, applied: UpdateCheckInterval.clamp(1))
+        #expect(notice?.contains("3600") == true)
+    }
+
+    @Test func clampNoticeExplainsACapAtTheCeiling() {
+        let notice = UpdateCheckInterval.clampNotice(
+            entered: 99_999_999, applied: UpdateCheckInterval.clamp(99_999_999))
+        #expect(notice?.contains("Capped") == true)
+    }
+
+    @Test func clampNoticeIsSilentWhenNothingChanged() {
+        #expect(UpdateCheckInterval.clampNotice(entered: 5_400, applied: 5_400) == nil)
+        #expect(UpdateCheckInterval.clampNotice(entered: 3_600, applied: 3_600) == nil)
+    }
+
+    @Test func valuesClampingOntoAPresetStillReportTheChange() {
+        let applied = UpdateCheckInterval.clamp(60)
+        #expect(applied == 3_600)
+        #expect(UpdateCheckInterval.isPreset(applied))
+        #expect(UpdateCheckInterval.clampNotice(entered: 60, applied: applied) != nil)
+    }
+
     @Test func customTagIsNeverMistakenForARealInterval() {
         #expect(UpdateCheckInterval.customTag < UpdateCheckInterval.minimumSeconds)
         #expect(
