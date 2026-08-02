@@ -58,9 +58,7 @@ jobs:
           rm -rf dmg-root && mkdir dmg-root
           cp -R dist/Edith.app dmg-root/
           ln -s /Applications dmg-root/Applications
-          hdiutil create -volname Edith -srcfolder dmg-root -format UDZO "Edith-${GITHUB_REF_NAME}.dmg"
-      - name: Build installer DMG
-        run: ./build-installer.sh --release
+          hdiutil create -volname Edith -srcfolder dmg-root -format UDZO Edith.dmg
       - name: Skip notarization
         if: env.HAS_NOTARY != 'true'
         run: |
@@ -73,19 +71,16 @@ jobs:
           NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
         run: |
           printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/notary-key.p8"
-          for dmg in "Edith-${GITHUB_REF_NAME}.dmg" dist/EdithInstaller.dmg; do
-            xcrun notarytool submit "$dmg" --wait \
-              --key "$RUNNER_TEMP/notary-key.p8" \
-              --key-id "$NOTARY_KEY_ID" \
-              --issuer "$NOTARY_ISSUER_ID"
-            xcrun stapler staple "$dmg"
-          done
+          xcrun notarytool submit Edith.dmg --wait \
+            --key "$RUNNER_TEMP/notary-key.p8" \
+            --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID"
+          xcrun stapler staple Edith.dmg
           rm -f "$RUNNER_TEMP/notary-key.p8"
       - name: Verify signatures
         run: |
           codesign --verify --deep --strict dist/Edith.app
-          spctl -a -t open --context context:primary-signature "Edith-${GITHUB_REF_NAME}.dmg"
-          spctl -a -t open --context context:primary-signature dist/EdithInstaller.dmg
+          spctl -a -t open --context context:primary-signature Edith.dmg
       - name: Appcast reminder
         run: |
           echo "WARNING: CI does not hold the Sparkle EdDSA private key, so no appcast is generated here; publish appcast.xml via make release on the machine holding the Sparkle key" >&2
@@ -93,7 +88,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ASSETS=("Edith-${GITHUB_REF_NAME}.dmg" dist/EdithInstaller.dmg)
           gh release create "${GITHUB_REF_NAME}" --title "Edith ${GITHUB_REF_NAME}" --generate-notes \
-            "${ASSETS[@]}" \
-          || gh release upload "${GITHUB_REF_NAME}" "${ASSETS[@]}" --clobber
+            Edith.dmg \
+          || gh release upload "${GITHUB_REF_NAME}" Edith.dmg --clobber

@@ -105,35 +105,36 @@ release:
 	  exit 1; \
 	fi; \
 	BUILD=$$(( $$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' apps/macos/Resources/Info.plist) + 1 )); \
-	for p in apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist apps/macos/Resources/InstallerInfo.plist; do \
+	for p in apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist; do \
 	  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(V)" $$p; \
 	  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $$BUILD" $$p; \
 	done; \
-	git commit -m "Bump version to $(V)" apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist apps/macos/Resources/InstallerInfo.plist; \
+	git commit -m "Bump version to $(V)" apps/macos/Resources/Info.plist apps/macos/Resources/HelperInfo.plist; \
 	git tag "v$(V)"; \
 	(cd apps/macos && ./build.sh --no-open --release); \
 	rm -rf apps/macos/dmg-root; \
-	rm -f "apps/macos/Edith-v$(V).dmg"; \
+	rm -f apps/macos/Edith.dmg; \
 	mkdir apps/macos/dmg-root; \
 	cp -R apps/macos/dist/Edith.app apps/macos/dmg-root/; \
 	ln -s /Applications apps/macos/dmg-root/Applications; \
-	hdiutil create -volname Edith -srcfolder apps/macos/dmg-root -format UDZO "apps/macos/Edith-v$(V).dmg"; \
+	hdiutil create -volname Edith -srcfolder apps/macos/dmg-root -format UDZO apps/macos/Edith.dmg; \
 	rm -rf apps/macos/dmg-root; \
 	rm -rf apps/macos/dist/appcast; \
 	mkdir apps/macos/dist/appcast; \
-	cp "apps/macos/Edith-v$(V).dmg" apps/macos/dist/appcast/; \
-	"$$GENERATE_APPCAST" apps/macos/dist/appcast; \
+	cp apps/macos/Edith.dmg apps/macos/dist/appcast/; \
+	"$$GENERATE_APPCAST" \
+	  --download-url-prefix "https://github.com/pulkitxm/edith/releases/download/v$(V)/" \
+	  apps/macos/dist/appcast; \
 	test -f apps/macos/dist/appcast/appcast.xml || mv apps/macos/dist/appcast/appcast apps/macos/dist/appcast/appcast.xml; \
 	test -f apps/macos/dist/appcast/appcast.xml || { echo "release blocked: generate_appcast did not create apps/macos/dist/appcast/appcast.xml" >&2; exit 1; }; \
-	(cd apps/macos && ./build-installer.sh --release); \
+	grep -q 'url="https://github.com/pulkitxm/edith/releases/download/v$(V)/Edith.dmg"' apps/macos/dist/appcast/appcast.xml \
+	  || { echo "release blocked: appcast enclosure does not point at the v$(V) release asset" >&2; exit 1; }; \
 	git push origin HEAD "v$(V)"; \
 	gh release create "v$(V)" --title "Edith v$(V)" --generate-notes \
-	  "apps/macos/Edith-v$(V).dmg" \
-	  apps/macos/dist/EdithInstaller.dmg \
+	  apps/macos/Edith.dmg \
 	  apps/macos/dist/appcast/appcast.xml \
 	|| gh release upload "v$(V)" --clobber \
-	  "apps/macos/Edith-v$(V).dmg" \
-	  apps/macos/dist/EdithInstaller.dmg \
+	  apps/macos/Edith.dmg \
 	  apps/macos/dist/appcast/appcast.xml
 
 loc:

@@ -32,14 +32,9 @@ let package = Package(
             dependencies: ["EdithKit"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-        .executableTarget(
-            name: "EdithInstaller",
-            dependencies: ["EdithKit"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
         .testTarget(
             name: "EdithTests",
-            dependencies: ["Edith", "EdithKit", "EdithHelper", "EdithInstaller"],
+            dependencies: ["Edith", "EdithKit", "EdithHelper"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
