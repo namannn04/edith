@@ -3,19 +3,7 @@ import { readFileSync } from "node:fs";
 
 const SELF = "scripts/check-secrets.mjs";
 
-const isTestPath = (file) => /(^|\/)[Tt]ests\//.test(file);
-
 export const RULES = [
-  {
-    name: "license key",
-    re: /EDITH-[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}/g,
-    allowed: (match, file) => match.includes("XXXX") || isTestPath(file),
-  },
-  {
-    name: "refresh credential",
-    re: /edithrc_[A-Za-z0-9_-]{16,}/g,
-    allowed: (match, file) => match.includes("XXXX") || isTestPath(file),
-  },
   {
     name: "private key block",
     re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g,

@@ -38,11 +38,8 @@ avoid this:
   explicit `return switch ... { }`; Codex often omits it.
 - Never leave `#Preview { }` macros in SwiftUI files: they fail the command-line SwiftPM
   build ("PreviewsMacros plugin not found").
-- `apps/web/next-env.d.ts` is regenerated with stock comments that fail `check-comments`;
-  it is gitignored, keep it that way.
-- postgres-js cannot connect through `channel_binding` params or IPv6-only routes; the db
-  client strips `channel_binding`, and local scripts may need `psql` (IPv4) when bun times
-  out reaching Neon.
+- `swift test` fails with "no such module 'Testing'" under Command Line Tools; run
+  `apps/macos/test.sh`, which adds the CLT Testing.framework search paths.
 
 ## Committing around protected work-in-progress
 
@@ -58,6 +55,14 @@ running build/tests/comment-check yourself on the staged files.
 - `bun run check-comments` - no disallowed comments (all tracked source).
 - Swift checks run from `apps/macos/`: `swift build` (type-check), `swift test` / `./test.sh` (tests),
   `swift format lint --strict --recursive Sources Tests Package.swift` (format + lint).
-- `bun run lint` - Biome format + lint for the dashboard.
-- `bun test apps/dashboard/tests scripts` - JS tests.
+- `bun run lint` - Biome format + lint for `scripts/` and `apps/site`.
+- `bun test ./scripts` - JS tests. Do not pass a bare `scripts`; it also matches the
+  gitignored `extras/` tree and reports unrelated failures.
 - `cd apps/promo-video && npm ci && npx tsc --noEmit` - promo-video (Remotion) type-check.
+
+## Website
+
+`apps/site` is hand-written static HTML, CSS, and JS with no framework, no build step,
+and no dependencies. GitHub Pages serves the folder as-is via `.github/workflows/pages.yml`,
+which only runs when `apps/site` changes. `apps/site/CNAME` must keep naming
+`edith.pulkit.page` or the deploy guard fails. Serve it locally with `make site-dev`.

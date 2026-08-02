@@ -3,6 +3,14 @@
 A native SwiftUI menu bar app for the Mac - a dark, minimal personal control
 center built to run 24/7 on near-zero resources.
 
+Free and open source under the [GPL-3.0](LICENSE). Every feature is in the one
+app: no licence key, no account, no paid tier.
+
+**[Download the latest release](https://github.com/pulkitxm/edith/releases/latest/download/Edith.dmg)**
+· [edith.pulkit.page](https://edith.pulkit.page)
+
+Requires macOS 14 or later on Apple Silicon.
+
 ## Features
 
 - **Rate-limit rings** - session (5h) and weekly usage as live animated gauges with second-by-second countdowns and a 24h history spark.
@@ -86,12 +94,11 @@ EDITH_SIGN_IDENTITY="Edith Dev" ./build.sh --install
 
 | Target | What it does |
 | --- | --- |
-| `make ci` | Full local CI: `bun install --frozen-lockfile`, then comments, secrets, lint, script tests, web, promo-video and Swift checks. |
+| `make ci` | Full local CI: `bun install --frozen-lockfile`, then comments, secrets, lint, script tests, promo-video and Swift checks. |
 | `make ci-comments` | Self-tests the comment stripper, then fails on any disallowed comment in tracked source. |
 | `make ci-secrets` | Scans every tracked file for leaked secrets. |
-| `make ci-lint` | Biome format + lint for the JS/TS surface. |
+| `make ci-lint` | Biome format + lint for the JS/CSS surface. |
 | `make ci-scripts` | Runs the `bun test` suite for `scripts/`. |
-| `make ci-web` | Runs the web app tests and a `tsc --noEmit` type check in `apps/web`. |
 | `make ci-promo` | `npm ci` + type check for the Remotion promo video. |
 | `make ci-swift-check` | `swift format lint --strict`, `swift build` and the test suite in `apps/macos`. |
 | `make ci-swift` | `ci-swift-check` plus a full `build.sh` run with bundle-layout and codesign assertions on the produced app. |
@@ -104,27 +111,13 @@ EDITH_SIGN_IDENTITY="Edith Dev" ./build.sh --install
 | `make install` | Builds and copies to `/Applications`, then launches. Same `PR` / `BRANCH` flags. |
 | `make reset` | Runs `reset.sh`: clears app state for a clean-slate run. |
 | `make reinstall` | `reset` followed by `install`. |
-| `make release V=1.8.0` | Full release: bumps plist versions, commits, tags, builds the DMG + installer + Sparkle appcast, pushes and creates the GitHub release. Blocks unless `gh` is authenticated and the Sparkle key is set. |
+| `make release V=1.8.0` | Full release: bumps plist versions, commits, tags, builds the DMG and Sparkle appcast, pushes and creates the GitHub release. Blocks unless `gh` is authenticated and the Sparkle key is set. |
 
-### Web & database
-
-| Target | What it does |
-| --- | --- |
-| `make web-dev` | Starts the Next.js dev server in `apps/web`. |
-| `make db-generate` | Generates Drizzle migrations from the schema. |
-| `make db-push` | Pushes the schema straight to the database. |
-| `make db-studio` | Opens Drizzle Studio. |
-| `make db-migrate FILE=...` | Applies one SQL migration file with `psql`, using `DATABASE_URL` from `apps/web/.env` (with `channel_binding` stripped). |
-
-### Environment & licensing
+### Website
 
 | Target | What it does |
 | --- | --- |
-| `make env-check` | Verifies `apps/web/.env` contains every required variable. |
-| `make env-generate` | Generates values for missing env vars. |
-| `make env-rotate` | Rotates secrets; dry-run by default, pass `CONFIRM=1` to apply. |
-| `make env-sync` | `env-check`, then syncs env vars to the deployment; dry-run unless `CONFIRM=1`. |
-| `make license MACHINES=3 LABEL=... NAME=... EMAIL=... PHONE=...` | Mints a license for the given machine count and licensee. |
+| `make site-dev` | Serves the static site in `apps/site` on `localhost:8000`. No build step. |
 
 ### Misc
 
@@ -143,11 +136,16 @@ Bump `CFBundleShortVersionString` in `apps/macos/Resources/Info.plist` and
 git tag v1.8.0 && git push origin v1.8.0
 ```
 
-The Release workflow builds `Edith-v1.8.0.dmg` (drag-to-Applications layout)
-and attaches it to the GitHub release.
+The Release workflow builds `Edith.dmg` (drag-to-Applications layout) and
+attaches it to the GitHub release. The name is stable so that
+`releases/latest/download/Edith.dmg` always resolves to the newest build, which
+is what the website's download button uses.
 
 `make release V=1.8.0` automates the whole sequence, including the Sparkle
-appcast and installer DMG.
+appcast. Sparkle reads the feed from
+`releases/latest/download/appcast.xml`, so updates need no server: the appcast
+is published as a release asset and its enclosure points straight at the DMG in
+that release.
 
 ### Signing the release (so permissions survive reinstalls)
 
@@ -205,3 +203,17 @@ still builds an ad-hoc DMG. An "Apple Development" identity is not notarized, so
 the first launch of a freshly downloaded DMG needs a right-click -> Open (or
 `xattr -dr com.apple.quarantine Edith.app`); permission grants still persist
 across every reinstall after that.
+
+## Contributing
+
+Issues and pull requests are welcome. Before pushing, run `make ci` locally; the
+pre-push hook runs the same gates. The repo is kept comment-free, so use
+`bun run strip-comments` if a stray comment slips in.
+
+## Licence
+
+Edith is free software licensed under the [GNU General Public License v3.0](LICENSE).
+You may use, study, modify, and redistribute it; any version you distribute must
+also be released under the GPL-3.0 with its source available.
+
+Sparkle, used for in-app updates, is distributed under the MIT licence.

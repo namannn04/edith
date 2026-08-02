@@ -46,7 +46,28 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - name: Tests
-        run: bun test scripts
+        run: bun test ./scripts
+
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Site is self-contained
+        run: |
+          test -f apps/site/index.html
+          test -f apps/site/CNAME
+          grep -qx edith.pulkit.page apps/site/CNAME
+          ! grep -rhoE '(src|href)="https?://[^"]+' apps/site/*.html \
+            | grep -vE 'https://(github\.com|www\.gnu\.org|docs\.github\.com|edith\.pulkit\.page)' \
+            || { echo "site references an unexpected external origin" >&2; exit 1; }
+      - name: No dead internal links
+        run: |
+          cd apps/site
+          rc=0
+          for ref in $(grep -rhoE '(src|href)="/[^"#]*' ./*.html | cut -d'"' -f2); do
+            test -e ".${ref}" || { echo "missing: ${ref}" >&2; rc=1; }
+          done
+          exit $rc
 
   promo-video:
     runs-on: ubuntu-latest
