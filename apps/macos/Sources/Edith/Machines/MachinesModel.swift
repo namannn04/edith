@@ -106,6 +106,47 @@ final class MachinesModel: ObservableObject {
         store.removeSnippet(id: snippet.id)
     }
 
+    func snapshot(for id: UUID) -> MachineSnapshot {
+        let session = session(for: id)
+        let machine = session.machine
+        let sample = session.sample
+        let slow = session.slow
+        let disks: [MachineFilesystem] = (slow?.disks ?? []).filter { $0.totalKB > 0 }
+        return MachineSnapshot(
+            id: id, name: machine.name, isLocal: isLocal(id),
+            online: session.state.isConnected,
+            cores: session.hello?.cores ?? sample?.cpu.cores.count ?? 0,
+            cpuPercent: sample?.cpu.total ?? 0,
+            memoryTotalKB: sample?.mem.totalKB ?? 0,
+            memoryUsedKB: sample?.mem.usedKB ?? 0,
+            swapTotalKB: sample?.mem.swapTotalKB ?? 0,
+            swapUsedKB: sample?.mem.swapUsedKB ?? 0,
+            diskTotalKB: disks.reduce(0) { $0 + $1.totalKB },
+            diskUsedKB: disks.reduce(0) { $0 + $1.usedKB },
+            loadOne: sample?.load.first ?? 0,
+            uptime: sample?.uptime ?? 0,
+            containersRunning: session.containers.filter { $0.state.isRunning }.count,
+            containersTotal: session.containers.count,
+            updatesAvailable: session.facts.updatesAvailable,
+            hottestTemperature: slow?.temps.map(\.c).max(),
+            os: session.hello?.os ?? "")
+    }
+
+    var snapshots: [MachineSnapshot] {
+        allMachines.map { snapshot(for: $0.id) }
+    }
+
+    var fleet: FleetSummary {
+        FleetMath.summarize(snapshots)
+    }
+
+    func connectAll() {
+        for machine in allMachines {
+            let session = session(for: machine.id)
+            if case .disconnected = session.state { session.start() }
+        }
+    }
+
     func wake(machine: Machine) -> String {
         guard let mac = machine.wakeMACAddress,
             let packet = WakeOnLAN.magicPacket(macAddress: mac)

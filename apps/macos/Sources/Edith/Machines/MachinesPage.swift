@@ -8,6 +8,7 @@ struct MachinesPage: View {
     @AppStorage("machinesTab", store: SharedDefaults.store) private var storedTab =
         MachineTab.overview.rawValue
     @AppStorage("machinesSelection", store: SharedDefaults.store) private var storedSelection = ""
+    @AppStorage("machinesShowFleet", store: SharedDefaults.store) private var showFleet = true
     @State private var addSheetPresented = false
     @State private var editingMachine: Machine?
     @State private var confirmRemoval: Machine?
@@ -50,6 +51,7 @@ struct MachinesPage: View {
             )
         }
         .onAppear {
+            model.connectAll()
             model.restoreSelection(storedSelection)
             model.startSelected()
             reconcileTab()
@@ -91,13 +93,17 @@ struct MachinesPage: View {
     private var machineStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIScale.pt(10)) {
+                FleetChip(selected: showFleet, dark: dark) { showFleet = true }
                 ForEach(model.allMachines) { machine in
                     MachineChip(
                         machine: machine,
                         session: model.session(for: machine.id),
                         selected: model.selection == machine.id,
                         isLocal: model.isLocal(machine.id), dark: dark,
-                        onSelect: { model.selection = machine.id },
+                        onSelect: {
+                            showFleet = false
+                            model.selection = machine.id
+                        },
                         onDetach: {
                             MachineWindow.open(machineID: machine.id, title: machine.name)
                         },
@@ -111,7 +117,12 @@ struct MachinesPage: View {
 
     @ViewBuilder
     private var content: some View {
-        if let session = model.selectedSession() {
+        if showFleet {
+            FleetHomeView(model: model) { id in
+                showFleet = false
+                model.selection = id
+            }
+        } else if let session = model.selectedSession() {
             MachineDetailView(
                 session: session, model: model,
                 tab: Binding(

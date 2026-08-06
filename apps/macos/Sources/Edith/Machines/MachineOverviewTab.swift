@@ -75,9 +75,6 @@ struct MachineOverviewTab: View {
                 if let slow = session.slow, !slow.disks.isEmpty {
                     SkinCard(title: "Storage", dark: dark) { storage(slow) }
                 }
-                if let sample = session.sample, !sample.net.ifaces.isEmpty {
-                    SkinCard(title: "Network", dark: dark) { network(sample) }
-                }
                 if let slow = session.slow, !slow.temps.isEmpty || slow.gpu != nil {
                     SkinCard(title: "Hardware", dark: dark) { hardware(slow) }
                 }
@@ -175,15 +172,23 @@ struct MachineOverviewTab: View {
                         + ByteFormatter.string($0.mem.totalKB * 1024)
                 } ?? "")
             metricCard(
-                "Network down",
-                value: session.sample.map { ByteFormatter.rate($0.net.rxBps) } ?? "—",
-                fraction: nil, history: session.netRxHistory, maximum: 0,
-                color: DashSkin.gold, footnote: "")
+                "Disk read",
+                value: session.sample.map { ByteFormatter.rate($0.disk.readBps) } ?? "—",
+                fraction: nil, history: session.diskReadHistory, maximum: 0,
+                color: DashSkin.gold, footnote: busiestDisk)
             metricCard(
-                "Network up", value: session.sample.map { ByteFormatter.rate($0.net.txBps) } ?? "—",
-                fraction: nil, history: session.netTxHistory, maximum: 0,
+                "Disk write",
+                value: session.sample.map { ByteFormatter.rate($0.disk.writeBps) } ?? "—",
+                fraction: nil, history: session.diskWriteHistory, maximum: 0,
                 color: DashSkin.accentDeep(dark), footnote: "")
         }
+    }
+
+    private var busiestDisk: String {
+        guard let device = session.sample?.disk.devices.max(by: { $0.busy < $1.busy }),
+            device.busy > 1
+        else { return "" }
+        return String(format: "%@ %.0f%% busy", device.n, device.busy)
     }
 
     private func metricCard(

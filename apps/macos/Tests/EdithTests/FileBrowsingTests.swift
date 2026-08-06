@@ -381,3 +381,75 @@ import Testing
         #expect(many.description == "Moving (2 of 5)")
     }
 }
+
+@Suite struct FleetMathTests {
+    private func machine(
+        name: String, online: Bool = true, cores: Int, cpu: Double, memTotal: Int64,
+        memUsed: Int64, diskTotal: Int64 = 0, diskUsed: Int64 = 0, load: Double = 0
+    ) -> MachineSnapshot {
+        MachineSnapshot(
+            id: UUID(), name: name, isLocal: false, online: online, cores: cores,
+            cpuPercent: cpu, memoryTotalKB: memTotal, memoryUsedKB: memUsed,
+            diskTotalKB: diskTotal, diskUsedKB: diskUsed, loadOne: load)
+    }
+
+    @Test func sumsMemoryAcrossMachines() {
+        let fleet = FleetMath.summarize([
+            machine(name: "a", cores: 4, cpu: 10, memTotal: 5_000_000, memUsed: 3_000_000),
+            machine(name: "b", cores: 8, cpu: 20, memTotal: 15_000_000, memUsed: 5_000_000),
+        ])
+        #expect(fleet.memoryTotalKB == 20_000_000)
+        #expect(fleet.memoryUsedKB == 8_000_000)
+        #expect(fleet.memoryPercent == 40)
+    }
+
+    @Test func cpuIsWeightedByCoreCount() {
+        let fleet = FleetMath.summarize([
+            machine(name: "small", cores: 2, cpu: 100, memTotal: 1, memUsed: 0),
+            machine(name: "big", cores: 8, cpu: 0, memTotal: 1, memUsed: 0),
+        ])
+        #expect(fleet.totalCores == 10)
+        #expect(fleet.cpuPercent == 20)
+    }
+
+    @Test func offlineMachinesAreExcludedFromTotalsButCounted() {
+        let fleet = FleetMath.summarize([
+            machine(name: "up", cores: 4, cpu: 50, memTotal: 8_000_000, memUsed: 4_000_000),
+            machine(
+                name: "down", online: false, cores: 4, cpu: 0, memTotal: 8_000_000,
+                memUsed: 0),
+        ])
+        #expect(fleet.machinesOnline == 1)
+        #expect(fleet.machinesTotal == 2)
+        #expect(fleet.memoryTotalKB == 8_000_000)
+        #expect(fleet.alerts.contains { $0.kind == .offline })
+    }
+
+    @Test func raisesAlertsForPressure() {
+        let alerts = FleetMath.alerts(for: [
+            machine(
+                name: "full", cores: 4, cpu: 10, memTotal: 100, memUsed: 99,
+                diskTotal: 100, diskUsed: 95, load: 12)
+        ])
+        #expect(alerts.contains { $0.kind == .diskFull })
+        #expect(alerts.contains { $0.kind == .memoryPressure })
+        #expect(alerts.contains { $0.kind == .highLoad })
+    }
+
+    @Test func sortsOnlineFirstThenByPressure() {
+        let calm = machine(name: "calm", cores: 4, cpu: 5, memTotal: 100, memUsed: 5)
+        let busy = machine(name: "busy", cores: 4, cpu: 95, memTotal: 100, memUsed: 10)
+        let offline = machine(
+            name: "offline", online: false, cores: 4, cpu: 0, memTotal: 100, memUsed: 0)
+        let sorted = FleetMath.sortedByPressure([calm, offline, busy])
+        #expect(sorted.map(\.name) == ["busy", "calm", "offline"])
+        #expect(FleetMath.busiest([calm, busy, offline])?.name == "busy")
+    }
+
+    @Test func emptyFleetIsSafe() {
+        let fleet = FleetMath.summarize([])
+        #expect(fleet.cpuPercent == 0)
+        #expect(fleet.memoryPercent == 0)
+        #expect(fleet.alerts.isEmpty)
+    }
+}

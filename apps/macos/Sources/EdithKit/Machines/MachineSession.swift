@@ -13,6 +13,8 @@ public final class MachineSession: ObservableObject {
     @Published public private(set) var memHistory: [Double] = []
     @Published public private(set) var netRxHistory: [Double] = []
     @Published public private(set) var netTxHistory: [Double] = []
+    @Published public private(set) var diskReadHistory: [Double] = []
+    @Published public private(set) var diskWriteHistory: [Double] = []
     @Published public private(set) var docker = DockerAvailability(status: .missing)
     @Published public private(set) var containers: [DockerContainer] = []
     @Published public private(set) var images: [DockerImage] = []
@@ -148,6 +150,8 @@ public final class MachineSession: ObservableObject {
         memHistory = Self.appending(value.mem.usedPercent, to: memHistory)
         netRxHistory = Self.appending(value.net.rxBps, to: netRxHistory)
         netTxHistory = Self.appending(value.net.txBps, to: netTxHistory)
+        diskReadHistory = Self.appending(value.disk.readBps, to: diskReadHistory)
+        diskWriteHistory = Self.appending(value.disk.writeBps, to: diskWriteHistory)
     }
 
     static func appending(_ value: Double, to history: [Double]) -> [Double] {
