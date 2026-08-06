@@ -1,0 +1,259 @@
+import ArgumentParser
+import EdithKit
+import Foundation
+
+public let edithCLIVersion = "1.0.0"
+
+func execute(_ body: () async throws -> Void) async throws {
+    do {
+        try await body()
+    } catch let failure as CLIFailure {
+        CLIOut.report(failure)
+        throw ExitCode(failure.kind.rawValue)
+    } catch let exit as ExitCode {
+        throw exit
+    } catch {
+        CLIOut.note("error: " + error.localizedDescription)
+        throw ExitCode(1)
+    }
+}
+
+public struct EdRoot: AsyncParsableCommand {
+    public static let configuration = CommandConfiguration(
+        commandName: "ed",
+        abstract: "The command line for Edith.",
+        discussion: """
+            `ed <machine> <command...>` runs a command on a configured machine.
+            `ed guide` prints the full manual, written for agents and humans alike.
+            """,
+        version: edithCLIVersion,
+        subcommands: [
+            GuideCommand.self,
+            SchemaCommand.self,
+            CompletionsCommand.self,
+            InstallCommand.self,
+            UninstallCommand.self,
+            ConfigCommand.self,
+            ExtensionsCommand.self,
+            PermissionsCommand.self,
+            UsageCommand.self,
+            SystemCommand.self,
+            MusicCommand.self,
+            CalendarCommand.self,
+            MachinesCommand.self,
+            CompleteCommand.self,
+        ])
+
+    public init() {}
+}
+
+public enum EdithCLIMain {
+    public static func run() async {
+        let raw = Array(CommandLine.arguments.dropFirst())
+        let machines = MachineDirectory.names(from: MachineDirectory.load())
+        let arguments = ArgumentRewriting.rewrite(raw, machines: machines)
+        await EdRoot.main(arguments)
+    }
+}
+
+struct GuideCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "guide",
+        abstract: "Print the built-in manual, written for agents and humans alike.")
+
+    @Argument(help: "Pass `claude` for a CLAUDE.md snippet that makes a repo ed-aware.")
+    var topic: String?
+
+    func run() async throws {
+        try await execute {
+            switch topic?.lowercased() {
+            case nil:
+                CLIOut.out(Guide.text)
+            case "claude":
+                CLIOut.out(Guide.claudeSnippet)
+            case let other?:
+                throw CLIFailure.notFound(
+                    "no guide topic named \(other)", hint: "try `ed guide` or `ed guide claude`")
+            }
+        }
+    }
+}
+
+struct SchemaCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "schema",
+        abstract: "Print the JSON Schema for the configuration document.")
+
+    func run() async throws {
+        CLIOut.json(ConfigSchema.document())
+    }
+}
+
+struct CompletionsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "completions",
+        abstract: "Generate a shell completion script.",
+        subcommands: [CompletionsInstallCommand.self])
+
+    @Argument(help: "zsh, bash or fish.")
+    var shell: String?
+
+    func run() async throws {
+        try await execute {
+            guard let shell else {
+                throw CLIFailure(
+                    "name a shell", hint: "ed completions zsh, or ed completions install")
+            }
+            guard let value = CompletionShell(rawValue: shell.lowercased()) else {
+                throw CLIFailure.notFound(
+                    "\(shell) is not a supported shell", hint: "zsh, bash or fish")
+            }
+            CLIOut.out(CompletionScripts.script(for: value))
+        }
+    }
+}
+
+struct CompletionsInstallCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install",
+        abstract: "Write completion scripts for the shells found on this Mac.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(help: "Install for one shell instead of every detected shell.")
+    var shell: String?
+
+    func run() async throws {
+        try await execute {
+            let shells: [CompletionShell]
+            if let shell {
+                guard let value = CompletionShell(rawValue: shell.lowercased()) else {
+                    throw CLIFailure.notFound("\(shell) is not a supported shell")
+                }
+                shells = [value]
+            } else {
+                shells = CompletionScripts.detectShells()
+            }
+            var installed: [JSONValue] = []
+            for value in shells {
+                let file = try CompletionScripts.install(value)
+                let directory = file.deletingLastPathComponent()
+                installed.append(
+                    .object([
+                        "shell": .string(value.rawValue),
+                        "path": .string(file.path),
+                        "hint": .optional(
+                            CompletionScripts.rcHint(for: value, directory: directory)),
+                    ]))
+            }
+            guard !json else {
+                CLIOut.json(.object(["installed": .array(installed)]))
+                return
+            }
+            for entry in installed {
+                guard case let .object(fields) = entry,
+                    case let .string(shell)? = fields["shell"],
+                    case let .string(path)? = fields["path"]
+                else { continue }
+                CLIOut.out("\(shell): \(path)")
+                if case let .string(hint)? = fields["hint"] { CLIOut.out("  \(hint)") }
+            }
+        }
+    }
+}
+
+struct InstallCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install",
+        abstract: "Link ed, edh and edith into a directory on PATH.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(help: "Install into this directory instead of the default.")
+    var directory: String?
+
+    func run() async throws {
+        try await execute {
+            let target = directory.map {
+                URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath)
+            }
+            let result = CLIInstaller.install(into: target)
+            let onPath = CLIInstaller.isOnPath(
+                URL(fileURLWithPath: result.directory), entries: CLIInstaller.pathEntries())
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "directory": .string(result.directory),
+                        "linked": .strings(result.linked),
+                        "skipped": .strings(result.skipped),
+                        "onPath": .bool(onPath),
+                        "message": .optional(result.message),
+                    ]))
+                return
+            }
+            if let message = result.message {
+                throw CLIFailure(message)
+            }
+            CLIOut.out("linked \(result.linked.joined(separator: ", ")) in \(result.directory)")
+            if !onPath {
+                CLIOut.note("note: \(result.directory) is not on PATH")
+            }
+        }
+    }
+}
+
+struct UninstallCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "uninstall", abstract: "Remove the ed, edh and edith links.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        let result = CLIInstaller.uninstall()
+        guard !json else {
+            CLIOut.json(
+                .object([
+                    "directory": .string(result.directory),
+                    "removed": .strings(result.linked),
+                ]))
+            return
+        }
+        CLIOut.out(
+            result.linked.isEmpty
+                ? "nothing to remove in \(result.directory)"
+                : "removed \(result.linked.joined(separator: ", ")) from \(result.directory)")
+    }
+}
+
+struct CompleteCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "__complete", abstract: "Emit completion candidates.", shouldDisplay: false)
+
+    @Option(help: "Zero based index of the word being completed.")
+    var index: Int = 0
+
+    @Argument(parsing: .captureForPassthrough)
+    var words: [String] = []
+
+    func run() async throws {
+        let machines = MachineDirectory.load()
+        let request = CompletionRequest(words: words, index: index)
+        let result = CompletionEngine.plan(
+            request, machines: MachineDirectory.names(from: machines),
+            configKeys: ConfigCatalog.keys,
+            extensionIDs: ExtensionRegistry.entries.map(\.id))
+        if let name = result.remoteMachine,
+            let machine = try? MachineDirectory.resolve(
+                name, in: machines)
+        {
+            for candidate in await RemoteCompletion.candidates(machine: machine, request: request) {
+                CLIOut.out(candidate)
+            }
+            return
+        }
+        for line in result.lines { CLIOut.out(line) }
+    }
+}

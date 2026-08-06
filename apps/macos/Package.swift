@@ -8,11 +8,30 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
         .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.15.0"),
         .package(url: "https://github.com/smittytone/HighlighterSwift", from: "3.1.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [
         .target(
             name: "EdithKit",
             resources: [.process("Resources")],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .target(
+            name: "EdithCLI",
+            dependencies: [
+                "EdithKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "ed",
+            dependencies: ["EdithCLI"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "edh",
+            dependencies: ["EdithCLI"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
@@ -38,7 +57,7 @@ let package = Package(
         ),
         .testTarget(
             name: "EdithTests",
-            dependencies: ["Edith", "EdithKit", "EdithHelper"],
+            dependencies: ["Edith", "EdithKit", "EdithHelper", "EdithCLI"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
