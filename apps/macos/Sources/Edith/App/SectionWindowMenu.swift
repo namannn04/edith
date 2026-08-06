@@ -21,6 +21,46 @@ enum WindowTabKeyCommand: Equatable {
     }
 }
 
+enum WorkspaceKeyCommand: Equatable {
+    case nextPaneTab
+    case previousPaneTab
+    case nextPane
+    case previousPane
+    case nextTerminalTab
+    case previousTerminalTab
+
+    static func resolve(
+        characters: String?, keyCode: UInt16, modifiers: NSEvent.ModifierFlags
+    ) -> WorkspaceKeyCommand? {
+        let flags = modifiers.intersection(.deviceIndependentFlagsMask)
+        if flags == [.command, .option] {
+            if keyCode == 124 { return .nextPaneTab }
+            if keyCode == 123 { return .previousPaneTab }
+        }
+        if flags == [.command, .control] {
+            if keyCode == 124 { return .nextPane }
+            if keyCode == 123 { return .previousPane }
+        }
+        if flags == [.command, .shift] {
+            if characters == "]" { return .nextTerminalTab }
+            if characters == "[" { return .previousTerminalTab }
+        }
+        return nil
+    }
+}
+
+@MainActor
+enum TerminalTabRegistry {
+    static weak var active: TerminalTabsModel?
+
+    @discardableResult
+    static func cycle(backwards: Bool) -> Bool {
+        guard let active, active.tabs.count > 1 else { return false }
+        active.selectNext(backwards: backwards)
+        return true
+    }
+}
+
 @MainActor
 enum SectionWindowMenu {
     private static var installed = false
@@ -79,6 +119,18 @@ enum SectionWindowMenu {
         index += 1
         submenu.insertItem(NSMenuItem.separator(), at: index)
         index += 1
+        for entry in paneNavigationItems {
+            let item = NSMenuItem(
+                title: entry.title, action: #selector(SectionWindowMenuTarget.paneCommand(_:)),
+                keyEquivalent: entry.key)
+            item.keyEquivalentModifierMask = entry.modifiers
+            item.target = target
+            item.representedObject = entry.tag
+            submenu.insertItem(item, at: index)
+            index += 1
+        }
+        submenu.insertItem(NSMenuItem.separator(), at: index)
+        index += 1
         let files = NSMenuItem(
             title: "Open Files Window",
             action: #selector(SectionWindowMenuTarget.openFiles(_:)), keyEquivalent: "o")
@@ -102,6 +154,16 @@ enum SectionWindowMenu {
         return true
     }
 
+    private static let paneNavigationItems:
+        [(title: String, key: String, modifiers: NSEvent.ModifierFlags, tag: String)] = [
+            ("Next Pane Tab", "\u{2192}", [.command, .option], "nextPaneTab"),
+            ("Previous Pane Tab", "\u{2190}", [.command, .option], "previousPaneTab"),
+            ("Focus Next Pane", "\u{2192}", [.command, .control], "nextPane"),
+            ("Focus Previous Pane", "\u{2190}", [.command, .control], "previousPane"),
+            ("Next Terminal Tab", "]", [.command, .shift], "nextTerminalTab"),
+            ("Previous Terminal Tab", "[", [.command, .shift], "previousTerminalTab"),
+        ]
+
     private static func installMonitors() {
         guard hintMonitor == nil, keyMonitor == nil else { return }
         hintMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
@@ -122,12 +184,36 @@ enum SectionWindowMenu {
                 if flags == .command, characters?.lowercased() == "w" {
                     return CloseCommand.perform(on: NSApp.keyWindow)
                 }
+                if let command = WorkspaceKeyCommand.resolve(
+                    characters: characters, keyCode: keyCode, modifiers: modifiers)
+                {
+                    switch command {
+                    case .nextPaneTab:
+                        return WorkspaceModel.shared.cycleTab(backwards: false)
+                    case .previousPaneTab:
+                        return WorkspaceModel.shared.cycleTab(backwards: true)
+                    case .nextPane:
+                        return WorkspaceModel.shared.cyclePane(backwards: false)
+                    case .previousPane:
+                        return WorkspaceModel.shared.cyclePane(backwards: true)
+                    case .nextTerminalTab:
+                        return TerminalTabRegistry.cycle(backwards: false)
+                    case .previousTerminalTab:
+                        return TerminalTabRegistry.cycle(backwards: true)
+                    }
+                }
                 let window = NSApp.keyWindow
                 guard
                     let command = WindowTabKeyCommand.resolve(
                         characters: characters, keyCode: keyCode, modifiers: modifiers,
                         tabbed: WindowTabs.isTabbed(window))
-                else { return false }
+                else {
+                    let controlTab =
+                        keyCode == 48 && flags.contains(.control)
+                        && !flags.contains(.command)
+                    guard controlTab else { return false }
+                    return WorkspaceModel.shared.cycleTab(backwards: flags.contains(.shift))
+                }
                 switch command {
                 case let .selectTab(index):
                     return WindowTabs.selectTab(index: index, in: window)
@@ -183,6 +269,18 @@ final class SectionWindowMenuTarget: NSObject {
         model.ensureSelection()
         guard let selection = model.selection else { return }
         FinderWindow.open(session: model.session(for: selection))
+    }
+
+    @objc func paneCommand(_ sender: NSMenuItem) {
+        switch sender.representedObject as? String {
+        case "nextPaneTab": WorkspaceModel.shared.cycleTab(backwards: false)
+        case "previousPaneTab": WorkspaceModel.shared.cycleTab(backwards: true)
+        case "nextPane": WorkspaceModel.shared.cyclePane(backwards: false)
+        case "previousPane": WorkspaceModel.shared.cyclePane(backwards: true)
+        case "nextTerminalTab": TerminalTabRegistry.cycle(backwards: false)
+        case "previousTerminalTab": TerminalTabRegistry.cycle(backwards: true)
+        default: break
+        }
     }
 
     @objc func nextTab(_ sender: NSMenuItem) {

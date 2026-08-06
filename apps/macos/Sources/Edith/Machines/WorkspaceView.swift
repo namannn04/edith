@@ -67,6 +67,36 @@ final class WorkspaceModel: ObservableObject {
     }
 
     @discardableResult
+    func cycleTab(backwards: Bool) -> Bool {
+        guard let pane = layout.root.pane(layout.focused) ?? layout.root.panes.first,
+            pane.tabs.count > 1,
+            let index = pane.tabs.firstIndex(where: { $0.id == pane.selected })
+        else { return false }
+        let count = pane.tabs.count
+        let next = backwards ? (index - 1 + count) % count : (index + 1) % count
+        let target = pane.tabs[next].id
+        apply { layout in
+            layout.focused = pane.id
+            layout.root.updatePane(pane.id) { $0.selected = target }
+        }
+        return true
+    }
+
+    @discardableResult
+    func cyclePane(backwards: Bool) -> Bool {
+        let panes = layout.root.panes
+        guard panes.count > 1 else { return false }
+        let current = panes.firstIndex { $0.id == layout.focused } ?? 0
+        let next =
+            backwards
+            ? (current - 1 + panes.count) % panes.count
+            : (current + 1) % panes.count
+        let target = panes[next].id
+        apply { $0.focused = target }
+        return true
+    }
+
+    @discardableResult
     func closeFocusedTab() -> Bool {
         guard let pane = layout.root.pane(layout.focused) ?? layout.root.panes.first else {
             return false

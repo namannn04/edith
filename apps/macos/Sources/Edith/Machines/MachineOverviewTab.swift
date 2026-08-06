@@ -68,10 +68,16 @@ struct SparkShape: Shape {
     }
 }
 
+enum MetricsCadence {
+    static let sampleInterval = 2.0
+    static let dockerInterval = 4.0
+}
+
 struct Sparkline: View {
     let values: [Double]
     let maximum: Double
     let color: Color
+    var cadence = MetricsCadence.sampleInterval
 
     var body: some View {
         let samples = SparkSamples(values: values)
@@ -84,7 +90,7 @@ struct Sparkline: View {
             SparkShape(samples: samples, maximum: maximum, filled: false)
                 .stroke(color, style: StrokeStyle(lineWidth: UIScale.pt(1.6), lineJoin: .round))
         }
-        .animation(.linear(duration: 0.85), value: values)
+        .animation(.linear(duration: cadence), value: values)
     }
 }
 
@@ -103,7 +109,7 @@ struct MeterBar: View {
             }
         }
         .frame(height: UIScale.pt(6))
-        .animation(.easeInOut(duration: 0.5), value: fraction)
+        .animation(.easeInOut(duration: MetricsCadence.sampleInterval * 0.8), value: fraction)
     }
 }
 
@@ -130,7 +136,7 @@ struct MetricCard: View {
                     .foregroundStyle(DashSkin.ink(dark))
                     .monospacedDigit()
                     .contentTransition(.numericText())
-                    .animation(.easeInOut(duration: 0.35), value: value)
+                    .animation(.easeInOut(duration: 0.6), value: value)
             }
             if let fraction {
                 MeterBar(fraction: fraction, color: color, track: DashSkin.line(dark))

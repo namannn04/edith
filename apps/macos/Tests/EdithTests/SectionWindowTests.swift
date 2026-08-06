@@ -204,3 +204,98 @@ import Testing
         #expect(model.quickLookPath == nil)
     }
 }
+
+@Suite struct WorkspaceKeyCommandTests {
+    @Test func commandOptionArrowsWalkPaneTabs() {
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: nil, keyCode: 124, modifiers: [.command, .option]) == .nextPaneTab)
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: nil, keyCode: 123, modifiers: [.command, .option])
+                == .previousPaneTab)
+    }
+
+    @Test func commandControlArrowsMovePaneFocus() {
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: nil, keyCode: 124, modifiers: [.command, .control]) == .nextPane)
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: nil, keyCode: 123, modifiers: [.command, .control]) == .previousPane)
+    }
+
+    @Test func commandShiftBracketsWalkTerminalTabs() {
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: "]", keyCode: 30, modifiers: [.command, .shift]) == .nextTerminalTab)
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: "[", keyCode: 33, modifiers: [.command, .shift])
+                == .previousTerminalTab)
+    }
+
+    @Test func plainArrowsAndSingleModifiersAreLeftAlone() {
+        #expect(WorkspaceKeyCommand.resolve(characters: nil, keyCode: 124, modifiers: []) == nil)
+        #expect(
+            WorkspaceKeyCommand.resolve(characters: nil, keyCode: 124, modifiers: .command) == nil)
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: nil, keyCode: 125, modifiers: [.command, .option]) == nil)
+        #expect(
+            WorkspaceKeyCommand.resolve(characters: "]", keyCode: 30, modifiers: .command) == nil)
+    }
+}
+
+@Suite @MainActor struct WorkspaceNavigationTests {
+    private func model() -> WorkspaceModel {
+        let machine = UUID()
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("edith-workspace-\(UUID().uuidString).json")
+        let model = WorkspaceModel(machines: .shared, file: file)
+        var layout = WorkspaceLayout.single(machineID: machine, screen: .overview)
+        model.use(layout)
+        guard let pane = layout.root.panes.first else { return model }
+        model.addTab(to: pane.id, target: PaneTarget(machineID: machine, screen: .processes))
+        model.addTab(to: pane.id, target: PaneTarget(machineID: machine, screen: .terminal))
+        layout = model.layout
+        return model
+    }
+
+    @Test func tabCyclingWrapsAroundThePane() {
+        let model = model()
+        guard let pane = model.layout.root.panes.first else { return }
+        let order = pane.tabs.map(\.id)
+        #expect(order.count == 3)
+        #expect(model.layout.root.panes.first?.selected == order[2])
+
+        #expect(model.cycleTab(backwards: false))
+        #expect(model.layout.root.panes.first?.selected == order[0])
+        #expect(model.cycleTab(backwards: true))
+        #expect(model.layout.root.panes.first?.selected == order[2])
+    }
+
+    @Test func paneFocusMovesBetweenSplits() {
+        let model = model()
+        guard let pane = model.layout.root.panes.first else { return }
+        let target = PaneTarget(machineID: UUID(), screen: .overview)
+        model.apply { $0.split(paneID: pane.id, side: .right, target: target) }
+        let panes = model.layout.root.panes
+        #expect(panes.count == 2)
+
+        model.apply { $0.focused = panes[0].id }
+        #expect(model.cyclePane(backwards: false))
+        #expect(model.layout.focused == panes[1].id)
+        #expect(model.cyclePane(backwards: false))
+        #expect(model.layout.focused == panes[0].id)
+    }
+
+    @Test func aSinglePaneWithOneTabHasNothingToCycle() {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("edith-workspace-\(UUID().uuidString).json")
+        let model = WorkspaceModel(machines: .shared, file: file)
+        model.use(WorkspaceLayout.single(machineID: UUID(), screen: .overview))
+        #expect(!model.cycleTab(backwards: false))
+        #expect(!model.cyclePane(backwards: false))
+    }
+}

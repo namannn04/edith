@@ -85,7 +85,13 @@ struct TerminalTabsView: View {
             }
             if model.broadcast { broadcastBar }
         }
-        .onAppear { model.ensureFirstTab(named: "Shell 1") }
+        .onAppear {
+            model.ensureFirstTab(named: "Shell 1")
+            TerminalTabRegistry.active = model
+        }
+        .onDisappear {
+            if TerminalTabRegistry.active === model { TerminalTabRegistry.active = nil }
+        }
         .onDisappear { model.stopAll() }
         .background(shortcuts)
     }

@@ -100,9 +100,10 @@ struct WorkspacePaneView: View {
         .overlay {
             RoundedRectangle(cornerRadius: UIScale.pt(6))
                 .strokeBorder(
-                    focused ? DashSkin.accent(dark).opacity(0.55) : DashSkin.line(dark),
-                    lineWidth: UIScale.pt(focused ? 1.5 : 1))
+                    focused ? DashSkin.accent(dark).opacity(0.7) : DashSkin.line(dark),
+                    lineWidth: UIScale.pt(focused ? 2 : 1))
         }
+        .animation(.easeOut(duration: 0.16), value: focused)
         .contentShape(Rectangle())
         .onTapGesture { model.apply { $0.focused = pane.id } }
     }

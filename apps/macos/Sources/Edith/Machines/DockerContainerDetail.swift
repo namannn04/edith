@@ -370,8 +370,11 @@ struct DockerContainerDetail: View {
                     .font(DashSkin.serif(18))
                     .foregroundStyle(DashSkin.ink(dark))
             }
-            Sparkline(values: history, maximum: 100, color: color)
-                .frame(height: UIScale.pt(54))
+            Sparkline(
+                values: history, maximum: 100, color: color,
+                cadence: MetricsCadence.dockerInterval
+            )
+            .frame(height: UIScale.pt(54))
         }
         .padding(UIScale.pt(14))
         .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
