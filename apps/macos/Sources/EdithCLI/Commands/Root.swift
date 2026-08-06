@@ -30,6 +30,7 @@ public struct EdRoot: AsyncParsableCommand {
         subcommands: [
             GuideCommand.self,
             SchemaCommand.self,
+            VersionCommand.self,
             CompletionsCommand.self,
             InstallCommand.self,
             UninstallCommand.self,
@@ -86,6 +87,26 @@ struct SchemaCommand: AsyncParsableCommand {
 
     func run() async throws {
         CLIOut.json(ConfigSchema.document())
+    }
+}
+
+struct VersionCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "version", abstract: "Print the Edith CLI version.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        guard !json else {
+            CLIOut.json(
+                .object([
+                    "version": .string(edithCLIVersion),
+                    "appRunning": .bool(AppBridge.helperIsRunning),
+                ]))
+            return
+        }
+        CLIOut.out(edithCLIVersion)
     }
 }
 
