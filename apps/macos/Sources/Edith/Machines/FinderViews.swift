@@ -42,19 +42,27 @@ struct FinderIconView: View {
     private var dark: Bool { scheme == .dark }
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: [
-                    GridItem(
-                        .adaptive(minimum: UIScale.pt(model.iconSize + 34)),
-                        spacing: UIScale.pt(12))
-                ], spacing: UIScale.pt(14)
-            ) {
-                ForEach(model.visibleEntries) { entry in
-                    FinderIconCell(model: model, entry: entry, dark: dark)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVGrid(
+                    columns: [
+                        GridItem(
+                            .adaptive(minimum: UIScale.pt(model.iconSize + 34)),
+                            spacing: UIScale.pt(12))
+                    ], spacing: UIScale.pt(14)
+                ) {
+                    ForEach(model.visibleEntries) { entry in
+                        FinderIconCell(model: model, entry: entry, dark: dark)
+                            .id(entry.path)
+                    }
                 }
+                .padding(UIScale.pt(16))
             }
-            .padding(UIScale.pt(16))
+            .onChange(of: model.scrollTarget) { _, target in
+                guard let target else { return }
+                withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo(target, anchor: .center) }
+                model.scrollTarget = nil
+            }
         }
         .contentShape(Rectangle())
         .onTapGesture { model.selection = [] }
@@ -152,11 +160,21 @@ struct FinderListView: View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.4)
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(model.visibleEntries) { entry in
-                        FinderListRow(model: model, entry: entry, dark: dark)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(model.visibleEntries) { entry in
+                            FinderListRow(model: model, entry: entry, dark: dark)
+                                .id(entry.path)
+                        }
                     }
+                }
+                .onChange(of: model.scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                    model.scrollTarget = nil
                 }
             }
             .contentShape(Rectangle())

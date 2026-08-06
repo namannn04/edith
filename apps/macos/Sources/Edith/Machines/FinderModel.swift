@@ -24,6 +24,7 @@ final class FinderModel: ObservableObject {
     @Published var showSidebar = true
     @Published var progress: FileOperationProgress?
     @Published var pendingConflict: PendingConflict?
+    @Published var scrollTarget: String?
     static var clipboard: FileClipboard?
 
     struct PendingConflict: Identifiable {
@@ -155,9 +156,23 @@ final class FinderModel: ObservableObject {
             errorMessage = "Copying between machines is not supported yet."
             return
         }
-        guard let command = clipboard.command(intoDirectory: path) else { return }
-        await run(command, reload: true)
-        if clipboard.operation == .move { Self.clipboard = nil }
+        let isCopy = clipboard.operation == .copy
+        let alreadyHere = clipboard.paths.filter { FileListing.parentPath(of: $0) == path }
+        let fromElsewhere = clipboard.paths.filter { FileListing.parentPath(of: $0) != path }
+        guard isCopy || !fromElsewhere.isEmpty else {
+            errorMessage = "Those items are already here."
+            return
+        }
+        if isCopy, !alreadyHere.isEmpty {
+            await duplicate(paths: alreadyHere)
+        }
+        if !fromElsewhere.isEmpty {
+            await perform(
+                intent: isCopy
+                    ? .copyWithinMachine(fromElsewhere) : .moveWithinMachine(fromElsewhere),
+                destination: path)
+        }
+        if !isCopy, errorMessage == nil { Self.clipboard = nil }
     }
 
     func showInfo() {
@@ -400,6 +415,7 @@ final class FinderModel: ObservableObject {
             selection.insert(target.path)
         } else {
             selection = [target.path]
+            reveal(target.path)
         }
         anchor = target.path
         if quickLookPath != nil { quickLookPath = target.path }
@@ -415,12 +431,18 @@ final class FinderModel: ObservableObject {
                 in: visibleEntries, prefix: typeBuffer, after: anchor)
         else { return }
         selection = [match]
+        reveal(match)
         anchor = match
     }
 
     func beginRename(_ entry: RemoteFileEntry) {
         renaming = entry.path
         renameText = entry.name
+    }
+
+    func reveal(_ path: String?) {
+        guard let path else { return }
+        scrollTarget = path
     }
 
     func focusContext(on entry: RemoteFileEntry) {
@@ -461,7 +483,10 @@ final class FinderModel: ObservableObject {
             FileOperations.renameCommand(
                 path: entry.path, to: target, viaTemporary: sameNameDifferentCase),
             reload: true)
-        if errorMessage == nil { selection = [target] }
+        if errorMessage == nil {
+            selection = [target]
+            reveal(target)
+        }
     }
 
     func newFolder() async {
@@ -470,17 +495,26 @@ final class FinderModel: ObservableObject {
         await run(FileOperations.makeDirectoryCommand(path: target), reload: true)
         if let created = entries.first(where: { $0.path == target }) {
             selection = [target]
+            reveal(target)
             beginRename(created)
         }
     }
 
     func duplicateSelection() async {
-        for entry in selectedEntries {
-            let name = FileOperations.duplicateName(of: entry.name, existing: entries)
+        await duplicate(paths: selectedEntries.map(\.path))
+    }
+
+    func duplicate(paths: [String]) async {
+        guard !paths.isEmpty else { return }
+        var taken = entries
+        for source in paths {
+            let name = FileOperations.duplicateName(
+                of: (source as NSString).lastPathComponent, existing: taken)
             let target = FileListing.join(parent: path, name: name)
+            taken.append(
+                RemoteFileEntry(name: name, path: target, kind: .file, sizeBytes: 0))
             await run(
-                "cp -a \(ShellQuote.quote(entry.path)) \(ShellQuote.quote(target))",
-                reload: false)
+                "cp -a \(ShellQuote.quote(source)) \(ShellQuote.quote(target))", reload: false)
         }
         await load()
     }

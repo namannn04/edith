@@ -219,6 +219,8 @@ private func exists(_ name: String, in root: URL) -> Bool {
 }
 
 @Suite(.serialized) @MainActor struct FinderClipboardTests {
+    init() { FinderModel.clipboard = nil }
+
     @Test func cutThenPasteMovesTheFile() async throws {
         let (model, root) = try sandbox()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -385,5 +387,70 @@ private func exists(_ name: String, in root: URL) -> Bool {
             command
                 == "mv /d/notes.txt /d/notes.txt.edith-rename && mv /d/notes.txt.edith-rename /d/Notes.txt"
         )
+    }
+}
+
+extension FinderClipboardTests {
+    @Test func copyThenPasteInTheSameFolderMakesACopyRatherThanFailing() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("notes.txt", into: root, contents: "body")
+        await model.load()
+
+        model.selection = Set(model.entries.map(\.path))
+        model.copySelection(operation: .copy)
+        await model.paste()
+
+        #expect(exists("notes.txt", in: root))
+        #expect(exists("notes copy.txt", in: root))
+        #expect(model.errorMessage == nil)
+    }
+
+    @Test func cutThenPasteInTheSameFolderSaysSoInsteadOfCorruptingTheFile() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("notes.txt", into: root, contents: "body")
+        await model.load()
+
+        model.selection = Set(model.entries.map(\.path))
+        model.copySelection(operation: .move)
+        await model.paste()
+
+        #expect(exists("notes.txt", in: root))
+        let kept = try String(contentsOf: root.appendingPathComponent("notes.txt"), encoding: .utf8)
+        #expect(kept == "body")
+        #expect(model.errorMessage != nil)
+    }
+
+    @Test func pasteOntoAnExistingNameRaisesTheConflictSheet() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let inner = root.appendingPathComponent("inner")
+        try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
+        try write("same.txt", into: root, contents: "outer")
+        try write("same.txt", into: inner, contents: "inner")
+        await model.load()
+
+        model.selection = Set(model.entries.filter { $0.name == "same.txt" }.map(\.path))
+        model.copySelection(operation: .copy)
+        model.navigate(to: inner.path)
+        try await Task.sleep(for: .milliseconds(300))
+        await model.paste()
+
+        #expect(model.pendingConflict != nil)
+        let untouched = try String(
+            contentsOf: inner.appendingPathComponent("same.txt"), encoding: .utf8)
+        #expect(untouched == "inner")
+    }
+
+    @Test func duplicatingSeveralItemsAtOnceGivesEachADistinctName() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("a.txt", into: root)
+        await model.load()
+        await model.duplicate(paths: model.entries.map(\.path) + model.entries.map(\.path))
+
+        #expect(exists("a copy.txt", in: root))
+        #expect(exists("a copy 2.txt", in: root))
     }
 }
