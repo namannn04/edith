@@ -144,7 +144,6 @@ enum MagicPacketSender {
 enum MachineTab: String, CaseIterable, Identifiable {
     case overview
     case processes
-    case files
     case docker
     case terminal
     case tools
@@ -155,7 +154,6 @@ enum MachineTab: String, CaseIterable, Identifiable {
         switch self {
         case .overview: return "Overview"
         case .processes: return "Processes"
-        case .files: return "Files"
         case .docker: return "Docker"
         case .terminal: return "Terminal"
         case .tools: return "Tools"
@@ -166,7 +164,6 @@ enum MachineTab: String, CaseIterable, Identifiable {
         switch self {
         case .overview: return "gauge.with.needle"
         case .processes: return "list.bullet.rectangle"
-        case .files: return "folder"
         case .docker: return "shippingbox"
         case .terminal: return "terminal"
         case .tools: return "wrench.and.screwdriver"
@@ -174,7 +171,7 @@ enum MachineTab: String, CaseIterable, Identifiable {
     }
 
     static func tabs(isLocal: Bool) -> [MachineTab] {
-        isLocal ? [.overview, .processes, .files, .terminal] : MachineTab.allCases
+        isLocal ? [.overview, .processes, .terminal] : MachineTab.allCases
     }
 }
 

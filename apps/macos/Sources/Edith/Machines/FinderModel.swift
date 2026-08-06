@@ -17,6 +17,10 @@ final class FinderModel: ObservableObject {
     @Published var freeSpaceKB: Int64?
     @Published var searchQuery = ""
     @Published var searchResults: [RemoteFileEntry]?
+    @Published var places: [FilePlaceSection] = []
+    @Published var infoTarget: RemoteFileEntry?
+    @Published var showSidebar = true
+    static var clipboard: FileClipboard?
 
     @AppStorage("finderViewMode", store: SharedDefaults.store) var viewModeRaw =
         FileViewMode.list.rawValue
@@ -34,6 +38,9 @@ final class FinderModel: ObservableObject {
     private var typeBufferAt = Date.distantPast
     private var loadToken = 0
     private var flashToken = 0
+    private var searchToken = 0
+    private var folderSizes: [String: Int64] = [:]
+    private var folderCounts: [String: Int] = [:]
 
     init(session: MachineSession, path: String? = nil) {
         self.session = session
@@ -81,7 +88,87 @@ final class FinderModel: ObservableObject {
         return text
     }
 
+    func connectIfNeeded() {
+        guard !session.isLocal else { return }
+        if case .disconnected = session.state { session.start() }
+    }
+
+    func waitForConnection(timeout: TimeInterval = 30) async {
+        guard !session.isLocal else { return }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if session.state.isConnected { return }
+            if case .failed = session.state { return }
+            try? await Task.sleep(for: .milliseconds(300))
+        }
+    }
+
+    func loadPlaces() async {
+        if session.isLocal {
+            let volumes =
+                FileManager.default.mountedVolumeURLs(
+                    includingResourceValuesForKeys: [.volumeIsBrowsableKey],
+                    options: [.skipHiddenVolumes]) ?? []
+            let external = volumes.filter { $0.path != "/" }
+            places = FilePlaces.localSections(volumes: external)
+            return
+        }
+        let result = await session.runCommand(FilePlaces.homeDirectoryCommand(), timeout: 20)
+        let home =
+            (try? result.get())?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "~"
+        places = FilePlaces.remoteSections(home: home.isEmpty ? "~" : home)
+    }
+
+    func copySelection(operation: FileClipboardOperation) {
+        let paths = selectedEntries.map(\.path)
+        guard !paths.isEmpty else { return }
+        Self.clipboard = FileClipboard(
+            paths: paths, machineID: session.machine.id, operation: operation)
+        flash(
+            "\(operation == .copy ? "Copied" : "Cut") \(paths.count) item"
+                + (paths.count == 1 ? "" : "s"))
+    }
+
+    func paste() async {
+        guard let clipboard = Self.clipboard else { return }
+        guard clipboard.machineID == session.machine.id else {
+            errorMessage = "Copying between machines is not supported yet."
+            return
+        }
+        guard let command = clipboard.command(intoDirectory: path) else { return }
+        await run(command, reload: true)
+        if clipboard.operation == .move { Self.clipboard = nil }
+    }
+
+    func showInfo() {
+        infoTarget = selectedEntries.first
+        guard let target = infoTarget, target.isDirectory else { return }
+        Task { await measure(target) }
+    }
+
+    func infoSummary(for entry: RemoteFileEntry) -> FileInfoSummary {
+        guard entry.isDirectory else { return FileInfoSummary(entry: entry) }
+        return FileInfoSummary(entry: entry, sizeOverride: folderSummary(for: entry))
+    }
+
+    func setViewMode(_ mode: FileViewMode) {
+        viewMode = mode
+    }
+
+    func toggleHidden() {
+        showHidden.toggle()
+    }
+
+    func resolveHomeIfNeeded() async {
+        guard !session.isLocal, path == "~" || path.isEmpty else { return }
+        let result = await session.runCommand(FilePlaces.homeDirectoryCommand(), timeout: 20)
+        guard case let .success(output) = result else { return }
+        let home = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if home.hasPrefix("/") { path = home }
+    }
+
     func load() async {
+        await resolveHomeIfNeeded()
         loadToken += 1
         let token = loadToken
         loading = true
@@ -146,8 +233,11 @@ final class FinderModel: ObservableObject {
     }
 
     func goHome() {
-        navigate(
-            to: session.isLocal ? FileManager.default.homeDirectoryForCurrentUser.path : "~")
+        let target =
+            session.isLocal
+            ? FileManager.default.homeDirectoryForCurrentUser.path
+            : (places.first?.places.first?.path ?? "~")
+        navigate(to: target)
     }
 
     func refresh() {
@@ -157,14 +247,78 @@ final class FinderModel: ObservableObject {
     func open(_ entry: RemoteFileEntry) {
         if entry.isDirectory || entry.kind == .symlink {
             navigate(to: entry.path)
-        } else {
-            quickLookPath = entry.path
+            return
+        }
+        if session.isLocal {
+            NSWorkspace.shared.open(URL(fileURLWithPath: entry.path))
+            return
+        }
+        Task { await openRemote(entry) }
+    }
+
+    private func openRemote(_ entry: RemoteFileEntry) async {
+        guard let connection = session.connectionRef else { return }
+        let destination = PreviewCache.localURL(for: entry, machineID: session.machine.id)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            NSWorkspace.shared.open(destination)
+            return
+        }
+        statusMessage = "Opening \(entry.name)…"
+        do {
+            try await connection.download(remotePath: entry.path, to: destination)
+            NSWorkspace.shared.open(destination)
+            flash("Opened \(entry.name)")
+        } catch {
+            errorMessage = error.localizedDescription
+            statusMessage = nil
         }
     }
 
     func openSelection() {
         guard let entry = selectedEntries.first else { return }
         open(entry)
+    }
+
+    func toggleQuickLook() {
+        if quickLookPath != nil {
+            quickLookPath = nil
+        } else {
+            quickLookPath = selectedEntries.first?.path ?? visibleEntries.first?.path
+        }
+    }
+
+    func measure(_ entry: RemoteFileEntry) async {
+        guard entry.isDirectory, folderSizes[entry.path] == nil else { return }
+        folderSizes[entry.path] = -1
+        if session.isLocal {
+            let count = (try? FileManager.default.contentsOfDirectory(atPath: entry.path).count)
+            folderCounts[entry.path] = count ?? 0
+        }
+        let result = await session.runCommand(
+            FileOperations.directorySizeCommand(path: entry.path), timeout: 60)
+        if case let .success(output) = result,
+            let kilobytes = Int64(output.trimmingCharacters(in: .whitespacesAndNewlines))
+        {
+            folderSizes[entry.path] = kilobytes
+        } else {
+            folderSizes[entry.path] = 0
+        }
+    }
+
+    func folderSummary(for entry: RemoteFileEntry) -> String {
+        guard let kilobytes = folderSizes[entry.path], kilobytes >= 0 else {
+            return "Calculating size…"
+        }
+        var text = ByteFormatter.string(kilobytes * 1024)
+        if let count = folderCounts[entry.path] {
+            text += ", \(count) item\(count == 1 ? "" : "s")"
+        }
+        return text
+    }
+
+    func renameSelection() {
+        guard let entry = selectedEntries.first else { return }
+        beginRename(entry)
     }
 
     func click(_ entry: RemoteFileEntry, modifiers: EventModifiers) {
@@ -219,13 +373,38 @@ final class FinderModel: ObservableObject {
         renameText = entry.name
     }
 
+    func dropPaths(_ urls: [URL], into directory: String) async {
+        guard !urls.isEmpty else { return }
+        if session.isLocal {
+            for url in urls {
+                let target = FileListing.join(
+                    parent: directory, name: url.lastPathComponent)
+                try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: target))
+            }
+            await load()
+            return
+        }
+        guard let connection = session.connectionRef else { return }
+        for url in urls {
+            statusMessage = "Uploading \(url.lastPathComponent)…"
+            let target = FileListing.join(parent: directory, name: url.lastPathComponent)
+            do {
+                try await connection.upload(localURL: url, toRemotePath: target)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+        flash("Upload finished")
+        await load()
+    }
+
     func commitRename() async {
         guard let renaming, let entry = entries.first(where: { $0.path == renaming }) else {
             return
         }
         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
         self.renaming = nil
-        guard !trimmed.isEmpty, trimmed != entry.name, !trimmed.contains("/") else { return }
+        guard RenameSelection.isValid(trimmed), trimmed != entry.name else { return }
         let target = FileListing.join(parent: path, name: trimmed)
         await run(FileOperations.renameCommand(path: entry.path, to: target), reload: true)
     }
@@ -337,26 +516,50 @@ final class FinderModel: ObservableObject {
         await load()
     }
 
-    func runSearch() async {
+    func searchQueryChanged() {
         let trimmed = searchQuery.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else {
             searchResults = nil
+            searchToken += 1
             return
         }
-        if session.isLocal {
-            let matches = entries.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
-            searchResults = matches
+        searchResults = entries.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
+        searchToken += 1
+        let token = searchToken
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard let self, token == searchToken, searchQuery == trimmed || !searchQuery.isEmpty
+            else { return }
+            await runDeepSearch(trimmed, token: token)
+        }
+    }
+
+    private func runDeepSearch(_ query: String, token: Int) async {
+        let shallow = entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        guard !session.isLocal else {
+            guard token == searchToken else { return }
+            searchResults = shallow
             return
         }
         let result = await session.runCommand(
-            FileOperations.searchCommand(path: path, query: trimmed), timeout: 45)
-        guard case let .success(output) = result else { return }
-        searchResults = output.split(separator: "\n").map { line in
+            FileOperations.searchCommand(path: path, query: query), timeout: 45)
+        guard token == searchToken, case let .success(output) = result else { return }
+        var seen = Set(shallow.map(\.path))
+        var combined = shallow
+        for line in output.split(separator: "\n") {
             let full = String(line)
-            return RemoteFileEntry(
-                name: (full as NSString).lastPathComponent, path: full, kind: .file,
-                sizeBytes: 0)
+            guard !full.isEmpty, seen.insert(full).inserted else { continue }
+            let isDirectory = entries.first { $0.path == full }?.isDirectory ?? false
+            combined.append(
+                RemoteFileEntry(
+                    name: (full as NSString).lastPathComponent, path: full,
+                    kind: isDirectory ? .directory : .file, sizeBytes: 0))
         }
+        searchResults = combined
+    }
+
+    func runSearch() async {
+        searchQueryChanged()
     }
 
     private func run(_ command: String, reload: Bool) async {

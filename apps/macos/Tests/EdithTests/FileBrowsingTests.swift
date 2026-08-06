@@ -186,3 +186,87 @@ import Testing
         }
     }
 }
+
+@Suite struct FilePlacesTests {
+    @Test func localSectionsCoverFavoritesAndVolumes() {
+        let home = URL(fileURLWithPath: "/Users/tester")
+        let sections = FilePlaces.localSections(
+            home: home, volumes: [URL(fileURLWithPath: "/Volumes/Backup")])
+        #expect(sections.map(\.title) == ["Favorites", "Locations"])
+        let favorites = sections[0].places
+        #expect(favorites.first?.path == "/Users/tester")
+        #expect(favorites.contains { $0.path == "/Users/tester/Downloads" })
+        #expect(sections[1].places.contains { $0.name == "Backup" })
+        #expect(sections[1].places.first?.path == "/")
+    }
+
+    @Test func listingQuotesPathsSoTildeMustBeResolvedFirst() {
+        #expect(FileListing.command(path: "~", showHidden: true).contains("'~'"))
+        #expect(FilePlaces.homeDirectoryCommand() == "echo $HOME")
+    }
+
+    @Test func remoteSectionsUseTheResolvedHome() {
+        let sections = FilePlaces.remoteSections(home: "/home/pulkit")
+        #expect(sections[0].places.first?.path == "/home/pulkit")
+        #expect(sections[0].places.contains { $0.path == "/home/pulkit/Documents" })
+        #expect(sections[1].places.contains { $0.path == "/var/log" })
+    }
+}
+
+@Suite struct FileClipboardTests {
+    @Test func copyAndMoveProduceTheRightCommand() {
+        let machine = UUID()
+        let copy = FileClipboard(paths: ["/a/x", "/a/y"], machineID: machine, operation: .copy)
+        #expect(copy.command(intoDirectory: "/dest") == "cp -a /a/x /a/y /dest")
+        let move = FileClipboard(paths: ["/a x"], machineID: machine, operation: .move)
+        #expect(move.command(intoDirectory: "/dest dir") == "mv '/a x' '/dest dir'")
+    }
+
+    @Test func emptyClipboardProducesNoCommand() {
+        let clipboard = FileClipboard(paths: [], machineID: UUID(), operation: .copy)
+        #expect(clipboard.command(intoDirectory: "/dest") == nil)
+    }
+}
+
+@Suite struct FileInfoSummaryTests {
+    @Test func describesOctalPermissions() {
+        #expect(FileInfoSummary.describe(mode: "755") == "755  ·  rwxr-xr-x")
+        #expect(FileInfoSummary.describe(mode: "644") == "644  ·  rw-r--r--")
+        #expect(FileInfoSummary.describe(mode: "") == "Unknown")
+        #expect(FileInfoSummary.describe(mode: "drwxr-xr-x") == "drwxr-xr-x")
+    }
+
+    @Test func summarizesAnEntry() {
+        let entry = RemoteFileEntry(
+            name: "notes.txt", path: "/home/p/notes.txt", kind: .file, sizeBytes: 2048,
+            modified: Date(timeIntervalSince1970: 1_754_000_000), mode: "644")
+        let summary = FileInfoSummary(entry: entry)
+        #expect(summary.kind == "TXT file")
+        #expect(summary.size == "2.0 KB")
+        #expect(summary.permissions.hasPrefix("644"))
+    }
+
+    @Test func foldersCanOverrideSize() {
+        let entry = RemoteFileEntry(
+            name: "src", path: "/home/p/src", kind: .directory, sizeBytes: 4096)
+        #expect(FileInfoSummary(entry: entry).size == "—")
+        #expect(FileInfoSummary(entry: entry, sizeOverride: "1.2 GB").size == "1.2 GB")
+    }
+}
+
+@Suite struct RenameSelectionTests {
+    @Test func selectsBaseNameWithoutExtension() {
+        let name = "report.final.pdf"
+        let range = RenameSelection.baseNameRange(of: name)
+        #expect(range.map { String(name[$0]) } == "report.final")
+        #expect(RenameSelection.baseNameRange(of: "README") == nil)
+    }
+
+    @Test func rejectsInvalidNames() {
+        #expect(RenameSelection.isValid("notes.txt"))
+        #expect(!RenameSelection.isValid(""))
+        #expect(!RenameSelection.isValid("   "))
+        #expect(!RenameSelection.isValid("a/b"))
+        #expect(!RenameSelection.isValid(".."))
+    }
+}

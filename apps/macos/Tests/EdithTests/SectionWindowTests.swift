@@ -12,6 +12,12 @@ import Testing
         #expect(!SectionWindowCommand.shouldDetach(.option))
     }
 
+    @Test func filesIsNotATabBecauseItOpensItsOwnWindow() {
+        #expect(!MachineTab.allCases.map(\.rawValue).contains("files"))
+        #expect(MachineTab.tabs(isLocal: true) == [.overview, .processes, .terminal])
+        #expect(MachineTab.tabs(isLocal: false).contains(.docker))
+    }
+
     @Test func everyVisibleSectionExceptAboutCanDetach() {
         let visible: [MainDestination] = [.home, .dashboard, .machines]
         let detachable = SectionWindowCommand.detachableDestinations(visibleHomeItems: visible)

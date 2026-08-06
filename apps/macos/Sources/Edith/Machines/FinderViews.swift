@@ -1,6 +1,39 @@
 import AppKit
 import EdithKit
 import SwiftUI
+import UniformTypeIdentifiers
+
+enum FileIcons {
+    private static var cache: [String: NSImage] = [:]
+
+    static func icon(for entry: RemoteFileEntry) -> NSImage {
+        if entry.isDirectory { return cached(key: "__folder", type: .folder) }
+        if entry.kind == .symlink { return cached(key: "__link", type: .symbolicLink) }
+        let ext = entry.fileExtension
+        guard !ext.isEmpty else { return cached(key: "__data", type: .data) }
+        if let type = UTType(filenameExtension: ext) {
+            return cached(key: ext, type: type)
+        }
+        return cached(key: "__data", type: .data)
+    }
+
+    private static func cached(key: String, type: UTType) -> NSImage {
+        if let existing = cache[key] { return existing }
+        let image = NSWorkspace.shared.icon(for: type)
+        cache[key] = image
+        return image
+    }
+}
+
+enum FinderClick {
+    static var currentModifiers: EventModifiers {
+        var modifiers = EventModifiers()
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.command) { modifiers.insert(.command) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        return modifiers
+    }
+}
 
 struct FinderIconView: View {
     @ObservedObject var model: FinderModel
@@ -33,6 +66,8 @@ private struct FinderIconCell: View {
     let entry: RemoteFileEntry
     let dark: Bool
     @State private var hovering = false
+    @State private var dropTargeted = false
+    @FocusState private var renameFocused: Bool
 
     private var selected: Bool { model.selection.contains(entry.path) }
 
@@ -49,21 +84,26 @@ private struct FinderIconCell: View {
         .background(
             RoundedRectangle(cornerRadius: UIScale.pt(8))
                 .fill(
-                    selected
-                        ? DashSkin.accent(dark).opacity(0.2)
-                        : (hovering ? DashSkin.inkFaint(dark).opacity(0.08) : .clear))
+                    dropTargeted
+                        ? DashSkin.accent(dark).opacity(0.38)
+                        : (selected
+                            ? DashSkin.accent(dark).opacity(0.2)
+                            : (hovering ? DashSkin.inkFaint(dark).opacity(0.08) : .clear)))
         )
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .onTapGesture(count: 2) { model.open(entry) }
-        .simultaneousGesture(
-            TapGesture().modifiers(.command).onEnded { model.click(entry, modifiers: .command) }
-        )
-        .simultaneousGesture(
-            TapGesture().modifiers(.shift).onEnded { model.click(entry, modifiers: .shift) }
-        )
-        .onTapGesture { model.click(entry, modifiers: []) }
+        .onTapGesture(count: 1) {
+            model.click(entry, modifiers: FinderClick.currentModifiers)
+        }
         .onDrag { model.itemProvider(for: entry) }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard entry.isDirectory else { return false }
+            Task { await model.dropPaths(urls, into: entry.path) }
+            return true
+        } isTargeted: { targeted in
+            dropTargeted = targeted && entry.isDirectory
+        }
         .contextMenu { FinderRowContextMenu(model: model, entry: entry) }
     }
 
@@ -74,6 +114,9 @@ private struct FinderIconCell: View {
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: UIScale.pt(11)))
                 .frame(width: UIScale.pt(model.iconSize + 30))
+                .focused($renameFocused)
+                .task { renameFocused = true }
+                .onExitCommand { model.renaming = nil }
                 .onSubmit { Task { await model.commitRename() } }
         } else {
             Text(entry.name)
@@ -160,6 +203,8 @@ private struct FinderListRow: View {
     let entry: RemoteFileEntry
     let dark: Bool
     @State private var hovering = false
+    @State private var dropTargeted = false
+    @FocusState private var renameFocused: Bool
 
     private var selected: Bool { model.selection.contains(entry.path) }
 
@@ -187,21 +232,26 @@ private struct FinderListRow: View {
         .padding(.horizontal, UIScale.pt(12))
         .padding(.vertical, UIScale.pt(4))
         .background(
-            selected
-                ? DashSkin.accent(dark).opacity(0.22)
-                : (hovering ? DashSkin.inkFaint(dark).opacity(0.07) : .clear)
+            dropTargeted
+                ? DashSkin.accent(dark).opacity(0.34)
+                : (selected
+                    ? DashSkin.accent(dark).opacity(0.22)
+                    : (hovering ? DashSkin.inkFaint(dark).opacity(0.07) : .clear))
         )
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .onTapGesture(count: 2) { model.open(entry) }
-        .simultaneousGesture(
-            TapGesture().modifiers(.command).onEnded { model.click(entry, modifiers: .command) }
-        )
-        .simultaneousGesture(
-            TapGesture().modifiers(.shift).onEnded { model.click(entry, modifiers: .shift) }
-        )
-        .onTapGesture { model.click(entry, modifiers: []) }
+        .onTapGesture(count: 1) {
+            model.click(entry, modifiers: FinderClick.currentModifiers)
+        }
         .onDrag { model.itemProvider(for: entry) }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard entry.isDirectory else { return false }
+            Task { await model.dropPaths(urls, into: entry.path) }
+            return true
+        } isTargeted: { targeted in
+            dropTargeted = targeted && entry.isDirectory
+        }
         .contextMenu { FinderRowContextMenu(model: model, entry: entry) }
     }
 
@@ -211,6 +261,9 @@ private struct FinderListRow: View {
             TextField("", text: $model.renameText)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: UIScale.pt(12)))
+                .focused($renameFocused)
+                .task { renameFocused = true }
+                .onExitCommand { model.renaming = nil }
                 .onSubmit { Task { await model.commitRename() } }
         } else {
             HStack(spacing: UIScale.pt(5)) {
@@ -232,6 +285,7 @@ private struct FinderListRow: View {
 struct QuickLookOverlay: View {
     @ObservedObject var model: FinderModel
     @Environment(\.colorScheme) private var scheme
+    @State private var shown = false
 
     private var dark: Bool { scheme == .dark }
 
@@ -241,51 +295,276 @@ struct QuickLookOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35)
+            Color.black.opacity(0.28)
                 .ignoresSafeArea()
-                .onTapGesture { model.quickLookPath = nil }
-            VStack(spacing: 0) {
-                HStack(spacing: UIScale.pt(10)) {
-                    Button {
-                        model.quickLookPath = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .buttonStyle(HoverButtonStyle())
-                    Text(entry?.name ?? "")
-                        .font(.system(size: UIScale.pt(12.5), weight: .medium))
-                        .foregroundStyle(DashSkin.ink(dark))
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if let entry, !entry.isDirectory {
-                        Text(ByteFormatter.string(entry.sizeBytes))
-                            .font(DashSkin.mono(10.5))
-                            .foregroundStyle(DashSkin.inkFaint(dark))
-                    }
-                    Button {
-                        model.moveSelection(by: -1, extend: false)
-                    } label: {
-                        Image(systemName: "chevron.up")
-                    }
-                    .buttonStyle(HoverButtonStyle())
-                    Button {
-                        model.moveSelection(by: 1, extend: false)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                    }
-                    .buttonStyle(HoverButtonStyle())
+                .onTapGesture { close() }
+            panel
+                .scaleEffect(shown ? 1 : 0.88)
+                .opacity(shown ? 1 : 0)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) { shown = true }
+            if let entry, entry.isDirectory { Task { await model.measure(entry) } }
+        }
+        .onChange(of: model.quickLookPath) { _, _ in
+            guard let entry, entry.isDirectory else { return }
+            Task { await model.measure(entry) }
+        }
+    }
+
+    private func close() {
+        withAnimation(.easeOut(duration: 0.16)) { shown = false }
+        model.quickLookPath = nil
+    }
+
+    private var panel: some View {
+        VStack(spacing: 0) {
+            header
+            Divider().opacity(0.4)
+            body(for: entry)
+        }
+        .frame(width: UIScale.pt(680), height: UIScale.pt(500))
+        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: UIScale.pt(16)))
+        .overlay {
+            RoundedRectangle(cornerRadius: UIScale.pt(16))
+                .strokeBorder(DashSkin.line(dark).opacity(0.7))
+        }
+        .shadow(color: .black.opacity(0.45), radius: UIScale.pt(34), y: 14)
+    }
+
+    private var header: some View {
+        HStack(spacing: UIScale.pt(10)) {
+            Button {
+                close()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Close (space)")
+            Spacer(minLength: 0)
+            Text(entry?.name ?? "")
+                .font(.system(size: UIScale.pt(12.5), weight: .medium))
+                .foregroundStyle(DashSkin.ink(dark))
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Button {
+                model.moveSelection(by: -1, extend: false)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Previous")
+            Button {
+                model.moveSelection(by: 1, extend: false)
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Next")
+            if let entry, !entry.isDirectory {
+                Button("Open") { model.open(entry) }
+                    .pointerCursor()
+                    .font(.system(size: UIScale.pt(11), weight: .medium))
+            }
+        }
+        .padding(.horizontal, UIScale.pt(12))
+        .padding(.vertical, UIScale.pt(9))
+    }
+
+    @ViewBuilder
+    private func body(for entry: RemoteFileEntry?) -> some View {
+        if let entry, entry.isDirectory {
+            folderSummary(entry)
+        } else {
+            FilePreviewPane(entry: entry, session: model.session)
+        }
+    }
+
+    private func folderSummary(_ entry: RemoteFileEntry) -> some View {
+        HStack(spacing: UIScale.pt(24)) {
+            Image(nsImage: FileIcons.icon(for: entry))
+                .resizable()
+                .interpolation(.high)
+                .frame(width: UIScale.pt(150), height: UIScale.pt(150))
+            VStack(alignment: .leading, spacing: UIScale.pt(8)) {
+                Text(entry.name)
+                    .font(DashSkin.serif(22))
+                    .foregroundStyle(DashSkin.ink(dark))
+                    .lineLimit(2)
+                Text(model.folderSummary(for: entry))
+                    .font(.system(size: UIScale.pt(12)))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
+                if let modified = entry.modified {
+                    Text(
+                        "Last modified "
+                            + modified.formatted(date: .abbreviated, time: .shortened)
+                    )
+                    .font(.system(size: UIScale.pt(12)))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
                 }
-                .padding(UIScale.pt(12))
-                Divider()
-                FilePreviewPane(entry: entry, session: model.session)
+                Button("Open Folder") { model.open(entry) }
+                    .pointerCursor()
+                    .padding(.top, UIScale.pt(4))
             }
-            .frame(width: UIScale.pt(660), height: UIScale.pt(460))
-            .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(14)))
-            .overlay {
-                RoundedRectangle(cornerRadius: UIScale.pt(14))
-                    .strokeBorder(DashSkin.line(dark))
+            Spacer(minLength: 0)
+        }
+        .padding(UIScale.pt(28))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+}
+
+struct FinderSidebar: View {
+    @ObservedObject var model: FinderModel
+    @Environment(\.colorScheme) private var scheme
+
+    private var dark: Bool { scheme == .dark }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: UIScale.pt(14)) {
+                ForEach(model.places) { section in
+                    VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                        Text(section.title.uppercased())
+                            .font(.system(size: UIScale.pt(9.5), weight: .semibold))
+                            .tracking(UIScale.pt(0.6))
+                            .foregroundStyle(DashSkin.inkFaint(dark))
+                            .padding(.horizontal, UIScale.pt(10))
+                            .padding(.bottom, UIScale.pt(2))
+                        ForEach(section.places) { place in
+                            FinderSidebarRow(model: model, place: place, dark: dark)
+                        }
+                    }
+                }
             }
-            .shadow(color: .black.opacity(0.4), radius: UIScale.pt(30), y: 12)
+            .padding(.vertical, UIScale.pt(12))
+        }
+        .background(.thinMaterial)
+    }
+}
+
+private struct FinderSidebarRow: View {
+    @ObservedObject var model: FinderModel
+    let place: FilePlace
+    let dark: Bool
+    @State private var hovering = false
+    @State private var targeted = false
+
+    private var selected: Bool { model.path == place.path }
+
+    var body: some View {
+        Button {
+            model.navigate(to: place.path)
+        } label: {
+            HStack(spacing: UIScale.pt(7)) {
+                Image(systemName: place.symbol)
+                    .font(.system(size: UIScale.pt(11)))
+                    .foregroundStyle(
+                        selected ? DashSkin.accent(dark) : DashSkin.inkSoft(dark)
+                    )
+                    .frame(width: UIScale.pt(15))
+                Text(place.name)
+                    .font(.system(size: UIScale.pt(12)))
+                    .foregroundStyle(DashSkin.ink(dark))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, UIScale.pt(10))
+            .padding(.vertical, UIScale.pt(5))
+            .background(
+                RoundedRectangle(cornerRadius: UIScale.pt(6))
+                    .fill(
+                        selected
+                            ? DashSkin.accent(dark).opacity(0.18)
+                            : (targeted
+                                ? DashSkin.accent(dark).opacity(0.28)
+                                : (hovering
+                                    ? DashSkin.inkFaint(dark).opacity(0.08) : .clear))
+                    )
+                    .padding(.horizontal, UIScale.pt(6))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering = $0 }
+        .dropDestination(for: URL.self) { urls, _ in
+            Task { await model.dropPaths(urls, into: place.path) }
+            return true
+        } isTargeted: {
+            targeted = $0
+        }
+    }
+}
+
+struct FinderInfoSheet: View {
+    @ObservedObject var model: FinderModel
+    let entry: RemoteFileEntry
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var scheme
+
+    private var dark: Bool { scheme == .dark }
+
+    var body: some View {
+        let summary = model.infoSummary(for: entry)
+        VStack(alignment: .leading, spacing: UIScale.pt(0)) {
+            HStack(spacing: UIScale.pt(12)) {
+                Image(nsImage: FileIcons.icon(for: entry))
+                    .resizable()
+                    .frame(width: UIScale.pt(52), height: UIScale.pt(52))
+                VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                    Text(summary.name)
+                        .font(DashSkin.serif(17))
+                        .foregroundStyle(DashSkin.ink(dark))
+                        .lineLimit(2)
+                    Text(summary.kind)
+                        .font(.system(size: UIScale.pt(11.5)))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(UIScale.pt(16))
+            Divider()
+            VStack(alignment: .leading, spacing: UIScale.pt(9)) {
+                infoRow("Size", summary.size)
+                infoRow("Where", (summary.path as NSString).deletingLastPathComponent)
+                infoRow("Modified", summary.modified)
+                infoRow("Permissions", summary.permissions)
+                if let target = summary.linkTarget {
+                    infoRow("Links to", target)
+                }
+            }
+            .padding(UIScale.pt(16))
+            Spacer(minLength: 0)
+            Divider()
+            HStack {
+                Button("Copy Path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(summary.path, forType: .string)
+                }
+                .pointerCursor()
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+                    .pointerCursor()
+            }
+            .padding(UIScale.pt(14))
+        }
+        .frame(width: UIScale.pt(420), height: UIScale.pt(360))
+        .background(DashSkin.paper(dark))
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: UIScale.pt(10)) {
+            Text(label)
+                .font(.system(size: UIScale.pt(11.5), weight: .medium))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .frame(width: UIScale.pt(88), alignment: .trailing)
+            Text(value)
+                .font(.system(size: UIScale.pt(11.5)))
+                .foregroundStyle(DashSkin.ink(dark))
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
     }
 }

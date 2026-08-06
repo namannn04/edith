@@ -18,8 +18,15 @@ struct FinderWindowView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack(spacing: 0) {
+                if model.showSidebar {
+                    FinderSidebar(model: model)
+                        .frame(width: UIScale.pt(178))
+                    Divider()
+                }
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             Divider()
             pathBar
             Divider().opacity(0.5)
@@ -30,6 +37,9 @@ struct FinderWindowView: View {
         .focused($listFocused)
         .task {
             listFocused = true
+            model.connectIfNeeded()
+            await model.waitForConnection()
+            await model.loadPlaces()
             await model.load()
         }
         .onChange(of: model.session.state.isConnected) { _, connected in
@@ -41,11 +51,8 @@ struct FinderWindowView: View {
             }
         }
         .onKeyPress(.space) {
-            guard model.quickLookPath == nil else {
-                model.quickLookPath = nil
-                return .handled
-            }
-            model.quickLookPath = model.selectedEntries.first?.path
+            guard model.renaming == nil else { return .ignored }
+            model.toggleQuickLook()
             return .handled
         }
         .onKeyPress(.escape) {
@@ -56,14 +63,28 @@ struct FinderWindowView: View {
         .onKeyPress(.upArrow) { arrow(-1) }
         .onKeyPress(.downArrow) { arrow(1) }
         .onKeyPress(.return) {
-            guard let entry = model.selectedEntries.first else { return .ignored }
-            model.beginRename(entry)
+            guard model.renaming == nil, !model.selection.isEmpty else { return .ignored }
+            model.renameSelection()
+            return .handled
+        }
+        .onKeyPress(.downArrow, phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            model.openSelection()
+            return .handled
+        }
+        .onKeyPress(.upArrow, phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            model.goUp()
             return .handled
         }
         .onKeyPress(characters: .alphanumerics) { press in
-            guard press.modifiers.isEmpty else { return .ignored }
+            guard press.modifiers.isEmpty, model.renaming == nil else { return .ignored }
             model.typeSelect(press.characters)
             return .handled
+        }
+        .background(shortcuts)
+        .sheet(item: $model.infoTarget) { entry in
+            FinderInfoSheet(model: model, entry: entry)
         }
         .confirmationDialog(
             "Delete \(model.selection.count) item\(model.selection.count == 1 ? "" : "s")?",
@@ -83,8 +104,48 @@ struct FinderWindowView: View {
         return .handled
     }
 
+    private var shortcuts: some View {
+        ZStack {
+            Button("") { model.setViewMode(.icon) }.keyboardShortcut("1", modifiers: .command)
+            Button("") { model.setViewMode(.list) }.keyboardShortcut("2", modifiers: .command)
+            Button("") { model.goBack() }.keyboardShortcut("[", modifiers: .command)
+            Button("") { model.goForward() }.keyboardShortcut("]", modifiers: .command)
+            Button("") { model.selectAll() }.keyboardShortcut("a", modifiers: .command)
+            Button("") { model.refresh() }.keyboardShortcut("r", modifiers: .command)
+            Button("") { model.toggleHidden() }.keyboardShortcut(
+                ".", modifiers: [.command, .shift])
+            Button("") { Task { await model.newFolder() } }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            Button("") { model.copySelection(operation: .copy) }
+                .keyboardShortcut("c", modifiers: .command)
+            Button("") { model.copySelection(operation: .move) }
+                .keyboardShortcut("x", modifiers: .command)
+            Button("") { Task { await model.paste() } }.keyboardShortcut("v", modifiers: .command)
+            Button("") { model.copyPaths() }
+                .keyboardShortcut("c", modifiers: [.command, .option])
+            Button("") { model.showInfo() }.keyboardShortcut("i", modifiers: .command)
+            Button("") { Task { await model.trashSelection(permanently: false) } }
+                .keyboardShortcut(.delete, modifiers: .command)
+            Button("") { confirmDelete = !model.selection.isEmpty }
+                .keyboardShortcut(.delete, modifiers: [.command, .option])
+            Button("") { model.showSidebar.toggle() }
+                .keyboardShortcut("s", modifiers: [.command, .control])
+            Button("") { model.toggleQuickLook() }.keyboardShortcut("y", modifiers: .command)
+        }
+        .opacity(0)
+        .allowsHitTesting(false)
+    }
+
     private var toolbar: some View {
         HStack(spacing: UIScale.pt(8)) {
+            Button {
+                model.showSidebar.toggle()
+            } label: {
+                Image(systemName: "sidebar.left")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Hide or show the sidebar (⌃⌘S)")
+
             HStack(spacing: UIScale.pt(2)) {
                 Button {
                     model.goBack()
@@ -155,9 +216,8 @@ struct FinderWindowView: View {
 
             SearchField(placeholder: "Search this folder", text: $model.searchQuery)
                 .frame(width: UIScale.pt(200))
-                .onSubmit { Task { await model.runSearch() } }
-                .onChange(of: model.searchQuery) { _, value in
-                    if value.isEmpty { model.searchResults = nil }
+                .onChange(of: model.searchQuery) { _, _ in
+                    model.searchQueryChanged()
                 }
 
             Menu {
@@ -270,6 +330,12 @@ struct FinderWindowView: View {
             Spacer(minLength: 0)
             if model.loading {
                 ProgressView().controlSize(.small).scaleEffect(0.6)
+            }
+            if model.viewMode == .icon {
+                Slider(value: $model.iconSize, in: 40...128)
+                    .controlSize(.mini)
+                    .frame(width: UIScale.pt(90))
+                    .help("Icon size")
             }
         }
         .padding(.horizontal, UIScale.pt(12))

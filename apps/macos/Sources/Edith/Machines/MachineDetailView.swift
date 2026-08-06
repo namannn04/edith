@@ -50,6 +50,24 @@ struct MachineDetailView: View {
                 .pointerCursor()
                 .help("\(item.title) (⌘-click to open this machine in its own window)")
             }
+            Button {
+                FinderWindow.open(session: session)
+            } label: {
+                HStack(spacing: UIScale.pt(6)) {
+                    Image(systemName: "folder")
+                        .font(.system(size: UIScale.pt(11), weight: .medium))
+                    Text("Files")
+                        .font(.system(size: UIScale.pt(12.5), weight: .medium))
+                }
+                .padding(.horizontal, UIScale.pt(11))
+                .padding(.vertical, UIScale.pt(6))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+            .help("Browse files in their own window")
+
             Spacer(minLength: 0)
             ConnectionPill(session: session, dark: dark)
         }
@@ -63,7 +81,6 @@ struct MachineDetailView: View {
             switch tab {
             case .overview: MachineOverviewTab(session: session)
             case .processes: MachineProcessesTab(session: session)
-            case .files: MachineFilesTab(session: session)
             case .docker: MachineDockerTab(session: session)
             case .terminal: MachineTerminalTab(session: session)
             case .tools: MachineToolsTab(session: session, model: model)
