@@ -20,6 +20,18 @@ private func write(_ name: String, into root: URL, contents: String = "x") throw
         to: root.appendingPathComponent(name), atomically: true, encoding: .utf8)
 }
 
+@MainActor
+private func eventually(
+    timeout: Duration = .seconds(10), _ condition: () -> Bool
+) async -> Bool {
+    let deadline = ContinuousClock.now + timeout
+    while ContinuousClock.now < deadline {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(25))
+    }
+    return condition()
+}
+
 private func resolved(_ path: String) -> String {
     (path as NSString).resolvingSymlinksInPath
 }
@@ -177,9 +189,9 @@ private func exists(_ name: String, in root: URL) -> Bool {
 
         guard let folder = model.entries.first(where: { $0.name == "inner" }) else { return }
         model.open(folder)
-        try await Task.sleep(for: .milliseconds(400))
 
-        #expect(resolved(model.path) == resolved(inner.path))
+        #expect(await eventually { resolved(model.path) == resolved(inner.path) })
+        await model.load()
         #expect(model.entries.contains { $0.name == "deep.txt" })
     }
 
@@ -191,17 +203,14 @@ private func exists(_ name: String, in root: URL) -> Bool {
         await model.load()
 
         model.navigate(to: inner.path)
-        try await Task.sleep(for: .milliseconds(300))
-        #expect(model.canGoBack)
+        #expect(await eventually { model.canGoBack })
 
         model.goBack()
-        try await Task.sleep(for: .milliseconds(300))
-        #expect(resolved(model.path) == resolved(root.path))
+        #expect(await eventually { resolved(model.path) == resolved(root.path) })
         #expect(model.canGoForward)
 
         model.goForward()
-        try await Task.sleep(for: .milliseconds(300))
-        #expect(resolved(model.path) == resolved(inner.path))
+        #expect(await eventually { resolved(model.path) == resolved(inner.path) })
     }
 
     @Test func navigatingClearsTheOldListingSoNoStaleRowsShow() async throws {
@@ -232,7 +241,7 @@ private func exists(_ name: String, in root: URL) -> Bool {
         model.selection = Set(model.entries.filter { $0.name == "moving.txt" }.map(\.path))
         model.copySelection(operation: .move)
         model.navigate(to: inner.path)
-        try await Task.sleep(for: .milliseconds(300))
+        await model.load()
         await model.paste()
 
         #expect(exists("inner/moving.txt", in: root))
@@ -250,7 +259,7 @@ private func exists(_ name: String, in root: URL) -> Bool {
         model.selection = Set(model.entries.filter { $0.name == "copying.txt" }.map(\.path))
         model.copySelection(operation: .copy)
         model.navigate(to: inner.path)
-        try await Task.sleep(for: .milliseconds(300))
+        await model.load()
         await model.paste()
 
         #expect(exists("copying.txt", in: root))
@@ -268,9 +277,8 @@ private func exists(_ name: String, in root: URL) -> Bool {
         let source = model.entries.first { $0.name == "dragged.txt" }?.path ?? ""
         await model.perform(
             intent: .moveWithinMachine([source]), destination: inner.path)
-        try await Task.sleep(for: .milliseconds(300))
 
-        #expect(exists("inner/dragged.txt", in: root))
+        #expect(await eventually { exists("inner/dragged.txt", in: root) })
         #expect(!exists("dragged.txt", in: root))
     }
 }
@@ -287,9 +295,9 @@ private func exists(_ name: String, in root: URL) -> Bool {
 
         model.searchQuery = "needle"
         model.searchQueryChanged()
-        try await Task.sleep(for: .milliseconds(900))
 
-        #expect(model.searchResults?.contains { $0.name == "needle.txt" } == true)
+        #expect(
+            await eventually { model.searchResults?.contains { $0.name == "needle.txt" } == true })
     }
 
     @Test func clearingTheSearchRestoresTheListing() async throws {
@@ -301,13 +309,11 @@ private func exists(_ name: String, in root: URL) -> Bool {
 
         model.searchQuery = "alpha"
         model.searchQueryChanged()
-        try await Task.sleep(for: .milliseconds(400))
-        #expect(model.visibleEntries.count == 1)
+        #expect(await eventually { model.visibleEntries.count == 1 })
 
         model.searchQuery = ""
         model.searchQueryChanged()
-        try await Task.sleep(for: .milliseconds(400))
-        #expect(model.searchResults == nil)
+        #expect(await eventually { model.searchResults == nil })
         #expect(model.visibleEntries.count == 2)
     }
 }
@@ -434,7 +440,7 @@ extension FinderClipboardTests {
         model.selection = Set(model.entries.filter { $0.name == "same.txt" }.map(\.path))
         model.copySelection(operation: .copy)
         model.navigate(to: inner.path)
-        try await Task.sleep(for: .milliseconds(300))
+        await model.load()
         await model.paste()
 
         #expect(model.pendingConflict != nil)
@@ -552,8 +558,7 @@ extension FinderClipboardTests {
 
         let source = model.entries.first { $0.name == "moved.txt" }?.path ?? ""
         await model.perform(intent: .moveWithinMachine([source]), destination: inner.path)
-        try await Task.sleep(for: .milliseconds(200))
-        #expect(exists("inner/moved.txt", in: root))
+        #expect(await eventually { exists("inner/moved.txt", in: root) })
 
         await model.undoLastOperation()
         #expect(exists("moved.txt", in: root))
