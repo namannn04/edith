@@ -1,12 +1,14 @@
 import AppKit
 import EdithKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct FinderWindowView: View {
     @StateObject private var model: FinderModel
     @Environment(\.colorScheme) private var scheme
     @State private var confirmDelete = false
     @FocusState private var listFocused: Bool
+    @FocusState private var searchFocused: Bool
 
     private var dark: Bool { scheme == .dark }
 
@@ -50,41 +52,18 @@ struct FinderWindowView: View {
                 QuickLookOverlay(model: model)
             }
         }
-        .onKeyPress(.space) {
-            guard model.renaming == nil else { return .ignored }
-            model.toggleQuickLook()
-            return .handled
-        }
-        .onKeyPress(.escape) {
-            guard model.quickLookPath != nil else { return .ignored }
-            model.quickLookPath = nil
-            return .handled
-        }
-        .onKeyPress(.upArrow) { arrow(-1) }
-        .onKeyPress(.downArrow) { arrow(1) }
-        .onKeyPress(.return) {
-            guard model.renaming == nil, !model.selection.isEmpty else { return .ignored }
-            model.renameSelection()
-            return .handled
-        }
-        .onKeyPress(.downArrow, phases: .down) { press in
-            guard press.modifiers.contains(.command) else { return .ignored }
-            model.openSelection()
-            return .handled
-        }
-        .onKeyPress(.upArrow, phases: .down) { press in
-            guard press.modifiers.contains(.command) else { return .ignored }
-            model.goUp()
-            return .handled
-        }
-        .onKeyPress(characters: .alphanumerics) { press in
-            guard press.modifiers.isEmpty, model.renaming == nil else { return .ignored }
-            model.typeSelect(press.characters)
-            return .handled
-        }
+        .background(
+            FinderKeyCatcher(isEditing: model.renaming != nil) { key in
+                handle(key)
+            }
+            .allowsHitTesting(false)
+        )
         .background(shortcuts)
         .sheet(item: $model.infoTarget) { entry in
             FinderInfoSheet(model: model, entry: entry)
+        }
+        .sheet(item: $model.pendingConflict) { conflict in
+            FinderConflictSheet(model: model, conflict: conflict)
         }
         .confirmationDialog(
             "Delete \(model.selection.count) item\(model.selection.count == 1 ? "" : "s")?",
@@ -99,9 +78,44 @@ struct FinderWindowView: View {
         }
     }
 
-    private func arrow(_ offset: Int) -> KeyPress.Result {
-        model.moveSelection(by: offset, extend: NSEvent.modifierFlags.contains(.shift))
-        return .handled
+    private func handle(_ key: FinderKey) -> Bool {
+        switch key {
+        case .rename:
+            guard !model.selection.isEmpty else { return false }
+            model.renameSelection()
+        case .openSelection: model.openSelection()
+        case .quickLook: model.toggleQuickLook()
+        case let .moveUp(extend): model.moveSelection(by: -1, extend: extend)
+        case let .moveDown(extend): model.moveSelection(by: 1, extend: extend)
+        case .enclosingFolder: model.goUp()
+        case .back: model.goBack()
+        case .forward: model.goForward()
+        case .selectAll: model.selectAll()
+        case .trash: Task { await model.trashSelection(permanently: false) }
+        case .deleteImmediately: confirmDelete = !model.selection.isEmpty
+        case .newFolder: Task { await model.newFolder() }
+        case .copy: model.copySelection(operation: .copy)
+        case .cut: model.copySelection(operation: .move)
+        case .paste: Task { await model.paste() }
+        case .copyPath: model.copyPaths()
+        case .info: model.showInfo()
+        case .refresh: model.refresh()
+        case .toggleHidden: model.toggleHidden()
+        case .toggleSidebar: model.showSidebar.toggle()
+        case .iconView: model.setViewMode(.icon)
+        case .listView: model.setViewMode(.list)
+        case .focusSearch: searchFocused = true
+        case .cancel:
+            if model.quickLookPath != nil {
+                model.quickLookPath = nil
+            } else if model.renaming != nil {
+                model.renaming = nil
+            } else {
+                model.selection = []
+            }
+        case let .type(characters): model.typeSelect(characters)
+        }
+        return true
     }
 
     private var shortcuts: some View {
@@ -216,6 +230,7 @@ struct FinderWindowView: View {
 
             SearchField(placeholder: "Search this folder", text: $model.searchQuery)
                 .frame(width: UIScale.pt(200))
+                .focused($searchFocused)
                 .onChange(of: model.searchQuery) { _, _ in
                     model.searchQueryChanged()
                 }
@@ -273,8 +288,16 @@ struct FinderWindowView: View {
                     .foregroundStyle(DashSkin.inkFaint(dark))
             }
         }
-        .dropDestination(for: URL.self) { urls, _ in
-            Task { await model.upload(urls) }
+        .onDrop(
+            of: [MachineItemsPayload.typeIdentifier, UTType.fileURL.identifier],
+            isTargeted: nil
+        ) { providers in
+            let option = NSEvent.modifierFlags.contains(.option)
+            let destination = model.path
+            Task {
+                await model.handleDrop(
+                    providers: providers, destination: destination, optionHeld: option)
+            }
             return true
         }
     }

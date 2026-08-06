@@ -20,7 +20,16 @@ final class FinderModel: ObservableObject {
     @Published var places: [FilePlaceSection] = []
     @Published var infoTarget: RemoteFileEntry?
     @Published var showSidebar = true
+    @Published var progress: FileOperationProgress?
+    @Published var pendingConflict: PendingConflict?
     static var clipboard: FileClipboard?
+
+    struct PendingConflict: Identifiable {
+        let id = UUID()
+        var intent: DropIntent
+        var destination: String
+        var names: [String]
+    }
 
     @AppStorage("finderViewMode", store: SharedDefaults.store) var viewModeRaw =
         FileViewMode.list.rawValue
@@ -373,31 +382,6 @@ final class FinderModel: ObservableObject {
         renameText = entry.name
     }
 
-    func dropPaths(_ urls: [URL], into directory: String) async {
-        guard !urls.isEmpty else { return }
-        if session.isLocal {
-            for url in urls {
-                let target = FileListing.join(
-                    parent: directory, name: url.lastPathComponent)
-                try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: target))
-            }
-            await load()
-            return
-        }
-        guard let connection = session.connectionRef else { return }
-        for url in urls {
-            statusMessage = "Uploading \(url.lastPathComponent)…"
-            let target = FileListing.join(parent: directory, name: url.lastPathComponent)
-            do {
-                try await connection.upload(localURL: url, toRemotePath: target)
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
-        flash("Upload finished")
-        await load()
-    }
-
     func commitRename() async {
         guard let renaming, let entry = entries.first(where: { $0.path == renaming }) else {
             return
@@ -570,6 +554,155 @@ final class FinderModel: ObservableObject {
         if reload { await load() }
     }
 
+    func dragPayload() -> MachineItemsPayload {
+        MachineItemsPayload(
+            machineID: session.machine.id, paths: selectedEntries.map(\.path),
+            isLocal: session.isLocal)
+    }
+
+    func handleDrop(
+        providers: [NSItemProvider], destination: String, optionHeld: Bool
+    ) async {
+        var payload: MachineItemsPayload?
+        var localPaths: [String] = []
+        for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(MachineItemsPayload.typeIdentifier) {
+                if let data = await provider.loadDataSafely(
+                    forTypeIdentifier: MachineItemsPayload.typeIdentifier)
+                {
+                    payload = MachineItemsPayload.decode(data)
+                }
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                if let data = await provider.loadDataSafely(
+                    forTypeIdentifier: UTType.fileURL.identifier),
+                    let url = URL(dataRepresentation: data, relativeTo: nil)
+                {
+                    localPaths.append(url.path)
+                }
+            }
+        }
+        guard
+            let intent = DropResolver.intent(
+                payload: payload, fileURLPaths: localPaths,
+                destinationMachine: session.machine.id, optionHeld: optionHeld)
+        else { return }
+        await perform(intent: intent, destination: destination)
+    }
+
+    func perform(intent: DropIntent, destination: String) async {
+        guard DropResolver.isDropAllowed(paths: intent.paths, destination: destination) else {
+            return
+        }
+        let names = intent.paths.map { ($0 as NSString).lastPathComponent }
+        let existing = destination == path ? entries : []
+        let clashes = NameConflicts.conflicting(names: names, existing: existing)
+        if !clashes.isEmpty {
+            pendingConflict = PendingConflict(
+                intent: intent, destination: destination, names: clashes)
+            return
+        }
+        await commit(intent: intent, destination: destination, resolutions: [:])
+    }
+
+    func commit(
+        intent: DropIntent, destination: String,
+        resolutions: [String: NameConflictResolution]
+    ) async {
+        switch intent {
+        case .moveWithinMachine, .copyWithinMachine:
+            let existing = destination == path ? entries : []
+            guard
+                let command = NameConflicts.command(
+                    intent: intent, destination: destination, resolutions: resolutions,
+                    existing: existing)
+            else { return }
+            progress = FileOperationProgress(
+                title: intent.isMove ? "Moving" : "Copying", total: intent.paths.count)
+            await run(command, reload: true)
+            progress = nil
+        case let .uploadLocalFiles(paths):
+            await uploadPaths(paths.map { URL(fileURLWithPath: $0) }, into: destination)
+        case let .transferBetweenMachines(from, paths):
+            await transfer(paths: paths, fromMachine: from, into: destination)
+        }
+    }
+
+    private func transfer(paths: [String], fromMachine: UUID, into destination: String) async {
+        guard let source = MachinesModel.shared.sessions[fromMachine] else { return }
+        progress = FileOperationProgress(title: "Transferring", total: paths.count)
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        var completed = 0
+        for path in paths {
+            let name = (path as NSString).lastPathComponent
+            let local = staging.appendingPathComponent(name)
+            if source.isLocal {
+                try? FileManager.default.copyItem(at: URL(fileURLWithPath: path), to: local)
+            } else if let connection = source.connectionRef {
+                try? await connection.download(remotePath: path, to: local)
+            }
+            if session.isLocal {
+                try? FileManager.default.moveItem(
+                    at: local,
+                    to: URL(fileURLWithPath: FileListing.join(parent: destination, name: name)))
+            } else if let connection = session.connectionRef {
+                try? await connection.upload(
+                    localURL: local,
+                    toRemotePath: FileListing.join(parent: destination, name: name))
+            }
+            completed += 1
+            progress = FileOperationProgress(
+                title: "Transferring", completed: completed, total: paths.count)
+        }
+        try? FileManager.default.removeItem(at: staging)
+        progress = nil
+        await load()
+    }
+
+    private func uploadPaths(_ urls: [URL], into destination: String) async {
+        guard !urls.isEmpty else { return }
+        progress = FileOperationProgress(title: "Uploading", total: urls.count)
+        if session.isLocal {
+            for url in urls {
+                let target = FileListing.join(
+                    parent: destination, name: url.lastPathComponent)
+                try? FileManager.default.copyItem(at: url, to: URL(fileURLWithPath: target))
+            }
+        } else if let connection = session.connectionRef {
+            var completed = 0
+            for url in urls {
+                let target = FileListing.join(
+                    parent: destination, name: url.lastPathComponent)
+                try? await connection.upload(localURL: url, toRemotePath: target)
+                completed += 1
+                progress = FileOperationProgress(
+                    title: "Uploading", completed: completed, total: urls.count)
+            }
+        }
+        progress = nil
+        await load()
+    }
+
+    func moveSelection(into destination: String) async {
+        let paths = selectedEntries.map(\.path)
+        guard !paths.isEmpty else { return }
+        await perform(intent: .moveWithinMachine(paths), destination: destination)
+    }
+
+    func dragProvider(for entry: RemoteFileEntry) -> NSItemProvider {
+        let provider = itemProvider(for: entry)
+        if let data = dragPayload().encoded() {
+            provider.registerDataRepresentation(
+                forTypeIdentifier: MachineItemsPayload.typeIdentifier, visibility: .ownProcess
+            ) { completion in
+                completion(data, nil)
+                return nil
+            }
+        }
+        return provider
+    }
+
     func itemProvider(for entry: RemoteFileEntry) -> NSItemProvider {
         if session.isLocal {
             return NSItemProvider(contentsOf: URL(fileURLWithPath: entry.path))
@@ -616,4 +749,21 @@ enum FinderTransferError: LocalizedError {
     case notConnected
 
     var errorDescription: String? { "The machine is not connected." }
+}
+
+extension DropIntent {
+    var isMove: Bool {
+        if case .moveWithinMachine = self { return true }
+        return false
+    }
+}
+
+extension NSItemProvider {
+    func loadDataSafely(forTypeIdentifier identifier: String) async -> Data? {
+        await withCheckedContinuation { continuation in
+            _ = loadDataRepresentation(forTypeIdentifier: identifier) { data, _ in
+                continuation.resume(returning: data)
+            }
+        }
+    }
 }

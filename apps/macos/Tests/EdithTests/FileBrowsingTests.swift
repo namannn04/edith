@@ -270,3 +270,114 @@ import Testing
         #expect(!RenameSelection.isValid(".."))
     }
 }
+
+@Suite struct DropResolverTests {
+    private let machineA = UUID()
+    private let machineB = UUID()
+
+    @Test func sameMachineDragMovesUnlessOptionHeld() {
+        let payload = MachineItemsPayload(machineID: machineA, paths: ["/a/x"], isLocal: false)
+        #expect(
+            DropResolver.intent(
+                payload: payload, fileURLPaths: [], destinationMachine: machineA,
+                optionHeld: false) == .moveWithinMachine(["/a/x"]))
+        #expect(
+            DropResolver.intent(
+                payload: payload, fileURLPaths: [], destinationMachine: machineA,
+                optionHeld: true) == .copyWithinMachine(["/a/x"]))
+    }
+
+    @Test func crossMachineDragTransfers() {
+        let payload = MachineItemsPayload(machineID: machineA, paths: ["/a/x"], isLocal: false)
+        #expect(
+            DropResolver.intent(
+                payload: payload, fileURLPaths: [], destinationMachine: machineB,
+                optionHeld: false) == .transferBetweenMachines(from: machineA, paths: ["/a/x"]))
+    }
+
+    @Test func externalFilesUpload() {
+        #expect(
+            DropResolver.intent(
+                payload: nil, fileURLPaths: ["/Users/p/a.txt"], destinationMachine: machineA,
+                optionHeld: false) == .uploadLocalFiles(["/Users/p/a.txt"]))
+        #expect(
+            DropResolver.intent(
+                payload: nil, fileURLPaths: [], destinationMachine: machineA, optionHeld: false)
+                == nil)
+    }
+
+    @Test func refusesDropsOntoSelfParentOrDescendant() {
+        #expect(!DropResolver.isDropAllowed(paths: ["/a/src"], destination: "/a/src"))
+        #expect(!DropResolver.isDropAllowed(paths: ["/a/src"], destination: "/a/src/deep"))
+        #expect(!DropResolver.isDropAllowed(paths: ["/a/src/x.txt"], destination: "/a/src"))
+        #expect(DropResolver.isDropAllowed(paths: ["/a/src/x.txt"], destination: "/b"))
+    }
+}
+
+@Suite struct NameConflictTests {
+    private let existing = [
+        RemoteFileEntry(name: "a.txt", path: "/d/a.txt", kind: .file, sizeBytes: 1),
+        RemoteFileEntry(name: "a 2.txt", path: "/d/a 2.txt", kind: .file, sizeBytes: 1),
+    ]
+
+    @Test func detectsConflictsAndPicksFreeNames() {
+        #expect(
+            NameConflicts.conflicting(names: ["a.txt", "b.txt"], existing: existing)
+                == ["a.txt"])
+        #expect(NameConflicts.uniqueName(for: "a.txt", existing: existing) == "a 3.txt")
+        #expect(NameConflicts.uniqueName(for: "b.txt", existing: existing) == "b.txt")
+    }
+
+    @Test func buildsMoveCommandsHonouringResolutions() {
+        let intent = DropIntent.moveWithinMachine(["/src/a.txt", "/src/b.txt"])
+        let replace = NameConflicts.command(
+            intent: intent, destination: "/d", resolutions: ["a.txt": .replace],
+            existing: existing)
+        #expect(replace == "mv -f /src/a.txt /d/a.txt && mv -f /src/b.txt /d/b.txt")
+
+        let skip = NameConflicts.command(
+            intent: intent, destination: "/d", resolutions: ["a.txt": .skip], existing: existing)
+        #expect(skip == "mv -f /src/b.txt /d/b.txt")
+
+        let keep = NameConflicts.command(
+            intent: intent, destination: "/d", resolutions: ["a.txt": .keepBoth],
+            existing: existing)
+        #expect(keep?.contains("/d/a 3.txt") == true)
+    }
+
+    @Test func copyIntentUsesCopyCommand() {
+        let command = NameConflicts.command(
+            intent: .copyWithinMachine(["/src/x"]), destination: "/d", resolutions: [:],
+            existing: [])
+        #expect(command == "cp -a /src/x /d/x")
+    }
+
+    @Test func skippingEverythingProducesNoCommand() {
+        let command = NameConflicts.command(
+            intent: .moveWithinMachine(["/src/a.txt"]), destination: "/d",
+            resolutions: ["a.txt": .skip], existing: existing)
+        #expect(command == nil)
+    }
+}
+
+@Suite struct BatchRenameTests {
+    @Test func findAndReplaceAndNumbering() {
+        #expect(
+            BatchRename.apply(
+                names: ["IMG_1.png", "IMG_2.png"], find: "IMG", replace: "Photo",
+                numbering: false) == ["Photo_1.png", "Photo_2.png"])
+        #expect(
+            BatchRename.apply(names: ["a.txt", "b.txt"], find: "", replace: "", numbering: true)
+                == ["a 1.txt", "b 2.txt"])
+    }
+}
+
+@Suite struct FileOperationProgressTests {
+    @Test func reportsFractionAndLabel() {
+        let single = FileOperationProgress(title: "Moving")
+        #expect(single.description == "Moving")
+        let many = FileOperationProgress(title: "Moving", completed: 2, total: 5)
+        #expect(many.fraction == 0.4)
+        #expect(many.description == "Moving (2 of 5)")
+    }
+}

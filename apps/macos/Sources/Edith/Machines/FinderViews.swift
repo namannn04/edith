@@ -96,13 +96,23 @@ private struct FinderIconCell: View {
         .onTapGesture(count: 1) {
             model.click(entry, modifiers: FinderClick.currentModifiers)
         }
-        .onDrag { model.itemProvider(for: entry) }
-        .dropDestination(for: URL.self) { urls, _ in
+        .onDrag {
+            if !model.selection.contains(entry.path) {
+                model.click(entry, modifiers: [])
+            }
+            return model.dragProvider(for: entry)
+        }
+        .onDrop(
+            of: [MachineItemsPayload.typeIdentifier, UTType.fileURL.identifier],
+            isTargeted: $dropTargeted
+        ) { providers in
             guard entry.isDirectory else { return false }
-            Task { await model.dropPaths(urls, into: entry.path) }
+            let option = NSEvent.modifierFlags.contains(.option)
+            Task {
+                await model.handleDrop(
+                    providers: providers, destination: entry.path, optionHeld: option)
+            }
             return true
-        } isTargeted: { targeted in
-            dropTargeted = targeted && entry.isDirectory
         }
         .contextMenu { FinderRowContextMenu(model: model, entry: entry) }
     }
@@ -244,13 +254,23 @@ private struct FinderListRow: View {
         .onTapGesture(count: 1) {
             model.click(entry, modifiers: FinderClick.currentModifiers)
         }
-        .onDrag { model.itemProvider(for: entry) }
-        .dropDestination(for: URL.self) { urls, _ in
+        .onDrag {
+            if !model.selection.contains(entry.path) {
+                model.click(entry, modifiers: [])
+            }
+            return model.dragProvider(for: entry)
+        }
+        .onDrop(
+            of: [MachineItemsPayload.typeIdentifier, UTType.fileURL.identifier],
+            isTargeted: $dropTargeted
+        ) { providers in
             guard entry.isDirectory else { return false }
-            Task { await model.dropPaths(urls, into: entry.path) }
+            let option = NSEvent.modifierFlags.contains(.option)
+            Task {
+                await model.handleDrop(
+                    providers: providers, destination: entry.path, optionHeld: option)
+            }
             return true
-        } isTargeted: { targeted in
-            dropTargeted = targeted && entry.isDirectory
         }
         .contextMenu { FinderRowContextMenu(model: model, entry: entry) }
     }
@@ -487,11 +507,16 @@ private struct FinderSidebarRow: View {
         .buttonStyle(.plain)
         .pointerCursor()
         .onHover { hovering = $0 }
-        .dropDestination(for: URL.self) { urls, _ in
-            Task { await model.dropPaths(urls, into: place.path) }
+        .onDrop(
+            of: [MachineItemsPayload.typeIdentifier, UTType.fileURL.identifier],
+            isTargeted: $targeted
+        ) { providers in
+            let option = NSEvent.modifierFlags.contains(.option)
+            Task {
+                await model.handleDrop(
+                    providers: providers, destination: place.path, optionHeld: option)
+            }
             return true
-        } isTargeted: {
-            targeted = $0
         }
     }
 }
@@ -565,6 +590,70 @@ struct FinderInfoSheet: View {
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+        }
+    }
+}
+
+struct FinderConflictSheet: View {
+    @ObservedObject var model: FinderModel
+    let conflict: FinderModel.PendingConflict
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var scheme
+
+    private var dark: Bool { scheme == .dark }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIScale.pt(14)) {
+            Text(
+                conflict.names.count == 1
+                    ? "An item named \"\(conflict.names[0])\" already exists here."
+                    : "\(conflict.names.count) items already exist here."
+            )
+            .font(DashSkin.serif(17))
+            .foregroundStyle(DashSkin.ink(dark))
+            if conflict.names.count > 1 {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                        ForEach(conflict.names, id: \.self) { name in
+                            Text(name)
+                                .font(DashSkin.mono(10.5))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                        }
+                    }
+                }
+                .frame(maxHeight: UIScale.pt(120))
+            }
+            Text("Choose what to do with the items you are moving.")
+                .font(.system(size: UIScale.pt(11.5)))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+            Spacer(minLength: 0)
+            HStack(spacing: UIScale.pt(8)) {
+                Button("Cancel") {
+                    model.pendingConflict = nil
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Skip") { resolve(.skip) }
+                Button("Keep Both") { resolve(.keepBoth) }
+                Button("Replace") { resolve(.replace) }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(UIScale.pt(20))
+        .frame(width: UIScale.pt(440), height: UIScale.pt(240))
+        .background(DashSkin.paper(dark))
+    }
+
+    private func resolve(_ resolution: NameConflictResolution) {
+        let resolutions = Dictionary(
+            uniqueKeysWithValues: conflict.names.map { ($0, resolution) })
+        model.pendingConflict = nil
+        dismiss()
+        Task {
+            await model.commit(
+                intent: conflict.intent, destination: conflict.destination,
+                resolutions: resolutions)
         }
     }
 }
