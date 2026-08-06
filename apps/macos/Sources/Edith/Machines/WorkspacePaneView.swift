@@ -93,6 +93,7 @@ struct WorkspacePaneView: View {
             tabStrip
             Divider().opacity(0.3)
             content
+                .padding(.top, UIScale.pt(8))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(DashSkin.paper(dark))
@@ -231,8 +232,8 @@ struct WorkspacePaneView: View {
             .fixedSize()
             .help("Split or close this pane")
         }
-        .padding(.horizontal, UIScale.pt(6))
-        .padding(.vertical, UIScale.pt(4))
+        .padding(.horizontal, UIScale.pt(9))
+        .padding(.vertical, UIScale.pt(8))
         .background(.thinMaterial)
     }
 

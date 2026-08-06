@@ -16,6 +16,7 @@ struct MachineDetailView: View {
             tabBar
             Divider().opacity(0.35)
             detail
+                .padding(.top, UIScale.pt(6))
         }
     }
 
@@ -78,7 +79,7 @@ struct MachineDetailView: View {
             ConnectionPill(session: session, dark: dark)
         }
         .padding(.horizontal, PageMetrics.gutter(compact))
-        .padding(.bottom, UIScale.pt(10))
+        .padding(.bottom, UIScale.pt(12))
     }
 
     private func detach(_ item: MachineTab) {

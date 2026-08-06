@@ -25,6 +25,15 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
         _ = NSApplication.shared
     }
 
+    @Test func loadingSkeletonsRender() {
+        #expect(renders(MachineOverviewSkeleton(dark: true)))
+        #expect(renders(FleetHomeSkeleton(dark: true)))
+        #expect(renders(ListRowsSkeleton(rows: 4, dark: true)))
+        #expect(renders(FinderSkeleton(mode: .list, dark: true)))
+        #expect(renders(FinderSkeleton(mode: .icon, dark: true)))
+        #expect(renders(MetricCardSkeleton(dark: false), width: 300, height: 160))
+    }
+
     @Test func homePageRenders() {
         #expect(renders(HomePage()))
     }

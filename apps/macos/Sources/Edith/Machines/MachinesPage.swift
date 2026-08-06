@@ -106,7 +106,7 @@ struct MachinesPage: View {
                     MachineChip(
                         machine: machine,
                         session: model.session(for: machine.id),
-                        selected: model.selection == machine.id,
+                        selected: mode == .machine && model.selection == machine.id,
                         isLocal: model.isLocal(machine.id), dark: dark,
                         onSelect: {
                             modeRaw = MachinesMode.machine.rawValue

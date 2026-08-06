@@ -130,8 +130,8 @@ struct TerminalTabsView: View {
                                 tab.id == model.selected
                                     ? DashSkin.ink(dark) : DashSkin.inkFaint(dark)
                             )
-                            .padding(.horizontal, UIScale.pt(9))
-                            .padding(.vertical, UIScale.pt(5))
+                            .padding(.horizontal, UIScale.pt(10))
+                            .padding(.vertical, UIScale.pt(6))
                             .background(
                                 tab.id == model.selected ? DashSkin.paper2(dark) : .clear,
                                 in: RoundedRectangle(cornerRadius: UIScale.pt(6))
@@ -164,8 +164,8 @@ struct TerminalTabsView: View {
             .buttonStyle(HoverButtonStyle())
             .help("Open terminals in their own window")
         }
-        .padding(.horizontal, UIScale.pt(10))
-        .padding(.vertical, UIScale.pt(5))
+        .padding(.horizontal, UIScale.pt(12))
+        .padding(.vertical, UIScale.pt(9))
         .background(.thinMaterial)
     }
 
