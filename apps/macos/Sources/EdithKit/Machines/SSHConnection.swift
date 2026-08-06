@@ -76,7 +76,8 @@ public actor SSHConnection {
         socketPath = MachinePaths.socketFile(for: machine.id).path
         let userKnownHosts = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".ssh/known_hosts").path
-        knownHostsArgument = "\(MachinePaths.knownHostsFile.path) \(userKnownHosts)"
+        knownHostsArgument =
+            "\"\(MachinePaths.knownHostsFile.path)\" \"\(userKnownHosts)\""
     }
 
     public nonisolated static let executable = URL(fileURLWithPath: "/usr/bin/ssh")
@@ -90,7 +91,7 @@ public actor SSHConnection {
 
         let process = Process()
         process.executableURL = Self.executable
-        process.arguments = ["-N", "-M"] + baseOptions() + targetArguments()
+        process.arguments = masterArguments()
         process.environment = environment()
         let stderrPipe = Pipe()
         let buffer = PipeBuffer()
@@ -120,7 +121,12 @@ public actor SSHConnection {
         }
         process.terminate()
         masterProcess = nil
-        throw SSHConnectionError.connectFailed("Timed out while connecting.")
+        stderrPipe.fileHandleForReading.readabilityHandler = nil
+        let pending = String(decoding: buffer.snapshot(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        throw SSHConnectionError.connectFailed(
+            pending.isEmpty
+                ? "Timed out while connecting." : Self.friendlyConnectError(pending))
     }
 
     public func disconnect() async {
@@ -303,6 +309,17 @@ public actor SSHConnection {
         _ = try? await runControl(["-O", "cancel", "-L", forward.forwardSpec])
     }
 
+    public nonisolated var controlSocketPath: String { socketPath }
+
+    public nonisolated func masterArguments() -> [String] {
+        ["-N", "-M", "-S", socketPath] + baseOptions() + targetArguments()
+    }
+
+    public nonisolated func execArguments(command: String) -> [String] {
+        ["-T", "-S", socketPath, "-o", "BatchMode=yes", "-o", "LogLevel=ERROR"]
+            + baseOptions() + targetArguments() + [command]
+    }
+
     public nonisolated func terminalArguments(remoteCommand: String? = nil) -> [String] {
         var arguments = ["-tt", "-S", socketPath] + baseOptions() + targetArguments()
         if let remoteCommand {
@@ -318,9 +335,7 @@ public actor SSHConnection {
     private nonisolated func execProcess(command: String) -> Process {
         let process = Process()
         process.executableURL = Self.executable
-        process.arguments =
-            ["-T", "-S", socketPath, "-o", "BatchMode=yes", "-o", "LogLevel=ERROR"]
-            + baseOptions() + targetArguments() + [command]
+        process.arguments = execArguments(command: command)
         process.environment = environment()
         return process
     }

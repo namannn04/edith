@@ -35,6 +35,24 @@ import Testing
         #expect(web.composeProject == nil)
     }
 
+    @Test func prefersExplicitHealthStatusField() {
+        let output = """
+            {"ID":"abc","Names":"db","Image":"postgres:17","State":"running",\
+            "Status":"Up 19 hours (healthy)","HealthStatus":"unhealthy","Labels":"","Ports":""}
+            """
+        #expect(DockerParsing.containers(psOutput: output).first?.health == .unhealthy)
+        #expect(DockerParsing.parseHealth(status: "Up 2 hours", healthStatus: "") == .none)
+        #expect(
+            DockerParsing.parseHealth(status: "Up 2 hours (health: starting)") == .starting)
+    }
+
+    @Test func deduplicatesBracketedIPv6PortEntries() {
+        let ports = DockerParsing.parsePorts("0.0.0.0:5433->5432/tcp, [::]:5433->5432/tcp")
+        #expect(ports.count == 1)
+        #expect(ports[0].hostPort == 5433)
+        #expect(ports[0].containerPort == 5432)
+    }
+
     @Test func deduplicatesIPv4AndIPv6PortEntries() {
         let ports = DockerParsing.parsePorts("0.0.0.0:5432->5432/tcp, :::5432->5432/tcp")
         #expect(ports.count == 1)

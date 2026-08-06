@@ -15,6 +15,7 @@ while [ $# -gt 0 ]; do
 done
 
 emit_static() {
+  echo "SELF $$"
   echo "HELLO kernel $(uname -r 2>/dev/null)"
   echo "HELLO arch $(uname -m 2>/dev/null)"
   echo "HELLO node $(uname -n 2>/dev/null)"
@@ -157,6 +158,7 @@ function readnet(  line, idx, name, rest, parts) {
   close("/proc/net/dev")
 }
 function readpid(pid,  line, rest, n, parts, ticks, start, rss, uid, pname) {
+  if (pid == selfPid) return
   line = firstline("/proc/" pid "/stat")
   if (line == "") return
   n = index(line, ")")
@@ -164,6 +166,7 @@ function readpid(pid,  line, rest, n, parts, ticks, start, rss, uid, pname) {
   while (index(substr(line, n + 1), ")") > 0) n += index(substr(line, n + 1), ")")
   rest = substr(line, n + 2)
   split(rest, parts, " ")
+  if (parts[2] == selfPid) return
   ticks = parts[12] + parts[13]
   start = parts[20]
   rss = 0; uid = ""; pname = ""
@@ -274,7 +277,7 @@ function emit_sample(dt,  out, i, label, busyD, totalD, pct, stealPct, first, na
       k = clamp0(pidTicks[pid] - prevPidTicks[pid])
       if (k > bestVal) { bestVal = k; bestPid = pid }
     }
-    if (bestPid == "") break
+    if (bestPid == "" || bestVal <= 0) break
     chosenSet[bestPid] = 1
   }
   for (cnt = 1; cnt <= 15; cnt++) {
@@ -376,7 +379,8 @@ function rotate(  k) {
   for (k in pidTicks) { prevPidTicks[k] = pidTicks[k]; prevPidStart[k] = pidStart[k] }
   delete pidSeen; delete pidTicks; delete pidStart; delete pidRss; delete pidUid; delete pidName
 }
-BEGIN { haveTick = 0; prevTs = 0; slowPending = 0 }
+BEGIN { haveTick = 0; prevTs = 0; slowPending = 0; selfPid = -1 }
+$1 == "SELF" { selfPid = $2; next }
 $1 == "HELLO" { hello[$2] = $3; next }
 $1 == "TICK" {
   ts = $2

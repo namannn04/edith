@@ -170,7 +170,7 @@ public final class LocalMachineSampler: @unchecked Sendable {
             let tx = counters.tx >= previous.tx ? Double(counters.tx - previous.tx) / dt : 0
             let virtualPrefixes = ["utun", "awdl", "llw", "bridge", "ap", "gif", "stf", "anpi"]
             let isVirtual = virtualPrefixes.contains { name.hasPrefix($0) }
-            if rx == 0, tx == 0, isVirtual { continue }
+            if rx == 0, tx == 0 { continue }
             interfaces.append(
                 MachineNetInterface(n: name, rxBps: rx, txBps: tx, virtual: isVirtual))
             if !isVirtual {

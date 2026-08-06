@@ -294,6 +294,60 @@ import Testing
     }
 }
 
+@Suite struct SSHConnectionArgumentTests {
+    private let aliasMachine = Machine(
+        name: "Tuf", host: "192.168.1.12", username: "pulkit", source: .sshConfigAlias("tuf"))
+
+    @Test func masterBindsTheControlSocket() async {
+        let connection = SSHConnection(machine: aliasMachine)
+        let arguments = connection.masterArguments()
+        let socketIndex = arguments.firstIndex(of: "-S")
+        #expect(socketIndex != nil)
+        #expect(arguments[(socketIndex ?? 0) + 1] == connection.controlSocketPath)
+        #expect(arguments.contains("-M"))
+        #expect(arguments.last == "tuf")
+    }
+
+    @Test func execAndTerminalReuseTheSameSocket() async {
+        let connection = SSHConnection(machine: aliasMachine)
+        let socket = connection.controlSocketPath
+        #expect(connection.execArguments(command: "uptime").contains(socket))
+        #expect(connection.terminalArguments().contains(socket))
+        #expect(connection.terminalArguments().contains("-tt"))
+        #expect(connection.execArguments(command: "uptime").last == "uptime")
+    }
+
+    @Test func knownHostsPathsAreQuotedForSpaces() async {
+        let connection = SSHConnection(machine: aliasMachine)
+        let arguments = connection.masterArguments()
+        guard let option = arguments.first(where: { $0.hasPrefix("UserKnownHostsFile=") }) else {
+            Issue.record("expected a UserKnownHostsFile option")
+            return
+        }
+        #expect(option.contains("\""))
+        let quoted = option.dropFirst("UserKnownHostsFile=".count)
+        #expect(quoted.filter { $0 == "\"" }.count == 4)
+    }
+
+    @Test func manualMachinesCarryPortAndIdentity() async {
+        let machine = Machine(
+            name: "Box", host: "10.0.0.5", port: 2222, username: "root",
+            auth: .keyFile(path: "/tmp/key", hasPassphrase: false))
+        let arguments = SSHConnection(machine: machine).masterArguments()
+        #expect(arguments.contains("2222"))
+        #expect(arguments.contains("/tmp/key"))
+        #expect(arguments.contains("IdentitiesOnly=yes"))
+        #expect(arguments.last == "root@10.0.0.5")
+    }
+
+    @Test func passwordMachinesDisablePublicKeyAuth() async {
+        let machine = Machine(name: "Box", host: "10.0.0.5", username: "root", auth: .password)
+        let arguments = SSHConnection(machine: machine).masterArguments()
+        #expect(arguments.contains("PubkeyAuthentication=no"))
+        #expect(arguments.contains("NumberOfPasswordPrompts=1"))
+    }
+}
+
 @Suite struct SSHConnectionErrorTests {
     @Test func mapsCommonFailuresToFriendlyMessages() {
         #expect(

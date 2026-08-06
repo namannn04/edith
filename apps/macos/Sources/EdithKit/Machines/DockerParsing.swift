@@ -93,7 +93,8 @@ public enum DockerParsing {
         return labels
     }
 
-    public static func parseHealth(status: String) -> DockerHealth {
+    public static func parseHealth(status: String, healthStatus: String = "") -> DockerHealth {
+        if let explicit = DockerHealth(rawValue: healthStatus.lowercased()) { return explicit }
         let lowered = status.lowercased()
         if lowered.contains("(healthy)") { return .healthy }
         if lowered.contains("(unhealthy)") { return .unhealthy }
@@ -114,7 +115,8 @@ public enum DockerParsing {
                 id: id, names: names, image: string(object, "Image"),
                 command: string(object, "Command"),
                 state: DockerContainerState(raw: string(object, "State")), status: status,
-                health: parseHealth(status: status),
+                health: parseHealth(
+                    status: status, healthStatus: string(object, "HealthStatus")),
                 ports: parsePorts(string(object, "Ports")),
                 composeProject: labels["com.docker.compose.project"],
                 composeService: labels["com.docker.compose.service"],
