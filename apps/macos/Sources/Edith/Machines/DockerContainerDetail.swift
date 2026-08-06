@@ -12,6 +12,8 @@ final class DockerDetailModel: ObservableObject {
     @Published var cpuHistory: [Double] = []
     @Published var memHistory: [Double] = []
     @Published var follow = true
+    @Published var wrapLines = true
+    @Published var logFontSize = 11.0
     @Published var showTimestamps = false
     @Published var logFilter = ""
 
@@ -21,6 +23,13 @@ final class DockerDetailModel: ObservableObject {
     private var nextLogID = 0
     private var logGeneration = 0
     private var fileToken = 0
+
+    var logPlainText: String {
+        visibleLogs.map { line in
+            guard showTimestamps, let stamp = line.timestamp else { return line.text }
+            return stamp + "  " + line.text
+        }.joined(separator: "\n")
+    }
 
     var visibleLogs: [DockerLogLine] {
         let trimmed = logFilter.trimmingCharacters(in: .whitespaces)
@@ -236,6 +245,38 @@ struct DockerContainerDetail: View {
                 Toggle("Follow", isOn: $model.follow)
                     .toggleStyle(.checkbox)
                     .font(.system(size: UIScale.pt(11)))
+                Toggle("Wrap", isOn: $model.wrapLines)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: UIScale.pt(11)))
+                Button {
+                    model.logFontSize = max(9, model.logFontSize - 1)
+                } label: {
+                    Image(systemName: "textformat.size.smaller")
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help("Smaller log text")
+                Button {
+                    model.logFontSize = min(18, model.logFontSize + 1)
+                } label: {
+                    Image(systemName: "textformat.size.larger")
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help("Larger log text")
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(model.logPlainText, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help("Copy all visible log lines")
+                Button {
+                    model.logs = []
+                } label: {
+                    Image(systemName: "clear")
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help("Clear the log view")
             }
         }
         .padding(.horizontal, UIScale.pt(16))
@@ -263,34 +304,22 @@ struct DockerContainerDetail: View {
     }
 
     private var logsView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: UIScale.pt(1)) {
-                    ForEach(model.visibleLogs) { line in
-                        HStack(alignment: .top, spacing: UIScale.pt(8)) {
-                            if model.showTimestamps, let timestamp = line.timestamp {
-                                Text(timestamp)
-                                    .font(DashSkin.mono(9.5))
-                                    .foregroundStyle(DashSkin.inkFaint(dark))
-                                    .frame(width: UIScale.pt(160), alignment: .leading)
-                            }
-                            Text(line.text)
-                                .font(DashSkin.mono(11))
-                                .foregroundStyle(
-                                    line.isStderr ? DashSkin.warn : DashSkin.inkSoft(dark)
-                                )
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .id(line.id)
-                    }
-                    Color.clear.frame(height: 1).id("end")
-                }
-                .padding(UIScale.pt(14))
-            }
-            .onChange(of: model.logs.count) { _, _ in
-                guard model.follow else { return }
-                proxy.scrollTo("end", anchor: .bottom)
+        ZStack(alignment: .bottomTrailing) {
+            LogTextView(
+                document: LogDocument(
+                    lines: model.visibleLogs, showTimestamps: model.showTimestamps,
+                    wraps: model.wrapLines, fontSize: model.logFontSize),
+                palette: LogPalette(
+                    text: NSColor(DashSkin.inkSoft(dark)),
+                    stderr: NSColor(DashSkin.warn),
+                    timestamp: NSColor(DashSkin.inkFaint(dark)),
+                    background: NSColor(DashSkin.paper(dark))),
+                follow: model.follow)
+            if model.visibleLogs.isEmpty {
+                Text(model.logFilter.isEmpty ? "No output yet." : "Nothing matches that filter.")
+                    .font(.system(size: UIScale.pt(12)))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -329,22 +358,46 @@ struct DockerContainerDetail: View {
     }
 
     private func section(_ title: String, _ values: [String]) -> some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(4)) {
-            Text(title.uppercased())
-                .font(.system(size: UIScale.pt(9.5), weight: .semibold))
-                .tracking(UIScale.pt(0.6))
-                .foregroundStyle(DashSkin.inkFaint(dark))
-            if values.filter({ !$0.isEmpty }).isEmpty {
+        let shown = values.filter { !$0.isEmpty }
+        return VStack(alignment: .leading, spacing: UIScale.pt(4)) {
+            HStack(spacing: UIScale.pt(6)) {
+                Text(title.uppercased())
+                    .font(.system(size: UIScale.pt(9.5), weight: .semibold))
+                    .tracking(UIScale.pt(0.6))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                if !shown.isEmpty {
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(
+                            shown.joined(separator: "\n"), forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: UIScale.pt(9)))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .help("Copy \(title)")
+                }
+                Spacer(minLength: 0)
+            }
+            if shown.isEmpty {
                 Text("—")
                     .font(DashSkin.mono(11))
                     .foregroundStyle(DashSkin.inkFaint(dark))
             }
-            ForEach(values.filter { !$0.isEmpty }, id: \.self) { value in
+            ForEach(shown, id: \.self) { value in
                 Text(value)
                     .font(DashSkin.mono(11))
                     .foregroundStyle(DashSkin.inkSoft(dark))
                     .textSelection(.enabled)
-                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .contextMenu {
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(value, forType: .string)
+                        }
+                    }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

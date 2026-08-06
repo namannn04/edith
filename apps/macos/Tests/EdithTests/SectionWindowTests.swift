@@ -332,3 +332,38 @@ import Testing
                 == .selectTab(index: 1))
     }
 }
+
+@Suite @MainActor struct DockerLogPresentationTests {
+    private let lines = [
+        DockerLogLine(id: 0, timestamp: "2026-08-07T10:00:00Z", text: "starting", isStderr: false),
+        DockerLogLine(id: 1, timestamp: "2026-08-07T10:00:01Z", text: "boom", isStderr: true),
+    ]
+
+    @Test func plainTextCarriesEveryVisibleLineForCopying() {
+        let model = DockerDetailModel()
+        model.logs = lines
+        model.showTimestamps = false
+        #expect(model.logPlainText == "starting\nboom")
+
+        model.showTimestamps = true
+        #expect(model.logPlainText.contains("2026-08-07T10:00:00Z  starting"))
+    }
+
+    @Test func theFilterNarrowsWhatIsCopiedAsWellAsWhatIsShown() {
+        let model = DockerDetailModel()
+        model.logs = lines
+        model.logFilter = "boom"
+        #expect(model.visibleLogs.count == 1)
+        #expect(model.logPlainText == "boom")
+    }
+
+    @Test func theLogDocumentChangesWhenAnyPresentationOptionChanges() {
+        let base = LogDocument(lines: lines, showTimestamps: false, wraps: true, fontSize: 11)
+        #expect(
+            base != LogDocument(lines: lines, showTimestamps: true, wraps: true, fontSize: 11))
+        #expect(
+            base != LogDocument(lines: lines, showTimestamps: false, wraps: false, fontSize: 11))
+        #expect(
+            base != LogDocument(lines: lines, showTimestamps: false, wraps: true, fontSize: 13))
+    }
+}
