@@ -52,6 +52,8 @@ final class UsageStore: ObservableObject, FeatureModule {
     private var refreshRequestObserver: NSObjectProtocol?
     private var limitsRefreshObserver: NSObjectProtocol?
     private var hasLiveLimits = false
+    private var limitsRefreshStartedAt: Date?
+    private var limitsRefreshGeneration = 0
     private var quickRetries = 0
     private var quickRetryTask: Task<Void, Never>?
     let notifier = LimitNotifier()
@@ -269,9 +271,32 @@ final class UsageStore: ObservableObject, FeatureModule {
     }
 
     func refreshLimits(force: Bool = false) async {
-        if !force, let gate = retryNotBefore, gate > Date() { return }
-        guard !refreshingLimits else { return }
+        let now = Date()
+        switch LimitsRefreshGate.decide(
+            force: force, inFlightSince: limitsRefreshStartedAt, retryNotBefore: retryNotBefore,
+            now: now)
+        {
+        case .skipInFlight, .skipBackoff:
+            return
+        case .recoverStalled:
+            let msg = "previous limits refresh never finished - starting a new one"
+            Log.usage.error("\(msg, privacy: .public)")
+            diag(msg)
+        case .start:
+            break
+        }
+
+        limitsRefreshGeneration += 1
+        let generation = limitsRefreshGeneration
+        limitsRefreshStartedAt = now
         refreshingLimits = true
+        defer {
+            if generation == limitsRefreshGeneration {
+                limitsRefreshStartedAt = nil
+                refreshingLimits = false
+            }
+        }
+
         let providers = Self.enabledLimitProviders(
             claude: providerEnabled(.claude), codex: providerEnabled(.codex))
         for provider in providers {
@@ -281,7 +306,6 @@ final class UsageStore: ObservableObject, FeatureModule {
             }
         }
         try? await Task.sleep(nanoseconds: 400_000_000)
-        refreshingLimits = false
     }
 
     private func fetchLimitsOnce() async {
@@ -343,10 +367,11 @@ final class UsageStore: ObservableObject, FeatureModule {
             notifier.notifyTokenExpired()
             msg = "token refresh unavailable or rejected - keeping last-known numbers"
         case FetchError.rateLimited(let after):
-            retryNotBefore = Date().addingTimeInterval(after ?? 1800)
+            let deadline = LimitsRefreshGate.backoffDeadline(retryAfter: after, now: Date())
+            retryNotBefore = deadline
             limitsError =
-                "Rate limited by Claude - retrying at \(retryNotBefore!.formatted(date: .omitted, time: .shortened))"
-            msg = "429 rate limited - backing off \(Int(after ?? 1800))s"
+                "Rate limited by Claude - retrying at \(deadline.formatted(date: .omitted, time: .shortened))"
+            msg = "429 rate limited - backing off \(Int(deadline.timeIntervalSinceNow))s"
         default:
             limitsError = "Offline"
             msg = "fetch failed: \(error.localizedDescription)"
