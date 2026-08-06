@@ -17,6 +17,7 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         ScrollForwarding.install()
         RetiredLicenseCleanup.run()
         startApp()
+        SectionWindowMenu.install()
     }
 
     private func startApp() {

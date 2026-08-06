@@ -137,10 +137,17 @@ private struct SidebarNavRow: View {
     let shortcutHint: String?
     let selectionNamespace: Namespace.ID
     let action: () -> Void
+    var detach: (() -> Void)?
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            if let detach, SectionWindowCommand.shouldDetach(NSEvent.modifierFlags.swiftUIValue) {
+                detach()
+            } else {
+                action()
+            }
+        } label: {
             HStack(spacing: UIScale.pt(11)) {
                 Image(systemName: item.icon)
                     .font(.system(size: UIScale.pt(14), weight: .medium))
@@ -179,6 +186,23 @@ private struct SidebarNavRow: View {
         }
         .onHover { hovering = $0 }
         .pointerCursor()
+        .help("\(item.title) (⌘-click to open in its own window)")
+        .contextMenu {
+            if let detach {
+                Button("Open in New Window", action: detach)
+            }
+        }
+    }
+}
+
+extension NSEvent.ModifierFlags {
+    var swiftUIValue: EventModifiers {
+        var modifiers = EventModifiers()
+        if contains(.command) { modifiers.insert(.command) }
+        if contains(.option) { modifiers.insert(.option) }
+        if contains(.shift) { modifiers.insert(.shift) }
+        if contains(.control) { modifiers.insert(.control) }
+        return modifiers
     }
 }
 
@@ -542,10 +566,9 @@ struct MainWindowView: View {
                     SidebarNavRow(
                         item: item, selected: destination == item, theme: theme,
                         shortcutHint: shortcutHint(for: item),
-                        selectionNamespace: sidebarSelectionNamespace
-                    ) {
-                        mainWindowSection = item.rawValue
-                    }
+                        selectionNamespace: sidebarSelectionNamespace,
+                        action: { mainWindowSection = item.rawValue },
+                        detach: { SectionWindow.open(item) })
                 }
                 Text("App")
                     .font(.system(size: UIScale.pt(11), weight: .semibold))
@@ -557,10 +580,9 @@ struct MainWindowView: View {
                     SidebarNavRow(
                         item: item, selected: destination == item, theme: theme,
                         shortcutHint: shortcutHint(for: item),
-                        selectionNamespace: sidebarSelectionNamespace
-                    ) {
-                        mainWindowSection = item.rawValue
-                    }
+                        selectionNamespace: sidebarSelectionNamespace,
+                        action: { mainWindowSection = item.rawValue },
+                        detach: item == .about ? nil : { SectionWindow.open(item) })
                 }
             }
             .padding(.horizontal, UIScale.pt(8))

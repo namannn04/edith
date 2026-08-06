@@ -5,7 +5,9 @@ struct MachinesPage: View {
     @StateObject private var model = MachinesModel.shared
     @Environment(\.colorScheme) private var scheme
     @Environment(\.compactLayout) private var compact
-    @State private var tab = MachineTab.overview
+    @AppStorage("machinesTab", store: SharedDefaults.store) private var storedTab =
+        MachineTab.overview.rawValue
+    @AppStorage("machinesSelection", store: SharedDefaults.store) private var storedSelection = ""
     @State private var addSheetPresented = false
     @State private var editingMachine: Machine?
     @State private var confirmRemoval: Machine?
@@ -48,14 +50,24 @@ struct MachinesPage: View {
             )
         }
         .onAppear {
-            model.ensureSelection()
+            model.restoreSelection(storedSelection)
             model.startSelected()
+            reconcileTab()
         }
-        .onChange(of: model.selection) { _, _ in
+        .onChange(of: model.selection) { _, selection in
+            storedSelection = selection?.uuidString ?? ""
             model.startSelected()
-            let available = MachineTab.tabs(isLocal: isLocalSelection)
-            if !available.contains(tab) { tab = .overview }
+            reconcileTab()
         }
+    }
+
+    private var tab: MachineTab {
+        MachineTab(rawValue: storedTab) ?? .overview
+    }
+
+    private func reconcileTab() {
+        let available = MachineTab.tabs(isLocal: isLocalSelection)
+        if !available.contains(tab) { storedTab = MachineTab.overview.rawValue }
     }
 
     private var isLocalSelection: Bool {
@@ -84,14 +96,13 @@ struct MachinesPage: View {
                         machine: machine,
                         session: model.session(for: machine.id),
                         selected: model.selection == machine.id,
-                        isLocal: model.isLocal(machine.id), dark: dark
-                    ) {
-                        model.selection = machine.id
-                    } onEdit: {
-                        editingMachine = machine
-                    } onRemove: {
-                        confirmRemoval = machine
-                    }
+                        isLocal: model.isLocal(machine.id), dark: dark,
+                        onSelect: { model.selection = machine.id },
+                        onDetach: {
+                            MachineWindow.open(machineID: machine.id, title: machine.name)
+                        },
+                        onEdit: { editingMachine = machine },
+                        onRemove: { confirmRemoval = machine })
                 }
             }
             .padding(.vertical, UIScale.pt(2))
@@ -101,64 +112,13 @@ struct MachinesPage: View {
     @ViewBuilder
     private var content: some View {
         if let session = model.selectedSession() {
-            VStack(spacing: UIScale.pt(0)) {
-                tabBar(session)
-                Divider().opacity(0.35)
-                detail(session)
-            }
+            MachineDetailView(
+                session: session, model: model,
+                tab: Binding(
+                    get: { tab },
+                    set: { storedTab = $0.rawValue }))
         } else {
             emptyState
-        }
-    }
-
-    private func tabBar(_ session: MachineSession) -> some View {
-        HStack(spacing: UIScale.pt(4)) {
-            ForEach(MachineTab.tabs(isLocal: session.isLocal)) { item in
-                Button {
-                    tab = item
-                } label: {
-                    HStack(spacing: UIScale.pt(6)) {
-                        Image(systemName: item.icon)
-                            .font(.system(size: UIScale.pt(11), weight: .medium))
-                        Text(item.title)
-                            .font(.system(size: UIScale.pt(12.5), weight: .medium))
-                    }
-                    .padding(.horizontal, UIScale.pt(11))
-                    .padding(.vertical, UIScale.pt(6))
-                    .foregroundStyle(
-                        tab == item ? DashSkin.ink(dark) : DashSkin.inkFaint(dark)
-                    )
-                    .background(
-                        tab == item ? DashSkin.paper2(dark) : .clear,
-                        in: RoundedRectangle(cornerRadius: UIScale.pt(8))
-                    )
-                    .overlay {
-                        if tab == item {
-                            RoundedRectangle(cornerRadius: UIScale.pt(8))
-                                .strokeBorder(DashSkin.line(dark))
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointerCursor()
-            }
-            Spacer(minLength: 0)
-            ConnectionPill(session: session, dark: dark)
-        }
-        .padding(.horizontal, PageMetrics.gutter(compact))
-        .padding(.bottom, UIScale.pt(10))
-    }
-
-    @ViewBuilder
-    private func detail(_ session: MachineSession) -> some View {
-        switch tab {
-        case .overview: MachineOverviewTab(session: session)
-        case .processes: MachineProcessesTab(session: session)
-        case .files: MachineFilesTab(session: session)
-        case .docker: MachineDockerTab(session: session)
-        case .terminal: MachineTerminalTab(session: session)
-        case .tools: MachineToolsTab(session: session, model: model)
         }
     }
 
@@ -196,12 +156,19 @@ private struct MachineChip: View {
     let isLocal: Bool
     let dark: Bool
     let onSelect: () -> Void
+    let onDetach: () -> Void
     let onEdit: () -> Void
     let onRemove: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        Button(action: onSelect) {
+        Button {
+            if SectionWindowCommand.shouldDetach(NSEvent.modifierFlags.swiftUIValue) {
+                onDetach()
+            } else {
+                onSelect()
+            }
+        } label: {
             HStack(spacing: UIScale.pt(8)) {
                 Image(systemName: isLocal ? "laptopcomputer" : "server.rack")
                     .font(.system(size: UIScale.pt(13)))
@@ -237,44 +204,17 @@ private struct MachineChip: View {
         .buttonStyle(.plain)
         .pointerCursor()
         .onHover { hovering = $0 }
+        .help("\(machine.name) (⌘-click to open in its own window)")
         .contextMenu {
+            Button("Open in New Window", action: onDetach)
             if !isLocal {
+                Divider()
                 Button("Edit…", action: onEdit)
                 Button(session.state.isConnected ? "Disconnect" : "Connect") {
                     session.state.isConnected ? session.stop() : session.start()
                 }
                 Divider()
                 Button("Remove", role: .destructive, action: onRemove)
-            }
-        }
-    }
-}
-
-private struct ConnectionPill: View {
-    @ObservedObject var session: MachineSession
-    let dark: Bool
-
-    var body: some View {
-        HStack(spacing: UIScale.pt(6)) {
-            if session.state.isBusy {
-                ProgressView().controlSize(.small).scaleEffect(0.7)
-            } else {
-                Circle()
-                    .fill(MachineStatusStyle.color(session.state, dark: dark))
-                    .frame(width: UIScale.pt(7), height: UIScale.pt(7))
-            }
-            Text(MachineStatusStyle.label(session.state))
-                .font(.system(size: UIScale.pt(11)))
-                .foregroundStyle(DashSkin.inkFaint(dark))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: UIScale.pt(260), alignment: .trailing)
-            if case .failed = session.state {
-                Button("Retry") { session.retry() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: UIScale.pt(11), weight: .semibold))
-                    .foregroundStyle(DashSkin.accent(dark))
-                    .pointerCursor()
             }
         }
     }

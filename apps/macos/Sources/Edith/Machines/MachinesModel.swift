@@ -45,6 +45,15 @@ final class MachinesModel: ObservableObject {
         selection = allMachines.first?.id
     }
 
+    func restoreSelection(_ stored: String) {
+        if selection == nil, let id = UUID(uuidString: stored),
+            allMachines.contains(where: { $0.id == id })
+        {
+            selection = id
+        }
+        ensureSelection()
+    }
+
     func add(_ machine: Machine) {
         store.add(machine)
         selection = machine.id
