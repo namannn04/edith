@@ -54,11 +54,9 @@ struct MachineFilesTab: View {
                 FinderWindow.open(session: session)
             }
             .pointerCursor()
-            .disabled(!session.state.isConnected)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            guard session.state.isConnected else { return }
             FinderWindow.open(session: session)
         }
     }

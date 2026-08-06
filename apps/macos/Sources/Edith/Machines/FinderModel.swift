@@ -33,6 +33,7 @@ final class FinderModel: ObservableObject {
     private var typeBuffer = ""
     private var typeBufferAt = Date.distantPast
     private var loadToken = 0
+    private var flashToken = 0
 
     init(session: MachineSession, path: String? = nil) {
         self.session = session
@@ -279,7 +280,18 @@ final class FinderModel: ObservableObject {
         guard !paths.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(paths.joined(separator: "\n"), forType: .string)
-        statusMessage = "Copied \(paths.count) path\(paths.count == 1 ? "" : "s")"
+        flash("Copied \(paths.count) path\(paths.count == 1 ? "" : "s")")
+    }
+
+    func flash(_ message: String) {
+        statusMessage = message
+        flashToken += 1
+        let token = flashToken
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, token == flashToken else { return }
+            statusMessage = nil
+        }
     }
 
     func revealInFinder() {
@@ -300,7 +312,7 @@ final class FinderModel: ObservableObject {
                 errorMessage = error.localizedDescription
             }
         }
-        statusMessage = nil
+        flash("Download finished")
     }
 
     func upload(_ urls: [URL]) async {
@@ -321,7 +333,7 @@ final class FinderModel: ObservableObject {
                 errorMessage = error.localizedDescription
             }
         }
-        statusMessage = nil
+        flash("Upload finished")
         await load()
     }
 
