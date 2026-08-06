@@ -6,38 +6,46 @@ public struct RsyncProgressSample: Equatable, Sendable {
     public var bytesPerSecond: Double
     public var filesRemaining: Int?
     public var filesTotal: Int?
+    public var totalIsEstimate: Bool
 
     public init(
         bytesTransferred: Int64, percent: Int, bytesPerSecond: Double,
-        filesRemaining: Int? = nil, filesTotal: Int? = nil
+        filesRemaining: Int? = nil, filesTotal: Int? = nil, totalIsEstimate: Bool = false
     ) {
         self.bytesTransferred = bytesTransferred
         self.percent = percent
         self.bytesPerSecond = bytesPerSecond
         self.filesRemaining = filesRemaining
         self.filesTotal = filesTotal
+        self.totalIsEstimate = totalIsEstimate
     }
 }
 
 public enum RsyncProgress {
+    static let counterKeys = ["to-chk=", "to-check=", "ir-chk="]
+
     public static func parse(_ line: String) -> RsyncProgressSample? {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let fields = trimmed.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         guard fields.count >= 3, fields[1].hasSuffix("%") else { return nil }
         let digits = fields[0].replacingOccurrences(of: ",", with: "")
-        guard let bytes = Int64(digits) else { return nil }
+        guard digits.allSatisfy(\.isNumber), let bytes = Int64(digits) else { return nil }
         guard let percent = Int(fields[1].dropLast()) else { return nil }
-        let sample = RsyncProgressSample(
+        var sample = RsyncProgressSample(
             bytesTransferred: bytes, percent: percent, bytesPerSecond: rate(fields[2]))
-        guard let marker = trimmed.range(of: "to-chk=") else { return sample }
-        let tail = trimmed[marker.upperBound...].prefix { $0.isNumber || $0 == "/" }
-        let parts = tail.split(separator: "/")
-        guard parts.count == 2, let remaining = Int(parts[0]), let total = Int(parts[1])
-        else { return sample }
-        return RsyncProgressSample(
-            bytesTransferred: bytes, percent: percent, bytesPerSecond: rate(fields[2]),
-            filesRemaining: remaining, filesTotal: total)
+        for key in counterKeys {
+            guard let marker = trimmed.range(of: key) else { continue }
+            let tail = trimmed[marker.upperBound...].prefix { $0.isNumber || $0 == "/" }
+            let parts = tail.split(separator: "/")
+            guard parts.count == 2, let remaining = Int(parts[0]), let total = Int(parts[1])
+            else { continue }
+            sample.filesRemaining = remaining
+            sample.filesTotal = total
+            sample.totalIsEstimate = key == "ir-chk="
+            break
+        }
+        return sample
     }
 
     static func rate(_ field: String) -> Double {
