@@ -55,6 +55,9 @@ public enum IPC {
             "com.pulkit.edith.musicRevealFolder")
         public static let presenterPauseAuto = Notification.Name(
             "com.pulkit.edith.presenterPauseAuto")
+        public static let requestCalendarEvents = Notification.Name(
+            "com.pulkit.edith.requestCalendarEvents")
+        public static let calendarEvents = Notification.Name("com.pulkit.edith.calendarEvents")
     }
 
     public static func post(_ name: Notification.Name, userInfo: [String: Any]? = nil) {
