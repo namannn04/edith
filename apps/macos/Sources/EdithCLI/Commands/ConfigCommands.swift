@@ -201,11 +201,24 @@ struct ConfigDescribeCommand: AsyncParsableCommand {
 
 struct ConfigExportCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "export", abstract: "Print every writable setting as one JSON document.")
+        commandName: "export",
+        abstract: "Print the settings you have changed as one JSON document.",
+        discussion: """
+            The document is exactly what `ed config import` accepts and what `ed schema`
+            describes. Only settings with a stored value are included, so importing it
+            elsewhere changes nothing you never touched. Pass --defaults to include
+            every writable setting at its current effective value.
+            """)
+
+    @Flag(name: .long, help: "Include settings still at their default.")
+    var defaults = false
 
     func run() async throws {
         let store = ConfigStore()
-        let settings = ConfigCatalog.settings.filter { !$0.readOnly && $0.type != .map }
+        let settings = ConfigCatalog.settings.filter { definition in
+            guard !definition.readOnly, definition.type != .map else { return false }
+            return defaults || store.isSet(definition)
+        }
         CLIOut.json(store.snapshot(settings))
     }
 }

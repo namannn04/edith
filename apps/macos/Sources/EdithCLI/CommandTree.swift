@@ -75,7 +75,9 @@ public enum CommandTree {
                     CommandNode(
                         "describe", "Explain one setting.", options: common,
                         arguments: [.configKey]),
-                    CommandNode("export", "Print every setting as one JSON document."),
+                    CommandNode(
+                        "export", "Print changed settings as one JSON document.",
+                        options: ["--defaults"]),
                     CommandNode(
                         "import", "Apply a JSON document of settings.",
                         options: ["--json", "--dry-run"], arguments: [.localPath]),
