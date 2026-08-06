@@ -33,6 +33,19 @@ public enum SSHConnectionError: LocalizedError {
     }
 }
 
+private final class ResumeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var claimed = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !claimed else { return false }
+        claimed = true
+        return true
+    }
+}
+
 private final class PipeBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
@@ -375,13 +388,9 @@ public actor SSHConnection {
 
     private static func waitForExit(_ process: Process, timeout: TimeInterval) async -> Int32 {
         await withCheckedContinuation { continuation in
-            let finished = NSLock()
-            var resumed = false
+            let gate = ResumeGate()
             let resumeOnce: @Sendable (Int32) -> Void = { status in
-                finished.lock()
-                defer { finished.unlock() }
-                guard !resumed else { return }
-                resumed = true
+                guard gate.claim() else { return }
                 continuation.resume(returning: status)
             }
             process.terminationHandler = { resumeOnce($0.terminationStatus) }
