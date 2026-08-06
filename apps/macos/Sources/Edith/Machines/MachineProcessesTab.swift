@@ -96,15 +96,14 @@ struct MachineProcessesTab: View {
             }
             .padding(.bottom, UIScale.pt(6))
             Divider().opacity(0.4)
-            if rows.isEmpty {
-                Text(
-                    session.state.isConnected
-                        ? "Waiting for the first sample…" : "Connect to see processes."
-                )
-                .font(.system(size: UIScale.pt(12)))
-                .foregroundStyle(DashSkin.inkFaint(dark))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, UIScale.pt(24))
+            if rows.isEmpty, session.sample == nil {
+                ListRowsSkeleton(rows: 8, showsLeadingDot: false, dark: dark)
+            } else if rows.isEmpty {
+                Text("Nothing matches that filter.")
+                    .font(.system(size: UIScale.pt(12)))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, UIScale.pt(24))
             }
             ForEach(rows) { process in
                 ProcessRow(

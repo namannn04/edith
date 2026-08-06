@@ -6,11 +6,13 @@ import UniformTypeIdentifiers
 @MainActor
 final class FinderModel: ObservableObject {
     @Published var path: String
-    @Published private(set) var entries: [RemoteFileEntry] = []
+    @Published var entries: [RemoteFileEntry] = []
     @Published private(set) var loading = false
     @Published var errorMessage: String?
     @Published var statusMessage: String?
-    @Published var selection: Set<String> = []
+    @Published var selection: Set<String> = [] {
+        didSet { syncQuickLookToSelection() }
+    }
     @Published var renaming: String?
     @Published var renameText = ""
     @Published var quickLookPath: String?
@@ -292,8 +294,20 @@ final class FinderModel: ObservableObject {
         if quickLookPath != nil {
             quickLookPath = nil
         } else {
-            quickLookPath = selectedEntries.first?.path ?? visibleEntries.first?.path
+            quickLookPath = quickLookTarget
         }
+    }
+
+    private var quickLookTarget: String? {
+        let ordered = visibleEntries.filter { selection.contains($0.path) }
+        return ordered.first?.path ?? visibleEntries.first?.path
+    }
+
+    private func syncQuickLookToSelection() {
+        guard quickLookPath != nil, let target = quickLookTarget, target != quickLookPath else {
+            return
+        }
+        quickLookPath = target
     }
 
     func measure(_ entry: RemoteFileEntry) async {

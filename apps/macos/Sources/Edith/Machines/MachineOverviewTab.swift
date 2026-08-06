@@ -1,41 +1,90 @@
 import EdithKit
 import SwiftUI
 
+struct SparkSamples: VectorArithmetic {
+    var values: [Double]
+
+    static var zero: SparkSamples { SparkSamples(values: []) }
+
+    private static func merge(
+        _ lhs: [Double], _ rhs: [Double], _ combine: (Double, Double) -> Double
+    ) -> [Double] {
+        let count = max(lhs.count, rhs.count)
+        guard count > 0 else { return [] }
+        return (0..<count).map { index in
+            let left = lhs.count - count + index
+            let right = rhs.count - count + index
+            return combine(
+                left >= 0 ? lhs[left] : (lhs.first ?? 0),
+                right >= 0 ? rhs[right] : (rhs.first ?? 0))
+        }
+    }
+
+    static func + (lhs: SparkSamples, rhs: SparkSamples) -> SparkSamples {
+        SparkSamples(values: merge(lhs.values, rhs.values, +))
+    }
+
+    static func - (lhs: SparkSamples, rhs: SparkSamples) -> SparkSamples {
+        SparkSamples(values: merge(lhs.values, rhs.values, -))
+    }
+
+    mutating func scale(by rhs: Double) {
+        values = values.map { $0 * rhs }
+    }
+
+    var magnitudeSquared: Double {
+        values.reduce(0) { $0 + $1 * $1 }
+    }
+}
+
+struct SparkShape: Shape {
+    var samples: SparkSamples
+    let maximum: Double
+    let filled: Bool
+
+    var animatableData: SparkSamples {
+        get { samples }
+        set { samples = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let values = samples.values
+        guard values.count > 1 else { return Path() }
+        let scale = max(maximum, values.max() ?? 1, 0.001)
+        let step = rect.width / CGFloat(values.count - 1)
+        let points = values.enumerated().map { index, value in
+            CGPoint(
+                x: rect.minX + CGFloat(index) * step,
+                y: rect.maxY - rect.height * CGFloat(min(max(value, 0), scale) / scale))
+        }
+        var path = Path()
+        if filled { path.move(to: CGPoint(x: points[0].x, y: rect.maxY)) }
+        path.addLines(filled ? points : Array(points))
+        if filled {
+            path.addLine(to: CGPoint(x: points[points.count - 1].x, y: rect.maxY))
+            path.closeSubpath()
+        }
+        return path
+    }
+}
+
 struct Sparkline: View {
     let values: [Double]
     let maximum: Double
     let color: Color
 
     var body: some View {
-        GeometryReader { proxy in
-            let scale = max(maximum, values.max() ?? 1, 0.001)
-            let step = values.count > 1 ? proxy.size.width / CGFloat(values.count - 1) : 0
-            let points = values.enumerated().map { index, value in
-                CGPoint(
-                    x: CGFloat(index) * step,
-                    y: proxy.size.height * (1 - CGFloat(min(value, scale) / scale)))
-            }
-            ZStack {
-                if points.count > 1 {
-                    Path { path in
-                        path.move(to: CGPoint(x: 0, y: proxy.size.height))
-                        path.addLine(to: points[0])
-                        for point in points.dropFirst() { path.addLine(to: point) }
-                        path.addLine(to: CGPoint(x: points.last?.x ?? 0, y: proxy.size.height))
-                        path.closeSubpath()
-                    }
-                    .fill(
-                        LinearGradient(
-                            colors: [color.opacity(0.28), color.opacity(0.02)],
-                            startPoint: .top, endPoint: .bottom))
-                    Path { path in
-                        path.move(to: points[0])
-                        for point in points.dropFirst() { path.addLine(to: point) }
-                    }
-                    .stroke(color, style: StrokeStyle(lineWidth: UIScale.pt(1.6), lineJoin: .round))
-                }
-            }
+        let samples = SparkSamples(values: values)
+        ZStack {
+            SparkShape(samples: samples, maximum: maximum, filled: true)
+                .fill(
+                    LinearGradient(
+                        colors: [color.opacity(0.28), color.opacity(0.02)],
+                        startPoint: .top, endPoint: .bottom))
+            SparkShape(samples: samples, maximum: maximum, filled: false)
+                .stroke(color, style: StrokeStyle(lineWidth: UIScale.pt(1.6), lineJoin: .round))
         }
+        .animation(.linear(duration: 0.85), value: values)
     }
 }
 
@@ -54,6 +103,7 @@ struct MeterBar: View {
             }
         }
         .frame(height: UIScale.pt(6))
+        .animation(.easeInOut(duration: 0.5), value: fraction)
     }
 }
 
@@ -80,6 +130,7 @@ struct MetricCard: View {
                     .foregroundStyle(DashSkin.ink(dark))
                     .monospacedDigit()
                     .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.35), value: value)
             }
             if let fraction {
                 MeterBar(fraction: fraction, color: color, track: DashSkin.line(dark))
@@ -114,19 +165,30 @@ struct MachineOverviewTab: View {
                 if session.sample == nil, !session.state.isConnected {
                     connectionNotice
                 }
-                identityCard
-                metricsGrid
-                if let slow = session.slow, !slow.disks.isEmpty {
-                    SkinCard(title: "Storage", dark: dark) { storage(slow) }
-                }
-                if let slow = session.slow, !slow.temps.isEmpty || slow.gpu != nil {
-                    SkinCard(title: "Hardware", dark: dark) { hardware(slow) }
-                }
-                if !session.facts.who.isEmpty || session.facts.updatesAvailable != nil {
-                    SkinCard(title: "Host", dark: dark) { hostFacts }
+                if session.sample == nil {
+                    MachineOverviewSkeleton(dark: dark)
+                } else {
+                    loaded
                 }
             }
             .pageContent(compact)
+        }
+    }
+
+    @ViewBuilder
+    private var loaded: some View {
+        identityCard
+        metricsGrid
+        if let slow = session.slow, !slow.disks.isEmpty {
+            SkinCard(title: "Storage", dark: dark) { storage(slow) }
+        } else {
+            MeterRowsSkeleton(title: "Storage", rows: 2, dark: dark)
+        }
+        if let slow = session.slow, !slow.temps.isEmpty || slow.gpu != nil {
+            SkinCard(title: "Hardware", dark: dark) { hardware(slow) }
+        }
+        if !session.facts.who.isEmpty || session.facts.updatesAvailable != nil {
+            SkinCard(title: "Host", dark: dark) { hostFacts }
         }
     }
 

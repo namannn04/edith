@@ -317,7 +317,7 @@ struct QuickLookOverlay: View {
         ZStack {
             Color.black.opacity(0.28)
                 .ignoresSafeArea()
-                .onTapGesture { close() }
+                .allowsHitTesting(false)
             panel
                 .scaleEffect(shown ? 1 : 0.88)
                 .opacity(shown ? 1 : 0)

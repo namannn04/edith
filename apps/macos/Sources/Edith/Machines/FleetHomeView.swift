@@ -15,11 +15,15 @@ struct FleetHomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: UIScale.pt(16)) {
-                fleetBanner
-                metricsGrid
-                storageCard
-                if !model.fleet.alerts.isEmpty { alertsCard }
-                machinesCard
+                if model.fleet.memoryTotalKB == 0 {
+                    FleetHomeSkeleton(dark: dark)
+                } else {
+                    fleetBanner
+                    metricsGrid
+                    storageCard
+                    if !model.fleet.alerts.isEmpty { alertsCard }
+                    machinesCard
+                }
             }
             .pageContent(compact)
         }

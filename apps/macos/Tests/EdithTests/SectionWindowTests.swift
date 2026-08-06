@@ -161,3 +161,46 @@ import Testing
                 == nil)
     }
 }
+
+@Suite @MainActor struct QuickLookSelectionTests {
+    private func finder() -> FinderModel {
+        let session = MachinesModel.shared.session(for: MachinesModel.localMachineID)
+        let model = FinderModel(session: session)
+        model.entries = [
+            RemoteFileEntry(name: "a.txt", path: "/d/a.txt", kind: .file, sizeBytes: 1),
+            RemoteFileEntry(name: "b.txt", path: "/d/b.txt", kind: .file, sizeBytes: 2),
+            RemoteFileEntry(name: "c.txt", path: "/d/c.txt", kind: .file, sizeBytes: 3),
+        ]
+        return model
+    }
+
+    @Test func previewFollowsANewSelectionWhileItIsOpen() {
+        let model = finder()
+        model.selection = ["/d/a.txt"]
+        model.toggleQuickLook()
+        #expect(model.quickLookPath == "/d/a.txt")
+
+        model.selection = ["/d/b.txt"]
+        #expect(model.quickLookPath == "/d/b.txt")
+
+        model.moveSelection(by: 1, extend: false)
+        #expect(model.quickLookPath == "/d/c.txt")
+    }
+
+    @Test func selectionChangesDoNotOpenAClosedPreview() {
+        let model = finder()
+        model.selection = ["/d/a.txt"]
+        #expect(model.quickLookPath == nil)
+        model.selection = ["/d/b.txt"]
+        #expect(model.quickLookPath == nil)
+    }
+
+    @Test func previewOpensOnTheSelectedFileAndClosesAgain() {
+        let model = finder()
+        model.selection = ["/d/c.txt"]
+        model.toggleQuickLook()
+        #expect(model.quickLookPath == "/d/c.txt")
+        model.toggleQuickLook()
+        #expect(model.quickLookPath == nil)
+    }
+}

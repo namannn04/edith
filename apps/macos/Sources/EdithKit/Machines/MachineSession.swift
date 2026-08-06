@@ -16,6 +16,7 @@ public final class MachineSession: ObservableObject {
     @Published public private(set) var diskReadHistory: [Double] = []
     @Published public private(set) var diskWriteHistory: [Double] = []
     @Published public private(set) var docker = DockerAvailability(status: .unknown)
+    @Published public private(set) var containersLoaded = false
     @Published public private(set) var containers: [DockerContainer] = []
     @Published public private(set) var images: [DockerImage] = []
     @Published public private(set) var volumes: [DockerVolume] = []
@@ -227,6 +228,7 @@ public final class MachineSession: ObservableObject {
         containers =
             sections.count > 1
             ? DockerParsing.applyStats(sections[1], to: parsed) : parsed
+        containersLoaded = true
     }
 
     public func refreshImagesAndVolumes() async {

@@ -37,7 +37,9 @@ struct DockerContainerList: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                if filtered.isEmpty {
+                if !session.containersLoaded {
+                    ListRowsSkeleton(rows: 5, dark: dark)
+                } else if filtered.isEmpty {
                     Text("No containers.")
                         .font(.system(size: UIScale.pt(12)))
                         .foregroundStyle(DashSkin.inkFaint(dark))

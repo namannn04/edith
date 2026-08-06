@@ -294,7 +294,7 @@ struct FinderBody: View {
                 FinderListView(model: model)
             }
             if model.loading, model.entries.isEmpty {
-                ProgressView().controlSize(.small)
+                FinderSkeleton(mode: model.viewMode, dark: dark)
             } else if model.visibleEntries.isEmpty, !model.loading {
                 Text(model.errorMessage ?? "This folder is empty.")
                     .font(.system(size: UIScale.pt(12)))
