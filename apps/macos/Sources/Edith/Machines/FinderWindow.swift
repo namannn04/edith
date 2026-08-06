@@ -7,7 +7,6 @@ struct FinderWindowView: View {
     @StateObject private var model: FinderModel
     @Environment(\.colorScheme) private var scheme
     @State private var confirmDelete = false
-    @FocusState private var listFocused: Bool
     @FocusState private var searchFocused: Bool
 
     private var dark: Bool { scheme == .dark }
@@ -35,10 +34,7 @@ struct FinderWindowView: View {
             statusBar
         }
         .background(DashSkin.paper(dark))
-        .focusable()
-        .focused($listFocused)
         .task {
-            listFocused = true
             model.connectIfNeeded()
             await model.waitForConnection()
             await model.loadPlaces()
@@ -52,12 +48,13 @@ struct FinderWindowView: View {
                 QuickLookOverlay(model: model)
             }
         }
-        .background(
+        .overlay(alignment: .topLeading) {
             FinderKeyCatcher(isEditing: model.renaming != nil) { key in
                 handle(key)
             }
-            .allowsHitTesting(false)
-        )
+            .frame(width: 1, height: 1)
+            .opacity(0.01)
+        }
         .background(shortcuts)
         .sheet(item: $model.infoTarget) { entry in
             FinderInfoSheet(model: model, entry: entry)

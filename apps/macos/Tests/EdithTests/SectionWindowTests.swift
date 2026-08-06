@@ -85,3 +85,67 @@ import Testing
                 == nil)
     }
 }
+
+@Suite struct FinderKeyTests {
+    private func event(
+        keyCode: UInt16, characters: String = "", modifiers: NSEvent.ModifierFlags = []
+    ) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+            windowNumber: 0, context: nil, characters: characters,
+            charactersIgnoringModifiers: characters, isARepeat: false, keyCode: keyCode)!
+    }
+
+    @Test func returnRenamesAndCommandReturnOpens() {
+        #expect(FinderKey.resolve(event: event(keyCode: 36)) == .rename)
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 36, modifiers: .command)) == .openSelection)
+    }
+
+    @Test func arrowsMoveAndExtendSelection() {
+        #expect(FinderKey.resolve(event: event(keyCode: 125)) == .moveDown(extend: false))
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 125, modifiers: .shift))
+                == .moveDown(extend: true))
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 126, modifiers: .command))
+                == .enclosingFolder)
+    }
+
+    @Test func spaceIsQuickLookAndEscapeCancels() {
+        #expect(FinderKey.resolve(event: event(keyCode: 49)) == .quickLook)
+        #expect(FinderKey.resolve(event: event(keyCode: 53)) == .cancel)
+    }
+
+    @Test func deleteNeedsCommandAndOptionMeansImmediate() {
+        #expect(FinderKey.resolve(event: event(keyCode: 51)) == nil)
+        #expect(FinderKey.resolve(event: event(keyCode: 51, modifiers: .command)) == .trash)
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 51, modifiers: [.command, .option]))
+                == .deleteImmediately)
+    }
+
+    @Test func commandLettersMapToActions() {
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 8, characters: "c", modifiers: .command))
+                == .copy)
+        #expect(
+            FinderKey.resolve(
+                event: event(keyCode: 8, characters: "c", modifiers: [.command, .option]))
+                == .copyPath)
+        #expect(
+            FinderKey.resolve(
+                event: event(keyCode: 45, characters: "n", modifiers: [.command, .shift]))
+                == .newFolder)
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 18, characters: "1", modifiers: .command))
+                == .iconView)
+    }
+
+    @Test func plainLettersTypeSelect() {
+        #expect(FinderKey.resolve(event: event(keyCode: 0, characters: "a")) == .type("a"))
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 0, characters: "a", modifiers: .option))
+                == nil)
+    }
+}
