@@ -101,7 +101,7 @@ struct MachineDetailView: View {
             case .overview: MachineOverviewTab(session: session)
             case .processes: MachineProcessesTab(session: session)
             case .docker: DockerConsoleView(session: session)
-            case .terminal: MachineTerminalTab(session: session)
+            case .terminal: TerminalTabsView(session: session)
             case .tools: MachineToolsTab(session: session, model: model)
             }
         }
