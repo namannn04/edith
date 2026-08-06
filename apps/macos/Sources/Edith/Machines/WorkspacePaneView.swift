@@ -41,7 +41,7 @@ struct PaneContentView: View {
         switch screen {
         case .overview: MachineOverviewTab(session: session)
         case .processes: MachineProcessesTab(session: session)
-        case .docker: MachineDockerTab(session: session)
+        case .docker: DockerConsoleView(session: session)
         case .terminal:
             MachineTerminalTab(session: session, holder: PaneViewStore.shared.terminal(for: tabID))
         case .files:

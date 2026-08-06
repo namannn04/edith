@@ -1,0 +1,305 @@
+import AppKit
+import EdithKit
+import SwiftUI
+
+struct DockerContainerList: View {
+    @ObservedObject var session: MachineSession
+    let query: String
+    let dark: Bool
+    let busyIDs: Set<String>
+    let onOpen: (DockerContainer) -> Void
+    let onAction: (DockerContainer, String) -> Void
+    let onShell: (DockerContainer) -> Void
+    let onRemove: (DockerContainer) -> Void
+
+    private var filtered: [DockerContainer] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return session.containers }
+        return session.containers.filter {
+            $0.displayName.localizedCaseInsensitiveContains(trimmed)
+                || $0.image.localizedCaseInsensitiveContains(trimmed)
+                || ($0.composeProject ?? "").localizedCaseInsensitiveContains(trimmed)
+        }
+    }
+
+    private var groups: [(project: String?, containers: [DockerContainer])] {
+        let grouped = Dictionary(grouping: filtered) { $0.composeProject }
+        let projects = grouped.keys.compactMap { $0 }.sorted()
+        var result: [(String?, [DockerContainer])] = projects.map { project in
+            (project, (grouped[project] ?? []).sorted { $0.displayName < $1.displayName })
+        }
+        if let standalone = grouped[nil], !standalone.isEmpty {
+            result.append((nil, standalone.sorted { $0.displayName < $1.displayName }))
+        }
+        return result
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                if filtered.isEmpty {
+                    Text("No containers.")
+                        .font(.system(size: UIScale.pt(12)))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                        .padding(UIScale.pt(20))
+                }
+                ForEach(groups, id: \.project) { group in
+                    Section {
+                        ForEach(group.containers) { container in
+                            DockerContainerRow(
+                                container: container, dark: dark,
+                                busy: busyIDs.contains(container.id),
+                                onOpen: { onOpen(container) },
+                                onAction: { onAction(container, $0) },
+                                onShell: { onShell(container) },
+                                onRemove: { onRemove(container) })
+                            Divider().opacity(0.2)
+                        }
+                    } header: {
+                        HStack(spacing: UIScale.pt(6)) {
+                            Image(systemName: group.project == nil ? "cube" : "square.stack")
+                                .font(.system(size: UIScale.pt(10)))
+                            Text(group.project ?? "Standalone")
+                                .font(.system(size: UIScale.pt(11), weight: .semibold))
+                            Text("\(group.containers.count)")
+                                .font(DashSkin.mono(10))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(DashSkin.inkSoft(dark))
+                        .padding(.horizontal, UIScale.pt(16))
+                        .padding(.vertical, UIScale.pt(6))
+                        .background(.thinMaterial)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DockerContainerRow: View {
+    let container: DockerContainer
+    let dark: Bool
+    let busy: Bool
+    let onOpen: () -> Void
+    let onAction: (String) -> Void
+    let onShell: () -> Void
+    let onRemove: () -> Void
+    @State private var hovering = false
+
+    private var stateColor: Color {
+        switch container.state {
+        case .running: return container.health == .unhealthy ? DashSkin.warn : DashSkin.ok
+        case .paused, .restarting: return DashSkin.gold
+        default: return DashSkin.inkFaint(dark)
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: UIScale.pt(12)) {
+            Circle().fill(stateColor).frame(width: UIScale.pt(8), height: UIScale.pt(8))
+            VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                Text(container.composeService ?? container.displayName)
+                    .font(.system(size: UIScale.pt(13), weight: .medium))
+                    .foregroundStyle(DashSkin.ink(dark))
+                Text(container.image)
+                    .font(DashSkin.mono(10))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .lineLimit(1)
+            }
+            .frame(width: UIScale.pt(230), alignment: .leading)
+            Text(container.status)
+                .font(.system(size: UIScale.pt(11)))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .lineLimit(1)
+                .frame(width: UIScale.pt(150), alignment: .leading)
+            portsView
+                .frame(width: UIScale.pt(160), alignment: .leading)
+            Text(container.cpuPercent.map { String(format: "%.1f%%", $0) } ?? "—")
+                .font(DashSkin.mono(11))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .frame(width: UIScale.pt(54), alignment: .trailing)
+            Text(container.memUsedBytes.map { ByteFormatter.string($0) } ?? "—")
+                .font(DashSkin.mono(11))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .frame(width: UIScale.pt(70), alignment: .trailing)
+            Spacer(minLength: 0)
+            actions
+        }
+        .padding(.horizontal, UIScale.pt(16))
+        .padding(.vertical, UIScale.pt(9))
+        .background(hovering ? DashSkin.inkFaint(dark).opacity(0.06) : .clear)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .onTapGesture(count: 2, perform: onOpen)
+        .contextMenu {
+            Button("Open Details", action: onOpen)
+            Button(container.state.isRunning ? "Stop" : "Start") {
+                onAction(container.state.isRunning ? "stop" : "start")
+            }
+            Button("Restart") { onAction("restart") }
+            Button(container.state == .paused ? "Unpause" : "Pause") {
+                onAction(container.state == .paused ? "unpause" : "pause")
+            }
+            Button("Shell", action: onShell).disabled(!container.state.isRunning)
+            Divider()
+            Button("Copy ID") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(container.id, forType: .string)
+            }
+            Divider()
+            Button("Remove", role: .destructive, action: onRemove)
+        }
+    }
+
+    @ViewBuilder
+    private var portsView: some View {
+        HStack(spacing: UIScale.pt(4)) {
+            ForEach(container.ports.prefix(2), id: \.self) { port in
+                if let url = port.browserURL {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Text(port.displayName)
+                            .font(DashSkin.mono(9.5))
+                            .padding(.horizontal, UIScale.pt(5))
+                            .padding(.vertical, UIScale.pt(2))
+                            .background(DashSkin.accent(dark).opacity(0.15), in: Capsule())
+                            .foregroundStyle(DashSkin.accent(dark))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                } else {
+                    Text(port.displayName)
+                        .font(DashSkin.mono(9.5))
+                        .padding(.horizontal, UIScale.pt(5))
+                        .padding(.vertical, UIScale.pt(2))
+                        .background(DashSkin.line(dark), in: Capsule())
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: UIScale.pt(2)) {
+            if busy {
+                ProgressView().controlSize(.small).scaleEffect(0.6).frame(width: UIScale.pt(24))
+            } else {
+                Button {
+                    onAction(container.state.isRunning ? "stop" : "start")
+                } label: {
+                    Image(systemName: container.state.isRunning ? "stop.fill" : "play.fill")
+                }
+                .buttonStyle(HoverButtonStyle())
+                .help(container.state.isRunning ? "Stop" : "Start")
+            }
+            Button(action: onOpen) {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help("Open details")
+        }
+        .font(.system(size: UIScale.pt(11)))
+    }
+}
+
+struct DockerSimpleList: View {
+    let rows: [DockerRow]
+    let dark: Bool
+    let onDelete: ((String) -> Void)?
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                if rows.isEmpty {
+                    Text("Nothing here.")
+                        .font(.system(size: UIScale.pt(12)))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                        .padding(UIScale.pt(20))
+                }
+                ForEach(rows) { row in
+                    HStack(spacing: UIScale.pt(12)) {
+                        Image(systemName: row.symbol)
+                            .foregroundStyle(DashSkin.inkFaint(dark))
+                            .frame(width: UIScale.pt(16))
+                        VStack(alignment: .leading, spacing: UIScale.pt(1)) {
+                            Text(row.title)
+                                .font(.system(size: UIScale.pt(12.5)))
+                                .foregroundStyle(DashSkin.ink(dark))
+                                .lineLimit(1)
+                            Text(row.subtitle)
+                                .font(DashSkin.mono(10))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        if let badge = row.badge {
+                            Text(badge)
+                                .font(.system(size: UIScale.pt(9.5), weight: .medium))
+                                .padding(.horizontal, UIScale.pt(6))
+                                .padding(.vertical, UIScale.pt(2))
+                                .background(DashSkin.sage.opacity(0.18), in: Capsule())
+                                .foregroundStyle(DashSkin.sage)
+                        }
+                        Text(row.trailing)
+                            .font(DashSkin.mono(11))
+                            .foregroundStyle(DashSkin.inkSoft(dark))
+                        if let onDelete {
+                            Button {
+                                onDelete(row.id)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(HoverButtonStyle())
+                            .help("Remove")
+                        }
+                    }
+                    .padding(.horizontal, UIScale.pt(16))
+                    .padding(.vertical, UIScale.pt(9))
+                    Divider().opacity(0.2)
+                }
+            }
+        }
+    }
+}
+
+struct DockerUsageView: View {
+    @ObservedObject var session: MachineSession
+    let dark: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: UIScale.pt(12)) {
+                ForEach(session.diskUsage, id: \.type) { usage in
+                    VStack(alignment: .leading, spacing: UIScale.pt(6)) {
+                        HStack {
+                            Text(usage.type)
+                                .font(.system(size: UIScale.pt(13), weight: .medium))
+                                .foregroundStyle(DashSkin.ink(dark))
+                            Spacer()
+                            Text(ByteFormatter.string(usage.sizeBytes))
+                                .font(DashSkin.mono(12))
+                                .foregroundStyle(DashSkin.ink(dark))
+                        }
+                        MeterBar(
+                            fraction: usage.sizeBytes > 0
+                                ? Double(usage.sizeBytes - usage.reclaimableBytes)
+                                    / Double(usage.sizeBytes) : 0,
+                            color: DashSkin.accent(dark), track: DashSkin.line(dark))
+                        Text(
+                            "\(usage.active) active of \(usage.totalCount)  ·  "
+                                + "\(ByteFormatter.string(usage.reclaimableBytes)) reclaimable"
+                        )
+                        .font(.system(size: UIScale.pt(10.5)))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                    }
+                    .padding(UIScale.pt(14))
+                    .background(
+                        DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+                }
+            }
+            .padding(UIScale.pt(16))
+        }
+    }
+}

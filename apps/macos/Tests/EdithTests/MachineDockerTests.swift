@@ -398,3 +398,73 @@ import Testing
         #expect(history.last == 79)
     }
 }
+
+@Suite struct DockerDetailParsingTests {
+    @Test func parsesTopOutput() {
+        let output = """
+            PID    USER   %CPU  %MEM   RSS     COMMAND
+            1      root   0.5   1.2    45678   /usr/bin/postgres -D /var/lib/data
+            42     redis  0.0   0.3    12345   redis-server *:6379
+            """
+        let processes = DockerParsing.processes(output)
+        #expect(processes.count == 2)
+        #expect(processes[0].pid == "1")
+        #expect(processes[0].user == "root")
+        #expect(processes[0].command == "/usr/bin/postgres -D /var/lib/data")
+        #expect(processes[1].command == "redis-server *:6379")
+    }
+
+    @Test func topWithoutRowsIsEmpty() {
+        #expect(DockerParsing.processes("PID USER %CPU %MEM RSS COMMAND").isEmpty)
+        #expect(DockerParsing.processes("").isEmpty)
+    }
+
+    @Test func parsesInspectSummary() {
+        let output = """
+            [{"Created":"2026-08-01T10:00:00Z",
+            "Config":{"Image":"postgres:17","Cmd":["postgres","-c","fsync=off"],
+            "Env":["POSTGRES_PASSWORD=secret","LANG=C"],"Labels":{"role":"db"}},
+            "HostConfig":{"RestartPolicy":{"Name":"unless-stopped"}},
+            "NetworkSettings":{"Networks":{"api_default":{}}},
+            "Mounts":[{"Source":"/var/lib/pg","Destination":"/data"}]}]
+            """
+        guard let summary = DockerParsing.inspectSummary(output) else {
+            Issue.record("expected a summary")
+            return
+        }
+        #expect(summary.image == "postgres:17")
+        #expect(summary.command == "postgres -c fsync=off")
+        #expect(summary.restartPolicy == "unless-stopped")
+        #expect(summary.networks == ["api_default"])
+        #expect(summary.mounts == ["/var/lib/pg → /data"])
+        #expect(summary.environment.contains("LANG=C"))
+        #expect(summary.labels["role"] == "db")
+    }
+
+    @Test func inspectHandlesGarbage() {
+        #expect(DockerParsing.inspectSummary("not json") == nil)
+        #expect(DockerParsing.inspectSummary("[]") == nil)
+    }
+
+    @Test func parsesComposeProjectsFromArrayOrLines() {
+        #expect(
+            DockerParsing.composeProjects("[{\"Name\":\"api\"},{\"Name\":\"web\"}]")
+                == ["api", "web"])
+        #expect(
+            DockerParsing.composeProjects("{\"Name\":\"api\"}\n{\"Name\":\"web\"}")
+                == ["api", "web"])
+    }
+
+    @Test func pruneAndDetailCommandsAreShaped() {
+        #expect(DockerCommands.prune("images") == "docker image prune -af")
+        #expect(DockerCommands.prune("volumes") == "docker volume prune -f")
+        #expect(DockerCommands.inspectRaw("a b").contains("'a b'"))
+        #expect(DockerCommands.top("web").contains("docker top web"))
+        #expect(
+            DockerCommands.listFiles(containerID: "web", path: "/etc")
+                .contains("docker exec web sh -c"))
+        #expect(
+            DockerCommands.composeAction("up -d", project: "api", directory: "/srv/api")
+                .contains("--project-directory /srv/api"))
+    }
+}

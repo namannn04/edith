@@ -51,6 +51,25 @@ struct MachineDetailView: View {
                 .help("\(item.title) (⌘-click to open this machine in its own window)")
             }
             Button {
+                DockerWindow.open(session: session)
+            } label: {
+                HStack(spacing: UIScale.pt(6)) {
+                    Image(systemName: "shippingbox")
+                        .font(.system(size: UIScale.pt(11), weight: .medium))
+                    Text("Docker window")
+                        .font(.system(size: UIScale.pt(12.5), weight: .medium))
+                }
+                .padding(.horizontal, UIScale.pt(11))
+                .padding(.vertical, UIScale.pt(6))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+            .disabled(session.isLocal)
+            .help("Manage containers in their own window")
+
+            Button {
                 FinderWindow.open(session: session)
             } label: {
                 HStack(spacing: UIScale.pt(6)) {
@@ -81,7 +100,7 @@ struct MachineDetailView: View {
             switch tab {
             case .overview: MachineOverviewTab(session: session)
             case .processes: MachineProcessesTab(session: session)
-            case .docker: MachineDockerTab(session: session)
+            case .docker: DockerConsoleView(session: session)
             case .terminal: MachineTerminalTab(session: session)
             case .tools: MachineToolsTab(session: session, model: model)
             }

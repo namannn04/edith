@@ -90,3 +90,152 @@ public enum DockerCommands {
         return "docker exec -it \(ShellQuote.quote(containerID)) sh -c \(ShellQuote.quote(inner))"
     }
 }
+
+extension DockerCommands {
+    public static func inspectRaw(_ id: String) -> String {
+        "docker inspect \(ShellQuote.quote(id))"
+    }
+
+    public static func top(_ id: String) -> String {
+        "docker top \(ShellQuote.quote(id)) -eo pid,user,pcpu,pmem,rss,args 2>/dev/null"
+            + " || docker top \(ShellQuote.quote(id))"
+    }
+
+    public static func statsStream() -> String {
+        "docker stats --format \(ShellQuote.quote(jsonFormat))"
+    }
+
+    public static func listFiles(containerID: String, path: String) -> String {
+        let inner =
+            "ls -lA --time-style=+%s \(ShellQuote.quote(path)) 2>/dev/null || ls -lA "
+            + ShellQuote.quote(path)
+        return "docker exec \(ShellQuote.quote(containerID)) sh -c \(ShellQuote.quote(inner))"
+    }
+
+    public static func readFile(containerID: String, path: String, limit: Int) -> String {
+        let inner = "head -c \(limit) \(ShellQuote.quote(path))"
+        return "docker exec \(ShellQuote.quote(containerID)) sh -c \(ShellQuote.quote(inner))"
+    }
+
+    public static func imageHistory(_ id: String) -> String {
+        "docker image history --no-trunc --format \(ShellQuote.quote(jsonFormat)) "
+            + ShellQuote.quote(id)
+    }
+
+    public static func composeProjects() -> String {
+        "docker compose ls --format json 2>/dev/null"
+    }
+
+    public static func composeAction(_ action: String, project: String, directory: String?)
+        -> String
+    {
+        var command = "docker compose -p \(ShellQuote.quote(project))"
+        if let directory, !directory.isEmpty {
+            command += " --project-directory \(ShellQuote.quote(directory))"
+        }
+        return command + " " + action
+    }
+
+    public static func prune(_ what: String) -> String {
+        switch what {
+        case "images": return "docker image prune -af"
+        case "volumes": return "docker volume prune -f"
+        case "networks": return "docker network prune -f"
+        case "builder": return "docker builder prune -af"
+        default: return "docker system prune -f"
+        }
+    }
+}
+
+public struct DockerProcess: Identifiable, Equatable, Sendable {
+    public var pid: String
+    public var user: String
+    public var cpu: String
+    public var memory: String
+    public var command: String
+
+    public var id: String { pid }
+
+    public init(pid: String, user: String, cpu: String, memory: String, command: String) {
+        self.pid = pid
+        self.user = user
+        self.cpu = cpu
+        self.memory = memory
+        self.command = command
+    }
+}
+
+public struct DockerInspectSummary: Equatable, Sendable {
+    public var image: String
+    public var command: String
+    public var created: String
+    public var restartPolicy: String
+    public var environment: [String]
+    public var mounts: [String]
+    public var networks: [String]
+    public var labels: [String: String]
+
+    public init(
+        image: String = "", command: String = "", created: String = "",
+        restartPolicy: String = "", environment: [String] = [], mounts: [String] = [],
+        networks: [String] = [], labels: [String: String] = [:]
+    ) {
+        self.image = image
+        self.command = command
+        self.created = created
+        self.restartPolicy = restartPolicy
+        self.environment = environment
+        self.mounts = mounts
+        self.networks = networks
+        self.labels = labels
+    }
+}
+
+extension DockerParsing {
+    public static func processes(_ output: String) -> [DockerProcess] {
+        let lines = output.split(separator: "\n").map(String.init)
+        guard lines.count > 1 else { return [] }
+        return lines.dropFirst().compactMap { line in
+            let parts = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
+            guard parts.count >= 6 else { return nil }
+            return DockerProcess(
+                pid: String(parts[0]), user: String(parts[1]), cpu: String(parts[2]),
+                memory: String(parts[3]),
+                command: parts[5].trimmingCharacters(in: .whitespaces))
+        }
+    }
+
+    public static func inspectSummary(_ output: String) -> DockerInspectSummary? {
+        guard let data = output.data(using: .utf8),
+            let array = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]],
+            let object = array.first
+        else { return nil }
+        let config = object["Config"] as? [String: Any] ?? [:]
+        let hostConfig = object["HostConfig"] as? [String: Any] ?? [:]
+        let policy = hostConfig["RestartPolicy"] as? [String: Any] ?? [:]
+        let networkSettings = object["NetworkSettings"] as? [String: Any] ?? [:]
+        let networks = (networkSettings["Networks"] as? [String: Any])?.keys.sorted() ?? []
+        let mounts = (object["Mounts"] as? [[String: Any]] ?? []).map { mount -> String in
+            let source = string(mount, "Source")
+            let destination = string(mount, "Destination")
+            return source.isEmpty ? destination : "\(source) → \(destination)"
+        }
+        return DockerInspectSummary(
+            image: string(config, "Image"),
+            command: (config["Cmd"] as? [String] ?? []).joined(separator: " "),
+            created: string(object, "Created"),
+            restartPolicy: string(policy, "Name"),
+            environment: config["Env"] as? [String] ?? [],
+            mounts: mounts,
+            networks: networks,
+            labels: config["Labels"] as? [String: String] ?? [:])
+    }
+
+    public static func composeProjects(_ output: String) -> [String] {
+        guard let data = output.data(using: .utf8) else { return [] }
+        if let array = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] {
+            return array.map { string($0, "Name") }.filter { !$0.isEmpty }
+        }
+        return jsonLines(output).map { string($0, "Name") }.filter { !$0.isEmpty }
+    }
+}

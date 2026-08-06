@@ -333,11 +333,14 @@ import Testing
         let replace = NameConflicts.command(
             intent: intent, destination: "/d", resolutions: ["a.txt": .replace],
             existing: existing)
-        #expect(replace == "mv -f /src/a.txt /d/a.txt && mv -f /src/b.txt /d/b.txt")
+        #expect(
+            replace
+                == "rm -rf /d/a.txt && mv /src/a.txt /d/a.txt; "
+                + "rm -rf /d/b.txt && mv /src/b.txt /d/b.txt")
 
         let skip = NameConflicts.command(
             intent: intent, destination: "/d", resolutions: ["a.txt": .skip], existing: existing)
-        #expect(skip == "mv -f /src/b.txt /d/b.txt")
+        #expect(skip == "rm -rf /d/b.txt && mv /src/b.txt /d/b.txt")
 
         let keep = NameConflicts.command(
             intent: intent, destination: "/d", resolutions: ["a.txt": .keepBoth],
@@ -347,8 +350,8 @@ import Testing
 
     @Test func copyIntentUsesCopyCommand() {
         let command = NameConflicts.command(
-            intent: .copyWithinMachine(["/src/x"]), destination: "/d", resolutions: [:],
-            existing: [])
+            intent: .copyWithinMachine(["/src/x"]), destination: "/d",
+            resolutions: ["x": .keepBoth], existing: [])
         #expect(command == "cp -a /src/x /d/x")
     }
 
@@ -357,6 +360,27 @@ import Testing
             intent: .moveWithinMachine(["/src/a.txt"]), destination: "/d",
             resolutions: ["a.txt": .skip], existing: existing)
         #expect(command == nil)
+    }
+}
+
+@Suite struct ReplaceOntoDirectoryTests {
+    @Test func replacingClearsTheTargetSoFoldersAreNotNested() {
+        let existing = [
+            RemoteFileEntry(name: "docs", path: "/d/docs", kind: .directory, sizeBytes: 0)
+        ]
+        let command = NameConflicts.command(
+            intent: .moveWithinMachine(["/src/docs"]), destination: "/d",
+            resolutions: ["docs": .replace], existing: existing)
+        #expect(command == "rm -rf /d/docs && mv /src/docs /d/docs")
+        #expect(command?.contains("mv -f") == false)
+    }
+
+    @Test func oneFailureDoesNotAbortTheRest() {
+        let command = NameConflicts.command(
+            intent: .moveWithinMachine(["/src/a", "/src/b"]), destination: "/d",
+            resolutions: ["a": .keepBoth, "b": .keepBoth], existing: [])
+        #expect(command?.contains("; ") == true)
+        #expect(command?.contains("&& mv /src/b") == false)
     }
 }
 

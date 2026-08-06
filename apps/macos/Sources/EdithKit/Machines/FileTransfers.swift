@@ -105,18 +105,21 @@ public enum NameConflicts {
             let targetName =
                 resolution == .keepBoth ? uniqueName(for: name, existing: existing) : name
             let target = FileListing.join(parent: destination, name: targetName)
+            let quotedSource = ShellQuote.quote(path)
+            let quotedTarget = ShellQuote.quote(target)
+            let verb: String
             switch intent {
-            case .moveWithinMachine:
-                parts.append(
-                    "mv -f \(ShellQuote.quote(path)) \(ShellQuote.quote(target))")
-            case .copyWithinMachine:
-                parts.append(
-                    "cp -a \(ShellQuote.quote(path)) \(ShellQuote.quote(target))")
-            case .transferBetweenMachines, .uploadLocalFiles:
-                return nil
+            case .moveWithinMachine: verb = "mv"
+            case .copyWithinMachine: verb = "cp -a"
+            case .transferBetweenMachines, .uploadLocalFiles: return nil
+            }
+            if resolution == .replace {
+                parts.append("rm -rf \(quotedTarget) && \(verb) \(quotedSource) \(quotedTarget)")
+            } else {
+                parts.append("\(verb) \(quotedSource) \(quotedTarget)")
             }
         }
-        return parts.isEmpty ? nil : parts.joined(separator: " && ")
+        return parts.isEmpty ? nil : parts.joined(separator: "; ")
     }
 }
 

@@ -20,6 +20,7 @@ public final class MachineSession: ObservableObject {
     @Published public private(set) var images: [DockerImage] = []
     @Published public private(set) var volumes: [DockerVolume] = []
     @Published public private(set) var diskUsage: [DockerDiskUsage] = []
+    @Published public private(set) var networks: [DockerNetwork] = []
     @Published public private(set) var services: [SystemdService] = []
     @Published public private(set) var facts = MachineSessionSummary()
     @Published public private(set) var activeForwards: Set<UUID> = []
@@ -154,7 +155,7 @@ public final class MachineSession: ObservableObject {
         diskWriteHistory = Self.appending(value.disk.writeBps, to: diskWriteHistory)
     }
 
-    static func appending(_ value: Double, to history: [Double]) -> [Double] {
+    public static func appending(_ value: Double, to history: [Double]) -> [Double] {
         var next = history
         next.append(value)
         if next.count > historyLength {
@@ -239,6 +240,9 @@ public final class MachineSession: ObservableObject {
             imagesResult, volumesResult, usageResult, verboseResult
         )
         images = DockerParsing.images(imagesOut?.stdoutText ?? "")
+        if let networksOut = try? await connection.run(DockerCommands.networks(), timeout: 20) {
+            networks = DockerParsing.networks(networksOut.stdoutText)
+        }
         let details = DockerParsing.volumeDetails(
             systemDFOutput: verboseOut?.stdoutText ?? "")
         volumes = DockerParsing.volumes(volumesOut?.stdoutText ?? "").map { volume in
