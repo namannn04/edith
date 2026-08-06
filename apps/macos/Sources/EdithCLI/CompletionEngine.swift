@@ -17,6 +17,11 @@ public struct CompletionRequest: Equatable, Sendable {
     public var leading: [String] {
         Array(words.prefix(index).dropFirst())
     }
+
+    public static func stripSeparator(_ words: [String]) -> [String] {
+        guard words.first == "--" else { return words }
+        return Array(words.dropFirst())
+    }
 }
 
 public struct CompletionResult: Equatable, Sendable {

@@ -240,7 +240,8 @@ struct CompleteCommand: AsyncParsableCommand {
 
     func run() async throws {
         let machines = MachineDirectory.load()
-        let request = CompletionRequest(words: words, index: index)
+        let request = CompletionRequest(
+            words: CompletionRequest.stripSeparator(words), index: index)
         let result = CompletionEngine.plan(
             request, machines: MachineDirectory.names(from: machines),
             configKeys: ConfigCatalog.keys,

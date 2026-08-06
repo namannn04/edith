@@ -1,6 +1,6 @@
 FLAGS := $(if $(PR),--pr $(PR)) $(if $(BRANCH),--branch $(BRANCH))
 
-.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check site-dev
+.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check site-dev cli
 
 ci:
 	bun install --frozen-lockfile
@@ -8,6 +8,11 @@ ci:
 
 site-dev:
 	cd apps/site && python3 -m http.server 8000
+
+cli:
+	cd apps/macos && swift build -c release --product ed --product edh
+	apps/macos/.build/release/ed install --directory $(HOME)/.local/bin
+	apps/macos/.build/release/ed completions install
 
 ci-comments:
 	bun scripts/strip-comments.mjs --selftest
@@ -46,6 +51,8 @@ ci-swift-check:
 ci-swift: ci-swift-check
 	cd apps/macos && ./build.sh --no-open
 	test -f apps/macos/dist/Edith.app/Contents/MacOS/Edith
+	test -x apps/macos/dist/Edith.app/Contents/MacOS/ed
+	test -x apps/macos/dist/Edith.app/Contents/MacOS/edh
 	test -f apps/macos/dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/claude.svg
 	test -f apps/macos/dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/codex.svg
 	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/MacOS/Edith

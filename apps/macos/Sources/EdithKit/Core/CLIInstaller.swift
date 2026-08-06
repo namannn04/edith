@@ -27,6 +27,11 @@ public enum CLIInstaller {
         var candidate: URL? = bundleURL
         for _ in 0..<6 {
             guard let current = candidate else { break }
+            if fileManager.isExecutableFile(
+                atPath: current.appendingPathComponent(primaryTool).path)
+            {
+                return current
+            }
             let tools = current.appendingPathComponent("Contents/MacOS")
             if fileManager.isExecutableFile(
                 atPath: tools.appendingPathComponent(primaryTool).path)
@@ -133,6 +138,6 @@ public enum CLIInstaller {
     static func isOurs(_ link: URL, fileManager: FileManager) -> Bool {
         guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: link.path)
         else { return false }
-        return destination.contains("Edith.app/Contents/MacOS/")
+        return toolNames.contains((destination as NSString).lastPathComponent)
     }
 }
