@@ -93,3 +93,31 @@ import Testing
         #expect(alert.body == "/ is 95% full.")
     }
 }
+
+@Suite @MainActor struct MetricHistoryShapeTests {
+    @Test func theFirstSampleFillsTheWholeWindow() {
+        let seeded = MachineSession.appending(42, to: [])
+        #expect(seeded.count == MachineSession.historyLength)
+        #expect(seeded.allSatisfy { $0 == 42 })
+    }
+
+    @Test func laterSamplesKeepTheWindowLengthConstant() {
+        var history = MachineSession.appending(10, to: [])
+        for value in 1...20 {
+            history = MachineSession.appending(Double(value), to: history)
+            #expect(history.count == MachineSession.historyLength)
+        }
+        #expect(history.last == 20)
+        #expect(history.suffix(3) == [18, 19, 20])
+    }
+
+    @Test func aFullWindowScrollsByExactlyOneSample() {
+        var history = MachineSession.appending(0, to: [])
+        for value in 1...MachineSession.historyLength {
+            history = MachineSession.appending(Double(value), to: history)
+        }
+        let before = history
+        history = MachineSession.appending(999, to: history)
+        #expect(Array(history.dropLast()) == Array(before.dropFirst()))
+    }
+}

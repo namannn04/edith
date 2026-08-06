@@ -31,15 +31,11 @@ struct FleetHomeView: View {
             while !Task.isCancelled {
                 tick += 1
                 let fleet = model.fleet
-                cpuHistory = trimmed(cpuHistory + [fleet.cpuPercent])
-                memHistory = trimmed(memHistory + [fleet.memoryPercent])
-                try? await Task.sleep(for: .seconds(2))
+                cpuHistory = MachineSession.appending(fleet.cpuPercent, to: cpuHistory)
+                memHistory = MachineSession.appending(fleet.memoryPercent, to: memHistory)
+                try? await Task.sleep(for: .seconds(MetricsCadence.sampleInterval))
             }
         }
-    }
-
-    private func trimmed(_ values: [Double]) -> [Double] {
-        values.count > 90 ? Array(values.suffix(90)) : values
     }
 
     private var fleetBanner: some View {

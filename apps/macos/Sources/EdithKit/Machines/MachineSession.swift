@@ -157,6 +157,9 @@ public final class MachineSession: ObservableObject {
     }
 
     public static func appending(_ value: Double, to history: [Double]) -> [Double] {
+        guard !history.isEmpty else {
+            return Array(repeating: value, count: historyLength)
+        }
         var next = history
         next.append(value)
         if next.count > historyLength {

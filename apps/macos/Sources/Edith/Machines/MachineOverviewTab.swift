@@ -40,6 +40,7 @@ struct SparkSamples: VectorArithmetic {
 struct SparkShape: Shape {
     var samples: SparkSamples
     let maximum: Double
+    let capacity: Int
     let filled: Bool
 
     var animatableData: SparkSamples {
@@ -51,10 +52,12 @@ struct SparkShape: Shape {
         let values = samples.values
         guard values.count > 1 else { return Path() }
         let scale = max(maximum, values.max() ?? 1, 0.001)
-        let step = rect.width / CGFloat(values.count - 1)
+        let slots = max(capacity, values.count)
+        let step = rect.width / CGFloat(slots - 1)
+        let offset = CGFloat(slots - values.count) * step
         let points = values.enumerated().map { index, value in
             CGPoint(
-                x: rect.minX + CGFloat(index) * step,
+                x: rect.minX + offset + CGFloat(index) * step,
                 y: rect.maxY - rect.height * CGFloat(min(max(value, 0), scale) / scale))
         }
         var path = Path()
@@ -78,16 +81,17 @@ struct Sparkline: View {
     let maximum: Double
     let color: Color
     var cadence = MetricsCadence.sampleInterval
+    var capacity = MachineSession.historyLength
 
     var body: some View {
         let samples = SparkSamples(values: values)
         ZStack {
-            SparkShape(samples: samples, maximum: maximum, filled: true)
+            SparkShape(samples: samples, maximum: maximum, capacity: capacity, filled: true)
                 .fill(
                     LinearGradient(
                         colors: [color.opacity(0.28), color.opacity(0.02)],
                         startPoint: .top, endPoint: .bottom))
-            SparkShape(samples: samples, maximum: maximum, filled: false)
+            SparkShape(samples: samples, maximum: maximum, capacity: capacity, filled: false)
                 .stroke(color, style: StrokeStyle(lineWidth: UIScale.pt(1.6), lineJoin: .round))
         }
         .animation(.linear(duration: cadence), value: values)
