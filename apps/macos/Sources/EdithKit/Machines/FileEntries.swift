@@ -222,3 +222,18 @@ public enum ByteFormatter {
         return "\(minutes)m"
     }
 }
+
+public enum FilePathKey {
+    public static func canonical(_ path: String) -> String {
+        (path as NSString).resolvingSymlinksInPath
+    }
+
+    public static func anchor(_ path: String, to root: String) -> String {
+        let canonicalPath = canonical(path)
+        let canonicalRoot = canonical(root)
+        guard canonicalRoot != root, canonicalPath.hasPrefix(canonicalRoot) else {
+            return canonicalPath
+        }
+        return root + canonicalPath.dropFirst(canonicalRoot.count)
+    }
+}

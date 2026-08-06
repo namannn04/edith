@@ -548,8 +548,14 @@ final class FinderModel: ObservableObject {
     private func runDeepSearch(_ query: String, token: Int) async {
         let shallow = entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
         guard !session.isLocal else {
+            let root = path
+            let deep = await Task.detached(priority: .userInitiated) {
+                MachineSession.searchLocalFiles(root: root, query: query)
+            }.value
             guard token == searchToken else { return }
-            searchResults = shallow
+            var seen = Set(shallow.map { FilePathKey.canonical($0.path) })
+            searchResults =
+                shallow + deep.filter { seen.insert(FilePathKey.canonical($0.path)).inserted }
             return
         }
         let result = await session.runCommand(
