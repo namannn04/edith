@@ -205,7 +205,16 @@ private struct FleetMachineRow: View {
     }
 }
 
+enum MachinesMode: String {
+    case fleet
+    case workspace
+    case machine
+}
+
 struct FleetChip: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
     let selected: Bool
     let dark: Bool
     let onSelect: () -> Void
@@ -214,14 +223,14 @@ struct FleetChip: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: UIScale.pt(8)) {
-                Image(systemName: "square.grid.2x2")
+                Image(systemName: symbol)
                     .font(.system(size: UIScale.pt(13)))
                     .foregroundStyle(selected ? DashSkin.accent(dark) : DashSkin.inkSoft(dark))
                 VStack(alignment: .leading, spacing: UIScale.pt(1)) {
-                    Text("All machines")
+                    Text(title)
                         .font(.system(size: UIScale.pt(12.5), weight: .medium))
                         .foregroundStyle(DashSkin.ink(dark))
-                    Text("Summary")
+                    Text(subtitle)
                         .font(.system(size: UIScale.pt(10.5)))
                         .foregroundStyle(DashSkin.inkFaint(dark))
                 }

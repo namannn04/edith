@@ -8,7 +8,7 @@ struct MachinesPage: View {
     @AppStorage("machinesTab", store: SharedDefaults.store) private var storedTab =
         MachineTab.overview.rawValue
     @AppStorage("machinesSelection", store: SharedDefaults.store) private var storedSelection = ""
-    @AppStorage("machinesShowFleet", store: SharedDefaults.store) private var showFleet = true
+    @AppStorage("machinesMode", store: SharedDefaults.store) private var modeRaw = "fleet"
     @State private var addSheetPresented = false
     @State private var editingMachine: Machine?
     @State private var confirmRemoval: Machine?
@@ -93,7 +93,14 @@ struct MachinesPage: View {
     private var machineStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIScale.pt(10)) {
-                FleetChip(selected: showFleet, dark: dark) { showFleet = true }
+                FleetChip(
+                    title: "All machines", subtitle: "Summary", symbol: "square.grid.2x2",
+                    selected: mode == .fleet, dark: dark
+                ) { modeRaw = MachinesMode.fleet.rawValue }
+                FleetChip(
+                    title: "Workspace", subtitle: "Split panes",
+                    symbol: "rectangle.split.2x1", selected: mode == .workspace, dark: dark
+                ) { modeRaw = MachinesMode.workspace.rawValue }
                 ForEach(model.allMachines) { machine in
                     MachineChip(
                         machine: machine,
@@ -101,7 +108,7 @@ struct MachinesPage: View {
                         selected: model.selection == machine.id,
                         isLocal: model.isLocal(machine.id), dark: dark,
                         onSelect: {
-                            showFleet = false
+                            modeRaw = MachinesMode.machine.rawValue
                             model.selection = machine.id
                         },
                         onDetach: {
@@ -115,13 +122,19 @@ struct MachinesPage: View {
         }
     }
 
+    private var mode: MachinesMode {
+        MachinesMode(rawValue: modeRaw) ?? .fleet
+    }
+
     @ViewBuilder
     private var content: some View {
-        if showFleet {
+        if mode == .fleet {
             FleetHomeView(model: model) { id in
-                showFleet = false
+                modeRaw = MachinesMode.machine.rawValue
                 model.selection = id
             }
+        } else if mode == .workspace {
+            WorkspaceView(machines: model)
         } else if let session = model.selectedSession() {
             MachineDetailView(
                 session: session, model: model,

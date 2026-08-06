@@ -453,3 +453,99 @@ import Testing
         #expect(fleet.alerts.isEmpty)
     }
 }
+
+@Suite struct WorkspaceLayoutTests {
+    private func layout(machine: UUID) -> WorkspaceLayout {
+        WorkspaceLayout.single(machineID: machine, screen: .overview)
+    }
+
+    @Test func splittingAddsAPaneAndKeepsRatiosNormalized() {
+        let machine = UUID()
+        var value = layout(machine: machine)
+        let first = value.root.panes[0].id
+        value.split(
+            paneID: first, side: .right,
+            target: PaneTarget(machineID: machine, screen: .docker))
+        #expect(value.paneCount == 2)
+        guard case let .split(split) = value.root else {
+            Issue.record("expected a split root")
+            return
+        }
+        #expect(split.axis == .horizontal)
+        #expect(abs(split.ratios.reduce(0, +) - 1) < 0.0001)
+    }
+
+    @Test func closingCollapsesBackToASinglePane() {
+        let machine = UUID()
+        var value = layout(machine: machine)
+        let first = value.root.panes[0].id
+        value.split(
+            paneID: first, side: .bottom,
+            target: PaneTarget(machineID: machine, screen: .terminal))
+        let second = value.root.panes.first { $0.id != first }?.id
+        value.closePane(second ?? first)
+        #expect(value.paneCount == 1)
+        if case .split = value.root { Issue.record("root should collapse to a pane") }
+    }
+
+    @Test func lastPaneCannotBeClosed() {
+        var value = layout(machine: UUID())
+        value.closePane(value.root.panes[0].id)
+        #expect(value.paneCount == 1)
+    }
+
+    @Test func tiledPresetsMakeOnePanePerMachine() {
+        let ids = [UUID(), UUID(), UUID()]
+        let tiled = WorkspaceLayout.tiled(machineIDs: ids, screen: .docker, name: "Docker")
+        #expect(tiled?.paneCount == 3)
+        #expect(tiled?.subscribedMachines() == Set(ids))
+        #expect(tiled?.allTargets.allSatisfy { $0.screen == .docker } == true)
+        #expect(WorkspaceLayout.tiled(machineIDs: [], screen: .docker, name: "x") == nil)
+    }
+
+    @Test func retargetSwapsEveryPaneOfAMachine() {
+        let old = UUID()
+        let new = UUID()
+        var value = WorkspaceLayout.tiled(
+            machineIDs: [old, old], screen: .overview, name: "pair")!
+        value.retarget(from: old, to: new)
+        #expect(value.subscribedMachines() == [new])
+    }
+
+    @Test func layoutSurvivesEncodingRoundTrip() throws {
+        let machine = UUID()
+        var value = layout(machine: machine)
+        value.split(
+            paneID: value.root.panes[0].id, side: .right,
+            target: PaneTarget(machineID: machine, screen: .files))
+        let data = try JSONEncoder().encode(value)
+        let decoded = try JSONDecoder().decode(WorkspaceLayout.self, from: data)
+        #expect(decoded == value)
+    }
+
+    @Test func geometryDividesTheRectByRatios() {
+        let machine = UUID()
+        var value = layout(machine: machine)
+        value.split(
+            paneID: value.root.panes[0].id, side: .right,
+            target: PaneTarget(machineID: machine, screen: .docker))
+        var frames: [UUID: CGRect] = [:]
+        WorkspaceGeometry.frames(
+            node: value.root, in: CGRect(x: 0, y: 0, width: 1000, height: 500), gap: 0,
+            into: &frames)
+        #expect(frames.count == 2)
+        #expect(frames.values.allSatisfy { $0.width == 500 })
+        #expect(frames.values.allSatisfy { $0.height == 500 })
+    }
+
+    @Test func storeTracksTheCurrentLayout() {
+        var store = WorkspaceStore()
+        let one = layout(machine: UUID())
+        let two = layout(machine: UUID())
+        store.upsert(one)
+        store.upsert(two)
+        #expect(store.current?.id == two.id)
+        store.remove(two.id)
+        #expect(store.current?.id == one.id)
+    }
+}

@@ -87,7 +87,15 @@ struct TerminalPane: NSViewRepresentable {
 
 struct MachineTerminalTab: View {
     @ObservedObject var session: MachineSession
-    @StateObject private var holder = TerminalSessionHolder()
+    @StateObject private var ownHolder = TerminalSessionHolder()
+    private let injectedHolder: TerminalSessionHolder?
+
+    init(session: MachineSession, holder: TerminalSessionHolder? = nil) {
+        self.session = session
+        injectedHolder = holder
+    }
+
+    private var holder: TerminalSessionHolder { injectedHolder ?? ownHolder }
     @Environment(\.colorScheme) private var scheme
     @Environment(\.compactLayout) private var compact
 

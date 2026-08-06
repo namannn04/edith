@@ -3,17 +3,33 @@ import EdithKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct FinderPane: View {
+    @ObservedObject var model: FinderModel
+
+    var body: some View {
+        FinderBody(model: model)
+    }
+}
+
 struct FinderWindowView: View {
     @StateObject private var model: FinderModel
+
+    init(session: MachineSession, path: String? = nil) {
+        _model = StateObject(wrappedValue: FinderModel(session: session, path: path))
+    }
+
+    var body: some View {
+        FinderBody(model: model)
+    }
+}
+
+struct FinderBody: View {
+    @ObservedObject var model: FinderModel
     @Environment(\.colorScheme) private var scheme
     @State private var confirmDelete = false
     @FocusState private var searchFocused: Bool
 
     private var dark: Bool { scheme == .dark }
-
-    init(session: MachineSession, path: String? = nil) {
-        _model = StateObject(wrappedValue: FinderModel(session: session, path: path))
-    }
 
     var body: some View {
         VStack(spacing: 0) {
