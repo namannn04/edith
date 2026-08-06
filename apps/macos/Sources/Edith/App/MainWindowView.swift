@@ -3,7 +3,7 @@ import EdithKit
 import SwiftUI
 
 enum MainDestination: String, CaseIterable, Identifiable {
-    case home, dashboard, music, calendar, system
+    case home, dashboard, music, calendar, system, machines
     case extensions, settings, about
 
     var id: String { rawValue }
@@ -15,6 +15,7 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .music: return "Music"
         case .calendar: return "Calendar"
         case .system: return "System"
+        case .machines: return "Machines"
         case .extensions: return "Extensions"
         case .settings: return "Settings"
         case .about: return "About"
@@ -28,13 +29,16 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .music: return "music.note"
         case .calendar: return "calendar"
         case .system: return "cpu"
+        case .machines: return "server.rack"
         case .extensions: return "puzzlepiece.extension"
         case .settings: return "gearshape"
         case .about: return "info.circle"
         }
     }
 
-    static let homeItems: [MainDestination] = [.home, .dashboard, .music, .calendar, .system]
+    static let homeItems: [MainDestination] = [
+        .home, .dashboard, .music, .calendar, .system, .machines,
+    ]
     static let appItems: [MainDestination] = [
         .extensions, .settings, .about,
     ]
@@ -217,6 +221,8 @@ struct MainWindowView: View {
     @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
         false
+    @AppStorage("tabMachinesEnabled", store: SharedDefaults.store) private var machinesEnabled =
+        false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
     @AppStorage("presenterEnabled", store: SharedDefaults.store) private var presenterEnabled =
@@ -272,6 +278,7 @@ struct MainWindowView: View {
         case .music: musicEnabled ? requested : .home
         case .calendar: calendarEnabled ? requested : .home
         case .system: systemEnabled ? requested : .home
+        case .machines: machinesEnabled ? requested : .home
         default: requested
         }
     }
@@ -574,6 +581,7 @@ struct MainWindowView: View {
             case .music: musicEnabled
             case .calendar: calendarEnabled
             case .system: systemEnabled
+            case .machines: machinesEnabled
             default: true
             }
         }
@@ -959,6 +967,7 @@ struct MainWindowView: View {
         case .music: MusicPage()
         case .calendar: CalendarPage()
         case .system: SystemPage()
+        case .machines: MachinesPage()
         case .extensions: ExtensionsPane()
         case .settings: SettingsPane(updater: updater)
         case .about: AboutPane()

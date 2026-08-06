@@ -7,6 +7,7 @@ import Testing
     private let knownDefaultsKeys: Set<String> = [
         "tabUsageEnabled",
         "tabSystemEnabled",
+        "tabMachinesEnabled",
         "menuBarSystemStats",
         "micMuteEnabled",
         "tabMusicEnabled",
@@ -32,7 +33,7 @@ import Testing
     @Test func featuredEntriesArePresent() {
         let featuredIdentifiers = Set(
             ExtensionRegistry.entries.filter(\.featured).map(\.id))
-        #expect(featuredIdentifiers == ["usage", "system", "notchShelf", "clipboard"])
+        #expect(featuredIdentifiers == ["usage", "system", "machines", "notchShelf", "clipboard"])
     }
 
     @Test func toolRequirementsMatchExtensionDependencies() {
@@ -67,6 +68,7 @@ import Testing
         let required: [String: [ExtensionPermission]] = [
             "usage": [],
             "system": [],
+            "machines": [],
             "systemStats": [],
             "micMute": [],
             "music": [],
@@ -80,6 +82,7 @@ import Testing
         let optional: [String: [ExtensionPermission]] = [
             "usage": [.notifications],
             "system": [.accessibility, .inputMonitoring],
+            "machines": [.notifications],
             "systemStats": [],
             "micMute": [],
             "music": [],
@@ -180,6 +183,7 @@ import Testing
         let expected: [String: Bool] = [
             "tabUsageEnabled": false,
             "tabSystemEnabled": true,
+            "tabMachinesEnabled": false,
             "menuBarSystemStats": false,
             "micMuteEnabled": false,
             "tabMusicEnabled": true,

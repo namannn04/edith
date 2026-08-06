@@ -144,6 +144,10 @@ private func relaunchHelper(at url: URL, after proc: NSRunningApplication) {
 struct EdithApp: App {
     @NSApplicationDelegateAdaptor(MainAppDelegate.self) private var delegate
 
+    init() {
+        _ = AskpassEntry.runIfRequested()
+    }
+
     var body: some Scene {
         Settings {
             SettingsRedirect()

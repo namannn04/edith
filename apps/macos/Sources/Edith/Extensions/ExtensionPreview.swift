@@ -18,6 +18,7 @@ struct ExtensionPreview: View {
         switch entry.id {
         case "usage": usagePreview(phase: phase)
         case "system": systemPreview(phase: phase)
+        case "machines": machinesPreview(phase: phase)
         case "systemStats": systemStatsPreview(phase: phase)
         case "micMute": micMutePreview(phase: phase)
         case "calendar": calendarPreview(phase: phase)
@@ -73,6 +74,59 @@ struct ExtensionPreview: View {
                     }
                     .shadow(color: .black.opacity(0.1), radius: UIScale.pt(0), y: 2 - press * 2)
                     .offset(y: press * 2)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func machinesPreview(phase: Double) -> some View {
+        let pulse = CGFloat(max(0, sin(phase * 2.1)))
+        let bars = (0..<4).map { index in
+            CGFloat(0.32 + (sin(phase * 1.5 + Double(index) * 0.8) + 1) * 0.28)
+        }
+        return HStack(spacing: UIScale.pt(12)) {
+            VStack(spacing: UIScale.pt(3)) {
+                Image(systemName: "laptopcomputer")
+                    .font(.system(size: UIScale.pt(15)))
+                Text("MAC")
+                    .font(DashSkin.mono(6, weight: .semibold))
+            }
+            .foregroundStyle(DashSkin.inkSoft(dark))
+
+            HStack(spacing: UIScale.pt(3)) {
+                ForEach(0..<3) { index in
+                    Circle()
+                        .fill(brandAccent.opacity(index == Int(phase * 2) % 3 ? 1 : 0.25))
+                        .frame(width: UIScale.pt(3), height: UIScale.pt(3))
+                }
+            }
+
+            VStack(spacing: UIScale.pt(4)) {
+                HStack(spacing: UIScale.pt(4)) {
+                    Circle()
+                        .fill(DashSkin.sage.opacity(0.55 + pulse * 0.45))
+                        .frame(width: UIScale.pt(4), height: UIScale.pt(4))
+                    Text("LINUX")
+                        .font(DashSkin.mono(6, weight: .semibold))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                }
+                HStack(alignment: .bottom, spacing: UIScale.pt(2.5)) {
+                    ForEach(Array(bars.enumerated()), id: \.offset) { _, height in
+                        Capsule()
+                            .fill(brandAccent.opacity(0.85))
+                            .frame(width: UIScale.pt(3.5), height: UIScale.pt(20) * height)
+                    }
+                }
+                .frame(height: UIScale.pt(20), alignment: .bottom)
+            }
+            .padding(.horizontal, UIScale.pt(9))
+            .padding(.vertical, UIScale.pt(7))
+            .background(
+                DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(7))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: UIScale.pt(7))
+                    .strokeBorder(DashSkin.lineStrong(dark))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
