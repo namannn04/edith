@@ -92,7 +92,6 @@ struct TerminalTabsView: View {
         .onDisappear {
             if TerminalTabRegistry.active === model { TerminalTabRegistry.active = nil }
         }
-        .onDisappear { model.stopAll() }
         .background(shortcuts)
     }
 

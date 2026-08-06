@@ -92,16 +92,26 @@ struct MachineDetailView: View {
 
     @ViewBuilder
     private var detail: some View {
-        Group {
-            switch tab {
-            case .overview: MachineOverviewTab(session: session)
-            case .processes: MachineProcessesTab(session: session)
-            case .docker: DockerConsoleView(session: session)
-            case .terminal: TerminalTabsView(session: session)
-            case .tools: MachineToolsTab(session: session, model: model)
+        ZStack {
+            ForEach(MachineTab.tabs(isLocal: session.isLocal, hasDocker: true)) { item in
+                screen(item)
+                    .opacity(item == tab ? 1 : 0)
+                    .allowsHitTesting(item == tab)
+                    .accessibilityHidden(item != tab)
             }
         }
         .id(session.id)
+    }
+
+    @ViewBuilder
+    private func screen(_ item: MachineTab) -> some View {
+        switch item {
+        case .overview: MachineOverviewTab(session: session)
+        case .processes: MachineProcessesTab(session: session)
+        case .docker: DockerConsoleView(session: session)
+        case .terminal: TerminalTabsView(session: session)
+        case .tools: MachineToolsTab(session: session, model: model)
+        }
     }
 }
 

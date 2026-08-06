@@ -112,7 +112,7 @@ struct MachineTerminalTab: View {
         .onChange(of: session.state.isConnected) { _, connected in
             if connected { startIfPossible() }
         }
-        .onDisappear { holder.stop() }
+        .onDisappear { if injectedHolder == nil { holder.stop() } }
     }
 
     private var statusBar: some View {

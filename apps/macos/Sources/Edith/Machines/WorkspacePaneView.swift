@@ -132,14 +132,22 @@ struct WorkspacePaneView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let tab = selectedTab {
-            let session = machines.session(for: tab.target.machineID)
-            PaneContentView(
-                session: session, machines: machines, screen: tab.target.screen, tabID: tab.id
-            )
-            .id(PaneContentIdentity(tab: tab.id, target: tab.target))
-        } else {
+        if pane.tabs.isEmpty {
             Color.clear
+        } else {
+            ZStack {
+                ForEach(pane.tabs) { tab in
+                    let live = tab.id == (selectedTab?.id ?? pane.selected)
+                    PaneContentView(
+                        session: machines.session(for: tab.target.machineID),
+                        machines: machines, screen: tab.target.screen, tabID: tab.id
+                    )
+                    .id(PaneContentIdentity(tab: tab.id, target: tab.target))
+                    .opacity(live ? 1 : 0)
+                    .allowsHitTesting(live)
+                    .accessibilityHidden(!live)
+                }
+            }
         }
     }
 

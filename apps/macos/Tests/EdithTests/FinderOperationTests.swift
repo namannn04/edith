@@ -276,3 +276,33 @@ private func exists(_ name: String, in root: URL) -> Bool {
         #expect(model.visibleEntries.count == 2)
     }
 }
+
+@Suite(.serialized) @MainActor struct TerminalLifetimeTests {
+    @Test func anInjectedShellSurvivesTheViewGoingAway() async throws {
+        let session = MachinesModel.shared.session(for: MachinesModel.localMachineID)
+        let holder = PaneViewStore.shared.terminal(for: UUID(), session: session)
+        holder.start(
+            executable: "/bin/sh", arguments: ["-c", "sleep 30"], environment: [])
+        #expect(holder.started)
+
+        let view = MachineTerminalTab(session: session, holder: holder)
+        _ = view.body
+        #expect(holder.started)
+    }
+
+    @Test func theStoreKeepsOneHolderPerTabAndStopsItOnRelease() async throws {
+        let session = MachinesModel.shared.session(for: MachinesModel.localMachineID)
+        let tab = UUID()
+        let first = PaneViewStore.shared.terminal(for: tab, session: session)
+        let again = PaneViewStore.shared.terminal(for: tab, session: session)
+        #expect(first === again)
+
+        first.start(executable: "/bin/sh", arguments: ["-c", "sleep 30"], environment: [])
+        #expect(first.started)
+        PaneViewStore.shared.release(tabID: tab)
+        #expect(!first.started)
+
+        let fresh = PaneViewStore.shared.terminal(for: tab, session: session)
+        #expect(fresh !== first)
+    }
+}
