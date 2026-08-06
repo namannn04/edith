@@ -114,23 +114,37 @@ struct CompletionsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "completions",
         abstract: "Generate a shell completion script.",
-        subcommands: [CompletionsInstallCommand.self])
+        subcommands: [
+            CompletionsZshCommand.self, CompletionsBashCommand.self,
+            CompletionsFishCommand.self, CompletionsInstallCommand.self,
+        ],
+        defaultSubcommand: CompletionsInstallCommand.self)
+}
 
-    @Argument(help: "zsh, bash or fish.")
-    var shell: String?
+struct CompletionsZshCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "zsh", abstract: "Print the zsh completion script.")
 
     func run() async throws {
-        try await execute {
-            guard let shell else {
-                throw CLIFailure(
-                    "name a shell", hint: "ed completions zsh, or ed completions install")
-            }
-            guard let value = CompletionShell(rawValue: shell.lowercased()) else {
-                throw CLIFailure.notFound(
-                    "\(shell) is not a supported shell", hint: "zsh, bash or fish")
-            }
-            CLIOut.out(CompletionScripts.script(for: value))
-        }
+        try await execute { CLIOut.out(CompletionScripts.script(for: .zsh)) }
+    }
+}
+
+struct CompletionsBashCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "bash", abstract: "Print the bash completion script.")
+
+    func run() async throws {
+        try await execute { CLIOut.out(CompletionScripts.script(for: .bash)) }
+    }
+}
+
+struct CompletionsFishCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "fish", abstract: "Print the fish completion script.")
+
+    func run() async throws {
+        try await execute { CLIOut.out(CompletionScripts.script(for: .fish)) }
     }
 }
 

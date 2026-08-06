@@ -88,16 +88,56 @@ public enum CompletionScripts {
     public static func installDirectory(
         for shell: CompletionShell, home: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> URL {
-        switch shell {
-        case .zsh: return home.appendingPathComponent(".local/share/zsh/site-functions")
-        case .bash: return home.appendingPathComponent(".local/share/bash-completion/completions")
-        case .fish: return home.appendingPathComponent(".config/fish/completions")
+        if shell == .zsh, let existing = searchedZshDirectory(home: home) { return existing }
+        return defaultDirectory(for: shell, home: home)
+    }
+
+    public static func defaultDirectory(
+        for shell: CompletionShell, home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        return switch shell {
+        case .zsh: home.appendingPathComponent(".local/share/zsh/site-functions")
+        case .bash: home.appendingPathComponent(".local/share/bash-completion/completions")
+        case .fish: home.appendingPathComponent(".config/fish/completions")
         }
+    }
+
+    public static func candidateDirectories(fromFpath output: String, home: URL) -> [URL] {
+        output.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0.hasPrefix(home.path) }
+            .map { URL(fileURLWithPath: $0) }
+    }
+
+    static func searchedZshDirectory(home: URL) -> URL? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-ic", "print -l -- $fpath"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let text = String(decoding: data, as: UTF8.self)
+        let manager = FileManager.default
+        for directory in candidateDirectories(fromFpath: text, home: home) {
+            var isDirectory: ObjCBool = false
+            let exists = manager.fileExists(atPath: directory.path, isDirectory: &isDirectory)
+            if exists, isDirectory.boolValue, manager.isWritableFile(atPath: directory.path) {
+                return directory
+            }
+        }
+        return nil
     }
 
     public static func rcHint(for shell: CompletionShell, directory: URL) -> String? {
         switch shell {
         case .zsh:
+            guard
+                searchedZshDirectory(home: FileManager.default.homeDirectoryForCurrentUser)
+                    != directory
+            else { return nil }
             return "add to ~/.zshrc, before compinit: fpath=(\(directory.path) $fpath)"
         case .bash:
             return "add to ~/.bashrc: source \(directory.path)/ed"

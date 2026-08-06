@@ -163,3 +163,51 @@ import Testing
         #expect(MachinesExecCommand.strippingSeparator(["ls", "-la"]) == ["ls", "-la"])
     }
 }
+
+@Suite struct CompletionInstallTargetTests {
+    private let home = URL(fileURLWithPath: "/Users/someone")
+
+    @Test func prefersADirectoryTheShellAlreadySearches() {
+        let fpath = """
+            /usr/share/zsh/site-functions
+            /Users/someone/.zsh/completions
+            /Users/someone/.docker/completions
+            """
+        let candidates = CompletionScripts.candidateDirectories(fromFpath: fpath, home: home)
+        #expect(
+            candidates.map(\.path) == [
+                "/Users/someone/.zsh/completions", "/Users/someone/.docker/completions",
+            ])
+    }
+
+    @Test func ignoresSystemDirectoriesItCannotWriteTo() {
+        let fpath = """
+            /usr/share/zsh/5.9/functions
+            /opt/homebrew/share/zsh/site-functions
+            """
+        #expect(CompletionScripts.candidateDirectories(fromFpath: fpath, home: home).isEmpty)
+    }
+
+    @Test func fallsBackToTheDefaultLocationPerShell() {
+        #expect(
+            CompletionScripts.defaultDirectory(for: .zsh, home: home).path
+                == "/Users/someone/.local/share/zsh/site-functions")
+        #expect(
+            CompletionScripts.defaultDirectory(for: .fish, home: home).path
+                == "/Users/someone/.config/fish/completions")
+    }
+}
+
+@Suite struct CompletionsCommandShapeTests {
+    @Test func everyShellIsReachableAsItsOwnSubcommand() throws {
+        for name in ["zsh", "bash", "fish", "install"] {
+            let parsed = try EdRoot.parseAsRoot(["completions", name])
+            #expect(type(of: parsed).configuration.commandName == name)
+        }
+    }
+
+    @Test func installIsNoLongerSwallowedByAPositionalShellArgument() throws {
+        let parsed = try EdRoot.parseAsRoot(["completions", "install"])
+        #expect(type(of: parsed).configuration.commandName == "install")
+    }
+}
