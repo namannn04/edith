@@ -491,6 +491,8 @@ final class UsageStore: ObservableObject, FeatureModule {
         }
     }
 
+    private nonisolated static let codexReadTimeout: TimeInterval = 25
+
     private nonisolated static func readCodexLimits() throws -> ProviderLimits {
         guard let executable = codexExecutable() else { throw CodexLimitsError.executableMissing }
         let process = Process()
@@ -503,7 +505,18 @@ final class UsageStore: ObservableObject, FeatureModule {
         process.standardOutput = output
         process.standardError = Pipe()
         try process.run()
-        defer { process.terminate() }
+
+        let watchdog = DispatchWorkItem {
+            guard process.isRunning else { return }
+            Log.usage.error("codex app-server stopped responding - killing it")
+            kill(process.processIdentifier, SIGKILL)
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + codexReadTimeout, execute: watchdog)
+        defer {
+            watchdog.cancel()
+            if process.isRunning { process.terminate() }
+        }
 
         func send(_ object: [String: Any]) throws {
             let data = try JSONSerialization.data(withJSONObject: object)
@@ -582,12 +595,20 @@ final class UsageStore: ObservableObject, FeatureModule {
         case http(Int)
     }
 
+    private nonisolated static let limitsSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+        config.waitsForConnectivity = false
+        return URLSession(configuration: config)
+    }()
+
     private nonisolated static func fetchUsage(token: String) async throws -> OAuthUsage {
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         req.timeoutInterval = 15
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        let (data, resp) = try await limitsSession.data(for: req)
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if code != 200 { Log.usage.error("GET /oauth/usage -> HTTP \(code, privacy: .public)") }
         switch code {
@@ -650,7 +671,7 @@ final class UsageStore: ObservableObject, FeatureModule {
             "refresh_token": refreshToken,
             "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
         ])
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await limitsSession.data(for: request)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         switch code {
         case 200:
