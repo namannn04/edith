@@ -604,3 +604,61 @@ import Testing
         #expect(store.current?.id == one.id)
     }
 }
+
+@Suite struct CaseInsensitiveConflictTests {
+    private let existing = [
+        RemoteFileEntry(name: "README", path: "/d/README", kind: .file, sizeBytes: 1),
+        RemoteFileEntry(
+            name: "archive.tar.gz", path: "/d/archive.tar.gz", kind: .file, sizeBytes: 2),
+    ]
+
+    @Test func aDifferentlyCasedNameCollidesOnACaseInsensitiveVolume() {
+        #expect(
+            NameConflicts.conflicting(
+                names: ["readme"], existing: existing, caseInsensitive: true) == ["readme"])
+        #expect(
+            NameConflicts.conflicting(
+                names: ["readme"], existing: existing, caseInsensitive: false
+            ).isEmpty)
+    }
+
+    @Test func decomposedAndComposedSpellingsCollide() {
+        let composed = "café.txt"
+        let decomposed = "cafe\u{0301}.txt"
+        let folder = [
+            RemoteFileEntry(name: composed, path: "/d/\(composed)", kind: .file, sizeBytes: 1)
+        ]
+        #expect(
+            NameConflicts.conflicting(names: [decomposed], existing: folder) == [decomposed])
+    }
+
+    @Test func twoIncomingNamesThatCollideWithEachOtherAreBothReported() {
+        let clashes = NameConflicts.conflicting(
+            names: ["notes.txt", "NOTES.TXT"], existing: [], caseInsensitive: true)
+        #expect(clashes == ["NOTES.TXT"])
+    }
+
+    @Test func keepBothPreservesACompoundExtension() {
+        #expect(
+            NameConflicts.uniqueName(for: "archive.tar.gz", existing: existing)
+                == "archive 2.tar.gz")
+        #expect(NameFolding.split("archive.tar.gz").suffix == ".tar.gz")
+        #expect(NameFolding.split("notes.txt").suffix == ".txt")
+        #expect(NameFolding.split("Makefile").suffix == "")
+    }
+
+    @Test func keepBothDoesNotHandTwoItemsTheSameName() {
+        let command =
+            NameConflicts.command(
+                intent: .moveWithinMachine(["/a/report.txt", "/b/REPORT.TXT"]),
+                destination: "/d",
+                resolutions: ["report.txt": .keepBoth, "REPORT.TXT": .keepBoth],
+                existing: [
+                    RemoteFileEntry(
+                        name: "report.txt", path: "/d/report.txt", kind: .file, sizeBytes: 1)
+                ]) ?? ""
+        #expect(command.contains("/d/report 2.txt"))
+        #expect(command.contains("/d/REPORT 3.TXT"))
+        #expect(!command.contains("rm -rf"))
+    }
+}

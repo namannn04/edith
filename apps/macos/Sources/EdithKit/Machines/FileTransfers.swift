@@ -72,40 +72,82 @@ public enum NameConflictResolution: String, Equatable, Sendable {
     case skip
 }
 
+public enum NameFolding {
+    public static let compoundExtensions = ["tar.gz", "tar.bz2", "tar.xz", "tar.zst", "tar.lz"]
+
+    public static func key(_ name: String, caseInsensitive: Bool) -> String {
+        let normalized = name.precomposedStringWithCanonicalMapping
+        return caseInsensitive ? normalized.lowercased() : normalized
+    }
+
+    public static func split(_ name: String) -> (base: String, suffix: String) {
+        let lowered = name.lowercased()
+        for compound in compoundExtensions where lowered.hasSuffix(".\(compound)") {
+            return (String(name.dropLast(compound.count + 1)), ".\(compound)")
+        }
+        let ext = (name as NSString).pathExtension
+        guard !ext.isEmpty else { return (name, "") }
+        return ((name as NSString).deletingPathExtension, ".\(ext)")
+    }
+}
+
 public enum NameConflicts {
     public static let stagingSuffix = ".edith-replacing"
 
-    public static func conflicting(names: [String], existing: [RemoteFileEntry]) -> [String] {
-        let taken = Set(existing.map(\.name))
-        return names.filter { taken.contains($0) }
+    public static func conflicting(
+        names: [String], existing: [RemoteFileEntry], caseInsensitive: Bool = true
+    ) -> [String] {
+        let taken = Set(existing.map { NameFolding.key($0.name, caseInsensitive: caseInsensitive) })
+        var seen: Set<String> = []
+        return names.filter { name in
+            let key = NameFolding.key(name, caseInsensitive: caseInsensitive)
+            defer { seen.insert(key) }
+            return taken.contains(key) || seen.contains(key)
+        }
     }
 
-    public static func uniqueName(for name: String, existing: [RemoteFileEntry]) -> String {
-        let taken = Set(existing.map(\.name))
-        guard taken.contains(name) else { return name }
-        let base = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        let suffix = ext.isEmpty ? "" : ".\(ext)"
-        var index = 2
-        var candidate = "\(base) \(index)\(suffix)"
-        while taken.contains(candidate) {
-            index += 1
-            candidate = "\(base) \(index)\(suffix)"
+    public static func uniqueName(
+        for name: String, existing: [RemoteFileEntry], caseInsensitive: Bool = true
+    ) -> String {
+        var taken = Set(
+            existing.map { NameFolding.key($0.name, caseInsensitive: caseInsensitive) })
+        return claim(name, taken: &taken, caseInsensitive: caseInsensitive)
+    }
+
+    static func claim(
+        _ name: String, taken: inout Set<String>, caseInsensitive: Bool
+    ) -> String {
+        let key = NameFolding.key(name, caseInsensitive: caseInsensitive)
+        guard taken.contains(key) else {
+            taken.insert(key)
+            return name
         }
-        return candidate
+        let parts = NameFolding.split(name)
+        var index = 2
+        while true {
+            let candidate = "\(parts.base) \(index)\(parts.suffix)"
+            let candidateKey = NameFolding.key(candidate, caseInsensitive: caseInsensitive)
+            if !taken.contains(candidateKey) {
+                taken.insert(candidateKey)
+                return candidate
+            }
+            index += 1
+        }
     }
 
     public static func command(
         intent: DropIntent, destination: String, resolutions: [String: NameConflictResolution],
-        existing: [RemoteFileEntry]
+        existing: [RemoteFileEntry], caseInsensitive: Bool = true
     ) -> String? {
         var parts: [String] = []
+        var taken = Set(existing.map { NameFolding.key($0.name, caseInsensitive: caseInsensitive) })
         for path in intent.paths {
             let name = (path as NSString).lastPathComponent
             let resolution = resolutions[name] ?? .keepBoth
             guard resolution != .skip else { continue }
             let targetName =
-                resolution == .keepBoth ? uniqueName(for: name, existing: existing) : name
+                resolution == .keepBoth
+                ? claim(name, taken: &taken, caseInsensitive: caseInsensitive) : name
             let target = FileListing.join(parent: destination, name: targetName)
             let quotedSource = ShellQuote.quote(path)
             let quotedTarget = ShellQuote.quote(target)
