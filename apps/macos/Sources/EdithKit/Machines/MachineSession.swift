@@ -15,7 +15,7 @@ public final class MachineSession: ObservableObject {
     @Published public private(set) var netTxHistory: [Double] = []
     @Published public private(set) var diskReadHistory: [Double] = []
     @Published public private(set) var diskWriteHistory: [Double] = []
-    @Published public private(set) var docker = DockerAvailability(status: .missing)
+    @Published public private(set) var docker = DockerAvailability(status: .unknown)
     @Published public private(set) var containers: [DockerContainer] = []
     @Published public private(set) var images: [DockerImage] = []
     @Published public private(set) var volumes: [DockerVolume] = []

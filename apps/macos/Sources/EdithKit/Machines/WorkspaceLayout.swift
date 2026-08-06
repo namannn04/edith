@@ -281,8 +281,9 @@ extension PaneScreen {
         }
     }
 
-    public static func available(isLocal: Bool) -> [PaneScreen] {
-        isLocal ? [.overview, .processes, .files, .terminal] : PaneScreen.allCases
+    public static func available(isLocal: Bool, hasDocker: Bool) -> [PaneScreen] {
+        if isLocal { return [.overview, .processes, .files, .terminal] }
+        return PaneScreen.allCases.filter { $0 != .docker || hasDocker }
     }
 }
 

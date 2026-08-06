@@ -7,13 +7,17 @@ struct FleetHomeView: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.compactLayout) private var compact
     @State private var tick = 0
+    @State private var cpuHistory: [Double] = []
+    @State private var memHistory: [Double] = []
 
     private var dark: Bool { scheme == .dark }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: UIScale.pt(16)) {
-                summaryTiles
+                fleetBanner
+                metricsGrid
+                storageCard
                 if !model.fleet.alerts.isEmpty { alertsCard }
                 machinesCard
             }
@@ -22,74 +26,108 @@ struct FleetHomeView: View {
         .task {
             while !Task.isCancelled {
                 tick += 1
+                let fleet = model.fleet
+                cpuHistory = trimmed(cpuHistory + [fleet.cpuPercent])
+                memHistory = trimmed(memHistory + [fleet.memoryPercent])
                 try? await Task.sleep(for: .seconds(2))
             }
         }
     }
 
-    private var summaryTiles: some View {
+    private func trimmed(_ values: [Double]) -> [Double] {
+        values.count > 90 ? Array(values.suffix(90)) : values
+    }
+
+    private var fleetBanner: some View {
         let fleet = model.fleet
-        return LazyVGrid(
-            columns: [
-                GridItem(.adaptive(minimum: UIScale.pt(210)), spacing: UIScale.pt(12))
-            ], spacing: UIScale.pt(12)
-        ) {
-            tile(
-                "Machines", value: "\(fleet.machinesOnline)/\(fleet.machinesTotal)",
-                caption: "online", fraction: nil, color: DashSkin.accent(dark))
-            tile(
-                "CPU", value: String(format: "%.0f%%", fleet.cpuPercent),
-                caption: "\(fleet.totalCores) cores total",
-                fraction: fleet.cpuPercent / 100, color: DashSkin.accent(dark))
-            tile(
-                "Memory", value: ByteFormatter.string(fleet.memoryUsedKB * 1024),
-                caption: "of \(ByteFormatter.string(fleet.memoryTotalKB * 1024))",
-                fraction: fleet.memoryPercent / 100, color: DashSkin.sage)
-            tile(
-                "Storage", value: ByteFormatter.string(fleet.diskUsedKB * 1024),
-                caption: "of \(ByteFormatter.string(fleet.diskTotalKB * 1024))",
-                fraction: fleet.diskPercent / 100,
-                color: fleet.diskPercent > 90 ? DashSkin.danger : DashSkin.gold)
-            if fleet.containersTotal > 0 {
-                tile(
-                    "Containers", value: "\(fleet.containersRunning)",
-                    caption: "of \(fleet.containersTotal) running", fraction: nil,
-                    color: DashSkin.accentDeep(dark))
-            }
-            if fleet.swapTotalKB > 0 {
-                tile(
-                    "Swap", value: ByteFormatter.string(fleet.swapUsedKB * 1024),
-                    caption: "of \(ByteFormatter.string(fleet.swapTotalKB * 1024))",
-                    fraction: fleet.swapPercent / 100, color: DashSkin.inkFaint(dark))
-            }
+        return HStack(spacing: UIScale.pt(10)) {
+            Image(systemName: "square.stack.3d.up")
+                .font(.system(size: UIScale.pt(12)))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+            Text("\(fleet.machinesOnline) of \(fleet.machinesTotal) machines online")
+                .font(.system(size: UIScale.pt(12.5), weight: .medium))
+                .foregroundStyle(DashSkin.ink(dark))
+            Spacer(minLength: 0)
+            Text(bannerDetail(fleet))
+                .font(DashSkin.mono(10.5))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, UIScale.pt(14))
+        .padding(.vertical, UIScale.pt(10))
+        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+        .overlay {
+            RoundedRectangle(cornerRadius: UIScale.pt(12)).strokeBorder(DashSkin.line(dark))
         }
     }
 
-    private func tile(
-        _ title: String, value: String, caption: String, fraction: Double?, color: Color
-    ) -> some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(7)) {
-            Text(title.uppercased())
-                .font(.system(size: UIScale.pt(9.5), weight: .semibold))
-                .tracking(UIScale.pt(0.7))
-                .foregroundStyle(DashSkin.inkFaint(dark))
-            Text(value)
-                .font(DashSkin.serif(24))
-                .foregroundStyle(DashSkin.ink(dark))
-                .monospacedDigit()
-                .contentTransition(.numericText())
-            if let fraction {
-                MeterBar(fraction: fraction, color: color, track: DashSkin.line(dark))
-            }
-            Text(caption)
-                .font(.system(size: UIScale.pt(10.5)))
-                .foregroundStyle(DashSkin.inkFaint(dark))
+    private func bannerDetail(_ fleet: FleetSummary) -> String {
+        var parts = ["\(fleet.totalCores) cores"]
+        if fleet.containersTotal > 0 {
+            parts.append("\(fleet.containersRunning) of \(fleet.containersTotal) containers")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(UIScale.pt(14))
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(14)))
-        .overlay {
-            RoundedRectangle(cornerRadius: UIScale.pt(14)).strokeBorder(DashSkin.line(dark))
+        if fleet.swapTotalKB > 0 {
+            parts.append("swap \(ByteFormatter.string(fleet.swapUsedKB * 1024))")
+        }
+        return parts.joined(separator: "  ·  ")
+    }
+
+    private var metricsGrid: some View {
+        let fleet = model.fleet
+        return LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: UIScale.pt(12)),
+                GridItem(.flexible(), spacing: UIScale.pt(12)),
+            ], spacing: UIScale.pt(12)
+        ) {
+            MetricCard(
+                title: "CPU", value: String(format: "%.0f%%", fleet.cpuPercent),
+                fraction: fleet.cpuPercent / 100, history: cpuHistory, maximum: 100,
+                color: DashSkin.accent(dark), footnote: "\(fleet.totalCores) cores total",
+                dark: dark)
+            MetricCard(
+                title: "Memory",
+                value: String(format: "%.0f%%", fleet.memoryPercent),
+                fraction: fleet.memoryPercent / 100, history: memHistory, maximum: 100,
+                color: DashSkin.sage,
+                footnote: "\(ByteFormatter.string(fleet.memoryUsedKB * 1024)) of "
+                    + ByteFormatter.string(fleet.memoryTotalKB * 1024),
+                dark: dark)
+        }
+    }
+
+    @ViewBuilder
+    private var storageCard: some View {
+        let rows = model.snapshots.filter { $0.diskTotalKB > 0 }
+        if !rows.isEmpty {
+            SkinCard(title: "Storage", dark: dark) {
+                VStack(spacing: UIScale.pt(10)) {
+                    ForEach(rows, id: \.id) { row in
+                        VStack(alignment: .leading, spacing: UIScale.pt(5)) {
+                            HStack {
+                                Text(row.name)
+                                    .font(.system(size: UIScale.pt(12), weight: .medium))
+                                    .foregroundStyle(DashSkin.ink(dark))
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(
+                                    "\(ByteFormatter.string(row.diskUsedKB * 1024)) of "
+                                        + ByteFormatter.string(row.diskTotalKB * 1024)
+                                )
+                                .font(DashSkin.mono(10.5))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                            }
+                            let percent = Double(row.diskUsedKB) / Double(max(row.diskTotalKB, 1))
+                            MeterBar(
+                                fraction: percent,
+                                color: percent > 0.9
+                                    ? DashSkin.danger
+                                    : (percent > 0.75 ? DashSkin.warn : DashSkin.accent(dark)),
+                                track: DashSkin.line(dark))
+                        }
+                    }
+                }
+            }
         }
     }
 

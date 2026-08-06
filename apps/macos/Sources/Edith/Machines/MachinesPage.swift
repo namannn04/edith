@@ -68,7 +68,8 @@ struct MachinesPage: View {
     }
 
     private func reconcileTab() {
-        let available = MachineTab.tabs(isLocal: isLocalSelection)
+        let hasDocker = model.selection.map { model.session(for: $0).docker.isInstalled } ?? false
+        let available = MachineTab.tabs(isLocal: isLocalSelection, hasDocker: hasDocker)
         if !available.contains(tab) { storedTab = MachineTab.overview.rawValue }
     }
 

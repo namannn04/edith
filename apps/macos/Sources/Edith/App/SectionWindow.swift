@@ -78,17 +78,10 @@ enum SectionWindow {
 
     static func open(_ destination: MainDestination, mode: SectionOpenMode = .reuseMostRecent) {
         if focusExisting(destination) { return }
-        if mode == .reuseMostRecent, let entry = entries.first {
-            entry.controller.destination = destination
-            entry.window.title = destination.title
-            entry.window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        makeWindow(destination)
+        makeWindow(destination, tabbedInto: mode == .reuseMostRecent ? entries.first?.window : nil)
     }
 
-    private static func makeWindow(_ destination: MainDestination) {
+    private static func makeWindow(_ destination: MainDestination, tabbedInto host: NSWindow?) {
         let controller = SectionWindowController(destination: destination)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 880, height: 640),
@@ -104,11 +97,15 @@ enum SectionWindow {
         hosting.sizingOptions = []
         window.contentViewController = hosting
         window.setContentSize(NSSize(width: 880, height: 640))
-        window.setFrameAutosaveName("EdithSectionWindow")
-        if window.frame.origin == .zero { window.center() }
-        offsetFromOverlappingWindows(window)
         window.delegate = SectionWindowDelegate.shared
         entries.insert(Entry(window: window, controller: controller), at: 0)
+        if let host, host.isVisible {
+            host.addTabbedWindow(window, ordered: .above)
+        } else {
+            window.setFrameAutosaveName("EdithSectionWindow")
+            if window.frame.origin == .zero { window.center() }
+            offsetFromOverlappingWindows(window)
+        }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

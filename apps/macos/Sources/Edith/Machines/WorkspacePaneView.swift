@@ -6,29 +6,52 @@ import SwiftUI
 final class PaneViewStore: ObservableObject {
     static let shared = PaneViewStore()
 
-    private var finders: [UUID: FinderModel] = [:]
-    private var terminals: [UUID: TerminalSessionHolder] = [:]
+    private struct Key: Hashable {
+        let tab: UUID
+        let machine: UUID
+    }
+
+    private var finders: [Key: FinderModel] = [:]
+    private var terminals: [Key: TerminalSessionHolder] = [:]
 
     private init() {}
 
     func finder(for tabID: UUID, session: MachineSession) -> FinderModel {
-        if let existing = finders[tabID], existing.session.id == session.id { return existing }
+        let key = Key(tab: tabID, machine: session.id)
+        if let existing = finders[key] { return existing }
         let model = FinderModel(session: session)
-        finders[tabID] = model
+        finders[key] = model
         return model
     }
 
-    func terminal(for tabID: UUID) -> TerminalSessionHolder {
-        if let existing = terminals[tabID] { return existing }
+    func terminal(for tabID: UUID, session: MachineSession) -> TerminalSessionHolder {
+        let key = Key(tab: tabID, machine: session.id)
+        if let existing = terminals[key] { return existing }
         let holder = TerminalSessionHolder()
-        terminals[tabID] = holder
+        terminals[key] = holder
         return holder
     }
 
     func release(tabID: UUID) {
-        finders.removeValue(forKey: tabID)
-        terminals.removeValue(forKey: tabID)?.stop()
+        finders = finders.filter { $0.key.tab != tabID }
+        for (key, holder) in terminals where key.tab == tabID {
+            holder.stop()
+            terminals.removeValue(forKey: key)
+        }
     }
+
+    func releaseAll(except live: Set<UUID>) {
+        finders = finders.filter { live.contains($0.key.tab) }
+        for (key, holder) in terminals where !live.contains(key.tab) {
+            holder.stop()
+            terminals.removeValue(forKey: key)
+        }
+    }
+}
+
+struct PaneContentIdentity: Hashable {
+    let tab: UUID
+    let target: PaneTarget
 }
 
 struct PaneContentView: View {
@@ -43,7 +66,9 @@ struct PaneContentView: View {
         case .processes: MachineProcessesTab(session: session)
         case .docker: DockerConsoleView(session: session)
         case .terminal:
-            MachineTerminalTab(session: session, holder: PaneViewStore.shared.terminal(for: tabID))
+            MachineTerminalTab(
+                session: session,
+                holder: PaneViewStore.shared.terminal(for: tabID, session: session))
         case .files:
             FinderPane(model: PaneViewStore.shared.finder(for: tabID, session: session))
         case .tools: MachineToolsTab(session: session, model: machines)
@@ -86,14 +111,71 @@ struct WorkspacePaneView: View {
         if let tab = selectedTab {
             let session = machines.session(for: tab.target.machineID)
             PaneContentView(
-                session: session, machines: machines, screen: tab.target.screen, tabID: tab.id)
+                session: session, machines: machines, screen: tab.target.screen, tabID: tab.id
+            )
+            .id(PaneContentIdentity(tab: tab.id, target: tab.target))
         } else {
             Color.clear
         }
     }
 
+    private var paneMachineID: UUID? {
+        selectedTab?.target.machineID ?? pane.tabs.first?.target.machineID
+    }
+
+    private var machinePicker: some View {
+        let machineID = paneMachineID
+        let machine = machines.allMachines.first { $0.id == machineID }
+        let session = machineID.map { machines.session(for: $0) }
+        return Menu {
+            ForEach(machines.allMachines) { candidate in
+                Button(candidate.name) { retargetPane(to: candidate.id) }
+            }
+        } label: {
+            HStack(spacing: UIScale.pt(5)) {
+                if let session {
+                    Circle()
+                        .fill(MachineStatusStyle.color(session.state, dark: dark))
+                        .frame(width: UIScale.pt(5), height: UIScale.pt(5))
+                }
+                Text(machine?.name ?? "Machine")
+                    .font(.system(size: UIScale.pt(11), weight: .semibold))
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: UIScale.pt(7), weight: .bold))
+            }
+            .foregroundStyle(DashSkin.ink(dark))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Show a different machine in this pane")
+    }
+
+    private func retargetPane(to machineID: UUID) {
+        let available = PaneScreen.available(
+            isLocal: machines.isLocal(machineID),
+            hasDocker: machines.session(for: machineID).docker.isInstalled)
+        for tab in pane.tabs {
+            let screen = available.contains(tab.target.screen) ? tab.target.screen : .overview
+            model.retargetPane(
+                pane.id, tabID: tab.id,
+                to: PaneTarget(machineID: machineID, screen: screen))
+            PaneViewStore.shared.release(tabID: tab.id)
+        }
+    }
+
+    private var addableScreens: [PaneScreen] {
+        guard let machineID = paneMachineID else { return [] }
+        return PaneScreen.available(
+            isLocal: machines.isLocal(machineID),
+            hasDocker: machines.session(for: machineID).docker.isInstalled)
+    }
+
     private var tabStrip: some View {
         HStack(spacing: UIScale.pt(3)) {
+            machinePicker
+            Divider().frame(height: UIScale.pt(12)).opacity(0.4)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: UIScale.pt(3)) {
                     ForEach(pane.tabs) { tab in
@@ -102,10 +184,21 @@ struct WorkspacePaneView: View {
                 }
             }
             Menu {
+                ForEach(addableScreens, id: \.self) { screen in
+                    Button(screen.title) {
+                        guard let machineID = paneMachineID else { return }
+                        model.addTab(
+                            to: pane.id,
+                            target: PaneTarget(machineID: machineID, screen: screen))
+                    }
+                }
+                Divider()
                 ForEach(machines.allMachines) { machine in
                     Menu(machine.name) {
                         ForEach(
-                            PaneScreen.available(isLocal: machines.isLocal(machine.id)),
+                            PaneScreen.available(
+                                isLocal: machines.isLocal(machine.id),
+                                hasDocker: machines.session(for: machine.id).docker.isInstalled),
                             id: \.self
                         ) { screen in
                             Button(screen.title) {
@@ -150,7 +243,7 @@ struct WorkspacePaneView: View {
 
     private func tabChip(_ tab: PaneTab) -> some View {
         let machine = machines.allMachines.first { $0.id == tab.target.machineID }
-        let session = machines.session(for: tab.target.machineID)
+        let foreign = tab.target.machineID != paneMachineID
         let selected = tab.id == pane.selected
         return Button {
             model.apply { layout in
@@ -159,24 +252,27 @@ struct WorkspacePaneView: View {
             }
         } label: {
             HStack(spacing: UIScale.pt(5)) {
-                Circle()
-                    .fill(MachineStatusStyle.color(session.state, dark: dark))
-                    .frame(width: UIScale.pt(5), height: UIScale.pt(5))
                 Image(systemName: tab.target.screen.icon)
                     .font(.system(size: UIScale.pt(9.5)))
-                Text("\(machine?.name ?? "Machine") · \(tab.target.screen.title)")
-                    .font(.system(size: UIScale.pt(11), weight: .medium))
-                    .lineLimit(1)
-                if pane.tabs.count > 1 {
-                    Button {
-                        model.closeTab(tab.id, in: pane.id)
-                        PaneViewStore.shared.release(tabID: tab.id)
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: UIScale.pt(7.5), weight: .bold))
-                    }
-                    .buttonStyle(.plain)
+                Text(
+                    foreign
+                        ? "\(machine?.name ?? "Machine") · \(tab.target.screen.title)"
+                        : tab.target.screen.title
+                )
+                .font(.system(size: UIScale.pt(11), weight: .medium))
+                .lineLimit(1)
+                Button {
+                    closeTab(tab)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: UIScale.pt(7.5), weight: .bold))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                        .padding(UIScale.pt(2))
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                .help("Close this tab")
             }
             .foregroundStyle(selected ? DashSkin.ink(dark) : DashSkin.inkFaint(dark))
             .padding(.horizontal, UIScale.pt(8))
@@ -190,19 +286,36 @@ struct WorkspacePaneView: View {
         .buttonStyle(.plain)
         .pointerCursor()
         .contextMenu {
+            Button("Close Tab") { closeTab(tab) }
+            Divider()
             ForEach(machines.allMachines) { machine in
                 Menu(machine.name) {
                     ForEach(
-                        PaneScreen.available(isLocal: machines.isLocal(machine.id)), id: \.self
+                        PaneScreen.available(
+                            isLocal: machines.isLocal(machine.id),
+                            hasDocker: machines.session(for: machine.id).docker.isInstalled),
+                        id: \.self
                     ) { screen in
                         Button(screen.title) {
                             model.retargetPane(
                                 pane.id, tabID: tab.id,
                                 to: PaneTarget(machineID: machine.id, screen: screen))
+                            PaneViewStore.shared.release(tabID: tab.id)
                         }
                     }
                 }
             }
+        }
+    }
+
+    private func closeTab(_ tab: PaneTab) {
+        if pane.tabs.count > 1 {
+            model.closeTab(tab.id, in: pane.id)
+            PaneViewStore.shared.release(tabID: tab.id)
+        } else if model.layout.paneCount > 1 {
+            let orphans = pane.tabs.map(\.id)
+            model.apply { $0.closePane(pane.id) }
+            for id in orphans { PaneViewStore.shared.release(tabID: id) }
         }
     }
 }

@@ -57,6 +57,50 @@ struct MeterBar: View {
     }
 }
 
+struct MetricCard: View {
+    let title: String
+    let value: String
+    let fraction: Double?
+    let history: [Double]
+    let maximum: Double
+    let color: Color
+    let footnote: String
+    let dark: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIScale.pt(8)) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title.uppercased())
+                    .font(.system(size: UIScale.pt(9.5), weight: .semibold))
+                    .tracking(UIScale.pt(0.7))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                Spacer()
+                Text(value)
+                    .font(DashSkin.serif(21))
+                    .foregroundStyle(DashSkin.ink(dark))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+            }
+            if let fraction {
+                MeterBar(fraction: fraction, color: color, track: DashSkin.line(dark))
+            }
+            Sparkline(values: history, maximum: maximum, color: color)
+                .frame(height: UIScale.pt(46))
+            if !footnote.isEmpty {
+                Text(footnote)
+                    .font(.system(size: UIScale.pt(10.5)))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+            }
+        }
+        .padding(UIScale.pt(14))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(14)))
+        .overlay {
+            RoundedRectangle(cornerRadius: UIScale.pt(14)).strokeBorder(DashSkin.line(dark))
+        }
+    }
+}
+
 struct MachineOverviewTab: View {
     @ObservedObject var session: MachineSession
     @Environment(\.colorScheme) private var scheme
@@ -108,42 +152,32 @@ struct MachineOverviewTab: View {
     }
 
     private var identityCard: some View {
-        SkinCard(
-            title: session.machine.name,
-            note: session.hello.map { "\($0.os)  ·  \($0.kernel)  ·  \($0.arch)" }, dark: dark
-        ) {
-            HStack(spacing: UIScale.pt(20)) {
-                if let hello = session.hello {
-                    identityItem("CPU", hello.cpuModel.isEmpty ? "Unknown" : hello.cpuModel)
-                    identityItem("Cores", "\(hello.cores)")
-                    identityItem(
-                        "Memory", ByteFormatter.string(hello.memTotalKB * 1024))
-                }
-                if let sample = session.sample {
-                    identityItem("Uptime", ByteFormatter.duration(sample.uptime))
-                    if sample.load.count >= 3 {
-                        identityItem(
-                            "Load",
-                            sample.load.prefix(3).map { String(format: "%.2f", $0) }
-                                .joined(separator: "  "))
-                    }
-                }
-                Spacer(minLength: 0)
+        HStack(spacing: UIScale.pt(10)) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: UIScale.pt(12)))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+            Text(uptimeText)
+                .font(.system(size: UIScale.pt(12.5), weight: .medium))
+                .foregroundStyle(DashSkin.ink(dark))
+            Spacer(minLength: 0)
+            if let hello = session.hello {
+                Text("\(hello.os)  ·  \(hello.arch)")
+                    .font(DashSkin.mono(10.5))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .lineLimit(1)
             }
+        }
+        .padding(.horizontal, UIScale.pt(14))
+        .padding(.vertical, UIScale.pt(10))
+        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+        .overlay {
+            RoundedRectangle(cornerRadius: UIScale.pt(12)).strokeBorder(DashSkin.line(dark))
         }
     }
 
-    private func identityItem(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(3)) {
-            Text(label.uppercased())
-                .font(.system(size: UIScale.pt(9.5), weight: .semibold))
-                .tracking(UIScale.pt(0.6))
-                .foregroundStyle(DashSkin.inkFaint(dark))
-            Text(value)
-                .font(.system(size: UIScale.pt(12.5), weight: .medium))
-                .foregroundStyle(DashSkin.ink(dark))
-                .lineLimit(1)
-        }
+    private var uptimeText: String {
+        guard let sample = session.sample else { return "Waiting for the first sample" }
+        return "Up \(ByteFormatter.duration(sample.uptime))"
     }
 
     private var metricsGrid: some View {
@@ -171,60 +205,16 @@ struct MachineOverviewTab: View {
                     "\(ByteFormatter.string($0.mem.usedKB * 1024)) of "
                         + ByteFormatter.string($0.mem.totalKB * 1024)
                 } ?? "")
-            metricCard(
-                "Disk read",
-                value: session.sample.map { ByteFormatter.rate($0.disk.readBps) } ?? "—",
-                fraction: nil, history: session.diskReadHistory, maximum: 0,
-                color: DashSkin.gold, footnote: busiestDisk)
-            metricCard(
-                "Disk write",
-                value: session.sample.map { ByteFormatter.rate($0.disk.writeBps) } ?? "—",
-                fraction: nil, history: session.diskWriteHistory, maximum: 0,
-                color: DashSkin.accentDeep(dark), footnote: "")
         }
-    }
-
-    private var busiestDisk: String {
-        guard let device = session.sample?.disk.devices.max(by: { $0.busy < $1.busy }),
-            device.busy > 1
-        else { return "" }
-        return String(format: "%@ %.0f%% busy", device.n, device.busy)
     }
 
     private func metricCard(
         _ title: String, value: String, fraction: Double?, history: [Double], maximum: Double,
         color: Color, footnote: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(8)) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(title.uppercased())
-                    .font(.system(size: UIScale.pt(9.5), weight: .semibold))
-                    .tracking(UIScale.pt(0.7))
-                    .foregroundStyle(DashSkin.inkFaint(dark))
-                Spacer()
-                Text(value)
-                    .font(DashSkin.serif(21))
-                    .foregroundStyle(DashSkin.ink(dark))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-            }
-            if let fraction {
-                MeterBar(fraction: fraction, color: color, track: DashSkin.line(dark))
-            }
-            Sparkline(values: history, maximum: maximum, color: color)
-                .frame(height: UIScale.pt(46))
-            if !footnote.isEmpty {
-                Text(footnote)
-                    .font(.system(size: UIScale.pt(10.5)))
-                    .foregroundStyle(DashSkin.inkFaint(dark))
-            }
-        }
-        .padding(UIScale.pt(14))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(14)))
-        .overlay {
-            RoundedRectangle(cornerRadius: UIScale.pt(14)).strokeBorder(DashSkin.line(dark))
-        }
+        MetricCard(
+            title: title, value: value, fraction: fraction, history: history, maximum: maximum,
+            color: color, footnote: footnote, dark: dark)
     }
 
     private func storage(_ slow: MachineSlow) -> some View {

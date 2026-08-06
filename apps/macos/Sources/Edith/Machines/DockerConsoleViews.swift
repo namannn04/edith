@@ -96,35 +96,10 @@ private struct DockerContainerRow: View {
     }
 
     var body: some View {
-        HStack(spacing: UIScale.pt(12)) {
-            Circle().fill(stateColor).frame(width: UIScale.pt(8), height: UIScale.pt(8))
-            VStack(alignment: .leading, spacing: UIScale.pt(2)) {
-                Text(container.composeService ?? container.displayName)
-                    .font(.system(size: UIScale.pt(13), weight: .medium))
-                    .foregroundStyle(DashSkin.ink(dark))
-                Text(container.image)
-                    .font(DashSkin.mono(10))
-                    .foregroundStyle(DashSkin.inkFaint(dark))
-                    .lineLimit(1)
-            }
-            .frame(width: UIScale.pt(230), alignment: .leading)
-            Text(container.status)
-                .font(.system(size: UIScale.pt(11)))
-                .foregroundStyle(DashSkin.inkSoft(dark))
-                .lineLimit(1)
-                .frame(width: UIScale.pt(150), alignment: .leading)
-            portsView
-                .frame(width: UIScale.pt(160), alignment: .leading)
-            Text(container.cpuPercent.map { String(format: "%.1f%%", $0) } ?? "—")
-                .font(DashSkin.mono(11))
-                .foregroundStyle(DashSkin.inkSoft(dark))
-                .frame(width: UIScale.pt(54), alignment: .trailing)
-            Text(container.memUsedBytes.map { ByteFormatter.string($0) } ?? "—")
-                .font(DashSkin.mono(11))
-                .foregroundStyle(DashSkin.inkSoft(dark))
-                .frame(width: UIScale.pt(70), alignment: .trailing)
-            Spacer(minLength: 0)
-            actions
+        ViewThatFits(in: .horizontal) {
+            row(density: .full)
+            row(density: .medium)
+            row(density: .compact)
         }
         .padding(.horizontal, UIScale.pt(16))
         .padding(.vertical, UIScale.pt(9))
@@ -149,6 +124,63 @@ private struct DockerContainerRow: View {
             }
             Divider()
             Button("Remove", role: .destructive, action: onRemove)
+        }
+    }
+
+    private enum RowDensity {
+        case full
+        case medium
+        case compact
+
+        var nameWidth: Double {
+            return switch self {
+            case .full: 230
+            case .medium: 190
+            case .compact: 150
+            }
+        }
+
+        var showsStatus: Bool { self != .compact }
+        var showsPorts: Bool { self == .full }
+        var showsMemory: Bool { self != .compact }
+    }
+
+    private func row(density: RowDensity) -> some View {
+        HStack(spacing: UIScale.pt(12)) {
+            Circle().fill(stateColor).frame(width: UIScale.pt(8), height: UIScale.pt(8))
+            VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                Text(container.composeService ?? container.displayName)
+                    .font(.system(size: UIScale.pt(13), weight: .medium))
+                    .foregroundStyle(DashSkin.ink(dark))
+                    .lineLimit(1)
+                Text(container.image)
+                    .font(DashSkin.mono(10))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .lineLimit(1)
+            }
+            .frame(width: UIScale.pt(density.nameWidth), alignment: .leading)
+            if density.showsStatus {
+                Text(container.status)
+                    .font(.system(size: UIScale.pt(11)))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
+                    .lineLimit(1)
+                    .frame(width: UIScale.pt(density == .full ? 150 : 120), alignment: .leading)
+            }
+            if density.showsPorts {
+                portsView.frame(width: UIScale.pt(160), alignment: .leading)
+            }
+            Text(container.cpuPercent.map { String(format: "%.1f%%", $0) } ?? "—")
+                .font(DashSkin.mono(11))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .frame(width: UIScale.pt(54), alignment: .trailing)
+            if density.showsMemory {
+                Text(container.memUsedBytes.map { ByteFormatter.string($0) } ?? "—")
+                    .font(DashSkin.mono(11))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
+                    .frame(width: UIScale.pt(70), alignment: .trailing)
+            }
+            Spacer(minLength: 0)
+            actions
         }
     }
 

@@ -211,8 +211,9 @@ enum MachineTab: String, CaseIterable, Identifiable {
         }
     }
 
-    static func tabs(isLocal: Bool) -> [MachineTab] {
-        isLocal ? [.overview, .processes, .terminal] : MachineTab.allCases
+    static func tabs(isLocal: Bool, hasDocker: Bool) -> [MachineTab] {
+        if isLocal { return [.overview, .processes, .terminal] }
+        return MachineTab.allCases.filter { $0 != .docker || hasDocker }
     }
 }
 

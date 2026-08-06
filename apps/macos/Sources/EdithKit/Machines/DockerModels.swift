@@ -187,6 +187,7 @@ public struct DockerDiskUsage: Equatable, Sendable {
 
 public struct DockerAvailability: Equatable, Sendable {
     public enum Status: Equatable, Sendable {
+        case unknown
         case available(serverVersion: String, hasCompose: Bool)
         case missing
         case permissionDenied
@@ -202,6 +203,13 @@ public struct DockerAvailability: Equatable, Sendable {
     public var isAvailable: Bool {
         if case .available = status { return true }
         return false
+    }
+
+    public var isInstalled: Bool {
+        switch status {
+        case .missing: return false
+        default: return true
+        }
     }
 }
 

@@ -338,7 +338,7 @@ struct DockerUnavailableView: View {
         case .missing: return "Docker is not installed on this machine."
         case .permissionDenied: return "This user cannot reach the Docker socket."
         case let .daemonDown(message): return message
-        case .available: return ""
+        case .available, .unknown: return ""
         }
     }
 
@@ -348,7 +348,7 @@ struct DockerUnavailableView: View {
         case .permissionDenied:
             return "Run sudo usermod -aG docker $USER on the machine, then log out and back in."
         case .daemonDown: return "Start the Docker service on the machine and refresh."
-        case .available: return ""
+        case .available, .unknown: return ""
         }
     }
 

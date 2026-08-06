@@ -21,9 +21,14 @@ struct MachineDetailView: View {
 
     private var tabBar: some View {
         HStack(spacing: UIScale.pt(4)) {
-            ForEach(MachineTab.tabs(isLocal: session.isLocal)) { item in
+            ForEach(MachineTab.tabs(isLocal: session.isLocal, hasDocker: session.docker.isInstalled))
+            { item in
                 Button {
-                    tab = item
+                    if NSEvent.modifierFlags.contains(.command) {
+                        detach(item)
+                    } else {
+                        tab = item
+                    }
                 } label: {
                     HStack(spacing: UIScale.pt(6)) {
                         Image(systemName: item.icon)
@@ -48,27 +53,8 @@ struct MachineDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .pointerCursor()
-                .help("\(item.title) (⌘-click to open this machine in its own window)")
+                .help("\(item.title) (⌘-click to open it in its own window)")
             }
-            Button {
-                DockerWindow.open(session: session)
-            } label: {
-                HStack(spacing: UIScale.pt(6)) {
-                    Image(systemName: "shippingbox")
-                        .font(.system(size: UIScale.pt(11), weight: .medium))
-                    Text("Docker window")
-                        .font(.system(size: UIScale.pt(12.5), weight: .medium))
-                }
-                .padding(.horizontal, UIScale.pt(11))
-                .padding(.vertical, UIScale.pt(6))
-                .foregroundStyle(DashSkin.inkFaint(dark))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .pointerCursor()
-            .disabled(session.isLocal)
-            .help("Manage containers in their own window")
-
             Button {
                 FinderWindow.open(session: session)
             } label: {
@@ -92,6 +78,14 @@ struct MachineDetailView: View {
         }
         .padding(.horizontal, PageMetrics.gutter(compact))
         .padding(.bottom, UIScale.pt(10))
+    }
+
+    private func detach(_ item: MachineTab) {
+        switch item {
+        case .docker: DockerWindow.open(session: session)
+        case .terminal: TerminalWindow.open(session: session)
+        default: MachineWindow.open(machineID: session.id, title: session.machine.name)
+        }
     }
 
     @ViewBuilder
@@ -127,7 +121,6 @@ struct ConnectionPill: View {
                 .foregroundStyle(DashSkin.inkFaint(dark))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: UIScale.pt(260), alignment: .trailing)
             if case .failed = session.state {
                 Button("Retry") { session.retry() }
                     .buttonStyle(.plain)
