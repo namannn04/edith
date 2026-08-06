@@ -165,7 +165,7 @@ enum MachineWindow {
         window.title = title
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 600, height: 440)
-        window.tabbingMode = .preferred
+        window.tabbingMode = .automatic
         window.tabbingIdentifier = "EdithMachine"
         let hosting = NSHostingController(
             rootView: ZoomableRoot { MachineWindowView(machineID: machineID) })

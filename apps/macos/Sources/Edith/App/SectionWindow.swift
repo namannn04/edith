@@ -97,7 +97,7 @@ enum SectionWindow {
         window.title = destination.title
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 560, height: 420)
-        window.tabbingMode = .preferred
+        window.tabbingMode = .automatic
         window.tabbingIdentifier = "EdithSection"
         let hosting = NSHostingController(
             rootView: ZoomableRoot { DetachedSectionView(controller: controller) })
@@ -106,10 +106,34 @@ enum SectionWindow {
         window.setContentSize(NSSize(width: 880, height: 640))
         window.setFrameAutosaveName("EdithSectionWindow")
         if window.frame.origin == .zero { window.center() }
+        offsetFromOverlappingWindows(window)
         window.delegate = SectionWindowDelegate.shared
         entries.insert(Entry(window: window, controller: controller), at: 0)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private static func offsetFromOverlappingWindows(_ window: NSWindow) {
+        guard let screen = window.screen ?? NSScreen.main else { return }
+        let occupied = NSApp.windows.filter { $0 !== window && $0.isVisible }.map(\.frame)
+        var frame = window.frame
+        if frame.size.width > screen.visibleFrame.width * 0.9 {
+            frame.size = NSSize(width: 880, height: 640)
+        }
+        var attempts = 0
+        while occupied.contains(where: { abs($0.origin.x - frame.origin.x) < 12 })
+            && attempts < 8
+        {
+            frame.origin.x += 26
+            frame.origin.y -= 26
+            attempts += 1
+        }
+        if !screen.visibleFrame.contains(frame.origin) {
+            frame.origin = NSPoint(
+                x: screen.visibleFrame.midX - frame.width / 2,
+                y: screen.visibleFrame.midY - frame.height / 2)
+        }
+        window.setFrame(frame, display: false)
     }
 
     static func noteBecameKey(_ window: NSWindow) {

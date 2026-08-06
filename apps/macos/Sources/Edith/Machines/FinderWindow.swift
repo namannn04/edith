@@ -407,7 +407,7 @@ enum FinderWindow {
         window.subtitle = path ?? (session.isLocal ? "Home" : "Files")
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 620, height: 400)
-        window.tabbingMode = .preferred
+        window.tabbingMode = .automatic
         window.tabbingIdentifier = "EdithFinder"
         let hosting = NSHostingController(
             rootView: ZoomableRoot { FinderWindowView(session: session, path: path) })
