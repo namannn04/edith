@@ -15,7 +15,12 @@ final class DockerDetailModel: ObservableObject {
     @Published var showTimestamps = false
     @Published var logFilter = ""
 
+    @Published var inspectFailed = false
+
     private var stream: SSHLineStream?
+    private var nextLogID = 0
+    private var logGeneration = 0
+    private var fileToken = 0
 
     var visibleLogs: [DockerLogLine] {
         let trimmed = logFilter.trimmingCharacters(in: .whitespaces)
@@ -25,6 +30,13 @@ final class DockerDetailModel: ObservableObject {
 
     func startLogs(session: MachineSession, container: DockerContainer) {
         stopLogs()
+        logGeneration += 1
+        attachLogs(session: session, container: container, generation: logGeneration)
+    }
+
+    private func attachLogs(
+        session: MachineSession, container: DockerContainer, generation: Int
+    ) {
         guard let connection = session.connectionRef else { return }
         let process = connection.streamProcess(
             command: DockerCommands.logs(container.id, tail: 400, follow: true))
@@ -32,30 +44,47 @@ final class DockerDetailModel: ObservableObject {
             process: process,
             onLine: { [weak self] text, isStderr in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, generation == self.logGeneration else { return }
                     let line = DockerParsing.splitLogLine(
-                        text, index: self.logs.count, isStderr: isStderr)
+                        text, index: self.nextLogID, isStderr: isStderr)
+                    self.nextLogID += 1
                     self.logs.append(line)
                     if self.logs.count > 4000 {
                         self.logs.removeFirst(self.logs.count - 4000)
                     }
                 }
             },
-            onExit: { _ in })
+            onExit: { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, generation == self.logGeneration else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    guard generation == self.logGeneration else { return }
+                    self.attachLogs(
+                        session: session, container: container, generation: generation)
+                }
+            })
         try? stream.start()
         self.stream = stream
     }
 
     func stopLogs() {
+        logGeneration += 1
         stream?.cancel()
         stream = nil
     }
 
     func loadInspect(session: MachineSession, container: DockerContainer) async {
+        inspectFailed = false
         let result = await session.runCommand(
             DockerCommands.inspectRaw(container.id), timeout: 30)
-        guard case let .success(output) = result else { return }
-        inspect = DockerParsing.inspectSummary(output)
+        guard case let .success(output) = result,
+            let summary = DockerParsing.inspectSummary(output)
+        else {
+            inspect = nil
+            inspectFailed = true
+            return
+        }
+        inspect = summary
     }
 
     func loadProcesses(session: MachineSession, container: DockerContainer) async {
@@ -65,9 +94,12 @@ final class DockerDetailModel: ObservableObject {
     }
 
     func loadFiles(session: MachineSession, container: DockerContainer, path: String) async {
+        fileToken += 1
+        let token = fileToken
         filePath = path
         let result = await session.runCommand(
             DockerCommands.listFiles(containerID: container.id, path: path), timeout: 30)
+        guard token == fileToken else { return }
         guard case let .success(output) = result else {
             files = []
             return

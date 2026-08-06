@@ -52,6 +52,34 @@ enum DockerDetailTab: String, CaseIterable, Identifiable {
     }
 }
 
+struct PrunePlan: Identifiable, Equatable {
+    let kind: String
+
+    var id: String { kind }
+
+    var title: String {
+        switch kind {
+        case "images": return "Prune unused images?"
+        case "volumes": return "Prune unused volumes?"
+        case "networks": return "Prune unused networks?"
+        default: return "Prune the build cache?"
+        }
+    }
+
+    var detail: String {
+        switch kind {
+        case "images":
+            return "Every image no container is using is deleted on the machine and has to be "
+                + "pulled again."
+        case "volumes":
+            return "Every volume no container is using is deleted on the machine, along with the "
+                + "data inside it. This cannot be undone."
+        case "networks": return "Every network no container is attached to is deleted."
+        default: return "The build cache is deleted, so the next build starts from scratch."
+        }
+    }
+}
+
 struct DockerConsoleView: View {
     @ObservedObject var session: MachineSession
     @Environment(\.colorScheme) private var scheme
@@ -62,6 +90,7 @@ struct DockerConsoleView: View {
     @State private var error: String?
     @State private var terminalFor: DockerContainer?
     @State private var pendingRemoval: DockerContainer?
+    @State private var pendingPrune: PrunePlan?
 
     private var dark: Bool { scheme == .dark }
 
@@ -97,6 +126,22 @@ struct DockerConsoleView: View {
                 pendingRemoval = nil
             }
             Button("Cancel", role: .cancel) { pendingRemoval = nil }
+        }
+        .confirmationDialog(
+            pendingPrune?.title ?? "Prune?",
+            isPresented: Binding(
+                get: { pendingPrune != nil }, set: { if !$0 { pendingPrune = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Prune", role: .destructive) {
+                if let plan = pendingPrune {
+                    perform(DockerCommands.prune(plan.kind), on: "prune")
+                }
+                pendingPrune = nil
+            }
+            Button("Cancel", role: .cancel) { pendingPrune = nil }
+        } message: {
+            Text(pendingPrune?.detail ?? "")
         }
         .task {
             await session.refreshImagesAndVolumes()
@@ -208,10 +253,10 @@ struct DockerConsoleView: View {
             .buttonStyle(HoverButtonStyle())
             .help("Refresh")
             Menu {
-                Button("Prune unused images") { perform(DockerCommands.prune("images"), on: "p") }
-                Button("Prune unused volumes") { perform(DockerCommands.prune("volumes"), on: "p") }
-                Button("Prune networks") { perform(DockerCommands.prune("networks"), on: "p") }
-                Button("Prune build cache") { perform(DockerCommands.prune("builder"), on: "p") }
+                Button("Prune unused images…") { pendingPrune = PrunePlan(kind: "images") }
+                Button("Prune unused volumes…") { pendingPrune = PrunePlan(kind: "volumes") }
+                Button("Prune networks…") { pendingPrune = PrunePlan(kind: "networks") }
+                Button("Prune build cache…") { pendingPrune = PrunePlan(kind: "builder") }
             } label: {
                 Image(systemName: "trash")
             }
@@ -259,7 +304,7 @@ struct DockerConsoleView: View {
             .filter { query.isEmpty || $0.displayName.localizedCaseInsensitiveContains(query) }
             .map {
                 DockerRow(
-                    id: $0.id, title: $0.displayName,
+                    id: $0.dangling ? $0.id : $0.displayName, title: $0.displayName,
                     subtitle: "\($0.shortID) · \($0.createdSince)",
                     trailing: ByteFormatter.string($0.sizeBytes), symbol: "square.stack.3d.up",
                     badge: $0.dangling ? "dangling" : nil)

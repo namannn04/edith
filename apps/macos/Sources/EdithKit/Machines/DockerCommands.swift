@@ -194,14 +194,33 @@ public struct DockerInspectSummary: Equatable, Sendable {
 extension DockerParsing {
     public static func processes(_ output: String) -> [DockerProcess] {
         let lines = output.split(separator: "\n").map(String.init)
-        guard lines.count > 1 else { return [] }
+        guard let header = lines.first else { return [] }
+        let columns = header.split(separator: " ", omittingEmptySubsequences: true).map {
+            $0.uppercased()
+        }
+        guard columns.count > 1 else { return [] }
+        func column(_ names: [String]) -> Int? {
+            names.lazy.compactMap { columns.firstIndex(of: $0) }.first
+        }
+        let pidColumn = column(["PID"])
+        let userColumn = column(["USER", "UID"])
+        let cpuColumn = column(["%CPU", "C"])
+        let memColumn = column(["%MEM"])
+        let commandColumn = column(["COMMAND", "CMD", "ARGS"])
         return lines.dropFirst().compactMap { line in
-            let parts = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
-            guard parts.count >= 6 else { return nil }
+            let parts = line.split(
+                separator: " ", maxSplits: columns.count - 1, omittingEmptySubsequences: true
+            ).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count == columns.count else { return nil }
+            func value(_ index: Int?) -> String {
+                guard let index, index < parts.count else { return "" }
+                return parts[index]
+            }
+            let pid = value(pidColumn)
+            guard !pid.isEmpty else { return nil }
             return DockerProcess(
-                pid: String(parts[0]), user: String(parts[1]), cpu: String(parts[2]),
-                memory: String(parts[3]),
-                command: parts[5].trimmingCharacters(in: .whitespaces))
+                pid: pid, user: value(userColumn), cpu: value(cpuColumn),
+                memory: value(memColumn), command: value(commandColumn))
         }
     }
 

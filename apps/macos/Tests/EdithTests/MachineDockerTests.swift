@@ -468,3 +468,59 @@ import Testing
                 .contains("--project-directory /srv/api"))
     }
 }
+
+@Suite struct DockerTopParsingTests {
+    @Test func readsTheExtendedFormat() {
+        let output = """
+            PID                 USER                %CPU                %MEM                RSS                 COMMAND
+            216303              70                  0.0                 0.0                 26552               postgres
+            216475              70                  0.0                 0.1                 91924               postgres: checkpointer
+            """
+        let rows = DockerParsing.processes(output)
+        #expect(rows.count == 2)
+        #expect(rows[0].pid == "216303")
+        #expect(rows[0].user == "70")
+        #expect(rows[0].cpu == "0.0")
+        #expect(rows[0].memory == "0.0")
+        #expect(rows[0].command == "postgres")
+        #expect(rows[1].command == "postgres: checkpointer")
+    }
+
+    @Test func readsThePlainFallbackWithoutShiftingColumns() {
+        let output = """
+            UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD
+            70                  216303              216277              0                   Aug05               ?                   00:00:07            postgres
+            70                  216475              216303              0                   Aug05               ?                   00:00:00            postgres: checkpointer
+            """
+        let rows = DockerParsing.processes(output)
+        #expect(rows.count == 2)
+        #expect(rows[0].pid == "216303")
+        #expect(rows[1].pid == "216475")
+        #expect(Set(rows.map(\.id)).count == rows.count)
+        #expect(rows[0].user == "70")
+        #expect(rows[0].command == "postgres")
+        #expect(rows[1].command == "postgres: checkpointer")
+    }
+}
+
+@Suite struct ContainerListingFallbackTests {
+    @Test func parsesTheNonGnuLsFallback() {
+        let output = """
+            drwxr-xr-x 2 root root 4096 Aug  5 10:22 bin
+            -rw-r--r-- 1 root root  220 Aug  5 10:22 hosts
+            """
+        let entries = FileListing.parse(output: output, parent: "/etc")
+        #expect(entries.count == 2)
+        #expect(entries.map(\.name).sorted() == ["bin", "hosts"])
+        #expect(entries.first { $0.name == "bin" }?.isDirectory == true)
+        #expect(entries.first { $0.name == "hosts" }?.sizeBytes == 220)
+    }
+
+    @Test func stillParsesEpochStamps() {
+        let output = "-rw-r--r-- 1 root root 220 1754390000 hosts"
+        let entries = FileListing.parse(output: output, parent: "/etc")
+        #expect(entries.count == 1)
+        #expect(entries[0].name == "hosts")
+        #expect(entries[0].modified != nil)
+    }
+}

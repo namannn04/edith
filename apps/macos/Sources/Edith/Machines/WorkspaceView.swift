@@ -38,6 +38,10 @@ final class WorkspaceModel: ObservableObject {
         persist()
     }
 
+    func applyWithoutPersisting(_ change: (inout WorkspaceLayout) -> Void) {
+        change(&layout)
+    }
+
     func use(_ preset: WorkspaceLayout) {
         layout = preset
         persist()
@@ -239,6 +243,7 @@ struct WorkspaceNodeView: View {
                         onDrag: { delta in
                             resize(split: split, index: index, delta: delta, available: available)
                         },
+                        onCommit: { model.persist() },
                         onEqualize: {
                             model.apply { layout in
                                 layout.root.updateSplit(split.id) { node in
@@ -256,7 +261,7 @@ struct WorkspaceNodeView: View {
     private func resize(split: SplitNode, index: Int, delta: CGFloat, available: CGFloat) {
         guard available > 0 else { return }
         let change = Double(delta / available)
-        model.apply { layout in
+        model.applyWithoutPersisting { layout in
             layout.root.updateSplit(split.id) { node in
                 guard index + 1 < node.ratios.count else { return }
                 let minimum = 0.08
@@ -274,8 +279,10 @@ private struct WorkspaceDivider: View {
     let axis: SplitAxis
     let dark: Bool
     let onDrag: (CGFloat) -> Void
+    let onCommit: () -> Void
     let onEqualize: () -> Void
     @State private var hovering = false
+    @State private var lastTranslation: CGFloat = 0
 
     var body: some View {
         Rectangle()
@@ -300,9 +307,15 @@ private struct WorkspaceDivider: View {
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
-                        onDrag(
+                        let travelled =
                             axis == .horizontal
-                                ? value.translation.width : value.translation.height)
+                            ? value.translation.width : value.translation.height
+                        onDrag(travelled - lastTranslation)
+                        lastTranslation = travelled
+                    }
+                    .onEnded { _ in
+                        lastTranslation = 0
+                        onCommit()
                     }
             )
             .onTapGesture(count: 2, perform: onEqualize)

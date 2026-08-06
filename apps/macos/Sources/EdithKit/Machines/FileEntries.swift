@@ -109,9 +109,16 @@ public enum FileListing {
 
     static func parseLSLine(_ line: String, parent: String) -> RemoteFileEntry? {
         guard let first = line.first, "-dlbcps".contains(first) else { return nil }
-        let fields = line.split(separator: " ", maxSplits: 6, omittingEmptySubsequences: true)
-        guard fields.count == 7 else { return nil }
-        var name = String(fields[6])
+        let epochFields = line.split(separator: " ", maxSplits: 6, omittingEmptySubsequences: true)
+        guard epochFields.count == 7 else { return nil }
+        let stampsAreEpoch = Double(epochFields[5]) != nil
+        let nameIndex = stampsAreEpoch ? 6 : 8
+        let fields =
+            stampsAreEpoch
+            ? epochFields
+            : line.split(separator: " ", maxSplits: 8, omittingEmptySubsequences: true)
+        guard fields.count == nameIndex + 1 else { return nil }
+        var name = String(fields[nameIndex])
         var target: String?
         if first == "l", let range = name.range(of: " -> ") {
             target = String(name[range.upperBound...])
@@ -123,7 +130,8 @@ public enum FileListing {
         return RemoteFileEntry(
             name: name, path: join(parent: parent, name: name), kind: kind,
             sizeBytes: Int64(fields[4]) ?? 0,
-            modified: Double(fields[5]).map { Date(timeIntervalSince1970: $0) },
+            modified: stampsAreEpoch
+                ? Double(fields[5]).map { Date(timeIntervalSince1970: $0) } : nil,
             mode: String(fields[0]), linkTarget: target)
     }
 
