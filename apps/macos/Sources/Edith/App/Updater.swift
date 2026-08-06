@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 final class UpdaterModel: NSObject, ObservableObject,
-    @preconcurrency SPUStandardUserDriverDelegate, @preconcurrency SPUUpdaterDelegate
+    @preconcurrency SPUStandardUserDriverDelegate, SPUUpdaterDelegate
 {
     @Published private(set) var updateReady: String?
     @Published private(set) var updaterAvailable = false
