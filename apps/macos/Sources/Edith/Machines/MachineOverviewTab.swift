@@ -189,8 +189,10 @@ struct MachineOverviewTab: View {
     private var loaded: some View {
         identityCard
         metricsGrid
-        if let slow = session.slow, !slow.disks.isEmpty {
-            SkinCard(title: "Storage", dark: dark) { storage(slow) }
+        if let slow = session.slow {
+            if !slow.disks.isEmpty {
+                SkinCard(title: "Storage", dark: dark) { storage(slow) }
+            }
         } else {
             MeterRowsSkeleton(title: "Storage", rows: 2, dark: dark)
         }

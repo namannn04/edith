@@ -26,11 +26,15 @@ final class MachinesModel: ObservableObject {
 
     func isLocal(_ id: UUID) -> Bool { id == Self.localMachineID }
 
+    func knows(_ id: UUID) -> Bool {
+        id == Self.localMachineID || store.machine(id: id) != nil
+    }
+
     func session(for id: UUID) -> MachineSession {
         if let existing = sessions[id] { return existing }
-        let machine = id == Self.localMachineID ? localMachine : store.machine(id: id)
-        let session = MachineSession(
-            machine: machine ?? localMachine, local: id == Self.localMachineID)
+        let isLocal = id == Self.localMachineID
+        let machine = isLocal ? localMachine : store.machine(id: id)
+        let session = MachineSession(machine: machine ?? Machine.missing(id: id), local: isLocal)
         sessions[id] = session
         return session
     }

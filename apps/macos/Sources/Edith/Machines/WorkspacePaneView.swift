@@ -32,6 +32,10 @@ final class PaneViewStore: ObservableObject {
         return holder
     }
 
+    func terminalView(tabID: UUID, machineID: UUID) -> NSView? {
+        terminals[Key(tab: tabID, machine: machineID)]?.terminalView
+    }
+
     func release(tabID: UUID) {
         finders = finders.filter { $0.key.tab != tabID }
         for (key, holder) in terminals where key.tab == tabID {
@@ -106,6 +110,24 @@ struct WorkspacePaneView: View {
         .animation(.easeOut(duration: 0.16), value: focused)
         .contentShape(Rectangle())
         .onTapGesture { model.apply { $0.focused = pane.id } }
+        .onChange(of: focused) { _, isFocused in
+            guard isFocused else { return }
+            moveKeyboardFocusHere()
+        }
+    }
+
+    private func moveKeyboardFocusHere() {
+        guard let tab = selectedTab else { return }
+        let window = NSApp.keyWindow
+        guard let window else { return }
+        if tab.target.screen == .terminal,
+            let view = PaneViewStore.shared.terminalView(
+                tabID: tab.id, machineID: tab.target.machineID)
+        {
+            window.makeFirstResponder(view)
+        } else {
+            window.makeFirstResponder(window.contentView)
+        }
     }
 
     @ViewBuilder
@@ -223,8 +245,12 @@ struct WorkspacePaneView: View {
                 Button("Split Right") { split(.right) }
                 Button("Split Down") { split(.bottom) }
                 Divider()
-                Button("Close Pane") { model.apply { $0.closePane(pane.id) } }
-                    .disabled(model.layout.paneCount < 2)
+                Button("Close Pane") {
+                    let orphans = pane.tabs.map(\.id)
+                    model.apply { $0.closePane(pane.id) }
+                    for id in orphans { PaneViewStore.shared.release(tabID: id) }
+                }
+                .disabled(model.layout.paneCount < 2)
             } label: {
                 Image(systemName: "square.split.2x1")
             }

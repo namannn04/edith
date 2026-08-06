@@ -48,6 +48,10 @@ public final class MachineSession: ObservableObject {
 
     public func start() {
         guard !state.isConnected, !state.isBusy else { return }
+        guard !machine.isMissing else {
+            state = .failed(message: "This machine is no longer configured.")
+            return
+        }
         if isLocal {
             startLocal()
             return

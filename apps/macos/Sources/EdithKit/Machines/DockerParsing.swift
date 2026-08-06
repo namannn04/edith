@@ -253,6 +253,7 @@ public enum DockerParsing {
             return DockerAvailability(
                 status: .daemonDown(message: "The Docker daemon is not running."))
         }
+        if lowered.isEmpty { return DockerAvailability(status: .unknown) }
         return DockerAvailability(status: .missing)
     }
 }

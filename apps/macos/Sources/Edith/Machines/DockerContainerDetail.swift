@@ -307,6 +307,19 @@ struct DockerContainerDetail: View {
                     section("Environment", inspect.environment)
                     section(
                         "Labels", inspect.labels.sorted { $0.key < $1.key }.map { "\($0)=\($1)" })
+                } else if model.inspectFailed {
+                    HStack(spacing: UIScale.pt(8)) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(DashSkin.warn)
+                        Text("Could not read this container's configuration.")
+                            .font(.system(size: UIScale.pt(12)))
+                            .foregroundStyle(DashSkin.inkSoft(dark))
+                        Button("Retry") {
+                            Task { await model.loadInspect(session: session, container: live) }
+                        }
+                        .pointerCursor()
+                        .font(.system(size: UIScale.pt(11), weight: .medium))
+                    }
                 } else {
                     ProgressView().controlSize(.small)
                 }

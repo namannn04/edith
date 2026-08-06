@@ -299,3 +299,36 @@ import Testing
         #expect(!model.cyclePane(backwards: false))
     }
 }
+
+@Suite struct ModifierNormalisationTests {
+    @Test func capsLockDoesNotBreakAChord() {
+        let withCaps: NSEvent.ModifierFlags = [.command, .capsLock]
+        #expect(withCaps.chordOnly == .command)
+        #expect(withCaps.chordOnly != withCaps)
+    }
+
+    @Test func arrowKeyFunctionFlagsAreIgnored() {
+        let arrow: NSEvent.ModifierFlags = [.command, .option, .function, .numericPad]
+        #expect(arrow.chordOnly == [.command, .option])
+        #expect(
+            WorkspaceKeyCommand.resolve(characters: nil, keyCode: 124, modifiers: arrow)
+                == .nextPaneTab)
+    }
+
+    @Test func terminalTabsMatchByKeyCodeBecauseShiftRewritesTheCharacter() {
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: "}", keyCode: 30, modifiers: [.command, .shift]) == .nextTerminalTab)
+        #expect(
+            WorkspaceKeyCommand.resolve(
+                characters: "{", keyCode: 33, modifiers: [.command, .shift])
+                == .previousTerminalTab)
+    }
+
+    @Test func windowTabShortcutsSurviveCapsLock() {
+        #expect(
+            WindowTabKeyCommand.resolve(
+                characters: "2", keyCode: 19, modifiers: [.command, .capsLock], tabbed: true)
+                == .selectTab(index: 1))
+    }
+}

@@ -1,6 +1,12 @@
 import AppKit
 import EdithKit
 
+extension NSEvent.ModifierFlags {
+    public var chordOnly: NSEvent.ModifierFlags {
+        intersection([.command, .option, .control, .shift])
+    }
+}
+
 enum WindowTabKeyCommand: Equatable {
     case selectTab(index: Int)
     case nextTab
@@ -10,7 +16,7 @@ enum WindowTabKeyCommand: Equatable {
         characters: String?, keyCode: UInt16, modifiers: NSEvent.ModifierFlags, tabbed: Bool
     ) -> WindowTabKeyCommand? {
         guard tabbed else { return nil }
-        let flags = modifiers.intersection(.deviceIndependentFlagsMask)
+        let flags = modifiers.chordOnly
         if keyCode == 48, flags.contains(.control), !flags.contains(.command) {
             return flags.contains(.shift) ? .previousTab : .nextTab
         }
@@ -32,7 +38,7 @@ enum WorkspaceKeyCommand: Equatable {
     static func resolve(
         characters: String?, keyCode: UInt16, modifiers: NSEvent.ModifierFlags
     ) -> WorkspaceKeyCommand? {
-        let flags = modifiers.intersection(.deviceIndependentFlagsMask)
+        let flags = modifiers.chordOnly
         if flags == [.command, .option] {
             if keyCode == 124 { return .nextPaneTab }
             if keyCode == 123 { return .previousPaneTab }
@@ -42,8 +48,8 @@ enum WorkspaceKeyCommand: Equatable {
             if keyCode == 123 { return .previousPane }
         }
         if flags == [.command, .shift] {
-            if characters == "]" { return .nextTerminalTab }
-            if characters == "[" { return .previousTerminalTab }
+            if keyCode == 30 { return .nextTerminalTab }
+            if keyCode == 33 { return .previousTerminalTab }
         }
         return nil
     }
@@ -176,7 +182,7 @@ enum SectionWindowMenu {
             let keyCode = event.keyCode
             let modifiers = event.modifierFlags
             let handled = MainActor.assumeIsolated { () -> Bool in
-                let flags = modifiers.intersection(.deviceIndependentFlagsMask)
+                let flags = modifiers.chordOnly
                 if flags == [.command, .shift], characters?.lowercased() == "o" {
                     SectionWindowMenuTarget.shared.openFilesWindow()
                     return true
@@ -240,8 +246,15 @@ enum CloseCommand {
             window.performClose(nil)
             return true
         }
+        guard workspaceIsOnScreen else { return true }
         WorkspaceModel.shared.closeFocusedTab()
         return true
+    }
+
+    private static var workspaceIsOnScreen: Bool {
+        let store = SharedDefaults.store
+        return store.string(forKey: "mainWindowSection") == MainDestination.machines.rawValue
+            && store.string(forKey: "machinesMode") == MachinesMode.workspace.rawValue
     }
 
     private static func isMainWindow(_ window: NSWindow) -> Bool {

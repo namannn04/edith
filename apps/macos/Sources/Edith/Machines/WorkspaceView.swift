@@ -43,8 +43,12 @@ final class WorkspaceModel: ObservableObject {
     }
 
     func use(_ preset: WorkspaceLayout) {
+        let live = Set(preset.root.panes.flatMap { $0.tabs.map(\.id) })
         layout = preset
+        store.layouts = [preset]
+        store.currentID = preset.id
         persist()
+        PaneViewStore.shared.releaseAll(except: live)
     }
 
     func retargetPane(_ paneID: UUID, tabID: UUID, to target: PaneTarget) {
@@ -203,7 +207,7 @@ struct WorkspaceView: View {
         case .comparison:
             if let layout = WorkspaceLayout.comparison(machineIDs: ids) { model.use(layout) }
         case .docker:
-            let targets = remote.isEmpty ? ids : remote
+            let targets = remote
             if let layout = WorkspaceLayout.tiled(
                 machineIDs: targets, screen: .docker, name: "Docker")
             {

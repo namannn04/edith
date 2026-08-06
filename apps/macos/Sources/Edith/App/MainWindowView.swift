@@ -602,11 +602,7 @@ struct MainWindowView: View {
     }
 
     private func detach(_ item: MainDestination) {
-        let wasShowing = destination == item
         SectionWindow.open(item)
-        if wasShowing, SectionWindow.isShowingSomewhere(item) {
-            mainWindowSection = MainDestination.home.rawValue
-        }
     }
 
     private var visibleHomeItems: [MainDestination] {

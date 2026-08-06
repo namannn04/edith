@@ -9,13 +9,14 @@ struct FleetHomeView: View {
     @State private var tick = 0
     @State private var cpuHistory: [Double] = []
     @State private var memHistory: [Double] = []
+    @State private var loaded = false
 
     private var dark: Bool { scheme == .dark }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: UIScale.pt(16)) {
-                if model.fleet.memoryTotalKB == 0 {
+                if !loaded {
                     FleetHomeSkeleton(dark: dark)
                 } else {
                     fleetBanner
@@ -31,6 +32,9 @@ struct FleetHomeView: View {
             while !Task.isCancelled {
                 tick += 1
                 let fleet = model.fleet
+                if !loaded, model.snapshots.allSatisfy({ !$0.online }) || fleet.memoryTotalKB > 0 {
+                    loaded = true
+                }
                 cpuHistory = MachineSession.appending(fleet.cpuPercent, to: cpuHistory)
                 memHistory = MachineSession.appending(fleet.memoryPercent, to: memHistory)
                 try? await Task.sleep(for: .seconds(MetricsCadence.sampleInterval))

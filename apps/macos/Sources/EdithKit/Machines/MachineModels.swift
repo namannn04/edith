@@ -54,6 +54,12 @@ public struct Machine: Codable, Identifiable, Equatable, Hashable, Sendable {
         self.createdAt = createdAt
     }
 
+    public static func missing(id: UUID) -> Machine {
+        Machine(id: id, name: "Removed machine", host: "")
+    }
+
+    public var isMissing: Bool { host.isEmpty && name == "Removed machine" }
+
     public var sshTarget: String {
         if case let .sshConfigAlias(alias) = source { return alias }
         return username.isEmpty ? host : "\(username)@\(host)"

@@ -52,6 +52,7 @@ final class FinderModel: ObservableObject {
     private var searchToken = 0
     private var folderSizes: [String: Int64] = [:]
     private var folderCounts: [String: Int] = [:]
+    private var resolvedHome: String?
 
     init(session: MachineSession, path: String? = nil) {
         self.session = session
@@ -175,7 +176,10 @@ final class FinderModel: ObservableObject {
         let result = await session.runCommand(FilePlaces.homeDirectoryCommand(), timeout: 20)
         guard case let .success(output) = result else { return }
         let home = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if home.hasPrefix("/") { path = home }
+        if home.hasPrefix("/") {
+            resolvedHome = home
+            path = home
+        }
     }
 
     func load() async {
@@ -213,17 +217,26 @@ final class FinderModel: ObservableObject {
     }
 
     func navigate(to newPath: String, recordHistory: Bool = true) {
-        guard newPath != path else { return }
+        let target = expandingHome(newPath)
+        guard target != path else { return }
         if recordHistory {
             history.append(path)
             future.removeAll()
         }
-        path = newPath
+        path = target
+        entries = []
         selection = []
         anchor = nil
         searchResults = nil
         searchQuery = ""
         Task { await load() }
+    }
+
+    private func expandingHome(_ candidate: String) -> String {
+        guard candidate == "~" || candidate.hasPrefix("~/") else { return candidate }
+        guard let home = resolvedHome else { return candidate }
+        if candidate == "~" { return home }
+        return FileListing.join(parent: home, name: String(candidate.dropFirst(2)))
     }
 
     func goBack() {
@@ -654,30 +667,57 @@ final class FinderModel: ObservableObject {
             .appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         var completed = 0
+        var failures: [String] = []
         for path in paths {
             let name = (path as NSString).lastPathComponent
             let local = staging.appendingPathComponent(name)
-            if source.isLocal {
-                try? FileManager.default.copyItem(at: URL(fileURLWithPath: path), to: local)
-            } else if let connection = source.connectionRef {
-                try? await connection.download(remotePath: path, to: local)
+            do {
+                if source.isLocal {
+                    try FileManager.default.copyItem(at: URL(fileURLWithPath: path), to: local)
+                } else if let connection = source.connectionRef {
+                    try await connection.download(remotePath: path, to: local)
+                } else {
+                    throw TransferFailure.noConnection(source.machine.name)
+                }
+                if session.isLocal {
+                    try FileManager.default.moveItem(
+                        at: local,
+                        to: URL(fileURLWithPath: FileListing.join(parent: destination, name: name)))
+                } else if let connection = session.connectionRef {
+                    try await connection.upload(
+                        localURL: local,
+                        toRemotePath: FileListing.join(parent: destination, name: name))
+                } else {
+                    throw TransferFailure.noConnection(session.machine.name)
+                }
+                completed += 1
+            } catch {
+                failures.append("\(name): \(error.localizedDescription)")
             }
-            if session.isLocal {
-                try? FileManager.default.moveItem(
-                    at: local,
-                    to: URL(fileURLWithPath: FileListing.join(parent: destination, name: name)))
-            } else if let connection = session.connectionRef {
-                try? await connection.upload(
-                    localURL: local,
-                    toRemotePath: FileListing.join(parent: destination, name: name))
-            }
-            completed += 1
             progress = FileOperationProgress(
                 title: "Transferring", completed: completed, total: paths.count)
         }
         try? FileManager.default.removeItem(at: staging)
         progress = nil
+        if failures.isEmpty {
+            flash("Transferred \(completed) item\(completed == 1 ? "" : "s")")
+        } else {
+            errorMessage =
+                failures.count == 1
+                ? failures[0]
+                : "\(failures.count) of \(paths.count) items failed. \(failures[0])"
+        }
         await load()
+    }
+
+    enum TransferFailure: LocalizedError {
+        case noConnection(String)
+
+        var errorDescription: String? {
+            switch self {
+            case let .noConnection(name): return "\(name) is not connected."
+            }
+        }
     }
 
     private func uploadPaths(_ urls: [URL], into destination: String) async {

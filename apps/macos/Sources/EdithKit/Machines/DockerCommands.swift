@@ -93,7 +93,7 @@ public enum DockerCommands {
 
 extension DockerCommands {
     public static func inspectRaw(_ id: String) -> String {
-        "docker inspect \(ShellQuote.quote(id))"
+        "docker inspect \(ShellQuote.quote(id)) 2>/dev/null"
     }
 
     public static func top(_ id: String) -> String {

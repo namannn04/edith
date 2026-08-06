@@ -524,3 +524,31 @@ import Testing
         #expect(entries[0].modified != nil)
     }
 }
+
+@Suite struct DockerProbeClassificationTests {
+    @Test func silenceMeansTheProbeNeverAnswered() {
+        let availability = DockerParsing.availability(
+            versionOutput: "", versionStderr: "", status: 1)
+        #expect(availability.status == .unknown)
+        #expect(availability.isInstalled)
+    }
+
+    @Test func onlyAMissingBinaryHidesTheTab() {
+        let missing = DockerParsing.availability(
+            versionOutput: "", versionStderr: "bash: docker: command not found", status: 127)
+        #expect(missing.status == .missing)
+        #expect(!missing.isInstalled)
+    }
+
+    @Test func anInstalledButUnreachableDockerKeepsTheTab() {
+        let down = DockerParsing.availability(
+            versionOutput: "",
+            versionStderr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock.",
+            status: 1)
+        #expect(down.isInstalled)
+        let denied = DockerParsing.availability(
+            versionOutput: "", versionStderr: "permission denied while trying to connect",
+            status: 1)
+        #expect(denied.isInstalled)
+    }
+}
