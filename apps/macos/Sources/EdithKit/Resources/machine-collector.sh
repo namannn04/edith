@@ -5,7 +5,6 @@ export LC_ALL
 
 INTERVAL=2
 MODE=stream
-SLOW_EVERY=15
 while [ $# -gt 0 ]; do
   case "$1" in
     --once) MODE=once ;;
@@ -14,56 +13,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-emit_static() {
-  echo "SELF $$"
-  echo "HELLO kernel $(uname -r 2>/dev/null)"
-  echo "HELLO arch $(uname -m 2>/dev/null)"
-  echo "HELLO node $(uname -n 2>/dev/null)"
-}
-
-emit_slow_inputs() {
-  mounts=$(awk '($3=="ext4"||$3=="ext3"||$3=="ext2"||$3=="xfs"||$3=="btrfs"||$3=="zfs"||$3=="f2fs"||$3=="vfat"||$3=="exfat"||$3=="ntfs"||$3=="ntfs3"||($3=="overlay"&&$2=="/")){print $2}' /proc/mounts 2>/dev/null | sort -u)
-  if [ -n "$mounts" ]; then
-    df -Pk $mounts 2>/dev/null | sed 's/^/DF /'
-  fi
-  for z in /sys/class/thermal/thermal_zone*; do
-    [ -r "$z/temp" ] && echo "THERMAL $z"
-  done
-  for h in /sys/class/hwmon/hwmon*; do
-    [ -d "$h" ] && echo "HWMON $h"
-  done
-  for b in /sys/class/power_supply/*; do
-    [ -r "$b/type" ] && echo "PSUP $b"
-  done
-  if command -v nvidia-smi >/dev/null 2>&1; then
-    nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu \
-      --format=csv,noheader,nounits 2>/dev/null | sed 's/^/GPUCSV /'
-  fi
-  echo "ENDSLOW"
-}
-
-feeder() {
-  emit_static
-  tick=0
-  while :; do
-    echo "TICK $(date +%s)"
-    (cd /proc 2>/dev/null && printf 'PID %s\n' [0-9]*)
-    if [ $((tick % SLOW_EVERY)) -eq 0 ]; then
-      emit_slow_inputs
-    fi
-    echo "ENDTICK"
-    tick=$((tick + 1))
-    if [ "$MODE" = once ]; then
-      [ "$tick" -ge 2 ] && break
-      sleep 1
-    else
-      sleep "$INTERVAL"
-    fi
-  done
-  echo "BYE"
-}
-
-feeder | awk '
+exec awk -v mode="$MODE" -v interval="$INTERVAL" '
 function jesc(s,  out, i, c) {
   out = ""
   for (i = 1; i <= length(s); i++) {
@@ -223,7 +173,7 @@ function emit_hello(  os, osid, line, model, virt) {
   line = readfile("/proc/cpuinfo")
   if (line ~ /hypervisor/) virt = 1
   printf "@EDITH@{\"t\":\"hello\",\"v\":1,\"os\":\"%s\",\"osID\":\"%s\",\"kernel\":\"%s\",\"arch\":\"%s\",\"host\":\"%s\",\"cpuModel\":\"%s\",\"cores\":%d,\"memTotalKB\":%d,\"virtual\":%s}\n", jesc(os), jesc(osid), jesc(hello["kernel"]), jesc(hello["arch"]), jesc(hello["node"]), jesc(model), nCores, memTotal, virt ? "true" : "false"
-  fflush("")
+  fflush()
 }
 function emit_sample(dt,  out, i, label, busyD, totalD, pct, stealPct, first, name, rd, wr, busyMs, rxT, txT, pid, k, bestPid, bestVal, chosen, cnt, cpuPct, memPct, cmd, uname_, aggBusyD, aggTotalD) {
   aggBusyD = clamp0(curCpuBusy["cpu"] - prevCpuBusy["cpu"])
@@ -304,7 +254,7 @@ function emit_sample(dt,  out, i, label, busyD, totalD, pct, stealPct, first, na
   }
   out = out "]}"
   printf "@EDITH@%s\n", out
-  fflush("")
+  fflush()
 }
 function emit_slow(  out, i, first, parts, dev, seenDev, label, temp, path, name2, j, bat) {
   out = "{\"t\":\"slow\",\"disks\":["
@@ -361,7 +311,7 @@ function emit_slow(  out, i, first, parts, dev, seenDev, label, temp, path, name
   }
   out = out "}"
   printf "@EDITH@%s\n", out
-  fflush("")
+  fflush()
 }
 function rotate(  k) {
   delete prevCpuBusy; delete prevCpuTotal; delete prevCpuSteal
@@ -379,11 +329,61 @@ function rotate(  k) {
   for (k in pidTicks) { prevPidTicks[k] = pidTicks[k]; prevPidStart[k] = pidStart[k] }
   delete pidSeen; delete pidTicks; delete pidStart; delete pidRss; delete pidUid; delete pidName
 }
-BEGIN { haveTick = 0; prevTs = 0; slowPending = 0; selfPid = -1 }
-$1 == "SELF" { selfPid = $2; next }
-$1 == "HELLO" { hello[$2] = $3; next }
-$1 == "TICK" {
-  ts = $2
+function shellLine(cmd,  line) {
+  line = ""
+  cmd | getline line
+  close(cmd)
+  return line
+}
+function readPidList(  line, n, i) {
+  delete pidList
+  nPids = 0
+  line = shellLine("cd /proc 2>/dev/null && echo [0-9]*")
+  if (line == "" || line == "[0-9]*") return
+  nPids = split(line, pidList, " ")
+}
+function readSlowInputs(  cmd, line, parts, mounts, n, i) {
+  nDf = 0; nThermal = 0; nHwmon = 0; nPsup = 0; nGpu = 0
+  mounts = ""
+  while ((getline line < "/proc/mounts") > 0) {
+    split(line, parts, " ")
+    if (parts[3] == "ext4" || parts[3] == "ext3" || parts[3] == "ext2" \
+      || parts[3] == "xfs" || parts[3] == "btrfs" || parts[3] == "zfs" \
+      || parts[3] == "f2fs" || parts[3] == "vfat" || parts[3] == "exfat" \
+      || parts[3] == "ntfs" || parts[3] == "ntfs3" \
+      || (parts[3] == "overlay" && parts[2] == "/")) {
+      if (index(" " mounts " ", " " parts[2] " ") == 0) {
+        mounts = mounts == "" ? parts[2] : mounts " " parts[2]
+      }
+    }
+  }
+  close("/proc/mounts")
+  if (mounts != "") {
+    cmd = "df -Pk " mounts " 2>/dev/null"
+    while ((cmd | getline line) > 0) {
+      if (line ~ /^Filesystem/) continue
+      nDf++
+      dfLines[nDf] = line
+    }
+    close(cmd)
+  }
+  cmd = "ls -d /sys/class/thermal/thermal_zone* 2>/dev/null"
+  while ((cmd | getline line) > 0) { nThermal++; thermalZones[nThermal] = line }
+  close(cmd)
+  cmd = "ls -d /sys/class/hwmon/hwmon* 2>/dev/null"
+  while ((cmd | getline line) > 0) { nHwmon++; hwmonDirs[nHwmon] = line }
+  close(cmd)
+  cmd = "ls -d /sys/class/power_supply/* 2>/dev/null"
+  while ((cmd | getline line) > 0) { nPsup++; psupDirs[nPsup] = line }
+  close(cmd)
+  cmd = "command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi "
+  cmd = cmd "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu "
+  cmd = cmd "--format=csv,noheader,nounits 2>/dev/null"
+  while ((cmd | getline line) > 0) { nGpu++; gpuLines[nGpu] = line }
+  close(cmd)
+}
+function collect(  line, lparts, rparts, uparts, i) {
+  ts = shellLine("date +%s") + 0
   readstat(); readmem(); readdisks(); readnet()
   line = firstline("/proc/loadavg")
   split(line, lparts, " ")
@@ -393,35 +393,36 @@ $1 == "TICK" {
   line = firstline("/proc/uptime")
   split(line, uparts, " ")
   uptimeS = uparts[1]
-  next
+  readPidList()
+  for (i = 1; i <= nPids; i++) readpid(pidList[i])
 }
-$1 == "PID" { readpid($2); next }
-$1 == "DF" {
-  if ($2 == "Filesystem") next
-  nDf++
-  dfLines[nDf] = substr($0, 4)
-  next
-}
-$1 == "THERMAL" { nThermal++; thermalZones[nThermal] = $2; next }
-$1 == "HWMON" { nHwmon++; hwmonDirs[nHwmon] = $2; next }
-$1 == "PSUP" { nPsup++; psupDirs[nPsup] = $2; next }
-$1 == "GPUCSV" { nGpu++; gpuLines[nGpu] = substr($0, 8); next }
-$1 == "ENDSLOW" { slowPending = 1; next }
-$1 == "ENDTICK" {
-  if (!haveTick) {
-    emit_hello()
-    haveTick = 1
-  } else if (ts > prevTs) {
-    emit_sample(ts - prevTs)
+BEGIN {
+  selfPid = shellLine("echo $PPID") + 0
+  hello["kernel"] = shellLine("uname -r 2>/dev/null")
+  hello["arch"] = shellLine("uname -m 2>/dev/null")
+  hello["node"] = shellLine("uname -n 2>/dev/null")
+  if (interval + 0 < 1) interval = 2
+  slowEvery = 15
+  tick = 0
+  prevTs = 0
+  while (1) {
+    collect()
+    if (tick % slowEvery == 0) readSlowInputs()
+    if (tick == 0) {
+      emit_hello()
+    } else if (ts > prevTs) {
+      emit_sample(ts - prevTs)
+    }
+    if (tick % slowEvery == 0) emit_slow()
+    rotate()
+    prevTs = ts
+    tick++
+    if (mode == "once") {
+      if (tick >= 2) break
+      system("sleep 1")
+    } else {
+      system("sleep " interval)
+    }
   }
-  if (slowPending) {
-    emit_slow()
-    slowPending = 0
-    nDf = 0; nThermal = 0; nHwmon = 0; nPsup = 0; nGpu = 0
-  }
-  rotate()
-  prevTs = ts
-  next
 }
-$1 == "BYE" { exit 0 }
 '

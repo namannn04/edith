@@ -271,6 +271,15 @@ import Testing
         #expect(rich.gpu?.name == "RTX 4060")
     }
 
+    @Test func collectorDrivesItsOwnLoopSoOutputIsNotBuffered() {
+        let text = String(decoding: MachineCollector.script() ?? Data(), as: UTF8.self)
+        #expect(text.contains("exec awk"))
+        #expect(text.contains("system(\"sleep "))
+        #expect(text.contains("fflush()"))
+        #expect(!text.contains("feeder |"))
+        #expect(!text.contains("fflush(\"\")"))
+    }
+
     @Test func collectorScriptResourceExists() {
         let script = MachineCollector.script()
         #expect(script != nil)
