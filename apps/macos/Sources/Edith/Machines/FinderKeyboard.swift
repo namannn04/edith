@@ -85,17 +85,24 @@ final class FinderKeyView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    static func isTextEditing(in window: NSWindow?) -> Bool {
+        window?.firstResponder is NSText
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard window != nil else { return }
         DispatchQueue.main.async { [weak self] in
-            guard let self, window?.firstResponder !== self else { return }
+            guard let self, window?.firstResponder !== self,
+                !FinderKeyView.isTextEditing(in: window)
+            else { return }
             window?.makeFirstResponder(self)
         }
     }
 
     override func keyDown(with event: NSEvent) {
-        guard !isEditing(), let key = FinderKey.resolve(event: event),
+        guard !isEditing(), !FinderKeyView.isTextEditing(in: window),
+            let key = FinderKey.resolve(event: event),
             onKey?(key) == true
         else {
             super.keyDown(with: event)
@@ -123,8 +130,13 @@ struct FinderKeyCatcher: NSViewRepresentable {
     func updateNSView(_ view: FinderKeyView, context: Context) {
         context.coordinator.editing = isEditing
         view.onKey = onKey
-        if !isEditing, view.window?.firstResponder !== view {
-            DispatchQueue.main.async { view.window?.makeFirstResponder(view) }
+        if !isEditing, view.window?.firstResponder !== view,
+            !FinderKeyView.isTextEditing(in: view.window)
+        {
+            DispatchQueue.main.async {
+                guard !FinderKeyView.isTextEditing(in: view.window) else { return }
+                view.window?.makeFirstResponder(view)
+            }
         }
     }
 

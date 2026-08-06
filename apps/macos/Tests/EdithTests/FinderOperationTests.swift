@@ -64,6 +64,39 @@ private func exists(_ name: String, in root: URL) -> Bool {
         let kept = try String(contentsOf: root.appendingPathComponent("keep.txt"), encoding: .utf8)
         #expect(kept == "important")
         #expect(exists("other.txt", in: root))
+        #expect(model.errorMessage != nil)
+        #expect(model.renaming != nil)
+    }
+
+    @Test func aCaseOnlyRenameWorksOnACaseInsensitiveVolume() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("notes.txt", into: root)
+        await model.load()
+
+        guard let entry = model.entries.first(where: { $0.name == "notes.txt" }) else { return }
+        model.beginRename(entry)
+        model.renameText = "Notes.txt"
+        await model.commitRename()
+
+        await model.load()
+        #expect(model.entries.contains { $0.name == "Notes.txt" })
+        #expect(model.errorMessage == nil)
+    }
+
+    @Test func theRenamedItemStaysSelected() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("old.txt", into: root)
+        await model.load()
+
+        guard let entry = model.entries.first else { return }
+        model.beginRename(entry)
+        model.renameText = "new.txt"
+        await model.commitRename()
+
+        #expect(model.selection.count == 1)
+        #expect(model.selection.first?.hasSuffix("new.txt") == true)
     }
 
     @Test func anEmptyOrUnchangedNameIsANoOp() async throws {
@@ -304,5 +337,53 @@ private func exists(_ name: String, in root: URL) -> Bool {
 
         let fresh = PaneViewStore.shared.terminal(for: tab, session: session)
         #expect(fresh !== first)
+    }
+}
+
+@Suite(.serialized) @MainActor struct FinderContextMenuTests {
+    @Test func actingOnAnUnselectedRowTargetsThatRowNotTheOldSelection() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("selected.txt", into: root)
+        try write("clicked.txt", into: root)
+        await model.load()
+
+        model.selection = Set(model.entries.filter { $0.name == "selected.txt" }.map(\.path))
+        guard let clicked = model.entries.first(where: { $0.name == "clicked.txt" }) else { return }
+        model.focusContext(on: clicked)
+        await model.trashSelection(permanently: true)
+
+        #expect(exists("selected.txt", in: root))
+        #expect(!exists("clicked.txt", in: root))
+    }
+
+    @Test func actingOnARowInsideTheSelectionKeepsTheWholeSelection() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("a.txt", into: root)
+        try write("b.txt", into: root)
+        await model.load()
+
+        model.selection = Set(model.entries.map(\.path))
+        guard let one = model.entries.first else { return }
+        model.focusContext(on: one)
+        #expect(model.selection.count == 2)
+    }
+}
+
+@Suite struct RenameCommandTests {
+    @Test func renamingOverAnExistingNameFailsLoudlyRatherThanSilently() {
+        let command = FileOperations.renameCommand(path: "/d/a.txt", to: "/d/b.txt")
+        #expect(command.contains("if [ -e /d/b.txt ]; then exit 17; fi"))
+        #expect(!command.contains("mv -n"))
+    }
+
+    @Test func aCaseOnlyRenameGoesThroughATemporaryName() {
+        let command = FileOperations.renameCommand(
+            path: "/d/notes.txt", to: "/d/Notes.txt", viaTemporary: true)
+        #expect(
+            command
+                == "mv /d/notes.txt /d/notes.txt.edith-rename && mv /d/notes.txt.edith-rename /d/Notes.txt"
+        )
     }
 }

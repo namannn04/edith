@@ -153,9 +153,10 @@ import Testing
             FileOperations.copyCommand(paths: ["/a"], toDirectory: "/d") == "cp -a /a /d")
     }
 
-    @Test func renameRefusesToClobber() {
+    @Test func renameRefusesToClobberAndSaysSo() {
         let command = FileOperations.renameCommand(path: "/a/x", to: "/a/y")
-        #expect(command == "mv -n /a/x /a/y")
+        #expect(command == "if [ -e /a/y ]; then exit 17; fi; mv /a/x /a/y")
+        #expect(!command.contains("mv -n"))
     }
 
     @Test func searchAndSpaceCommandsAreQuoted() {

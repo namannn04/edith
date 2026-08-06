@@ -175,8 +175,16 @@ public enum FileOperations {
             + ShellQuote.quote(directory)
     }
 
-    public static func renameCommand(path: String, to newPath: String) -> String {
-        "mv -n \(ShellQuote.quote(path)) \(ShellQuote.quote(newPath))"
+    public static func renameCommand(
+        path: String, to newPath: String, viaTemporary: Bool = false
+    ) -> String {
+        let source = ShellQuote.quote(path)
+        let destination = ShellQuote.quote(newPath)
+        guard viaTemporary else {
+            return "if [ -e \(destination) ]; then exit 17; fi; mv \(source) \(destination)"
+        }
+        let staging = ShellQuote.quote(path + ".edith-rename")
+        return "mv \(source) \(staging) && mv \(staging) \(destination)"
     }
 
     public static func makeDirectoryCommand(path: String) -> String {

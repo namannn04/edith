@@ -241,12 +241,15 @@ struct FinderBody: View {
 
             Spacer(minLength: UIScale.pt(4))
 
-            SearchField(placeholder: "Search this folder", text: $model.searchQuery)
-                .frame(width: UIScale.pt(200))
-                .focused($searchFocused)
-                .onChange(of: model.searchQuery) { _, _ in
-                    model.searchQueryChanged()
-                }
+            SearchField(
+                placeholder: "Search this folder", text: $model.searchQuery,
+                focus: $searchFocused
+            )
+            .frame(width: UIScale.pt(200))
+            .focused($searchFocused)
+            .onChange(of: model.searchQuery) { _, _ in
+                model.searchQueryChanged()
+            }
 
             Menu {
                 Button("New Folder") { Task { await model.newFolder() } }
@@ -415,10 +418,17 @@ struct FinderRowContextMenu: View {
         }
         Divider()
         Button("Rename") { model.beginRename(entry) }
-        Button("Duplicate") { Task { await model.duplicateSelection() } }
-        Button("Copy Path") { model.copyPaths() }
+        Button("Duplicate") {
+            model.focusContext(on: entry)
+            Task { await model.duplicateSelection() }
+        }
+        Button("Copy Path") {
+            model.focusContext(on: entry)
+            model.copyPaths()
+        }
         Divider()
         Button("Move to Trash", role: .destructive) {
+            model.focusContext(on: entry)
             Task { await model.trashSelection(permanently: false) }
         }
     }

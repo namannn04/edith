@@ -33,13 +33,21 @@ final class FinderModel: ObservableObject {
         var names: [String]
     }
 
-    @AppStorage("finderViewMode", store: SharedDefaults.store) var viewModeRaw =
-        FileViewMode.list.rawValue
-    @AppStorage("finderSortKey", store: SharedDefaults.store) var sortKeyRaw =
-        FileSortKey.name.rawValue
-    @AppStorage("finderSortAscending", store: SharedDefaults.store) var sortAscending = true
-    @AppStorage("finderShowHidden", store: SharedDefaults.store) var showHidden = false
-    @AppStorage("finderIconSize", store: SharedDefaults.store) var iconSize = 72.0
+    @Published var viewModeRaw = FinderDefaults.viewMode {
+        didSet { FinderDefaults.viewMode = viewModeRaw }
+    }
+    @Published var sortKeyRaw = FinderDefaults.sortKey {
+        didSet { FinderDefaults.sortKey = sortKeyRaw }
+    }
+    @Published var sortAscending = FinderDefaults.sortAscending {
+        didSet { FinderDefaults.sortAscending = sortAscending }
+    }
+    @Published var showHidden = FinderDefaults.showHidden {
+        didSet { FinderDefaults.showHidden = showHidden }
+    }
+    @Published var iconSize = FinderDefaults.iconSize {
+        didSet { FinderDefaults.iconSize = iconSize }
+    }
 
     let session: MachineSession
     private var history: [String] = []
@@ -299,8 +307,14 @@ final class FinderModel: ObservableObject {
     }
 
     func openSelection() {
-        guard let entry = selectedEntries.first else { return }
-        open(entry)
+        let targets = selectedEntries
+        guard !targets.isEmpty else { return }
+        if targets.count == 1 || targets.contains(where: \.isDirectory) {
+            guard let first = targets.first else { return }
+            open(first)
+            return
+        }
+        for entry in targets { open(entry) }
     }
 
     func toggleQuickLook() {
@@ -409,15 +423,45 @@ final class FinderModel: ObservableObject {
         renameText = entry.name
     }
 
+    func focusContext(on entry: RemoteFileEntry) {
+        guard !selection.contains(entry.path) else { return }
+        selection = [entry.path]
+    }
+
     func commitRename() async {
-        guard let renaming, let entry = entries.first(where: { $0.path == renaming }) else {
+        guard let renaming else { return }
+        let pool = searchResults ?? entries
+        guard let entry = pool.first(where: { $0.path == renaming }) else {
+            self.renaming = nil
             return
         }
         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard RenameSelection.isValid(trimmed) else {
+            errorMessage = "That name cannot be used."
+            return
+        }
+        guard trimmed != entry.name else {
+            self.renaming = nil
+            return
+        }
+        let parent = FileListing.parentPath(of: entry.path) ?? path
+        let siblings = entries.filter { $0.path != entry.path }
+        let sameNameDifferentCase =
+            NameFolding.key(trimmed, caseInsensitive: true)
+            == NameFolding.key(entry.name, caseInsensitive: true)
+        if !sameNameDifferentCase,
+            !NameConflicts.conflicting(names: [trimmed], existing: siblings).isEmpty
+        {
+            errorMessage = "An item named \(trimmed) already exists here."
+            return
+        }
         self.renaming = nil
-        guard RenameSelection.isValid(trimmed), trimmed != entry.name else { return }
-        let target = FileListing.join(parent: path, name: trimmed)
-        await run(FileOperations.renameCommand(path: entry.path, to: target), reload: true)
+        let target = FileListing.join(parent: parent, name: trimmed)
+        await run(
+            FileOperations.renameCommand(
+                path: entry.path, to: target, viaTemporary: sameNameDifferentCase),
+            reload: true)
+        if errorMessage == nil { selection = [target] }
     }
 
     func newFolder() async {
@@ -581,10 +625,12 @@ final class FinderModel: ObservableObject {
 
     private func run(_ command: String, reload: Bool) async {
         let result = await session.runCommand(command, timeout: 120)
+        var failureMessage: String?
         if case let .failure(failure) = result {
-            errorMessage = failure.localizedDescription
+            failureMessage = failure.localizedDescription
         }
         if reload { await load() }
+        if let failureMessage { errorMessage = failureMessage }
     }
 
     func dragPayload() -> MachineItemsPayload {
