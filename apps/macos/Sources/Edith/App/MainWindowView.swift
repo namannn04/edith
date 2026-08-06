@@ -567,8 +567,8 @@ struct MainWindowView: View {
                         item: item, selected: destination == item, theme: theme,
                         shortcutHint: shortcutHint(for: item),
                         selectionNamespace: sidebarSelectionNamespace,
-                        action: { mainWindowSection = item.rawValue },
-                        detach: { SectionWindow.open(item) })
+                        action: { select(item) },
+                        detach: { detach(item) })
                 }
                 Text("App")
                     .font(.system(size: UIScale.pt(11), weight: .semibold))
@@ -581,8 +581,8 @@ struct MainWindowView: View {
                         item: item, selected: destination == item, theme: theme,
                         shortcutHint: shortcutHint(for: item),
                         selectionNamespace: sidebarSelectionNamespace,
-                        action: { mainWindowSection = item.rawValue },
-                        detach: item == .about ? nil : { SectionWindow.open(item) })
+                        action: { select(item) },
+                        detach: item == .about ? nil : { detach(item) })
                 }
             }
             .padding(.horizontal, UIScale.pt(8))
@@ -594,6 +594,19 @@ struct MainWindowView: View {
         )
         .animation(
             Motion.animation(Motion.glide, reduceMotion: reduceMotion), value: showShortcutHints)
+    }
+
+    private func select(_ item: MainDestination) {
+        if SectionWindow.focusExisting(item) { return }
+        mainWindowSection = item.rawValue
+    }
+
+    private func detach(_ item: MainDestination) {
+        let wasShowing = destination == item
+        SectionWindow.open(item)
+        if wasShowing, SectionWindow.isShowingSomewhere(item) {
+            mainWindowSection = MainDestination.home.rawValue
+        }
     }
 
     private var visibleHomeItems: [MainDestination] {
@@ -628,6 +641,7 @@ struct MainWindowView: View {
             let code = event.keyCode
             let mods = event.modifierFlags
             let handled = MainActor.assumeIsolated {
+                guard !WindowTabs.isTabbed(NSApp.keyWindow) else { return false }
                 guard
                     let command = WindowKeyCommand.resolve(
                         characters: characters, keyCode: code, modifiers: mods)

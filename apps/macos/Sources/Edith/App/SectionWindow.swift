@@ -2,8 +2,17 @@ import AppKit
 import EdithKit
 import SwiftUI
 
+@MainActor
+final class SectionWindowController: ObservableObject {
+    @Published var destination: MainDestination
+
+    init(destination: MainDestination) {
+        self.destination = destination
+    }
+}
+
 struct DetachedSectionView: View {
-    let destination: MainDestination
+    @ObservedObject var controller: SectionWindowController
     @AppStorage("theme", store: SharedDefaults.store) private var themeName = "accent"
     @Environment(\.colorScheme) private var scheme
 
@@ -14,7 +23,7 @@ struct DetachedSectionView: View {
                 .environment(\.compactLayout, geo.size.width < UIScale.pt(640))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
-                    destination.usesPaperBackground
+                    controller.destination.usesPaperBackground
                         ? DashSkin.paper(scheme == .dark)
                         : Color(nsColor: .windowBackgroundColor))
         }
@@ -22,7 +31,7 @@ struct DetachedSectionView: View {
 
     @ViewBuilder
     private var detail: some View {
-        switch destination {
+        switch controller.destination {
         case .home: HomePage()
         case .dashboard: DashboardView()
         case .music: MusicPage()
@@ -36,64 +45,87 @@ struct DetachedSectionView: View {
     }
 }
 
+enum SectionOpenMode {
+    case reuseMostRecent
+    case alwaysNew
+}
+
 @MainActor
 enum SectionWindow {
-    private static var windows: [String: NSWindow] = [:]
+    private struct Entry {
+        let window: NSWindow
+        let controller: SectionWindowController
+    }
 
-    static func open(_ destination: MainDestination, title: String? = nil) {
-        let key = destination.rawValue
-        if let existing = windows[key] {
-            existing.makeKeyAndOrderFront(nil)
+    private static var entries: [Entry] = []
+
+    static var openDestinations: [MainDestination] {
+        entries.map { $0.controller.destination }
+    }
+
+    static func isShowingSomewhere(_ destination: MainDestination) -> Bool {
+        entries.contains { $0.controller.destination == destination }
+    }
+
+    @discardableResult
+    static func focusExisting(_ destination: MainDestination) -> Bool {
+        guard let entry = entries.first(where: { $0.controller.destination == destination })
+        else { return false }
+        entry.window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        return true
+    }
+
+    static func open(_ destination: MainDestination, mode: SectionOpenMode = .reuseMostRecent) {
+        if focusExisting(destination) { return }
+        if mode == .reuseMostRecent, let entry = entries.first {
+            entry.controller.destination = destination
+            entry.window.title = destination.title
+            entry.window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+        makeWindow(destination)
+    }
+
+    private static func makeWindow(_ destination: MainDestination) {
+        let controller = SectionWindowController(destination: destination)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 640),
+            contentRect: NSRect(x: 0, y: 0, width: 880, height: 640),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered, defer: false)
-        window.title = title ?? destination.title
+        window.title = destination.title
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 560, height: 420)
         window.tabbingMode = .preferred
         window.tabbingIdentifier = "EdithSection"
         let hosting = NSHostingController(
-            rootView: ZoomableRoot { DetachedSectionView(destination: destination) })
+            rootView: ZoomableRoot { DetachedSectionView(controller: controller) })
         hosting.sizingOptions = []
         window.contentViewController = hosting
-        window.setContentSize(NSSize(width: 860, height: 640))
-        window.setFrameAutosaveName("EdithSection.\(key)")
+        window.setContentSize(NSSize(width: 880, height: 640))
+        window.setFrameAutosaveName("EdithSectionWindow")
         if window.frame.origin == .zero { window.center() }
-        cascade(window)
         window.delegate = SectionWindowDelegate.shared
-        windows[key] = window
+        entries.insert(Entry(window: window, controller: controller), at: 0)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    static func isOpen(_ destination: MainDestination) -> Bool {
-        windows[destination.rawValue] != nil
+    static func noteBecameKey(_ window: NSWindow) {
+        guard let index = entries.firstIndex(where: { $0.window === window }), index > 0 else {
+            return
+        }
+        let entry = entries.remove(at: index)
+        entries.insert(entry, at: 0)
     }
 
     static func forget(_ window: NSWindow) {
-        guard let key = windows.first(where: { $0.value === window })?.key else { return }
-        windows.removeValue(forKey: key)
+        entries.removeAll { $0.window === window }
     }
 
-    static func closeAll() {
-        for window in windows.values { window.close() }
-        windows = [:]
-    }
-
-    private static func cascade(_ window: NSWindow) {
-        guard windows.count > 0, let reference = NSApp.keyWindow ?? windows.values.first else {
-            return
-        }
-        let offset = CGFloat(22 * (windows.count + 1))
-        let origin = NSPoint(
-            x: reference.frame.origin.x + offset, y: reference.frame.origin.y - offset)
-        if let screen = window.screen ?? NSScreen.main, screen.visibleFrame.contains(origin) {
-            window.setFrameOrigin(origin)
-        }
+    static func title(of window: NSWindow) -> String? {
+        entries.first { $0.window === window }?.controller.destination.title
     }
 }
 
@@ -101,9 +133,15 @@ enum SectionWindow {
 final class SectionWindowDelegate: NSObject, NSWindowDelegate {
     static let shared = SectionWindowDelegate()
 
+    func windowDidBecomeKey(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        SectionWindow.noteBecameKey(window)
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
         SectionWindow.forget(window)
+        WindowTabs.clearHints()
     }
 }
 
@@ -114,5 +152,68 @@ enum SectionWindowCommand {
 
     static func detachableDestinations(visibleHomeItems: [MainDestination]) -> [MainDestination] {
         visibleHomeItems + [.extensions, .settings]
+    }
+}
+
+@MainActor
+enum WindowTabs {
+    private static var baseTitles: [ObjectIdentifier: String] = [:]
+    private static var hintsShown = false
+
+    static func tabbedWindows(for window: NSWindow?) -> [NSWindow] {
+        guard let group = window?.tabGroup, group.windows.count > 1 else { return [] }
+        return group.windows
+    }
+
+    static func isTabbed(_ window: NSWindow?) -> Bool {
+        !tabbedWindows(for: window).isEmpty
+    }
+
+    static func selectTab(index: Int, in window: NSWindow?) -> Bool {
+        let windows = tabbedWindows(for: window)
+        guard index >= 0, index < windows.count else { return false }
+        windows[index].makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    static func selectNextTab(in window: NSWindow?, backwards: Bool) -> Bool {
+        let windows = tabbedWindows(for: window)
+        guard let window, let current = windows.firstIndex(of: window), !windows.isEmpty else {
+            return false
+        }
+        let count = windows.count
+        let next = backwards ? (current - 1 + count) % count : (current + 1) % count
+        windows[next].makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    static func showHints(_ show: Bool) {
+        guard show != hintsShown else { return }
+        hintsShown = show
+        let windows = tabbedWindows(for: NSApp.keyWindow)
+        guard !windows.isEmpty else {
+            if !show { clearHints() }
+            return
+        }
+        for (index, window) in windows.enumerated() {
+            let key = ObjectIdentifier(window)
+            if show {
+                if baseTitles[key] == nil { baseTitles[key] = window.title }
+                guard index < 9, let base = baseTitles[key] else { continue }
+                window.title = "⌘\(index + 1)  \(base)"
+            } else if let base = baseTitles[key] {
+                window.title = base
+                baseTitles.removeValue(forKey: key)
+            }
+        }
+    }
+
+    static func clearHints() {
+        for window in NSApp.windows {
+            guard let base = baseTitles[ObjectIdentifier(window)] else { continue }
+            window.title = base
+        }
+        baseTitles = [:]
+        hintsShown = false
     }
 }

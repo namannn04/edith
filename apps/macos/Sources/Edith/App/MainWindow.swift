@@ -91,6 +91,8 @@ enum MainWindow {
         w.setContentSize(NSSize(width: 900, height: 680))
         w.center()
         w.setFrameAutosaveName("EdithMainWindow")
+        w.tabbingMode = .preferred
+        w.tabbingIdentifier = "EdithSection"
         w.delegate = MainWindowDelegate.shared
         window = w
         w.makeKeyAndOrderFront(nil)
