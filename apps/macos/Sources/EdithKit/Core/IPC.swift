@@ -36,6 +36,11 @@ public enum IPC {
         public static let presenterAutoActiveChanged = Notification.Name(
             "com.pulkit.edith.presenterAutoActiveChanged")
         public static let musicCommand = Notification.Name("com.pulkit.edith.musicCommand")
+        public static let nowPlayingCommand = Notification.Name(
+            "com.pulkit.edith.nowPlayingCommand")
+        public static let nowPlayingState = Notification.Name("com.pulkit.edith.nowPlayingState")
+        public static let requestNowPlayingState = Notification.Name(
+            "com.pulkit.edith.requestNowPlayingState")
         public static let musicState = Notification.Name("com.pulkit.edith.musicState")
         public static let requestMusicState = Notification.Name(
             "com.pulkit.edith.requestMusicState")

@@ -1,3 +1,4 @@
+import EdithKit
 import AppKit
 import Combine
 
@@ -69,8 +70,19 @@ final class ExternalMusic: ObservableObject {
 
     private var observers: [(ExternalApp, NSObjectProtocol)] = []
 
+    private var commandObserver: NSObjectProtocol?
+    private var stateObserver: NSObjectProtocol?
+
     func start() {
         guard observers.isEmpty else { return }
+        commandObserver = IPC.observe(
+            IPC.Name.nowPlayingCommand,
+            info: { [weak self] info in
+                MainActor.assumeIsolated { self?.handle(command: info) }
+            })
+        stateObserver = IPC.observe(IPC.Name.requestNowPlayingState) { [weak self] in
+            MainActor.assumeIsolated { self?.broadcast() }
+        }
         let center = DistributedNotificationCenter.default()
         for app in ExternalApp.allCases {
             let observer = center.addObserver(
@@ -89,6 +101,30 @@ final class ExternalMusic: ObservableObject {
         for (_, observer) in observers { center.removeObserver(observer) }
         observers.removeAll()
         current = nil
+    }
+
+    func handle(command info: [AnyHashable: Any]) {
+        switch info["action"] as? String ?? "" {
+        case "playpause": playPause()
+        case "next": next()
+        case "previous": previous()
+        case "volume":
+            if let value = info["value"] as? Double { setVolume(Float(value)) }
+        default: break
+        }
+        broadcast()
+    }
+
+    func broadcast() {
+        var payload: [String: Any] = ["present": current != nil]
+        if let track = current {
+            payload["app"] = track.app.rawValue
+            payload["appName"] = track.app.displayName
+            payload["title"] = track.title
+            payload["artist"] = track.artist
+            payload["isPlaying"] = track.isPlaying
+        }
+        IPC.post(IPC.Name.nowPlayingState, userInfo: payload)
     }
 
     func playPause() { control("playpause") }

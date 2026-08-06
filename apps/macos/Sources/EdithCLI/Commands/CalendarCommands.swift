@@ -31,10 +31,11 @@ struct CalendarListCommand: AsyncParsableCommand {
             try AppBridge.requireHelper("reading the calendar")
             guard
                 let reply = await AppBridge.awaitReply(
-                    IPC.Name.calendarEvents, timeout: 6,
+                    IPC.Name.calendarEvents, timeout: 4,
                     trigger: { AppBridge.post(IPC.Name.requestCalendarEvents) })
             else {
-                throw CLIFailure.unavailable("the app did not answer in time")
+                throw AppBridge.silence(
+                    "the calendar", extensionKey: "tabCalendarEnabled", permission: "calendar")
             }
             switch reply[CalendarEventBridge.statusKey] as? String {
             case "extensionOff":
