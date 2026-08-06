@@ -21,8 +21,9 @@ struct MachineDetailView: View {
 
     private var tabBar: some View {
         HStack(spacing: UIScale.pt(4)) {
-            ForEach(MachineTab.tabs(isLocal: session.isLocal, hasDocker: session.docker.isInstalled))
-            { item in
+            let items = MachineTab.tabs(
+                isLocal: session.isLocal, hasDocker: session.docker.isInstalled)
+            ForEach(items) { item in
                 Button {
                     if NSEvent.modifierFlags.contains(.command) {
                         detach(item)

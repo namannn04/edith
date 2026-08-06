@@ -1,4 +1,5 @@
 import AppKit
+import EdithKit
 import SwiftUI
 import Testing
 
@@ -14,8 +15,19 @@ import Testing
 
     @Test func filesIsNotATabBecauseItOpensItsOwnWindow() {
         #expect(!MachineTab.allCases.map(\.rawValue).contains("files"))
-        #expect(MachineTab.tabs(isLocal: true) == [.overview, .processes, .terminal])
-        #expect(MachineTab.tabs(isLocal: false).contains(.docker))
+        #expect(
+            MachineTab.tabs(isLocal: true, hasDocker: true) == [.overview, .processes, .terminal])
+        #expect(MachineTab.tabs(isLocal: false, hasDocker: true).contains(.docker))
+    }
+
+    @Test func machinesWithoutDockerInstalledHideTheDockerTab() {
+        #expect(!MachineTab.tabs(isLocal: false, hasDocker: false).contains(.docker))
+        #expect(MachineTab.tabs(isLocal: false, hasDocker: false).contains(.overview))
+        #expect(!PaneScreen.available(isLocal: false, hasDocker: false).contains(.docker))
+        #expect(PaneScreen.available(isLocal: false, hasDocker: true).contains(.docker))
+        #expect(!DockerAvailability(status: .missing).isInstalled)
+        #expect(DockerAvailability(status: .unknown).isInstalled)
+        #expect(DockerAvailability(status: .permissionDenied).isInstalled)
     }
 
     @Test func everyVisibleSectionExceptAboutCanDetach() {

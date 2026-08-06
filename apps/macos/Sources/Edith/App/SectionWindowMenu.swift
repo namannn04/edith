@@ -119,6 +119,9 @@ enum SectionWindowMenu {
                     SectionWindowMenuTarget.shared.openFilesWindow()
                     return true
                 }
+                if flags == .command, characters?.lowercased() == "w" {
+                    return CloseCommand.perform(on: NSApp.keyWindow)
+                }
                 let window = NSApp.keyWindow
                 guard
                     let command = WindowTabKeyCommand.resolve(
@@ -136,6 +139,27 @@ enum SectionWindowMenu {
             }
             return handled ? nil : event
         }
+    }
+}
+
+@MainActor
+enum CloseCommand {
+    static func perform(on window: NSWindow?) -> Bool {
+        guard let window else { return true }
+        if WindowTabs.isTabbed(window) {
+            window.close()
+            return true
+        }
+        if !isMainWindow(window) {
+            window.performClose(nil)
+            return true
+        }
+        WorkspaceModel.shared.closeFocusedTab()
+        return true
+    }
+
+    private static func isMainWindow(_ window: NSWindow) -> Bool {
+        window.identifier?.rawValue == MainWindowIdentifier.value
     }
 }
 

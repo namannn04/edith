@@ -4,6 +4,8 @@ import SwiftUI
 
 @MainActor
 final class WorkspaceModel: ObservableObject {
+    static let shared = WorkspaceModel(machines: .shared)
+
     @Published var layout: WorkspaceLayout
     @Published var store: WorkspaceStore
 
@@ -60,6 +62,24 @@ final class WorkspaceModel: ObservableObject {
         }
     }
 
+    @discardableResult
+    func closeFocusedTab() -> Bool {
+        guard let pane = layout.root.pane(layout.focused) ?? layout.root.panes.first else {
+            return false
+        }
+        let tabID = pane.selected
+        if pane.tabs.count > 1 {
+            closeTab(tabID, in: pane.id)
+            PaneViewStore.shared.release(tabID: tabID)
+            return true
+        }
+        guard layout.paneCount > 1 else { return false }
+        let orphans = pane.tabs.map(\.id)
+        apply { $0.closePane(pane.id) }
+        for id in orphans { PaneViewStore.shared.release(tabID: id) }
+        return true
+    }
+
     func closeTab(_ tabID: UUID, in paneID: UUID) {
         var shouldClosePane = false
         apply { layout in
@@ -78,14 +98,13 @@ final class WorkspaceModel: ObservableObject {
 
 struct WorkspaceView: View {
     @ObservedObject var machines: MachinesModel
-    @StateObject private var model: WorkspaceModel
+    @ObservedObject private var model = WorkspaceModel.shared
     @Environment(\.colorScheme) private var scheme
 
     private var dark: Bool { scheme == .dark }
 
     init(machines: MachinesModel) {
         self.machines = machines
-        _model = StateObject(wrappedValue: WorkspaceModel(machines: machines))
     }
 
     var body: some View {
