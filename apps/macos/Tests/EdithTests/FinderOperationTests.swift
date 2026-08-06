@@ -454,3 +454,118 @@ extension FinderClipboardTests {
         #expect(exists("a copy 2.txt", in: root))
     }
 }
+
+@Suite(.serialized) @MainActor struct FinderSelectionMovementTests {
+    private func sandboxWithFiles(_ count: Int) throws -> (FinderModel, URL) {
+        let (model, root) = try sandbox()
+        for index in 0..<count {
+            try write(String(format: "f%02d.txt", index), into: root)
+        }
+        return (model, root)
+    }
+
+    @Test func shiftArrowGrowsAndThenShrinksTheSelection() async throws {
+        let (model, root) = try sandboxWithFiles(5)
+        defer { try? FileManager.default.removeItem(at: root) }
+        await model.load()
+        model.viewMode = .list
+
+        model.click(model.visibleEntries[0], modifiers: [])
+        #expect(model.selection.count == 1)
+
+        model.moveSelection(.down, extend: true)
+        model.moveSelection(.down, extend: true)
+        #expect(model.selection.count == 3)
+
+        model.moveSelection(.up, extend: true)
+        #expect(model.selection.count == 2)
+    }
+
+    @Test func iconViewWalksTheGridByColumn() async throws {
+        let (model, root) = try sandboxWithFiles(9)
+        defer { try? FileManager.default.removeItem(at: root) }
+        await model.load()
+        model.viewMode = .icon
+        model.gridColumns = 3
+
+        model.click(model.visibleEntries[0], modifiers: [])
+        model.moveSelection(.right, extend: false)
+        #expect(model.selection.first == model.visibleEntries[1].path)
+
+        model.moveSelection(.down, extend: false)
+        #expect(model.selection.first == model.visibleEntries[4].path)
+
+        model.moveSelection(.left, extend: false)
+        #expect(model.selection.first == model.visibleEntries[3].path)
+    }
+
+    @Test func listViewIgnoresHorizontalArrows() async throws {
+        let (model, root) = try sandboxWithFiles(4)
+        defer { try? FileManager.default.removeItem(at: root) }
+        await model.load()
+        model.viewMode = .list
+
+        model.click(model.visibleEntries[1], modifiers: [])
+        model.moveSelection(.right, extend: false)
+        #expect(model.selection.first == model.visibleEntries[1].path)
+    }
+
+    @Test func invertingSelectionSwapsWhatIsChosen() async throws {
+        let (model, root) = try sandboxWithFiles(4)
+        defer { try? FileManager.default.removeItem(at: root) }
+        await model.load()
+
+        model.click(model.visibleEntries[0], modifiers: [])
+        model.invertSelection()
+        #expect(model.selection.count == 3)
+        #expect(!model.selection.contains(model.visibleEntries[0].path))
+    }
+}
+
+@Suite(.serialized) @MainActor struct FinderUndoTests {
+    @Test func undoingARenamePutsTheNameBack() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("before.txt", into: root)
+        await model.load()
+
+        guard let entry = model.entries.first else { return }
+        model.beginRename(entry)
+        model.renameText = "after.txt"
+        await model.commitRename()
+        #expect(exists("after.txt", in: root))
+        #expect(model.canUndo)
+
+        await model.undoLastOperation()
+        #expect(exists("before.txt", in: root))
+        #expect(!exists("after.txt", in: root))
+        #expect(!model.canUndo)
+    }
+
+    @Test func undoingAMovePutsTheFileBack() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("moved.txt", into: root)
+        let inner = root.appendingPathComponent("inner")
+        try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
+        await model.load()
+
+        let source = model.entries.first { $0.name == "moved.txt" }?.path ?? ""
+        await model.perform(intent: .moveWithinMachine([source]), destination: inner.path)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(exists("inner/moved.txt", in: root))
+
+        await model.undoLastOperation()
+        #expect(exists("moved.txt", in: root))
+        #expect(!exists("inner/moved.txt", in: root))
+    }
+
+    @Test func undoWithNothingToUndoSaysSoRatherThanCrashing() async throws {
+        let (model, root) = try sandbox()
+        defer { try? FileManager.default.removeItem(at: root) }
+        await model.load()
+        #expect(!model.canUndo)
+        await model.undoLastOperation()
+        #expect(model.statusMessage != nil || model.errorMessage == nil)
+    }
+}

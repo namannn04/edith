@@ -43,29 +43,50 @@ struct FinderIconView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVGrid(
-                    columns: [
-                        GridItem(
-                            .adaptive(minimum: UIScale.pt(model.iconSize + 34)),
-                            spacing: UIScale.pt(12))
-                    ], spacing: UIScale.pt(14)
-                ) {
-                    ForEach(model.visibleEntries) { entry in
-                        FinderIconCell(model: model, entry: entry, dark: dark)
-                            .id(entry.path)
+            GeometryReader { geometry in
+                ScrollView {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(
+                                .adaptive(minimum: UIScale.pt(model.iconSize + 34)),
+                                spacing: UIScale.pt(12))
+                        ], spacing: UIScale.pt(14)
+                    ) {
+                        ForEach(model.visibleEntries) { entry in
+                            FinderIconCell(model: model, entry: entry, dark: dark)
+                                .id(entry.path)
+                        }
                     }
+                    .padding(UIScale.pt(16))
                 }
-                .padding(UIScale.pt(16))
-            }
-            .onChange(of: model.scrollTarget) { _, target in
-                guard let target else { return }
-                withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo(target, anchor: .center) }
-                model.scrollTarget = nil
+                .onChange(of: model.scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                    model.scrollTarget = nil
+                }
+                .onAppear {
+                    model.gridColumns = Self.columns(width: geometry.size.width, model: model)
+                }
+                .onChange(of: geometry.size.width) { _, width in
+                    model.gridColumns = Self.columns(width: width, model: model)
+                }
+                .onChange(of: model.iconSize) { _, _ in
+                    model.gridColumns = Self.columns(width: geometry.size.width, model: model)
+                }
             }
         }
         .contentShape(Rectangle())
         .onTapGesture { model.selection = [] }
+    }
+}
+
+extension FinderIconView {
+    static func columns(width: CGFloat, model: FinderModel) -> Int {
+        let cell = UIScale.pt(model.iconSize + 34) + UIScale.pt(12)
+        let usable = max(width - UIScale.pt(32), cell)
+        return max(1, Int(usable / cell))
     }
 }
 

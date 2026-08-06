@@ -216,3 +216,23 @@ public enum BatchRename {
         return results
     }
 }
+
+public struct FinderUndoStep: Equatable, Sendable {
+    public struct Move: Equatable, Sendable {
+        public var from: String
+        public var to: String
+
+        public init(from: String, to: String) {
+            self.from = from
+            self.to = to
+        }
+    }
+
+    public var label: String
+    public var moves: [Move]
+
+    public init(label: String, moves: [Move]) {
+        self.label = label
+        self.moves = moves
+    }
+}

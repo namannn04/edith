@@ -115,10 +115,10 @@ import Testing
     }
 
     @Test func arrowsMoveAndExtendSelection() {
-        #expect(FinderKey.resolve(event: event(keyCode: 125)) == .moveDown(extend: false))
+        #expect(FinderKey.resolve(event: event(keyCode: 125)) == .move(.down, extend: false))
         #expect(
             FinderKey.resolve(event: event(keyCode: 125, modifiers: .shift))
-                == .moveDown(extend: true))
+                == .move(.down, extend: true))
         #expect(
             FinderKey.resolve(event: event(keyCode: 126, modifiers: .command))
                 == .enclosingFolder)
@@ -365,5 +365,39 @@ import Testing
             base != LogDocument(lines: lines, showTimestamps: false, wraps: false, fontSize: 11))
         #expect(
             base != LogDocument(lines: lines, showTimestamps: false, wraps: true, fontSize: 13))
+    }
+}
+
+@Suite struct FinderArrowKeyTests {
+    private func event(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+            windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+            isARepeat: false, keyCode: keyCode)!
+    }
+
+    @Test func horizontalArrowsMoveAndCommandArrowsNavigate() {
+        #expect(FinderKey.resolve(event: event(keyCode: 123)) == .move(.left, extend: false))
+        #expect(FinderKey.resolve(event: event(keyCode: 124)) == .move(.right, extend: false))
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 123, modifiers: .shift))
+                == .move(.left, extend: true))
+        #expect(FinderKey.resolve(event: event(keyCode: 123, modifiers: .command)) == .back)
+        #expect(FinderKey.resolve(event: event(keyCode: 124, modifiers: .command)) == .forward)
+    }
+
+    @Test func duplicateUndoAndInvertHaveShortcuts() {
+        func key(_ character: String, _ modifiers: NSEvent.ModifierFlags) -> FinderKey? {
+            FinderKey.resolve(
+                event: NSEvent.keyEvent(
+                    with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                    windowNumber: 0, context: nil, characters: character,
+                    charactersIgnoringModifiers: character, isARepeat: false, keyCode: 0)!)
+        }
+        #expect(key("d", .command) == .duplicate)
+        #expect(key("z", .command) == .undo)
+        #expect(key("z", [.command, .shift]) == .redo)
+        #expect(key("a", .command) == .selectAll)
+        #expect(key("a", [.command, .shift]) == .invertSelection)
     }
 }
