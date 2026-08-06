@@ -335,12 +335,13 @@ import Testing
             existing: existing)
         #expect(
             replace
-                == "rm -rf /d/a.txt && mv /src/a.txt /d/a.txt; "
-                + "rm -rf /d/b.txt && mv /src/b.txt /d/b.txt")
+                == "mv /src/a.txt /d/a.txt.edith-replacing && rm -rf /d/a.txt"
+                + " && mv /d/a.txt.edith-replacing /d/a.txt; "
+                + "mv /src/b.txt /d/b.txt")
 
         let skip = NameConflicts.command(
             intent: intent, destination: "/d", resolutions: ["a.txt": .skip], existing: existing)
-        #expect(skip == "rm -rf /d/b.txt && mv /src/b.txt /d/b.txt")
+        #expect(skip == "mv /src/b.txt /d/b.txt")
 
         let keep = NameConflicts.command(
             intent: intent, destination: "/d", resolutions: ["a.txt": .keepBoth],
@@ -371,8 +372,38 @@ import Testing
         let command = NameConflicts.command(
             intent: .moveWithinMachine(["/src/docs"]), destination: "/d",
             resolutions: ["docs": .replace], existing: existing)
-        #expect(command == "rm -rf /d/docs && mv /src/docs /d/docs")
+        #expect(
+            command
+                == "mv /src/docs /d/docs.edith-replacing && rm -rf /d/docs"
+                + " && mv /d/docs.edith-replacing /d/docs")
         #expect(command?.contains("mv -f") == false)
+        #expect(command?.hasPrefix("rm -rf") == false)
+    }
+
+    @Test func anUnresolvedNameNeverDeletesAnything() {
+        let existing = [
+            RemoteFileEntry(name: "docs", path: "/d/docs", kind: .directory, sizeBytes: 0)
+        ]
+        let command = NameConflicts.command(
+            intent: .moveWithinMachine(["/src/docs"]), destination: "/d",
+            resolutions: [:], existing: existing)
+        #expect(command?.contains("rm -rf") == false)
+        #expect(command == "mv /src/docs '/d/docs 2'")
+    }
+
+    @Test func replaceStagesTheArrivalBeforeRemovingTheTarget() {
+        let command =
+            NameConflicts.command(
+                intent: .copyWithinMachine(["/src/docs"]), destination: "/d",
+                resolutions: ["docs": .replace],
+                existing: [
+                    RemoteFileEntry(name: "docs", path: "/d/docs", kind: .directory, sizeBytes: 0)
+                ]) ?? ""
+        let stage = command.range(of: "cp -a /src/docs /d/docs.edith-replacing")
+        let removal = command.range(of: "rm -rf /d/docs ")
+        #expect(stage != nil)
+        #expect(removal != nil)
+        #expect(stage!.lowerBound < removal!.lowerBound)
     }
 
     @Test func oneFailureDoesNotAbortTheRest() {

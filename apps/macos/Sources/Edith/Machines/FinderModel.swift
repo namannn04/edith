@@ -589,12 +589,18 @@ final class FinderModel: ObservableObject {
         await perform(intent: intent, destination: destination)
     }
 
+    private func destinationEntries(_ destination: String) async -> [RemoteFileEntry] {
+        if destination == path { return entries }
+        if case let .success(items) = await session.listFiles(path: destination) { return items }
+        return []
+    }
+
     func perform(intent: DropIntent, destination: String) async {
         guard DropResolver.isDropAllowed(paths: intent.paths, destination: destination) else {
             return
         }
         let names = intent.paths.map { ($0 as NSString).lastPathComponent }
-        let existing = destination == path ? entries : []
+        let existing = await destinationEntries(destination)
         let clashes = NameConflicts.conflicting(names: names, existing: existing)
         if !clashes.isEmpty {
             pendingConflict = PendingConflict(
@@ -610,7 +616,7 @@ final class FinderModel: ObservableObject {
     ) async {
         switch intent {
         case .moveWithinMachine, .copyWithinMachine:
-            let existing = destination == path ? entries : []
+            let existing = await destinationEntries(destination)
             guard
                 let command = NameConflicts.command(
                     intent: intent, destination: destination, resolutions: resolutions,

@@ -73,6 +73,8 @@ public enum NameConflictResolution: String, Equatable, Sendable {
 }
 
 public enum NameConflicts {
+    public static let stagingSuffix = ".edith-replacing"
+
     public static func conflicting(names: [String], existing: [RemoteFileEntry]) -> [String] {
         let taken = Set(existing.map(\.name))
         return names.filter { taken.contains($0) }
@@ -100,7 +102,7 @@ public enum NameConflicts {
         var parts: [String] = []
         for path in intent.paths {
             let name = (path as NSString).lastPathComponent
-            let resolution = resolutions[name] ?? .replace
+            let resolution = resolutions[name] ?? .keepBoth
             guard resolution != .skip else { continue }
             let targetName =
                 resolution == .keepBoth ? uniqueName(for: name, existing: existing) : name
@@ -114,7 +116,10 @@ public enum NameConflicts {
             case .transferBetweenMachines, .uploadLocalFiles: return nil
             }
             if resolution == .replace {
-                parts.append("rm -rf \(quotedTarget) && \(verb) \(quotedSource) \(quotedTarget)")
+                let staged = ShellQuote.quote(target + stagingSuffix)
+                parts.append(
+                    "\(verb) \(quotedSource) \(staged) && rm -rf \(quotedTarget)"
+                        + " && mv \(staged) \(quotedTarget)")
             } else {
                 parts.append("\(verb) \(quotedSource) \(quotedTarget)")
             }
