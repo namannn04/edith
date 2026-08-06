@@ -352,6 +352,7 @@ import Testing
     @Test func theFilterNarrowsWhatIsCopiedAsWellAsWhatIsShown() {
         let model = DockerDetailModel()
         model.logs = lines
+        model.showTimestamps = false
         model.logFilter = "boom"
         #expect(model.visibleLogs.count == 1)
         #expect(model.logPlainText == "boom")
@@ -399,5 +400,70 @@ import Testing
         #expect(key("z", [.command, .shift]) == .redo)
         #expect(key("a", .command) == .selectAll)
         #expect(key("a", [.command, .shift]) == .invertSelection)
+    }
+}
+
+@Suite @MainActor struct LogTextViewIncrementalTests {
+    private func line(_ id: Int, _ text: String) -> DockerLogLine {
+        DockerLogLine(id: id, timestamp: "t\(id)", text: text, isStderr: false)
+    }
+
+    private func controller(_ lines: [DockerLogLine], font: Double = 11) -> LogTextViewController {
+        let controller = LogTextViewController()
+        controller.loadView()
+        controller.apply(
+            LogDocument(lines: lines, showTimestamps: false, wraps: true, fontSize: font),
+            palette: palette, follow: false)
+        return controller
+    }
+
+    private let palette = LogPalette(
+        text: .white, stderr: .red, timestamp: .gray, background: .black)
+
+    @Test func appendingLinesKeepsWhatWasAlreadyRendered() {
+        let controller = controller([line(0, "alpha"), line(1, "beta")])
+        #expect(controller.renderedText == "alpha\nbeta\n")
+
+        controller.apply(
+            LogDocument(
+                lines: [line(0, "alpha"), line(1, "beta"), line(2, "gamma")],
+                showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "alpha\nbeta\ngamma\n")
+    }
+
+    @Test func trimmingTheFrontDropsExactlyTheOldestLines() {
+        let controller = controller([line(0, "one"), line(1, "two"), line(2, "three")])
+        controller.apply(
+            LogDocument(
+                lines: [line(1, "two"), line(2, "three"), line(3, "four")],
+                showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "two\nthree\nfour\n")
+    }
+
+    @Test func aChangedFilterRebuildsRatherThanAppending() {
+        let controller = controller([line(0, "alpha"), line(1, "beta"), line(2, "gamma")])
+        controller.apply(
+            LogDocument(lines: [line(1, "beta")], showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "beta\n")
+    }
+
+    @Test func changingPresentationRebuildsWithTheNewFormatting() {
+        let controller = controller([line(0, "alpha")])
+        #expect(controller.renderedText == "alpha\n")
+        controller.apply(
+            LogDocument(lines: [line(0, "alpha")], showTimestamps: true, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "t0  alpha\n")
+    }
+
+    @Test func clearingEverythingEmptiesTheView() {
+        let controller = controller([line(0, "alpha"), line(1, "beta")])
+        controller.apply(
+            LogDocument(lines: [], showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText.isEmpty)
     }
 }

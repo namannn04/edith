@@ -12,9 +12,16 @@ final class DockerDetailModel: ObservableObject {
     @Published var cpuHistory: [Double] = []
     @Published var memHistory: [Double] = []
     @Published var follow = true
-    @Published var wrapLines = true
-    @Published var logFontSize = 11.0
-    @Published var showTimestamps = false
+    @Published var wrapLines = DockerLogDefaults.wrapLines {
+        didSet { DockerLogDefaults.wrapLines = wrapLines }
+    }
+    @Published var logFontSize = DockerLogDefaults.fontSize {
+        didSet { DockerLogDefaults.fontSize = logFontSize }
+    }
+    @Published var showTimestamps = DockerLogDefaults.showTimestamps {
+        didSet { DockerLogDefaults.showTimestamps = showTimestamps }
+    }
+    @Published private(set) var streamEnded = false
     @Published var logFilter = ""
 
     @Published var inspectFailed = false
@@ -23,6 +30,9 @@ final class DockerDetailModel: ObservableObject {
     private var nextLogID = 0
     private var logGeneration = 0
     private var fileToken = 0
+    private var pending: [DockerLogLine] = []
+    private var flushTask: Task<Void, Never>?
+    private var reattempts = 0
 
     var logPlainText: String {
         visibleLogs.map { line in
@@ -39,6 +49,8 @@ final class DockerDetailModel: ObservableObject {
 
     func startLogs(session: MachineSession, container: DockerContainer) {
         stopLogs()
+        streamEnded = false
+        reattempts = 0
         logGeneration += 1
         attachLogs(session: session, container: container, generation: logGeneration)
     }
@@ -57,15 +69,20 @@ final class DockerDetailModel: ObservableObject {
                     let line = DockerParsing.splitLogLine(
                         text, index: self.nextLogID, isStderr: isStderr)
                     self.nextLogID += 1
-                    self.logs.append(line)
-                    if self.logs.count > 4000 {
-                        self.logs.removeFirst(self.logs.count - 4000)
-                    }
+                    self.enqueue(line)
                 }
             },
             onExit: { [weak self] _ in
                 Task { @MainActor in
                     guard let self, generation == self.logGeneration else { return }
+                    self.flushPending()
+                    let running =
+                        session.containers.first { $0.id == container.id }?.state.isRunning ?? false
+                    guard running, self.reattempts < 5 else {
+                        self.streamEnded = true
+                        return
+                    }
+                    self.reattempts += 1
                     try? await Task.sleep(for: .seconds(2))
                     guard generation == self.logGeneration else { return }
                     self.attachLogs(
@@ -78,8 +95,29 @@ final class DockerDetailModel: ObservableObject {
 
     func stopLogs() {
         logGeneration += 1
+        flushTask?.cancel()
+        flushTask = nil
+        pending = []
         stream?.cancel()
         stream = nil
+    }
+
+    private func enqueue(_ line: DockerLogLine) {
+        pending.append(line)
+        guard flushTask == nil else { return }
+        flushTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard let self else { return }
+            self.flushTask = nil
+            self.flushPending()
+        }
+    }
+
+    private func flushPending() {
+        guard !pending.isEmpty else { return }
+        logs.append(contentsOf: pending)
+        pending = []
+        if logs.count > 4000 { logs.removeFirst(logs.count - 4000) }
     }
 
     func loadInspect(session: MachineSession, container: DockerContainer) async {
@@ -304,22 +342,42 @@ struct DockerContainerDetail: View {
     }
 
     private var logsView: some View {
-        ZStack(alignment: .bottomTrailing) {
+        let visible = model.visibleLogs
+        return ZStack(alignment: .bottom) {
             LogTextView(
                 document: LogDocument(
-                    lines: model.visibleLogs, showTimestamps: model.showTimestamps,
+                    lines: visible, showTimestamps: model.showTimestamps,
                     wraps: model.wrapLines, fontSize: model.logFontSize),
                 palette: LogPalette(
                     text: NSColor(DashSkin.inkSoft(dark)),
                     stderr: NSColor(DashSkin.warn),
                     timestamp: NSColor(DashSkin.inkFaint(dark)),
                     background: NSColor(DashSkin.paper(dark))),
-                follow: model.follow)
-            if model.visibleLogs.isEmpty {
+                follow: model.follow,
+                onScrolledAwayFromBottom: { away in
+                    if away, model.follow { model.follow = false }
+                })
+            if visible.isEmpty {
                 Text(model.logFilter.isEmpty ? "No output yet." : "Nothing matches that filter.")
                     .font(.system(size: UIScale.pt(12)))
                     .foregroundStyle(DashSkin.inkFaint(dark))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            if model.streamEnded {
+                HStack(spacing: UIScale.pt(8)) {
+                    Text("The log stream ended.")
+                        .font(.system(size: UIScale.pt(11)))
+                        .foregroundStyle(DashSkin.inkSoft(dark))
+                    Button("Reattach") {
+                        model.startLogs(session: session, container: live)
+                    }
+                    .pointerCursor()
+                    .font(.system(size: UIScale.pt(11), weight: .medium))
+                }
+                .padding(.horizontal, UIScale.pt(12))
+                .padding(.vertical, UIScale.pt(7))
+                .background(.thinMaterial, in: Capsule())
+                .padding(.bottom, UIScale.pt(12))
             }
         }
     }
