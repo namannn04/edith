@@ -37,9 +37,13 @@ public enum Guide {
         ed permissions ls           every macOS permission Edith uses
         ed usage sources            the agents that produced your usage history
         ed schema                   JSON Schema for the config document
+        ed version                  the CLI version, and whether the app is up
         ed guide                    this text
         ed guide claude             a CLAUDE.md snippet making a repo ed-aware
         ```
+
+        `ed install` links `ed`, `edh` and `edith` into a directory on PATH, and
+        `ed uninstall` removes those links again. Neither touches anything else.
 
         Add `--json` to any read command for machine-readable output on stdout with
         stable field names. Diagnostics go to stderr, so stdout stays one parseable

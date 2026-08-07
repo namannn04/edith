@@ -7,8 +7,9 @@ struct MachinesDockerCommand: AsyncParsableCommand {
         commandName: "docker",
         abstract: "Containers on a machine, parsed into stable fields.",
         discussion: """
-            For anything this does not cover, run docker directly on the machine:
-            `ed <machine> docker compose up -d` sends the command through verbatim.
+            The machine name comes first: `ed machines tuf docker ps`. For anything
+            this does not cover, the raw form sends a command through verbatim:
+            `ed tuf docker buildx ls`.
             """,
         subcommands: [
             DockerPsCommand.self, DockerImagesCommand.self, DockerVolumesCommand.self,
