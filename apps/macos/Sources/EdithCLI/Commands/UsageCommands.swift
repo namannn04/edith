@@ -95,8 +95,8 @@ struct UsageSummaryCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            let document = try UsageDocument.load()
             let range = try window.resolved()
+            let document = try UsageDocument.load()
             let days = UsageAnalysis.days(document, range: range)
             let totals = UsageAnalysis.totals(days, sources: window.sources)
             let bySource = UsageAnalysis.bySource(days, sources: window.sources)
@@ -137,8 +137,8 @@ struct UsageDailyCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            let document = try UsageDocument.load()
             let range = try window.resolved()
+            let document = try UsageDocument.load()
             let days = UsageAnalysis.byDay(
                 UsageAnalysis.days(document, range: range), sources: window.sources)
             guard !json else {
@@ -168,8 +168,8 @@ struct UsageModelsCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            let document = try UsageDocument.load()
             let range = try window.resolved()
+            let document = try UsageDocument.load()
             let models = UsageAnalysis.byModel(
                 UsageAnalysis.days(document, range: range), sources: window.sources)
             let ordered = models.sorted { $0.value.cost > $1.value.cost }
