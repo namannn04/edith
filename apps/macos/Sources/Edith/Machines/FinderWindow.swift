@@ -98,8 +98,7 @@ struct FinderBody: View {
             model.renameSelection()
         case .openSelection: model.openSelection()
         case .quickLook: model.toggleQuickLook()
-        case let .moveUp(extend): model.moveSelection(by: -1, extend: extend)
-        case let .moveDown(extend): model.moveSelection(by: 1, extend: extend)
+        case let .move(direction, extend): model.moveSelection(direction, extend: extend)
         case .enclosingFolder: model.goUp()
         case .back: model.goBack()
         case .forward: model.goForward()
@@ -114,6 +113,10 @@ struct FinderBody: View {
         case .info: model.showInfo()
         case .refresh: model.refresh()
         case .toggleHidden: model.toggleHidden()
+        case .duplicate: Task { await model.duplicateSelection() }
+        case .undo: Task { await model.undoLastOperation() }
+        case .redo: return false
+        case .invertSelection: model.invertSelection()
         case .toggleSidebar: model.showSidebar.toggle()
         case .iconView: model.setViewMode(.icon)
         case .listView: model.setViewMode(.list)
@@ -138,6 +141,12 @@ struct FinderBody: View {
             Button("") { model.goBack() }.keyboardShortcut("[", modifiers: .command)
             Button("") { model.goForward() }.keyboardShortcut("]", modifiers: .command)
             Button("") { model.selectAll() }.keyboardShortcut("a", modifiers: .command)
+            Button("") { model.invertSelection() }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+            Button("") { Task { await model.duplicateSelection() } }
+                .keyboardShortcut("d", modifiers: .command)
+            Button("") { Task { await model.undoLastOperation() } }
+                .keyboardShortcut("z", modifiers: .command)
             Button("") { model.refresh() }.keyboardShortcut("r", modifiers: .command)
             Button("") { model.toggleHidden() }.keyboardShortcut(
                 ".", modifiers: [.command, .shift])

@@ -24,6 +24,7 @@ final class FinderModel: ObservableObject {
     @Published var showSidebar = true
     @Published var progress: FileOperationProgress?
     @Published var pendingConflict: PendingConflict?
+    @Published var scrollTarget: String?
     static var clipboard: FileClipboard?
 
     struct PendingConflict: Identifiable {
@@ -53,6 +54,8 @@ final class FinderModel: ObservableObject {
     private var history: [String] = []
     private var future: [String] = []
     private var anchor: String?
+    private var cursor: String?
+    var gridColumns = 1
     private var typeBuffer = ""
     private var typeBufferAt = Date.distantPast
     private var loadToken = 0
@@ -61,6 +64,7 @@ final class FinderModel: ObservableObject {
     private var folderSizes: [String: Int64] = [:]
     private var folderCounts: [String: Int] = [:]
     private var resolvedHome: String?
+    private var undoStack: [FinderUndoStep] = []
 
     init(session: MachineSession, path: String? = nil) {
         self.session = session
@@ -155,9 +159,23 @@ final class FinderModel: ObservableObject {
             errorMessage = "Copying between machines is not supported yet."
             return
         }
-        guard let command = clipboard.command(intoDirectory: path) else { return }
-        await run(command, reload: true)
-        if clipboard.operation == .move { Self.clipboard = nil }
+        let isCopy = clipboard.operation == .copy
+        let alreadyHere = clipboard.paths.filter { FileListing.parentPath(of: $0) == path }
+        let fromElsewhere = clipboard.paths.filter { FileListing.parentPath(of: $0) != path }
+        guard isCopy || !fromElsewhere.isEmpty else {
+            errorMessage = "Those items are already here."
+            return
+        }
+        if isCopy, !alreadyHere.isEmpty {
+            await duplicate(paths: alreadyHere)
+        }
+        if !fromElsewhere.isEmpty {
+            await perform(
+                intent: isCopy
+                    ? .copyWithinMachine(fromElsewhere) : .moveWithinMachine(fromElsewhere),
+                destination: path)
+        }
+        if !isCopy, errorMessage == nil { Self.clipboard = nil }
     }
 
     func showInfo() {
@@ -378,31 +396,55 @@ final class FinderModel: ObservableObject {
         } else if modifiers.contains(.command) {
             selection = FileSelectionMath.toggled(selection, path: entry.path)
             anchor = entry.path
+            cursor = entry.path
         } else {
             selection = [entry.path]
             anchor = entry.path
+            cursor = entry.path
         }
     }
 
     func selectAll() {
-        selection = Set(visibleEntries.map(\.path))
+        let items = visibleEntries
+        selection = Set(items.map(\.path))
+        anchor = items.first?.path
+        cursor = items.last?.path
+    }
+
+    func invertSelection() {
+        let items = visibleEntries
+        selection = Set(items.map(\.path).filter { !selection.contains($0) })
+        anchor = selection.isEmpty ? nil : items.first { selection.contains($0.path) }?.path
+        cursor = anchor
     }
 
     func moveSelection(by offset: Int, extend: Bool) {
         let items = visibleEntries
         guard !items.isEmpty else { return }
-        let currentIndex =
-            selection.isEmpty
-            ? -1 : (items.firstIndex { $0.path == (anchor ?? selection.first) } ?? 0)
+        let currentIndex = items.firstIndex { $0.path == (cursor ?? selection.first) } ?? -1
         let nextIndex = max(0, min(items.count - 1, currentIndex + offset))
         let target = items[nextIndex]
+        cursor = target.path
         if extend {
-            selection.insert(target.path)
+            if anchor == nil { anchor = items[max(currentIndex, 0)].path }
+            selection = FileSelectionMath.rangeSelection(
+                in: items, from: anchor, to: target.path)
         } else {
             selection = [target.path]
+            anchor = target.path
         }
-        anchor = target.path
+        reveal(target.path)
         if quickLookPath != nil { quickLookPath = target.path }
+    }
+
+    func moveSelection(_ direction: FinderMoveDirection, extend: Bool) {
+        let stride = viewMode == .icon ? max(gridColumns, 1) : 1
+        return switch direction {
+        case .up: moveSelection(by: viewMode == .icon ? -stride : -1, extend: extend)
+        case .down: moveSelection(by: viewMode == .icon ? stride : 1, extend: extend)
+        case .left: moveSelection(by: viewMode == .icon ? -1 : 0, extend: extend)
+        case .right: moveSelection(by: viewMode == .icon ? 1 : 0, extend: extend)
+        }
     }
 
     func typeSelect(_ characters: String) {
@@ -415,12 +457,47 @@ final class FinderModel: ObservableObject {
                 in: visibleEntries, prefix: typeBuffer, after: anchor)
         else { return }
         selection = [match]
+        reveal(match)
         anchor = match
     }
 
     func beginRename(_ entry: RemoteFileEntry) {
         renaming = entry.path
         renameText = entry.name
+    }
+
+    func reveal(_ path: String?) {
+        guard let path else { return }
+        scrollTarget = path
+    }
+
+    var canUndo: Bool { !undoStack.isEmpty }
+
+    var undoTitle: String? {
+        guard let last = undoStack.last else { return nil }
+        return "Undo \(last.label)"
+    }
+
+    func recordUndo(_ step: FinderUndoStep) {
+        undoStack.append(step)
+        if undoStack.count > 20 { undoStack.removeFirst(undoStack.count - 20) }
+    }
+
+    func undoLastOperation() async {
+        guard let step = undoStack.popLast() else {
+            flash("Nothing to undo")
+            return
+        }
+        for move in step.moves.reversed() {
+            let command = FileOperations.renameCommand(path: move.to, to: move.from)
+            await run(command, reload: false)
+            if errorMessage != nil { break }
+        }
+        await load()
+        if errorMessage == nil {
+            selection = Set(step.moves.map(\.from))
+            flash("Undid \(step.label)")
+        }
     }
 
     func focusContext(on entry: RemoteFileEntry) {
@@ -461,7 +538,15 @@ final class FinderModel: ObservableObject {
             FileOperations.renameCommand(
                 path: entry.path, to: target, viaTemporary: sameNameDifferentCase),
             reload: true)
-        if errorMessage == nil { selection = [target] }
+        if errorMessage == nil {
+            recordUndo(
+                FinderUndoStep(
+                    label: "Rename", moves: [FinderUndoStep.Move(from: entry.path, to: target)]))
+        }
+        if errorMessage == nil {
+            selection = [target]
+            reveal(target)
+        }
     }
 
     func newFolder() async {
@@ -470,17 +555,26 @@ final class FinderModel: ObservableObject {
         await run(FileOperations.makeDirectoryCommand(path: target), reload: true)
         if let created = entries.first(where: { $0.path == target }) {
             selection = [target]
+            reveal(target)
             beginRename(created)
         }
     }
 
     func duplicateSelection() async {
-        for entry in selectedEntries {
-            let name = FileOperations.duplicateName(of: entry.name, existing: entries)
+        await duplicate(paths: selectedEntries.map(\.path))
+    }
+
+    func duplicate(paths: [String]) async {
+        guard !paths.isEmpty else { return }
+        var taken = entries
+        for source in paths {
+            let name = FileOperations.duplicateName(
+                of: (source as NSString).lastPathComponent, existing: taken)
             let target = FileListing.join(parent: path, name: name)
+            taken.append(
+                RemoteFileEntry(name: name, path: target, kind: .file, sizeBytes: 0))
             await run(
-                "cp -a \(ShellQuote.quote(entry.path)) \(ShellQuote.quote(target))",
-                reload: false)
+                "cp -a \(ShellQuote.quote(source)) \(ShellQuote.quote(target))", reload: false)
         }
         await load()
     }
@@ -705,6 +799,18 @@ final class FinderModel: ObservableObject {
                 title: intent.isMove ? "Moving" : "Copying", total: intent.paths.count)
             await run(command, reload: true)
             progress = nil
+            if intent.isMove, errorMessage == nil {
+                recordUndo(
+                    FinderUndoStep(
+                        label: "Move",
+                        moves: intent.paths.map {
+                            FinderUndoStep.Move(
+                                from: $0,
+                                to: FileListing.join(
+                                    parent: destination,
+                                    name: ($0 as NSString).lastPathComponent))
+                        }))
+            }
         case let .uploadLocalFiles(paths):
             await uploadPaths(paths.map { URL(fileURLWithPath: $0) }, into: destination)
         case let .transferBetweenMachines(from, paths):

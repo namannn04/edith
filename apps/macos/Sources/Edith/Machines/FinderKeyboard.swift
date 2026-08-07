@@ -6,8 +6,7 @@ enum FinderKey: Equatable {
     case rename
     case openSelection
     case quickLook
-    case moveUp(extend: Bool)
-    case moveDown(extend: Bool)
+    case move(FinderMoveDirection, extend: Bool)
     case enclosingFolder
     case back
     case forward
@@ -22,6 +21,10 @@ enum FinderKey: Equatable {
     case info
     case refresh
     case toggleHidden
+    case duplicate
+    case undo
+    case redo
+    case invertSelection
     case toggleSidebar
     case iconView
     case listView
@@ -40,9 +43,13 @@ enum FinderKey: Equatable {
         case 49:
             return .quickLook
         case 126:
-            return command ? .enclosingFolder : .moveUp(extend: shift)
+            return command ? .enclosingFolder : .move(.up, extend: shift)
         case 125:
-            return command ? .openSelection : .moveDown(extend: shift)
+            return command ? .openSelection : .move(.down, extend: shift)
+        case 123:
+            return command ? .back : .move(.left, extend: shift)
+        case 124:
+            return command ? .forward : .move(.right, extend: shift)
         case 51, 117:
             guard command else { return nil }
             return option ? .deleteImmediately : .trash
@@ -56,7 +63,9 @@ enum FinderKey: Equatable {
             switch characters {
             case "[": return .back
             case "]": return .forward
-            case "a": return .selectAll
+            case "a": return shift ? .invertSelection : .selectAll
+            case "d": return .duplicate
+            case "z": return shift ? .redo : .undo
             case "n" where shift: return .newFolder
             case "c": return option ? .copyPath : .copy
             case "x": return .cut

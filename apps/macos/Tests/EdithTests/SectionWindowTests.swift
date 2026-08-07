@@ -115,10 +115,10 @@ import Testing
     }
 
     @Test func arrowsMoveAndExtendSelection() {
-        #expect(FinderKey.resolve(event: event(keyCode: 125)) == .moveDown(extend: false))
+        #expect(FinderKey.resolve(event: event(keyCode: 125)) == .move(.down, extend: false))
         #expect(
             FinderKey.resolve(event: event(keyCode: 125, modifiers: .shift))
-                == .moveDown(extend: true))
+                == .move(.down, extend: true))
         #expect(
             FinderKey.resolve(event: event(keyCode: 126, modifiers: .command))
                 == .enclosingFolder)
@@ -330,5 +330,140 @@ import Testing
             WindowTabKeyCommand.resolve(
                 characters: "2", keyCode: 19, modifiers: [.command, .capsLock], tabbed: true)
                 == .selectTab(index: 1))
+    }
+}
+
+@Suite @MainActor struct DockerLogPresentationTests {
+    private let lines = [
+        DockerLogLine(id: 0, timestamp: "2026-08-07T10:00:00Z", text: "starting", isStderr: false),
+        DockerLogLine(id: 1, timestamp: "2026-08-07T10:00:01Z", text: "boom", isStderr: true),
+    ]
+
+    @Test func plainTextCarriesEveryVisibleLineForCopying() {
+        let model = DockerDetailModel()
+        model.logs = lines
+        model.showTimestamps = false
+        #expect(model.logPlainText == "starting\nboom")
+
+        model.showTimestamps = true
+        #expect(model.logPlainText.contains("2026-08-07T10:00:00Z  starting"))
+    }
+
+    @Test func theFilterNarrowsWhatIsCopiedAsWellAsWhatIsShown() {
+        let model = DockerDetailModel()
+        model.logs = lines
+        model.showTimestamps = false
+        model.logFilter = "boom"
+        #expect(model.visibleLogs.count == 1)
+        #expect(model.logPlainText == "boom")
+    }
+
+    @Test func theLogDocumentChangesWhenAnyPresentationOptionChanges() {
+        let base = LogDocument(lines: lines, showTimestamps: false, wraps: true, fontSize: 11)
+        #expect(
+            base != LogDocument(lines: lines, showTimestamps: true, wraps: true, fontSize: 11))
+        #expect(
+            base != LogDocument(lines: lines, showTimestamps: false, wraps: false, fontSize: 11))
+        #expect(
+            base != LogDocument(lines: lines, showTimestamps: false, wraps: true, fontSize: 13))
+    }
+}
+
+@Suite struct FinderArrowKeyTests {
+    private func event(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+            windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+            isARepeat: false, keyCode: keyCode)!
+    }
+
+    @Test func horizontalArrowsMoveAndCommandArrowsNavigate() {
+        #expect(FinderKey.resolve(event: event(keyCode: 123)) == .move(.left, extend: false))
+        #expect(FinderKey.resolve(event: event(keyCode: 124)) == .move(.right, extend: false))
+        #expect(
+            FinderKey.resolve(event: event(keyCode: 123, modifiers: .shift))
+                == .move(.left, extend: true))
+        #expect(FinderKey.resolve(event: event(keyCode: 123, modifiers: .command)) == .back)
+        #expect(FinderKey.resolve(event: event(keyCode: 124, modifiers: .command)) == .forward)
+    }
+
+    @Test func duplicateUndoAndInvertHaveShortcuts() {
+        func key(_ character: String, _ modifiers: NSEvent.ModifierFlags) -> FinderKey? {
+            FinderKey.resolve(
+                event: NSEvent.keyEvent(
+                    with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                    windowNumber: 0, context: nil, characters: character,
+                    charactersIgnoringModifiers: character, isARepeat: false, keyCode: 0)!)
+        }
+        #expect(key("d", .command) == .duplicate)
+        #expect(key("z", .command) == .undo)
+        #expect(key("z", [.command, .shift]) == .redo)
+        #expect(key("a", .command) == .selectAll)
+        #expect(key("a", [.command, .shift]) == .invertSelection)
+    }
+}
+
+@Suite @MainActor struct LogTextViewIncrementalTests {
+    private func line(_ id: Int, _ text: String) -> DockerLogLine {
+        DockerLogLine(id: id, timestamp: "t\(id)", text: text, isStderr: false)
+    }
+
+    private func controller(_ lines: [DockerLogLine], font: Double = 11) -> LogTextViewController {
+        let controller = LogTextViewController()
+        controller.loadView()
+        controller.apply(
+            LogDocument(lines: lines, showTimestamps: false, wraps: true, fontSize: font),
+            palette: palette, follow: false)
+        return controller
+    }
+
+    private let palette = LogPalette(
+        text: .white, stderr: .red, timestamp: .gray, background: .black)
+
+    @Test func appendingLinesKeepsWhatWasAlreadyRendered() {
+        let controller = controller([line(0, "alpha"), line(1, "beta")])
+        #expect(controller.renderedText == "alpha\nbeta\n")
+
+        controller.apply(
+            LogDocument(
+                lines: [line(0, "alpha"), line(1, "beta"), line(2, "gamma")],
+                showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "alpha\nbeta\ngamma\n")
+    }
+
+    @Test func trimmingTheFrontDropsExactlyTheOldestLines() {
+        let controller = controller([line(0, "one"), line(1, "two"), line(2, "three")])
+        controller.apply(
+            LogDocument(
+                lines: [line(1, "two"), line(2, "three"), line(3, "four")],
+                showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "two\nthree\nfour\n")
+    }
+
+    @Test func aChangedFilterRebuildsRatherThanAppending() {
+        let controller = controller([line(0, "alpha"), line(1, "beta"), line(2, "gamma")])
+        controller.apply(
+            LogDocument(lines: [line(1, "beta")], showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "beta\n")
+    }
+
+    @Test func changingPresentationRebuildsWithTheNewFormatting() {
+        let controller = controller([line(0, "alpha")])
+        #expect(controller.renderedText == "alpha\n")
+        controller.apply(
+            LogDocument(lines: [line(0, "alpha")], showTimestamps: true, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText == "t0  alpha\n")
+    }
+
+    @Test func clearingEverythingEmptiesTheView() {
+        let controller = controller([line(0, "alpha"), line(1, "beta")])
+        controller.apply(
+            LogDocument(lines: [], showTimestamps: false, wraps: true, fontSize: 11),
+            palette: palette, follow: false)
+        #expect(controller.renderedText.isEmpty)
     }
 }

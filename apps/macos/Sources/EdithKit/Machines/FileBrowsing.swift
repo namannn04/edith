@@ -204,3 +204,10 @@ public enum FileOperations {
             + "-not -path '*/.git/*' 2>/dev/null | head -\(limit)"
     }
 }
+
+public enum FinderMoveDirection: Equatable, Sendable {
+    case up
+    case down
+    case left
+    case right
+}
