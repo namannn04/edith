@@ -85,7 +85,13 @@ public struct ConfigStore {
     }
 
     public func isSet(_ definition: SettingDefinition) -> Bool {
-        defaults(for: definition).object(forKey: definition.key) != nil
+        guard let stored = defaults(for: definition).object(forKey: definition.key) else {
+            return false
+        }
+        let registered = UserDefaults.standard.volatileDomain(
+            forName: UserDefaults.registrationDomain)
+        guard let registeredValue = registered[definition.key] else { return true }
+        return !(stored as AnyObject).isEqual(registeredValue)
     }
 
     public func set(_ value: JSONValue, for definition: SettingDefinition) throws {
@@ -145,7 +151,7 @@ public struct ConfigStore {
     }
 
     public static func announceChange() {
-        IPC.post(IPC.Name.settingsChanged)
+        AppBridge.post(IPC.Name.settingsChanged)
     }
 
     private static func encode(_ object: Any) -> JSONValue {
