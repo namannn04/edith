@@ -109,7 +109,8 @@ public enum MachineCollector {
 
     public static func script() -> Data? {
         guard
-            let url = Bundle.module.url(forResource: "machine-collector", withExtension: "sh")
+            let url = BundledResources.url(
+                forResource: "machine-collector", withExtension: "sh")
         else { return nil }
         return try? Data(contentsOf: url)
     }
