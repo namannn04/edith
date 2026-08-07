@@ -158,11 +158,33 @@ enum CLIProbe {
         return box.value
     }
 
-    static func capture(_ arguments: [String]) async -> CLIRun {
-        await perform(arguments)
+    static func runInWorld(_ arguments: [String], _ setUp: (CLIWorld) -> Void) async -> CLIRun {
+        let box = RunBox()
+        await inWorld { world in
+            setUp(world)
+            box.value = await capture(arguments)
+        }
+        return box.value
     }
 
-    private static func perform(_ arguments: [String]) async -> CLIRun {
+    static func capture(_ arguments: [String]) async -> CLIRun {
+        await capturing {
+            var command = try EdRoot.parseAsRoot(arguments)
+            if var runnable = command as? AsyncParsableCommand {
+                try await runnable.run()
+            } else {
+                try command.run()
+            }
+        }
+    }
+
+    static func isolate(_ body: () async throws -> Void) async -> CLIRun {
+        let box = RunBox()
+        await inWorld { _ in box.value = await capturing(body) }
+        return box.value
+    }
+
+    static func capturing(_ body: () async throws -> Void) async -> CLIRun {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ed-cli-probe-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(
@@ -182,16 +204,10 @@ enum CLIProbe {
         CLIOut.stderrHandle = errHandle
         var code: Int32 = 0
         do {
-            var command = try EdRoot.parseAsRoot(arguments)
-            if var runnable = command as? AsyncParsableCommand {
-                try await runnable.run()
-            } else {
-                try command.run()
-            }
+            try await body()
         } catch {
+            ExitCodes.report(error)
             code = ExitCodes.code(for: error)
-            let message = EdRoot.fullMessage(for: error)
-            if !message.isEmpty { CLIOut.note(message) }
         }
         CLIOut.stdoutHandle = savedOut
         CLIOut.stderrHandle = savedErr
