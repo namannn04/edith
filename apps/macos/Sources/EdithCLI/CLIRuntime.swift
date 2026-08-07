@@ -98,27 +98,46 @@ public enum CLIOut {
 
 public enum TextTable {
     public static func render(headers: [String], rows: [[String]]) -> String {
-        guard !rows.isEmpty else { return headers.joined(separator: "  ") }
-        var widths = headers.map { $0.count }
-        for row in rows {
+        let titles = headers.map(oneLine)
+        guard !rows.isEmpty else { return titles.joined(separator: "  ") }
+        let cells = rows.map { $0.map(oneLine) }
+        var widths = titles.map { $0.count }
+        for row in cells {
             for (index, cell) in row.enumerated() where index < widths.count {
                 widths[index] = max(widths[index], cell.count)
             }
         }
-        var lines: [String] = [line(headers, widths)]
-        for row in rows { lines.append(line(row, widths)) }
+        var lines: [String] = [line(titles, widths)]
+        for row in cells { lines.append(line(row, widths)) }
         return lines.joined(separator: "\n")
+    }
+
+    public static func oneLine(_ text: String) -> String {
+        var out = ""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\n", "\r", "\t": out.append(" ")
+            default:
+                guard scalar.value >= 0x20, scalar.value != 0x7F else { continue }
+                out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
     }
 
     private static func line(_ cells: [String], _ widths: [Int]) -> String {
         var parts: [String] = []
         for (index, width) in widths.enumerated() {
             let cell = index < cells.count ? cells[index] : ""
-            parts.append(
-                index == widths.count - 1
-                    ? cell : cell.padding(toLength: width, withPad: " ", startingAt: 0))
+            parts.append(index == widths.count - 1 ? cell : pad(cell, to: width))
         }
         return parts.joined(separator: "  ").trimmingTrailingSpaces()
+    }
+
+    private static func pad(_ cell: String, to width: Int) -> String {
+        let missing = width - cell.count
+        guard missing > 0 else { return cell }
+        return cell + String(repeating: " ", count: missing)
     }
 }
 

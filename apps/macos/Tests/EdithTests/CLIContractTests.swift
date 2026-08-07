@@ -1,0 +1,434 @@
+import ArgumentParser
+import Foundation
+import Testing
+
+@testable import EdithCLI
+@testable import EdithKit
+
+struct JSONCase {
+    let label: String
+    let arguments: [String]
+    let mutatesTheMachine: Bool
+
+    init(_ label: String, _ arguments: [String], mutatesTheMachine: Bool = false) {
+        self.label = label
+        self.arguments = arguments
+        self.mutatesTheMachine = mutatesTheMachine
+    }
+}
+
+enum JSONContract {
+    static let cases: [JSONCase] = [
+        JSONCase("ed version", ["version", "--json"]),
+        JSONCase("ed install", ["install", "--json"], mutatesTheMachine: true),
+        JSONCase("ed uninstall", ["uninstall", "--json"], mutatesTheMachine: true),
+        JSONCase(
+            "ed completions install", ["completions", "install", "--json"],
+            mutatesTheMachine: true),
+        JSONCase("ed config ls", ["config", "ls", "--json"]),
+        JSONCase("ed config get", ["config", "get", "preventSleep", "--json"]),
+        JSONCase("ed config set", ["config", "set", "preventSleep", "true", "--json"]),
+        JSONCase("ed config unset", ["config", "unset", "preventSleep", "--json"]),
+        JSONCase("ed config describe", ["config", "describe", "preventSleep", "--json"]),
+        JSONCase("ed config import", ["config", "import", "-", "--json"], mutatesTheMachine: true),
+        JSONCase("ed extensions ls", ["extensions", "ls", "--json"]),
+        JSONCase("ed extensions enable", ["extensions", "enable", "clipboard", "--json"]),
+        JSONCase("ed extensions disable", ["extensions", "disable", "clipboard", "--json"]),
+        JSONCase("ed extensions info", ["extensions", "info", "clipboard", "--json"]),
+        JSONCase("ed permissions ls", ["permissions", "ls", "--json"]),
+        JSONCase("ed permissions request", ["permissions", "request", "calendar", "--json"]),
+        JSONCase("ed permissions refresh", ["permissions", "refresh", "--json"]),
+        JSONCase("ed usage limits", ["usage", "limits", "--json"]),
+        JSONCase("ed usage summary", ["usage", "summary", "--json"]),
+        JSONCase("ed usage daily", ["usage", "daily", "--json"]),
+        JSONCase("ed usage models", ["usage", "models", "--json"]),
+        JSONCase("ed usage projects", ["usage", "projects", "--json"]),
+        JSONCase("ed usage sources", ["usage", "sources", "--json"]),
+        JSONCase("ed usage refresh", ["usage", "refresh", "--json"]),
+        JSONCase("ed system stats", ["system", "stats", "--json"]),
+        JSONCase("ed system disks", ["system", "disks", "--json"]),
+        JSONCase("ed music status", ["music", "status", "--json"]),
+        JSONCase("ed music players", ["music", "players", "--json"]),
+        JSONCase("ed music play", ["music", "play", "--json"]),
+        JSONCase("ed music pause", ["music", "pause", "--json"]),
+        JSONCase("ed music stop", ["music", "stop", "--json"]),
+        JSONCase("ed music toggle", ["music", "toggle", "--json"]),
+        JSONCase("ed music next", ["music", "next", "--json"]),
+        JSONCase("ed music previous", ["music", "previous", "--json"]),
+        JSONCase("ed music volume", ["music", "volume", "0.5", "--json"]),
+        JSONCase("ed calendar ls", ["calendar", "ls", "--json"]),
+        JSONCase("ed machines ls", ["machines", "ls", "--json"]),
+        JSONCase("ed machines show", ["machines", "show", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines metrics", ["machines", "metrics", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines connect", ["machines", "connect", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines disconnect", ["machines", "disconnect", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines services", ["machines", "services", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines files ls", ["machines", "files", "ls", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines files get",
+            ["machines", "files", "get", "nowhere-at-all", "/etc/hosts", "--json"]),
+        JSONCase(
+            "ed machines files put",
+            ["machines", "files", "put", "nowhere-at-all", "/etc/hosts", "/tmp/x", "--json"]),
+        JSONCase(
+            "ed machines docker ps", ["machines", "docker", "ps", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines docker images",
+            ["machines", "docker", "images", "nowhere-at-all", "--json"]
+        ),
+        JSONCase(
+            "ed machines docker volumes",
+            ["machines", "docker", "volumes", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines docker networks",
+            ["machines", "docker", "networks", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines docker df", ["machines", "docker", "df", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines docker start",
+            ["machines", "docker", "start", "nowhere-at-all", "api", "--json"]),
+        JSONCase(
+            "ed machines docker stop",
+            ["machines", "docker", "stop", "nowhere-at-all", "api", "--json"]),
+        JSONCase(
+            "ed machines docker restart",
+            ["machines", "docker", "restart", "nowhere-at-all", "api", "--json"]),
+        JSONCase(
+            "ed machines docker rm",
+            ["machines", "docker", "rm", "nowhere-at-all", "api", "--json"]),
+    ]
+}
+
+@Suite struct CLIJSONContractTests {
+    @Test func everyCommandThatOffersJSONIsCovered() {
+        let declared = Set(JSONContract.cases.map(\.label))
+        var uncovered: [String] = []
+        for walk in CommandCrawler.every() where walk.type.configuration.subcommands.isEmpty {
+            guard CommandCrawler.optionNames(of: walk.type).contains("--json") else { continue }
+            if !declared.contains(walk.label) { uncovered.append(walk.label) }
+        }
+        #expect(uncovered.isEmpty, "no JSON contract case for: \(uncovered)")
+    }
+
+    @Test func stdoutIsEitherOneJSONDocumentOrNothingAtAll() async {
+        for probe in JSONContract.cases where !probe.mutatesTheMachine {
+            let result = await CLIProbe.run(probe.arguments)
+            guard !result.stdout.isEmpty else {
+                #expect(
+                    result.code != 0,
+                    "\(probe.label) exited 0 but printed nothing on stdout")
+                continue
+            }
+            #expect(
+                (try? result.decoded()) != nil,
+                "\(probe.label) printed something that is not JSON: \(result.stdout)")
+            let trailing = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(!trailing.contains("\n\n"), "\(probe.label) printed more than one document")
+        }
+    }
+
+    @Test func diagnosticsNeverLandOnStdout() async {
+        for probe in JSONContract.cases where !probe.mutatesTheMachine {
+            let result = await CLIProbe.run(probe.arguments)
+            #expect(
+                !result.stdout.contains("error:"), "\(probe.label) put an error on stdout")
+            #expect(!result.stdout.contains("hint:"), "\(probe.label) put a hint on stdout")
+        }
+    }
+
+    @Test func anyFailureLeavesStdoutEmptyAndUsesADocumentedCode() async {
+        let documented: Set<Int32> = [0, 1, 2, 3, 4]
+        for probe in JSONContract.cases where !probe.mutatesTheMachine {
+            let result = await CLIProbe.run(probe.arguments)
+            #expect(
+                documented.contains(result.code),
+                "\(probe.label) exited \(result.code), which the guide does not document")
+            guard result.code != 0 else { continue }
+            #expect(result.stdout.isEmpty, "\(probe.label) failed but still printed stdout")
+        }
+    }
+
+    @Test func versionReportsItselfAndWhetherTheAppIsUp() async {
+        let result = await CLIProbe.run(["version", "--json"])
+        #expect(result.code == 0)
+        let object = try? #require(result.object)
+        #expect(Set(object?.keys ?? [:].keys) == ["version", "appRunning"])
+        #expect(object?["version"] as? String == edithCLIVersion)
+        #expect(object?["appRunning"] as? Bool == false)
+    }
+
+    @Test func theHumanVersionAndTheJSONVersionAgree() async {
+        let human = await CLIProbe.run(["version"])
+        let json = await CLIProbe.run(["version", "--json"])
+        #expect(human.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == edithCLIVersion)
+        #expect(json.object?["version"] as? String == edithCLIVersion)
+    }
+
+    @Test func everyExtensionRowCarriesTheSameFields() async {
+        let result = await CLIProbe.run(["extensions", "ls", "--json"])
+        #expect(result.code == 0)
+        let rows = result.array as? [[String: Any]] ?? []
+        #expect(rows.count == ExtensionRegistry.entries.count)
+        let expected: Set<String> = [
+            "id", "title", "summary", "group", "featured", "key", "enabled",
+            "requiredPermissions", "optionalPermissions", "missingRequiredPermissions",
+            "requiredTools",
+        ]
+        for row in rows {
+            #expect(Set(row.keys) == expected, "\(row["id"] ?? "?") has the wrong fields")
+        }
+    }
+
+    @Test func theExtensionListAndTheHumanTableAgreeOnWhatIsOn() async {
+        await CLIProbe.inWorld { _ in
+            _ = await CLIProbe.capture(["extensions", "enable", "clipboard"])
+            let json = await CLIProbe.capture(["extensions", "ls", "--json"])
+            let table = await CLIProbe.capture(["extensions", "ls"])
+            let rows = json.array as? [[String: Any]] ?? []
+            let on = rows.filter { $0["enabled"] as? Bool == true }.compactMap {
+                $0["id"] as? String
+            }
+            #expect(on == ["clipboard"])
+            let onRows = table.stdoutLines.filter { $0.contains(" on ") }
+            #expect(onRows.count == 1)
+            #expect(onRows.first?.hasPrefix("clipboard") == true)
+        }
+    }
+
+    @Test func enablingAnExtensionWritesTheKeyTheAppReads() async throws {
+        try await CLIProbe.inWorld { world in
+            let entry = try #require(ExtensionRegistry.entries.first)
+            _ = await CLIProbe.capture(["extensions", "enable", entry.id, "--json"])
+            #expect(world.shared.bool(forKey: entry.defaultsKey))
+            _ = await CLIProbe.capture(["extensions", "disable", entry.id, "--json"])
+            #expect(!world.shared.bool(forKey: entry.defaultsKey))
+        }
+    }
+
+    @Test func anExtensionCanBeNamedByItsDefaultsKeyToo() async throws {
+        try await CLIProbe.inWorld { _ in
+            let entry = try #require(ExtensionRegistry.entries.first)
+            let result = await CLIProbe.capture([
+                "extensions", "info", entry.defaultsKey, "--json",
+            ])
+            #expect(result.code == 0)
+            #expect(result.object?["id"] as? String == entry.id)
+        }
+    }
+
+    @Test func permissionRowsCarryTheSameFields() async {
+        let result = await CLIProbe.run(["permissions", "ls", "--json"])
+        #expect(result.code == 0)
+        let object = try? #require(result.object)
+        #expect(Set(object?.keys ?? [:].keys) == ["appRunning", "permissions"])
+        let rows = object?["permissions"] as? [[String: Any]] ?? []
+        let expected: Set<String> = [
+            "id", "name", "reason", "granted", "grantsOnFirstUse", "requiredBy",
+            "optionalFor", "usedByEnabledExtension", "blocksEnabledExtension",
+        ]
+        for row in rows { #expect(Set(row.keys) == expected) }
+    }
+
+    @Test func machineRowsCarryTheSameFields() {
+        let machine = Machine(name: "Builder", host: "10.0.0.9", port: 2222, username: "root")
+        guard case let .object(fields) = MachineDirectory.summary(machine) else {
+            Issue.record("a summary should be an object")
+            return
+        }
+        #expect(
+            Set(fields.keys) == [
+                "id", "name", "host", "port", "username", "auth", "source", "sshAlias",
+                "sshTarget", "wakeMACAddress", "createdAt", "controlSocket", "connected",
+            ])
+    }
+
+    @Test func diskRowsCarryTheSameFields() async {
+        let result = await CLIProbe.run(["system", "disks", "--json"])
+        #expect(result.code == 0)
+        let object = try? #require(result.object)
+        #expect(
+            Set(object?.keys ?? [:].keys)
+                == ["filesystems", "temperatures", "battery", "gpu"])
+        let disks = object?["filesystems"] as? [[String: Any]] ?? []
+        #expect(!disks.isEmpty)
+        for disk in disks {
+            #expect(
+                Set(disk.keys) == [
+                    "filesystem", "mount", "totalKB", "usedKB", "availableKB", "usedPercent",
+                ])
+        }
+    }
+
+    @Test func theDiskTableAndTheDiskJSONAgreeOnHowManyVolumes() async {
+        let json = await CLIProbe.run(["system", "disks", "--json"])
+        let table = await CLIProbe.run(["system", "disks"])
+        let disks = (json.object?["filesystems"] as? [[String: Any]] ?? []).count
+        #expect(table.stdoutLines.count == disks + 1)
+    }
+}
+
+@Suite struct CLITableTests {
+    @Test func columnsAreAlignedAndTheLastIsNotPadded() {
+        let table = TextTable.render(headers: ["A", "BB"], rows: [["1", "2"], ["longer", "3"]])
+        #expect(
+            table == """
+                A       BB
+                1       2
+                longer  3
+                """)
+    }
+
+    @Test func anEmptyResultStillPrintsItsHeadings() {
+        #expect(TextTable.render(headers: ["A", "B"], rows: []) == "A  B")
+        #expect(TextTable.render(headers: [], rows: []).isEmpty)
+    }
+
+    @Test func aRowShorterThanTheHeadingsIsPaddedNotDropped() {
+        let table = TextTable.render(headers: ["A", "B", "C"], rows: [["1"]])
+        #expect(table.split(separator: "\n").count == 2)
+        #expect(table.hasSuffix("1"))
+    }
+
+    @Test func aRowLongerThanTheHeadingsDoesNotCrash() {
+        let table = TextTable.render(headers: ["A"], rows: [["1", "2", "3"]])
+        #expect(table.contains("1"))
+    }
+
+    @Test func aVeryLongValueWidensItsColumnForEveryRow() {
+        let long = String(repeating: "x", count: 400)
+        let table = TextTable.render(headers: ["A", "B"], rows: [[long, "1"], ["y", "2"]])
+        let lines = table.split(separator: "\n").map(String.init)
+        #expect(lines.count == 3)
+        #expect(lines[2].hasPrefix("y" + String(repeating: " ", count: 399)))
+    }
+
+    @Test func newlinesAndTabsInsideAValueNeverBreakTheLayout() {
+        let table = TextTable.render(
+            headers: ["A", "B"], rows: [["one\ntwo", "x"], ["tab\there", "y"]])
+        #expect(table.split(separator: "\n").count == 3)
+        #expect(!table.contains("\t"))
+    }
+
+    @Test func otherControlCharactersAreDroppedRatherThanPrinted() {
+        let table = TextTable.render(headers: ["A"], rows: [["bell\u{7}here"]])
+        #expect(!table.contains("\u{7}"))
+        #expect(table.contains("bellhere"))
+    }
+
+    @Test func widthIsCountedInCharactersSoEmojiStayAligned() {
+        let table = TextTable.render(headers: ["A", "B"], rows: [["ab", "1"], ["cd", "2"]])
+        let lines = table.split(separator: "\n").map(String.init)
+        #expect(lines[1] == "ab  1")
+        #expect(lines[2] == "cd  2")
+    }
+
+    @Test func anEmojiCellDoesNotTruncateTheRestOfTheRow() {
+        let table = TextTable.render(
+            headers: ["A", "B"], rows: [["👍", "kept"], ["xxxx", "also"]])
+        #expect(table.contains("kept"))
+        #expect(table.contains("also"))
+        #expect(table.contains("👍"))
+    }
+
+    @Test func trailingBlanksAreTrimmedSoRowsCopyCleanly() {
+        let table = TextTable.render(headers: ["A", "B"], rows: [["1", ""]])
+        #expect(table.split(separator: "\n").last == "1")
+    }
+}
+
+@Suite struct CLISilenceTests {
+    static func silence(
+        helperRunning: Bool, extensionOn: Bool? = nil, permissionGranted: Bool? = nil
+    ) -> CLIFailure {
+        let defaults = UserDefaults(suiteName: "test.cli.silence")!
+        defaults.removePersistentDomain(forName: "test.cli.silence")
+        CLIEnvironment.sharedDefaults = defaults
+        CLIEnvironment.isHelperRunning = { helperRunning }
+        if let extensionOn { defaults.set(extensionOn, forKey: "tabCalendarEnabled") }
+        CLIEnvironment.permissionUsages = {
+            guard let permissionGranted else { return [] }
+            return PermissionCatalog.usages(
+                enabledKeys: [], granted: [.calendar: permissionGranted])
+        }
+        defer {
+            defaults.removePersistentDomain(forName: "test.cli.silence")
+            CLIEnvironment.reset()
+        }
+        return AppBridge.silence(
+            "the calendar", extensionKey: "tabCalendarEnabled", permission: "calendar")
+    }
+
+    @Test func aClosedAppIsBlamedFirst() async {
+        await CLIProbe.inWorld { _ in
+            let failure = Self.silence(helperRunning: false, extensionOn: true)
+            #expect(failure.kind == .unavailable)
+            #expect(failure.message.contains("Edith is not running"))
+        }
+    }
+
+    @Test func anExtensionThatIsOffIsBlamedNext() async {
+        await CLIProbe.inWorld { _ in
+            let failure = Self.silence(helperRunning: true, extensionOn: false)
+            #expect(failure.kind == .unavailable)
+            #expect(failure.message.contains("extension behind the calendar is off"))
+            #expect(failure.hint?.contains("ed extensions ls") == true)
+        }
+    }
+
+    @Test func aMissingGrantIsBlamedAfterThat() async {
+        await CLIProbe.inWorld { _ in
+            let failure = Self.silence(
+                helperRunning: true, extensionOn: true, permissionGranted: false)
+            #expect(failure.kind == .unavailable)
+            #expect(failure.message.contains("macOS has not granted"))
+            #expect(failure.hint?.contains("ed permissions request calendar") == true)
+        }
+    }
+
+    @Test func aHealthyAppThatStaysQuietIsBlamedLast() async {
+        await CLIProbe.inWorld { _ in
+            let failure = Self.silence(
+                helperRunning: true, extensionOn: true, permissionGranted: true)
+            #expect(failure.kind == .unavailable)
+            #expect(failure.message.contains("did not answer"))
+            #expect(failure.hint?.contains("rebuild") == true)
+        }
+    }
+
+    @Test func everyDiagnosisIsUnavailableSoTheExitCodeIsStable() async {
+        await CLIProbe.inWorld { _ in
+            for running in [true, false] {
+                for on in [true, false] {
+                    let failure = Self.silence(helperRunning: running, extensionOn: on)
+                    #expect(failure.kind.rawValue == ExitCodes.unavailable)
+                }
+            }
+        }
+    }
+
+    static let silenceIsNotAnError: Set<String> = ["UsageCommands.swift"]
+
+    @Test func everyPlaceThatWaitsOnTheAppDiagnosesItsSilence() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/EdithCLI")
+        let names =
+            FileManager.default.enumerator(atPath: root.path)?
+            .compactMap { $0 as? String }.filter { $0.hasSuffix(".swift") } ?? []
+        var waiting: [String] = []
+        var offenders: [String] = []
+        for name in names {
+            let text = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
+            guard text.contains("AppBridge.awaitReply") else { continue }
+            waiting.append(name)
+            let leaf = (name as NSString).lastPathComponent
+            guard !Self.silenceIsNotAnError.contains(leaf) else { continue }
+            if !text.contains("AppBridge.silence") { offenders.append(name) }
+        }
+        #expect(!waiting.isEmpty, "nothing waits on the app, so this test proves nothing")
+        #expect(
+            offenders.isEmpty,
+            "these wait on the app without diagnosing its silence: \(offenders)")
+    }
+}
