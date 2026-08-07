@@ -127,8 +127,10 @@ public enum CLIInstaller {
                 atPath: target.appendingPathComponent($0).path)
         }
         let wanted = toolNames.map { tools.appendingPathComponent(sourceName(for: $0)).path }
-        guard Set(current) != Set(wanted) else { return }
-        install(toolsDirectory: tools, into: target, fileManager: fileManager)
+        if Set(current) != Set(wanted) {
+            install(toolsDirectory: tools, into: target, fileManager: fileManager)
+        }
+        CompletionScripts.refreshInstalled(fileManager: fileManager)
     }
 
     static func sourceName(for name: String) -> String {
