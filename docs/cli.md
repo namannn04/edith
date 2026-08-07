@@ -401,6 +401,31 @@ example.
 
 A bare `ed <machine>` with nothing after it is `ed machines show <machine>`.
 
+### Staying in a directory
+
+`cd` is remembered, so the commands after it run where you left off:
+
+```
+ed tuf pwd                      /home/pulkit
+ed tuf cd Desktop
+ed tuf pwd                      /home/pulkit/Desktop
+ed tuf ls                       lists Desktop
+ed tuf cd                       back to the home directory
+```
+
+The directory belongs to the terminal it was set in, the same way `cd` does in
+a local shell, so two tabs on one machine never move each other. Remote path
+completion follows it too: `ed tuf ls <TAB>` offers what is in the directory
+you are in, not what is in your home directory.
+
+A path that does not exist reports the machine's own error and leaves the
+current directory alone. One that disappears later falls back to the home
+directory rather than breaking every command after it.
+
+`cd` is only read when it is the whole command. Quoting a line keeps the old
+one-shot behaviour, so `ed tuf 'cd /tmp && pwd'` prints `/tmp` and changes
+nothing for the next command.
+
 Edith's own command names win over machine names, so a machine called `usage`
 still needs `ed machines exec usage -- ...`.
 
