@@ -53,7 +53,10 @@ public struct ConfigStore {
     private let shared: UserDefaults
     private let standard: UserDefaults
 
-    public init(shared: UserDefaults = SharedDefaults.store, standard: UserDefaults = .standard) {
+    public init(
+        shared: UserDefaults = CLIEnvironment.sharedDefaults,
+        standard: UserDefaults = CLIEnvironment.standardDefaults
+    ) {
         self.shared = shared
         self.standard = standard
     }

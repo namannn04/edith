@@ -1,0 +1,56 @@
+import AppKit
+import EdithKit
+import Foundation
+
+public enum CLIEnvironment {
+    nonisolated(unsafe) public static var sharedDefaults: UserDefaults = SharedDefaults.store
+    nonisolated(unsafe) public static var standardDefaults: UserDefaults = .standard
+
+    nonisolated(unsafe) public static var isHelperRunning: @Sendable () -> Bool = {
+        !NSRunningApplication.runningApplications(
+            withBundleIdentifier: AppBridge.helperBundleID
+        ).isEmpty
+    }
+
+    nonisolated(unsafe) public static var isMainAppRunning: @Sendable () -> Bool = {
+        !NSRunningApplication.runningApplications(
+            withBundleIdentifier: AppBridge.mainBundleID
+        ).isEmpty
+    }
+
+    nonisolated(unsafe) public static var deliver:
+        @Sendable (Notification.Name, [String: Any]?) -> Void = {
+            IPC.post($0, userInfo: $1)
+        }
+
+    nonisolated(unsafe) public static var answer:
+        (@Sendable (Notification.Name) -> [AnyHashable: Any]?)?
+
+    nonisolated(unsafe) public static var permissionUsages: @Sendable () -> [PermissionUsage] = {
+        PermissionsStatus.usages
+    }
+
+    nonisolated(unsafe) public static var runAppleScript:
+        @Sendable (String, TimeInterval) throws -> String = {
+            try AppleScriptHost.execute($0, timeout: $1)
+        }
+
+    public static func reset() {
+        sharedDefaults = SharedDefaults.store
+        standardDefaults = .standard
+        isHelperRunning = {
+            !NSRunningApplication.runningApplications(
+                withBundleIdentifier: AppBridge.helperBundleID
+            ).isEmpty
+        }
+        isMainAppRunning = {
+            !NSRunningApplication.runningApplications(
+                withBundleIdentifier: AppBridge.mainBundleID
+            ).isEmpty
+        }
+        deliver = { IPC.post($0, userInfo: $1) }
+        answer = nil
+        permissionUsages = { PermissionsStatus.usages }
+        runAppleScript = { try AppleScriptHost.execute($0, timeout: $1) }
+    }
+}

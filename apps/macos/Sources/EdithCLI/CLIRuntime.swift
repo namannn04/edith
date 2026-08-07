@@ -33,8 +33,8 @@ public struct CLIFailure: Error, CustomStringConvertible, Equatable {
 }
 
 public enum CLIOut {
-    nonisolated(unsafe) private static var stdoutHandle = FileHandle.standardOutput
-    nonisolated(unsafe) private static var stderrHandle = FileHandle.standardError
+    nonisolated(unsafe) static var stdoutHandle = FileHandle.standardOutput
+    nonisolated(unsafe) static var stderrHandle = FileHandle.standardError
 
     public static func out(_ text: String) {
         guard let data = (text + "\n").data(using: .utf8) else { return }

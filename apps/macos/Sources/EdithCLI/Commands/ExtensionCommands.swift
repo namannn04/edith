@@ -30,7 +30,7 @@ enum ExtensionLookup {
     }
 
     static func isEnabled(_ entry: ExtensionRegistryEntry) -> Bool {
-        SharedDefaults.store.object(forKey: entry.defaultsKey) as? Bool ?? false
+        CLIEnvironment.sharedDefaults.object(forKey: entry.defaultsKey) as? Bool ?? false
     }
 
     static func json(_ entry: ExtensionRegistryEntry) -> JSONValue {
@@ -52,8 +52,8 @@ enum ExtensionLookup {
     }
 
     static func setEnabled(_ entry: ExtensionRegistryEntry, _ enabled: Bool) {
-        SharedDefaults.store.set(enabled, forKey: entry.defaultsKey)
-        SharedDefaults.store.synchronize()
+        CLIEnvironment.sharedDefaults.set(enabled, forKey: entry.defaultsKey)
+        CLIEnvironment.sharedDefaults.synchronize()
         ConfigStore.announceChange()
     }
 }

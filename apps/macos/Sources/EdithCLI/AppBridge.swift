@@ -6,13 +6,9 @@ public enum AppBridge {
     public static let helperBundleID = "com.pulkit.edith.statusbar"
     public static let mainBundleID = "com.pulkit.edith"
 
-    public static var helperIsRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: helperBundleID).isEmpty
-    }
+    public static var helperIsRunning: Bool { CLIEnvironment.isHelperRunning() }
 
-    public static var mainAppIsRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: mainBundleID).isEmpty
-    }
+    public static var mainAppIsRunning: Bool { CLIEnvironment.isMainAppRunning() }
 
     public static func requireHelper(_ what: String) throws {
         guard helperIsRunning else {
@@ -22,8 +18,16 @@ public enum AppBridge {
         }
     }
 
+    public static func requireMainApp(_ what: String) throws {
+        guard mainAppIsRunning else {
+            throw CLIFailure.unavailable(
+                "\(what) needs the Edith main window to be open",
+                hint: "open Edith from the menu bar, then retry")
+        }
+    }
+
     public static func post(_ name: Notification.Name, userInfo: [String: Any]? = nil) {
-        IPC.post(name, userInfo: userInfo)
+        CLIEnvironment.deliver(name, userInfo)
     }
 
     public static func silence(
@@ -35,14 +39,14 @@ public enum AppBridge {
                 hint: "open Edith and try again")
         }
         if let extensionKey,
-            !(SharedDefaults.store.object(forKey: extensionKey) as? Bool ?? false)
+            !(CLIEnvironment.sharedDefaults.object(forKey: extensionKey) as? Bool ?? false)
         {
             return CLIFailure.unavailable(
                 "the extension behind \(what) is off",
                 hint: "run `ed extensions ls` to see which are enabled")
         }
         if let permission,
-            let usage = PermissionsStatus.usages.first(where: {
+            let usage = CLIEnvironment.permissionUsages().first(where: {
                 $0.permission.rawValue == permission
             }), !usage.isGranted
         {
@@ -59,6 +63,10 @@ public enum AppBridge {
         _ name: Notification.Name, timeout: TimeInterval,
         trigger: @escaping @Sendable () -> Void
     ) async -> [AnyHashable: Any]? {
+        if let answer = CLIEnvironment.answer {
+            trigger()
+            return answer(name)
+        }
         let box = ReplyBox()
         let token = DistributedNotificationCenter.default().addObserver(
             forName: name, object: nil, queue: .main
