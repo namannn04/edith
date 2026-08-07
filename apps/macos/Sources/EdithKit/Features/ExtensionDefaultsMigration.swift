@@ -41,6 +41,7 @@ public enum ExtensionDefaultsMigration {
     private static let legacyDefaults: [String: Bool] = [
         "tabUsageEnabled": true,
         "tabSystemEnabled": true,
+        "tabMachinesEnabled": false,
         "menuBarSystemStats": false,
         "micMuteEnabled": false,
         "tabMusicEnabled": true,

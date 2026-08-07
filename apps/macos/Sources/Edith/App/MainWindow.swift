@@ -79,6 +79,7 @@ enum MainWindow {
             ],
             backing: .buffered, defer: false)
         w.title = "Edith"
+        w.identifier = NSUserInterfaceItemIdentifier(MainWindowIdentifier.value)
         w.titleVisibility = .hidden
         w.titlebarAppearsTransparent = true
         w.titlebarSeparatorStyle = .none
@@ -91,6 +92,7 @@ enum MainWindow {
         w.setContentSize(NSSize(width: 900, height: 680))
         w.center()
         w.setFrameAutosaveName("EdithMainWindow")
+        w.tabbingMode = .disallowed
         w.delegate = MainWindowDelegate.shared
         window = w
         w.makeKeyAndOrderFront(nil)
@@ -105,6 +107,10 @@ enum MainWindow {
     fileprivate static let fullScreenDefaultsKey = "EdithMainWindowFullScreen"
 
     static func forget() { window = nil }
+}
+
+enum MainWindowIdentifier {
+    static let value = "EdithMainWindow"
 }
 
 @MainActor

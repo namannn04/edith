@@ -73,6 +73,9 @@ struct EdithApp: App {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             SettingsBackup.shared.start()
         }
+        DispatchQueue.global(qos: .utility).async {
+            CLIInstaller.installIfNeeded()
+        }
         applyAppearance(SharedDefaults.store.string(forKey: "appearance") ?? "system")
         let services = AppState.services
         _ = IPC.observe(IPC.Name.settingsChanged) {
@@ -105,6 +108,30 @@ struct EdithApp: App {
         }
         _ = IPC.observe(IPC.Name.presenterPauseAuto) {
             services.presenter?.pauseUntilShareEnds()
+        }
+        _ = IPC.observe(IPC.Name.requestCalendarEvents) {
+            MainActor.assumeIsolated {
+                guard let store = services.calendar else {
+                    IPC.post(
+                        IPC.Name.calendarEvents,
+                        userInfo: [CalendarEventBridge.statusKey: "extensionOff"])
+                    return
+                }
+                guard store.authStatus == .fullAccess else {
+                    IPC.post(
+                        IPC.Name.calendarEvents,
+                        userInfo: [CalendarEventBridge.statusKey: "notAuthorized"])
+                    return
+                }
+                store.refresh()
+                IPC.post(
+                    IPC.Name.calendarEvents,
+                    userInfo: [
+                        CalendarEventBridge.statusKey: "ok",
+                        CalendarEventBridge.payloadKey: CalendarEventBridge.encode(
+                            CalendarEventBridge.payloads(store.events)),
+                    ])
+            }
         }
         _ = IPC.observe(IPC.Name.requestTestNotification) {
             Task { _ = await services.usage?.notifier.sendTest() }

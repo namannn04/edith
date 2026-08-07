@@ -36,6 +36,11 @@ public enum IPC {
         public static let presenterAutoActiveChanged = Notification.Name(
             "com.pulkit.edith.presenterAutoActiveChanged")
         public static let musicCommand = Notification.Name("com.pulkit.edith.musicCommand")
+        public static let nowPlayingCommand = Notification.Name(
+            "com.pulkit.edith.nowPlayingCommand")
+        public static let nowPlayingState = Notification.Name("com.pulkit.edith.nowPlayingState")
+        public static let requestNowPlayingState = Notification.Name(
+            "com.pulkit.edith.requestNowPlayingState")
         public static let musicState = Notification.Name("com.pulkit.edith.musicState")
         public static let requestMusicState = Notification.Name(
             "com.pulkit.edith.requestMusicState")
@@ -55,6 +60,13 @@ public enum IPC {
             "com.pulkit.edith.musicRevealFolder")
         public static let presenterPauseAuto = Notification.Name(
             "com.pulkit.edith.presenterPauseAuto")
+        public static let requestUpdateCheck = Notification.Name(
+            "com.pulkit.edith.requestUpdateCheck")
+        public static let updateCheckFinished = Notification.Name(
+            "com.pulkit.edith.updateCheckFinished")
+        public static let requestCalendarEvents = Notification.Name(
+            "com.pulkit.edith.requestCalendarEvents")
+        public static let calendarEvents = Notification.Name("com.pulkit.edith.calendarEvents")
     }
 
     public static func post(_ name: Notification.Name, userInfo: [String: Any]? = nil) {

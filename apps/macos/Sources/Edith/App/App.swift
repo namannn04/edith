@@ -17,6 +17,7 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         ScrollForwarding.install()
         RetiredLicenseCleanup.run()
         startApp()
+        SectionWindowMenu.install()
     }
 
     private func startApp() {
@@ -143,6 +144,10 @@ private func relaunchHelper(at url: URL, after proc: NSRunningApplication) {
 @main
 struct EdithApp: App {
     @NSApplicationDelegateAdaptor(MainAppDelegate.self) private var delegate
+
+    init() {
+        _ = AskpassEntry.runIfRequested()
+    }
 
     var body: some Scene {
         Settings {

@@ -30,6 +30,8 @@ struct ExtensionsPane: View {
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
         false
     @AppStorage("tabSystemEnabled", store: SharedDefaults.store) private var systemEnabled = false
+    @AppStorage("tabMachinesEnabled", store: SharedDefaults.store) private var machinesEnabled =
+        false
     @AppStorage("menuBarSystemStats", store: SharedDefaults.store) private var systemStats = false
     @AppStorage("notchShelfEnabled", store: SharedDefaults.store) private var notchShelfEnabled =
         false
@@ -236,6 +238,7 @@ struct ExtensionsPane: View {
         switch entry.defaultsKey {
         case "tabUsageEnabled": agentUsageBinding
         case "tabSystemEnabled": $systemEnabled
+        case "tabMachinesEnabled": $machinesEnabled
         case "menuBarSystemStats": $systemStats
         case "micMuteEnabled": $micMuteEnabled
         case "tabMusicEnabled": $musicEnabled
@@ -457,6 +460,7 @@ private struct ExtensionSettingsSheet: View {
     private var idealHeight: CGFloat {
         switch entry.id {
         case "micMute", "systemStats": 300
+        case "machines": 420
         case "music": 460
         case "focusDim", "colorPicker": 430
         case "system": 500
@@ -517,6 +521,7 @@ private struct ExtensionDetailRows: View {
         switch entry.id {
         case "usage": UsageRows()
         case "system": SystemRows()
+        case "machines": MachinesRows()
         case "systemStats": SystemStatsRows()
         case "micMute": MicMuteRows()
         case "music": MusicRows()

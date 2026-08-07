@@ -1,13 +1,18 @@
 FLAGS := $(if $(PR),--pr $(PR)) $(if $(BRANCH),--branch $(BRANCH))
 
-.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-promo ci-swift ci-swift-check site-dev
+.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check site-dev cli
 
 ci:
 	bun install --frozen-lockfile
-	$(MAKE) ci-comments ci-secrets ci-lint ci-scripts ci-promo ci-swift-check
+	$(MAKE) ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift
 
 site-dev:
 	cd apps/site && python3 -m http.server 8000
+
+cli:
+	cd apps/macos && swift build -c release --product ed --product edh
+	apps/macos/.build/release/ed install --directory $(HOME)/.local/bin
+	apps/macos/.build/release/ed completions install
 
 ci-comments:
 	bun scripts/strip-comments.mjs --selftest
@@ -22,6 +27,19 @@ ci-lint:
 ci-scripts:
 	bun test ./scripts
 
+ci-site:
+	test -f apps/site/index.html
+	test -f apps/site/CNAME
+	grep -qx edith.pulkit.page apps/site/CNAME
+	@! grep -rhoE '(src|href)="https?://[^"]+' apps/site/*.html \
+	  | grep -vE 'https://(github\.com|www\.gnu\.org|docs\.github\.com|edith\.pulkit\.page)' \
+	  || { echo "site references an unexpected external origin" >&2; exit 1; }
+	@cd apps/site && rc=0; \
+	  for ref in $$(grep -rhoE '(src|href)="/[^"#]*' ./*.html | cut -d'"' -f2); do \
+	    test -e ".$$ref" || { echo "missing: $$ref" >&2; rc=1; }; \
+	  done; \
+	  exit $$rc
+
 ci-promo:
 	cd apps/promo-video && npm ci && npx tsc --noEmit
 
@@ -33,10 +51,22 @@ ci-swift-check:
 ci-swift: ci-swift-check
 	cd apps/macos && ./build.sh --no-open
 	test -f apps/macos/dist/Edith.app/Contents/MacOS/Edith
+	test -x apps/macos/dist/Edith.app/Contents/MacOS/ed
+	test -x apps/macos/dist/Edith.app/Contents/MacOS/edh
+	test -f apps/macos/dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/claude.svg
+	test -f apps/macos/dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/codex.svg
 	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/MacOS/Edith
 	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/AppIcon.icns
+	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/claude.svg
+	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/codex.svg
 	test -z "$$(find apps/macos/dist/Edith.app -print | grep Helper)"
 	/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Info.plist | grep -qx Edith
+	@for plist in apps/macos/dist/Edith.app/Contents/Info.plist apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Info.plist; do \
+	  for field in CFBundleName CFBundleDisplayName; do \
+	    /usr/libexec/PlistBuddy -c "Print :$$field" "$$plist" | grep -q Helper \
+	      && { echo "$$plist $$field mentions Helper" >&2; exit 1; }; \
+	  done; \
+	done; exit 0
 	codesign --verify apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app
 	codesign --verify apps/macos/dist/Edith.app
 

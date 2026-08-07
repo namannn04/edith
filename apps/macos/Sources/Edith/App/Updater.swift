@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 final class UpdaterModel: NSObject, ObservableObject,
-    @preconcurrency SPUStandardUserDriverDelegate, @preconcurrency SPUUpdaterDelegate
+    @preconcurrency SPUStandardUserDriverDelegate, SPUUpdaterDelegate
 {
     @Published private(set) var updateReady: String?
     @Published private(set) var updaterAvailable = false
@@ -42,6 +42,7 @@ final class UpdaterModel: NSObject, ObservableObject,
     private var automaticDownloadsObservation: NSKeyValueObservation?
     private var updater: SPUUpdater? { updaterController?.updater }
     private var pendingUpdateVersion: String?
+    private var updateCheckObserver: NSObjectProtocol?
     private let logURL: URL
 
     init(startingUpdater: Bool = false, logURL: URL = UpdateCheckLog.url) {
@@ -71,6 +72,17 @@ final class UpdaterModel: NSObject, ObservableObject,
         let entry = UpdateCheckRecord(
             date: date, kind: kind, outcome: outcome, version: version, detail: detail)
         checkHistory = UpdateCheckLog.append(entry, to: logURL)
+        var payload: [String: Any] = ["outcome": outcome.rawValue, "kind": kind.rawValue]
+        if let version { payload["version"] = version }
+        if let detail { payload["detail"] = detail }
+        IPC.post(IPC.Name.updateCheckFinished, userInfo: payload)
+    }
+
+    private func observeUpdateCheckRequests() {
+        guard updateCheckObserver == nil else { return }
+        updateCheckObserver = IPC.observe(IPC.Name.requestUpdateCheck) { [weak self] in
+            MainActor.assumeIsolated { self?.checkForUpdatesInBackground() }
+        }
     }
 
     private func startUpdater() async {
@@ -78,6 +90,7 @@ final class UpdaterModel: NSObject, ObservableObject,
         do {
             try updater.start()
             updaterAvailable = true
+            observeUpdateCheckRequests()
         } catch {
             updaterAvailable = false
             return

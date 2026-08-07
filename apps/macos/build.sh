@@ -125,6 +125,8 @@ rm -rf dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 rm -rf "$LOGIN_ITEMS/Edith"Helper.app
 cp .build/release/Edith "$APP/Contents/MacOS/"
+cp .build/release/ed "$APP/Contents/MacOS/"
+cp .build/release/edh "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cp -R .build/release/Edith_EdithKit.bundle "$APP/Contents/Resources/"
@@ -166,7 +168,13 @@ sign() {
   fi
 }
 
-# sign inside-out: the nested helper first, then the outer bundle - never --deep.
+sign_tool() {
+  codesign --force --sign "$SIGN_IDENTITY" $SIGN_FLAGS "$1"
+}
+
+# sign inside-out: the nested tools and helper first, then the outer bundle - never --deep.
+sign_tool "$APP/Contents/MacOS/ed"
+sign_tool "$APP/Contents/MacOS/edh"
 sign "$HELPER"
 sign "$APP"
 

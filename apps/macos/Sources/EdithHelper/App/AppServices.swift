@@ -6,6 +6,7 @@ final class AppServices: ObservableObject {
     @Published private(set) var usage: UsageStore?
     @Published private(set) var music: MusicPlayer?
     @Published private(set) var system: SystemStore?
+    @Published private(set) var machines: MachineMonitor?
     @Published private(set) var calendar: CalendarStore?
     @Published private(set) var notchShelf: NotchShelfController?
     @Published private(set) var colorPicker: ColorPickerStore?
@@ -61,6 +62,13 @@ final class AppServices: ObservableObject {
             !FeatureGates.preventSleepPersisted(systemOn: systemOn, current: sleepKeyOn)
         {
             SharedDefaults.store.set(false, forKey: "preventSleep")
+        }
+
+        let machinesOn = Self.extensionEnabled("tabMachinesEnabled")
+        if machinesOn, machines == nil { machines = MachineMonitor() }
+        if !machinesOn, let monitor = machines {
+            monitor.shutdown()
+            machines = nil
         }
 
         let calendarOn = Self.extensionEnabled("tabCalendarEnabled")

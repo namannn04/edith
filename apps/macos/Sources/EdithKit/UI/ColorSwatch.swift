@@ -134,15 +134,19 @@ public enum ColorFormatting {
 public enum ColorHistoryStore {
     private static let key = "colorPickerHistory"
 
-    public static func load() -> [ColorSwatch] {
-        guard let data = SharedDefaults.store.data(forKey: key),
+    public static func load(from defaults: UserDefaults = SharedDefaults.store)
+        -> [ColorSwatch]
+    {
+        guard let data = defaults.data(forKey: key),
             let swatches = try? JSONDecoder().decode([ColorSwatch].self, from: data)
         else { return [] }
         return swatches
     }
 
-    public static func add(_ swatch: ColorSwatch, limit: Int) {
-        save(inserting(swatch, into: load(), limit: limit))
+    public static func add(
+        _ swatch: ColorSwatch, limit: Int, into defaults: UserDefaults = SharedDefaults.store
+    ) {
+        save(inserting(swatch, into: load(from: defaults), limit: limit), into: defaults)
     }
 
     public static func inserting(_ swatch: ColorSwatch, into history: [ColorSwatch], limit: Int)
@@ -151,12 +155,14 @@ public enum ColorHistoryStore {
         Array(([swatch] + history).prefix(max(0, limit)))
     }
 
-    public static func clear() {
-        SharedDefaults.store.removeObject(forKey: key)
+    public static func clear(in defaults: UserDefaults = SharedDefaults.store) {
+        defaults.removeObject(forKey: key)
     }
 
-    private static func save(_ swatches: [ColorSwatch]) {
+    private static func save(
+        _ swatches: [ColorSwatch], into defaults: UserDefaults = SharedDefaults.store
+    ) {
         guard let data = try? JSONEncoder().encode(swatches) else { return }
-        SharedDefaults.store.set(data, forKey: key)
+        defaults.set(data, forKey: key)
     }
 }

@@ -107,11 +107,12 @@ struct SearchField: View {
     @Binding var text: String
     var compact = false
     var typeAhead = false
+    var focus: FocusState<Bool>.Binding?
 
     var body: some View {
         EdithTextField(
             placeholder: placeholder, text: $text, icon: "magnifyingglass", compact: compact,
-            clearable: true, typeAhead: typeAhead)
+            clearable: true, typeAhead: typeAhead, focus: focus)
     }
 }
 

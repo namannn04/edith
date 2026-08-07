@@ -199,6 +199,11 @@ public enum ExtensionRegistry {
             defaultsKey: "tabSystemEnabled",
             optionalPermissions: [.accessibility, .inputMonitoring]),
         ExtensionRegistryEntry(
+            id: "machines", title: "Machines",
+            subtitle: "Your other computers over SSH: stats, files, Docker, and a terminal.",
+            symbolName: "server.rack", group: .system, featured: true,
+            defaultsKey: "tabMachinesEnabled", optionalPermissions: [.notifications]),
+        ExtensionRegistryEntry(
             id: "systemStats", title: "CPU & Memory in menu bar",
             subtitle: "Live CPU and memory readout as a menu bar item.",
             symbolName: "gauge.with.needle", group: .system, featured: false,

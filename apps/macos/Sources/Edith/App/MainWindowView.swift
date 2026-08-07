@@ -3,7 +3,7 @@ import EdithKit
 import SwiftUI
 
 enum MainDestination: String, CaseIterable, Identifiable {
-    case home, dashboard, music, calendar, system
+    case home, dashboard, music, calendar, system, machines
     case extensions, settings, about
 
     var id: String { rawValue }
@@ -15,6 +15,7 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .music: return "Music"
         case .calendar: return "Calendar"
         case .system: return "System"
+        case .machines: return "Machines"
         case .extensions: return "Extensions"
         case .settings: return "Settings"
         case .about: return "About"
@@ -28,13 +29,16 @@ enum MainDestination: String, CaseIterable, Identifiable {
         case .music: return "music.note"
         case .calendar: return "calendar"
         case .system: return "cpu"
+        case .machines: return "server.rack"
         case .extensions: return "puzzlepiece.extension"
         case .settings: return "gearshape"
         case .about: return "info.circle"
         }
     }
 
-    static let homeItems: [MainDestination] = [.home, .dashboard, .music, .calendar, .system]
+    static let homeItems: [MainDestination] = [
+        .home, .dashboard, .music, .calendar, .system, .machines,
+    ]
     static let appItems: [MainDestination] = [
         .extensions, .settings, .about,
     ]
@@ -133,10 +137,17 @@ private struct SidebarNavRow: View {
     let shortcutHint: String?
     let selectionNamespace: Namespace.ID
     let action: () -> Void
+    var detach: (() -> Void)?
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            if let detach, SectionWindowCommand.shouldDetach(NSEvent.modifierFlags.swiftUIValue) {
+                detach()
+            } else {
+                action()
+            }
+        } label: {
             HStack(spacing: UIScale.pt(11)) {
                 Image(systemName: item.icon)
                     .font(.system(size: UIScale.pt(14), weight: .medium))
@@ -175,6 +186,23 @@ private struct SidebarNavRow: View {
         }
         .onHover { hovering = $0 }
         .pointerCursor()
+        .help("\(item.title) (⌘-click to open in its own window)")
+        .contextMenu {
+            if let detach {
+                Button("Open in New Window", action: detach)
+            }
+        }
+    }
+}
+
+extension NSEvent.ModifierFlags {
+    var swiftUIValue: EventModifiers {
+        var modifiers = EventModifiers()
+        if contains(.command) { modifiers.insert(.command) }
+        if contains(.option) { modifiers.insert(.option) }
+        if contains(.shift) { modifiers.insert(.shift) }
+        if contains(.control) { modifiers.insert(.control) }
+        return modifiers
     }
 }
 
@@ -216,6 +244,8 @@ struct MainWindowView: View {
     @AppStorage("tabMusicEnabled", store: SharedDefaults.store) private var musicEnabled = false
     @AppStorage("tabUsageEnabled", store: SharedDefaults.store) private var usageEnabled = false
     @AppStorage("tabCalendarEnabled", store: SharedDefaults.store) private var calendarEnabled =
+        false
+    @AppStorage("tabMachinesEnabled", store: SharedDefaults.store) private var machinesEnabled =
         false
     @AppStorage("preventSleep", store: SharedDefaults.store) private var preventSleep = false
     @AppStorage("presenterMode", store: SharedDefaults.store) private var presenterMode = false
@@ -272,6 +302,7 @@ struct MainWindowView: View {
         case .music: musicEnabled ? requested : .home
         case .calendar: calendarEnabled ? requested : .home
         case .system: systemEnabled ? requested : .home
+        case .machines: machinesEnabled ? requested : .home
         default: requested
         }
     }
@@ -535,10 +566,9 @@ struct MainWindowView: View {
                     SidebarNavRow(
                         item: item, selected: destination == item, theme: theme,
                         shortcutHint: shortcutHint(for: item),
-                        selectionNamespace: sidebarSelectionNamespace
-                    ) {
-                        mainWindowSection = item.rawValue
-                    }
+                        selectionNamespace: sidebarSelectionNamespace,
+                        action: { select(item) },
+                        detach: { detach(item) })
                 }
                 Text("App")
                     .font(.system(size: UIScale.pt(11), weight: .semibold))
@@ -550,10 +580,9 @@ struct MainWindowView: View {
                     SidebarNavRow(
                         item: item, selected: destination == item, theme: theme,
                         shortcutHint: shortcutHint(for: item),
-                        selectionNamespace: sidebarSelectionNamespace
-                    ) {
-                        mainWindowSection = item.rawValue
-                    }
+                        selectionNamespace: sidebarSelectionNamespace,
+                        action: { select(item) },
+                        detach: item == .about ? nil : { detach(item) })
                 }
             }
             .padding(.horizontal, UIScale.pt(8))
@@ -567,6 +596,15 @@ struct MainWindowView: View {
             Motion.animation(Motion.glide, reduceMotion: reduceMotion), value: showShortcutHints)
     }
 
+    private func select(_ item: MainDestination) {
+        if SectionWindow.focusExisting(item) { return }
+        mainWindowSection = item.rawValue
+    }
+
+    private func detach(_ item: MainDestination) {
+        SectionWindow.open(item)
+    }
+
     private var visibleHomeItems: [MainDestination] {
         MainDestination.homeItems.filter { item in
             switch item {
@@ -574,6 +612,7 @@ struct MainWindowView: View {
             case .music: musicEnabled
             case .calendar: calendarEnabled
             case .system: systemEnabled
+            case .machines: machinesEnabled
             default: true
             }
         }
@@ -598,6 +637,7 @@ struct MainWindowView: View {
             let code = event.keyCode
             let mods = event.modifierFlags
             let handled = MainActor.assumeIsolated {
+                guard !WindowTabs.isTabbed(NSApp.keyWindow) else { return false }
                 guard
                     let command = WindowKeyCommand.resolve(
                         characters: characters, keyCode: code, modifiers: mods)
@@ -959,6 +999,7 @@ struct MainWindowView: View {
         case .music: MusicPage()
         case .calendar: CalendarPage()
         case .system: SystemPage()
+        case .machines: MachinesPage()
         case .extensions: ExtensionsPane()
         case .settings: SettingsPane(updater: updater)
         case .about: AboutPane()
