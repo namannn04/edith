@@ -65,7 +65,7 @@ let package = Package(
         ),
         .testTarget(
             name: "EdithTests",
-            dependencies: ["Edith", "EdithKit", "EdithHelper", "EdithCLI"],
+            dependencies: ["Edith", "EdithKit", "EdithHelper", "EdithCLI", "Highlighter"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]
