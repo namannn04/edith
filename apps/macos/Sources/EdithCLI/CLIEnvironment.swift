@@ -30,6 +30,9 @@ public enum CLIEnvironment {
         PermissionsStatus.usages
     }
 
+    nonisolated(unsafe) public static var homeDirectory: URL =
+        FileManager.default.homeDirectoryForCurrentUser
+
     nonisolated(unsafe) public static var runAppleScript:
         @Sendable (String, TimeInterval) throws -> String = {
             try AppleScriptHost.execute($0, timeout: $1)
@@ -49,6 +52,9 @@ public enum CLIEnvironment {
             ).isEmpty
         }
         deliver = { IPC.post($0, userInfo: $1) }
+        homeDirectory = FileManager.default.homeDirectoryForCurrentUser
+        ClipboardPaths.root = AppData.supportDir
+        ShelfIndex.root = AppData.supportDir.appendingPathComponent("Shelf")
         answer = nil
         permissionUsages = { PermissionsStatus.usages }
         runAppleScript = { try AppleScriptHost.execute($0, timeout: $1) }

@@ -25,6 +25,29 @@ enum JSONContract {
         JSONCase(
             "ed completions install", ["completions", "install", "--json"],
             mutatesTheMachine: true),
+        JSONCase("ed app actions", ["app", "actions", "--json"]),
+        JSONCase("ed app clean-keys", ["app", "clean-keys", "--json"]),
+        JSONCase("ed app test-notification", ["app", "test-notification", "--json"]),
+        JSONCase("ed app open", ["app", "open", "--json"]),
+        JSONCase("ed app quit", ["app", "quit", "--json"]),
+        JSONCase("ed app check-updates", ["app", "check-updates", "--json"]),
+        JSONCase("ed app updates", ["app", "updates", "--json"]),
+        JSONCase("ed clipboard ls", ["clipboard", "ls", "--json"]),
+        JSONCase("ed clipboard get", ["clipboard", "get", "1", "--json"]),
+        JSONCase("ed clipboard copy", ["clipboard", "copy", "1", "--json"]),
+        JSONCase("ed clipboard rm", ["clipboard", "rm", "1", "--json"]),
+        JSONCase("ed clipboard clear", ["clipboard", "clear", "--json"]),
+        JSONCase("ed color ls", ["color", "ls", "--json"]),
+        JSONCase("ed color clear", ["color", "clear", "--json"]),
+        JSONCase("ed shelf ls", ["shelf", "ls", "--json"]),
+        JSONCase("ed shelf path", ["shelf", "path", "1", "--json"]),
+        JSONCase("ed shelf add", ["shelf", "add", "/etc/hosts", "--json"]),
+        JSONCase("ed shelf rm", ["shelf", "rm", "1", "--json"]),
+        JSONCase("ed shelf clear", ["shelf", "clear", "--json"]),
+        JSONCase("ed cleaner scan", ["cleaner", "scan", "--json"]),
+        JSONCase("ed cleaner categories", ["cleaner", "categories", "--json"]),
+        JSONCase("ed cleaner clean", ["cleaner", "clean", "--json"]),
+        JSONCase("ed cleaner drives", ["cleaner", "drives", "--json"]),
         JSONCase("ed config ls", ["config", "ls", "--json"]),
         JSONCase("ed config get", ["config", "get", "preventSleep", "--json"]),
         JSONCase("ed config set", ["config", "set", "preventSleep", "true", "--json"]),
@@ -96,6 +119,24 @@ enum JSONContract {
         JSONCase(
             "ed machines docker rm",
             ["machines", "docker", "rm", "nowhere-at-all", "api", "--json"]),
+        JSONCase(
+            "ed machines docker prune",
+            ["machines", "docker", "prune", "nowhere-at-all", "system", "--json"]),
+        JSONCase(
+            "ed machines docker compose ls",
+            ["machines", "docker", "compose", "ls", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines docker compose up",
+            ["machines", "docker", "compose", "up", "nowhere-at-all", "web", "--json"]),
+        JSONCase(
+            "ed machines docker compose down",
+            ["machines", "docker", "compose", "down", "nowhere-at-all", "web", "--json"]),
+        JSONCase(
+            "ed machines docker compose restart",
+            ["machines", "docker", "compose", "restart", "nowhere-at-all", "web", "--json"]),
+        JSONCase(
+            "ed machines docker compose pull",
+            ["machines", "docker", "compose", "pull", "nowhere-at-all", "web", "--json"]),
     ]
 }
 

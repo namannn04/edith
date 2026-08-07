@@ -186,6 +186,7 @@ enum CommandCrawler {
             "ed permissions", "ed usage", "ed system", "ed music", "ed calendar",
             "ed machines", "ed __complete", "ed app", "ed clipboard", "ed color",
             "ed shelf", "ed cleaner", "ed machines docker compose",
+            "ed machines docker compose logs",
         ]
         for walk in Self.commands where !exempt.contains(walk.label) {
             #expect(

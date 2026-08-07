@@ -131,8 +131,10 @@ public enum Repo {
 }
 
 public enum ClipboardPaths {
+    nonisolated(unsafe) public static var root: URL = AppData.supportDir
+
     public static var dir: URL {
-        AppData.supportDir.appendingPathComponent("clipboard")
+        root.appendingPathComponent("clipboard")
     }
     public static var indexFile: URL {
         dir.appendingPathComponent("index.jsonl")

@@ -14,7 +14,8 @@ struct MachinesDockerCommand: AsyncParsableCommand {
             DockerPsCommand.self, DockerImagesCommand.self, DockerVolumesCommand.self,
             DockerNetworksCommand.self, DockerDiskUsageCommand.self, DockerLogsCommand.self,
             DockerInspectCommand.self, DockerStartCommand.self, DockerStopCommand.self,
-            DockerRestartCommand.self, DockerRemoveCommand.self,
+            DockerRestartCommand.self, DockerRemoveCommand.self, DockerPruneCommand.self,
+            DockerComposeCommand.self,
         ],
         defaultSubcommand: DockerPsCommand.self)
 }
@@ -354,4 +355,261 @@ struct DockerRemoveCommand: DockerLifecycleCommand {
     var container: String
 
     func run() async throws { try await apply() }
+}
+
+struct DockerPruneCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "prune",
+        abstract: "Reclaim space by removing unused docker objects.",
+        discussion: """
+            `what` is one of images, volumes, networks, builder or system. Nothing is
+            removed without --yes, and volumes hold data, so that one is spelled out
+            rather than folded into system.
+            """)
+
+    static let targets = ["images", "volumes", "networks", "builder", "system"]
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Flag(help: "Actually prune. Without it nothing is removed.")
+    var yes = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "images, volumes, networks, builder or system.")
+    var what: String = "system"
+
+    func run() async throws {
+        try await execute {
+            guard Self.targets.contains(what) else {
+                throw CLIFailure.notFound(
+                    "docker cannot prune \(what)",
+                    hint: "try: " + Self.targets.joined(separator: ", "))
+            }
+            let runner = try await DockerBridge.runner(machine)
+            guard yes else {
+                guard !json else {
+                    CLIOut.json(
+                        .object([
+                            "machine": .string(runner.machine.name),
+                            "target": .string(what),
+                            "applied": .bool(false),
+                            "command": .string(DockerCommands.prune(what)),
+                        ]))
+                    return
+                }
+                CLIOut.out("would run: \(DockerCommands.prune(what))")
+                CLIOut.note("pass --yes to do it")
+                return
+            }
+            let result = try await runner.run(DockerCommands.prune(what), timeout: 300)
+            guard result.succeeded else {
+                throw CLIFailure(
+                    "docker prune \(what) failed on \(runner.machine.name)",
+                    hint: result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(runner.machine.name),
+                        "target": .string(what),
+                        "applied": .bool(true),
+                        "output": .string(
+                            result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)),
+                    ]))
+                return
+            }
+            CLIOut.raw(result.stdoutText)
+        }
+    }
+}
+
+struct DockerComposeCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "compose",
+        abstract: "Compose projects on a machine.",
+        subcommands: [
+            ComposeListCommand.self, ComposeUpCommand.self, ComposeDownCommand.self,
+            ComposeRestartCommand.self, ComposePullCommand.self, ComposeLogsCommand.self,
+        ],
+        defaultSubcommand: ComposeListCommand.self)
+}
+
+enum ComposeBridge {
+    static func projects(_ runner: RemoteRunner) async throws -> [String] {
+        DockerParsing.composeProjects(
+            try await runner.text(DockerCommands.composeProjects(), timeout: 30))
+    }
+
+    static func require(_ runner: RemoteRunner, project: String) async throws {
+        let known = try await projects(runner)
+        guard known.contains(project) else {
+            throw CLIFailure.notFound(
+                "no compose project named \(project) on \(runner.machine.name)",
+                hint: known.isEmpty
+                    ? "run `ed machines \(runner.machine.name) docker compose ls` to look again"
+                    : "projects: " + known.joined(separator: ", "))
+        }
+    }
+}
+
+struct ComposeListCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "ls", abstract: "List compose projects.", aliases: ["list"])
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    func run() async throws {
+        try await execute {
+            let runner = try await DockerBridge.runner(machine)
+            let projects = try await ComposeBridge.projects(runner)
+            guard !json else {
+                CLIOut.json(.strings(projects))
+                return
+            }
+            guard !projects.isEmpty else {
+                CLIOut.note("no compose projects on \(runner.machine.name)")
+                return
+            }
+            for project in projects { CLIOut.out(project) }
+        }
+    }
+}
+
+protocol ComposeLifecycleCommand: AsyncParsableCommand {
+    static var action: String { get }
+    var json: Bool { get }
+    var machine: String { get }
+    var project: String { get }
+}
+
+extension ComposeLifecycleCommand {
+    func apply(timeout: TimeInterval = 300) async throws {
+        try await execute {
+            let action = Self.action
+            let runner = try await DockerBridge.runner(machine)
+            try await ComposeBridge.require(runner, project: project)
+            let result = try await runner.run(
+                DockerCommands.composeAction(action, project: project, directory: nil),
+                timeout: timeout)
+            guard result.succeeded else {
+                throw CLIFailure(
+                    "docker compose \(action) failed for \(project)",
+                    hint: result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(runner.machine.name),
+                        "project": .string(project),
+                        "action": .string(action),
+                    ]))
+                return
+            }
+            CLIOut.out("\(action) \(project)")
+        }
+    }
+}
+
+struct ComposeUpCommand: ComposeLifecycleCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "up", abstract: "Bring a compose project up in the background.")
+    static let action = "up -d"
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Compose project name.")
+    var project: String
+
+    func run() async throws { try await apply() }
+}
+
+struct ComposeDownCommand: ComposeLifecycleCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "down", abstract: "Take a compose project down.")
+    static let action = "down"
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Compose project name.")
+    var project: String
+
+    func run() async throws { try await apply() }
+}
+
+struct ComposeRestartCommand: ComposeLifecycleCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "restart", abstract: "Restart a compose project.")
+    static let action = "restart"
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Compose project name.")
+    var project: String
+
+    func run() async throws { try await apply() }
+}
+
+struct ComposePullCommand: ComposeLifecycleCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "pull", abstract: "Pull the images a compose project uses.")
+    static let action = "pull"
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Compose project name.")
+    var project: String
+
+    func run() async throws { try await apply(timeout: 900) }
+}
+
+struct ComposeLogsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "logs", abstract: "Logs for a whole compose project.")
+
+    @Option(help: "How many trailing lines to show.")
+    var tail: Int = 200
+
+    @Flag(name: [.long, .short], help: "Keep streaming.")
+    var follow = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Compose project name.")
+    var project: String
+
+    func run() async throws {
+        try await execute {
+            let tail = try ArgumentChecks.nonNegative(self.tail, "--tail")
+            let runner = try await DockerBridge.runner(machine)
+            try await ComposeBridge.require(runner, project: project)
+            let action = "logs --tail \(tail)" + (follow ? " -f" : "")
+            let status = await runner.passthrough(
+                DockerCommands.composeAction(action, project: project, directory: nil))
+            guard status == 0 else { throw ExitCode(status) }
+        }
+    }
 }

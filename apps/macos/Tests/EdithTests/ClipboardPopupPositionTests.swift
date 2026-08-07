@@ -161,35 +161,43 @@ import Testing
     }
 
     @Test func largeImageIsDownscaledToFitPreservingAspectRatio() async throws {
-        let (entry, blob) = try imageEntry(width: 800, height: 600)
-        defer { try? FileManager.default.removeItem(at: blob) }
-        let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
-        #expect(result.size.width <= ClipboardThumbnail.maxSize.width + 0.5)
-        #expect(result.size.height <= ClipboardThumbnail.maxSize.height + 0.5)
-        #expect(abs(result.size.width / result.size.height - 800.0 / 600.0) < 0.05)
+        try await CLIProbe.exclusive {
+            let (entry, blob) = try imageEntry(width: 800, height: 600)
+            defer { try? FileManager.default.removeItem(at: blob) }
+            let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
+            #expect(result.size.width <= ClipboardThumbnail.maxSize.width + 0.5)
+            #expect(result.size.height <= ClipboardThumbnail.maxSize.height + 0.5)
+            #expect(abs(result.size.width / result.size.height - 800.0 / 600.0) < 0.05)
+        }
     }
 
     @Test func smallImageIsNotUpscaled() async throws {
-        let (entry, blob) = try imageEntry(width: 100, height: 20)
-        defer { try? FileManager.default.removeItem(at: blob) }
-        let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
-        #expect(result.size.width == 100)
-        #expect(result.size.height == 20)
+        try await CLIProbe.exclusive {
+            let (entry, blob) = try imageEntry(width: 100, height: 20)
+            defer { try? FileManager.default.removeItem(at: blob) }
+            let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
+            #expect(result.size.width == 100)
+            #expect(result.size.height == 20)
+        }
     }
 
     @Test func wideImageConstrainsOnWidth() async throws {
-        let (entry, blob) = try imageEntry(width: 3400, height: 40)
-        defer { try? FileManager.default.removeItem(at: blob) }
-        let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
-        #expect(abs(result.size.width - ClipboardThumbnail.maxSize.width) < 0.5)
-        #expect(result.size.height < ClipboardThumbnail.maxSize.height)
+        try await CLIProbe.exclusive {
+            let (entry, blob) = try imageEntry(width: 3400, height: 40)
+            defer { try? FileManager.default.removeItem(at: blob) }
+            let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
+            #expect(abs(result.size.width - ClipboardThumbnail.maxSize.width) < 0.5)
+            #expect(result.size.height < ClipboardThumbnail.maxSize.height)
+        }
     }
 
     @Test func tallImageConstrainsOnHeight() async throws {
-        let (entry, blob) = try imageEntry(width: 34, height: 400)
-        defer { try? FileManager.default.removeItem(at: blob) }
-        let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
-        #expect(abs(result.size.height - ClipboardThumbnail.maxSize.height) < 0.5)
-        #expect(result.size.width < ClipboardThumbnail.maxSize.width)
+        try await CLIProbe.exclusive {
+            let (entry, blob) = try imageEntry(width: 34, height: 400)
+            defer { try? FileManager.default.removeItem(at: blob) }
+            let result = try #require(await ClipboardThumbnail.thumbnail(for: entry))
+            #expect(abs(result.size.height - ClipboardThumbnail.maxSize.height) < 0.5)
+            #expect(result.size.width < ClipboardThumbnail.maxSize.width)
+        }
     }
 }

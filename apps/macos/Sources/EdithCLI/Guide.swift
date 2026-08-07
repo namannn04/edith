@@ -84,27 +84,35 @@ public enum Guide {
 
         ```
         ed machines ls
-        ed machines show tuf
-        ed machines metrics tuf                 one sample
-        ed machines metrics tuf --follow        a sample every two seconds
-        ed machines exec tuf -- uptime
+        ed machines tuf                         one machine, with live facts
+        ed machines tuf metrics                 one sample
+        ed machines tuf metrics --follow        a sample every two seconds
+        ed machines tuf uptime                  run a command there
         ed tuf uptime                           the same thing, shorter
-        ed machines files ls tuf /var/log
-        ed machines files get tuf /etc/os-release ./os-release
-        ed machines files put tuf ./deploy.sh /tmp/deploy.sh
-        ed machines services tuf
-        ed machines disconnect tuf
+        ed machines tuf files ls /var/log
+        ed machines tuf files get /etc/os-release ./os-release
+        ed machines tuf files put ./deploy.sh /tmp/deploy.sh
+        ed machines tuf services
+        ed machines tuf disconnect
         ```
+
+        The machine name comes first, subject then verb. The older order with the
+        machine last still parses, so `ed machines docker ps tuf` keeps working. A
+        subcommand name always wins, so a machine literally called `ls` or `docker`
+        has to be named explicitly: `ed machines show docker`.
 
         Docker on a machine has both a parsed form and a raw form. The parsed form is
         for scripts, the raw form is for everything docker can do:
 
         ```
-        ed machines docker ps tuf --json        parsed, stable field names
-        ed machines docker images tuf
-        ed machines docker logs tuf api --tail 100 --follow
-        ed machines docker start|stop|restart|rm tuf api
-        ed tuf docker compose up -d             raw docker, straight through
+        ed machines tuf docker ps --json        parsed, stable field names
+        ed machines tuf docker images
+        ed machines tuf docker logs api --tail 100 --follow
+        ed machines tuf docker start|stop|restart|rm api
+        ed machines tuf docker prune images --yes
+        ed machines tuf docker compose ls
+        ed machines tuf docker compose up|down|restart|pull web
+        ed tuf docker buildx ls                 raw docker, straight through
         ```
 
         `ed <machine> <anything>` is the general escape hatch, and it is not limited to
@@ -155,6 +163,37 @@ public enum Guide {
         Calendar runs through the menu bar app, because the calendar grant lives there.
         If the app is not running those commands exit 4 and say so rather than
         pretending.
+
+        ## The desk
+
+        Everything the UI parks somewhere is readable, and most of it without the app
+        running, because it lives in files and preferences rather than in memory.
+
+        ```
+        ed clipboard ls                 the clipboard history, newest first
+        ed clipboard get 3              entry three, as text
+        ed clipboard copy 3             put it back on the pasteboard
+        ed clipboard rm 3 | clear
+        ed color ls --format hex        the colours you picked
+        ed shelf ls                     what is parked on the notch shelf
+        ed shelf add ./report.pdf
+        ed cleaner scan                 developer caches worth reclaiming
+        ed cleaner clean --yes          moves them to the Trash, never deletes
+        ```
+
+        ## One-shot actions
+
+        `ed config set` flips switches. These are verbs the app performs once:
+
+        ```
+        ed app actions                  what can be asked for, and whether it can run
+        ed app clean-keys               lock the keyboard so it can be wiped
+        ed app test-notification
+        ed app open                     open Edith's panel
+        ed app check-updates            ask Sparkle to look now
+        ed app updates                  the checks already made
+        ed app quit                     quit the main window, leave the menu bar
+        ```
 
         ## Completions
 

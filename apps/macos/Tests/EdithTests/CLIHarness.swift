@@ -46,12 +46,20 @@ final class CLIWorld: @unchecked Sendable {
     let suite: String
     let shared: UserDefaults
     let standard: UserDefaults
+    let sandbox: URL
     private(set) var posted: [(name: Notification.Name, info: [String: Any])] = []
     private(set) var scripts: [String] = []
     private let lock = NSLock()
 
     init(_ label: String = UUID().uuidString) {
         suite = "test.cli.\(label)"
+        sandbox = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ed-cli-world-\(label)")
+        try? FileManager.default.createDirectory(
+            at: sandbox, withIntermediateDirectories: true)
+        ClipboardPaths.root = sandbox
+        ShelfIndex.root = sandbox.appendingPathComponent("Shelf")
+        CLIEnvironment.homeDirectory = sandbox
         shared = UserDefaults(suiteName: suite)!
         standard = UserDefaults(suiteName: suite + ".standard")!
         shared.removePersistentDomain(forName: suite)
@@ -125,6 +133,7 @@ final class CLIWorld: @unchecked Sendable {
     }
 
     func tearDown() {
+        try? FileManager.default.removeItem(at: sandbox)
         shared.removePersistentDomain(forName: suite)
         standard.removePersistentDomain(forName: suite + ".standard")
         CLIEnvironment.reset()
@@ -149,6 +158,17 @@ enum CLIProbe {
             throw error
         }
         world.tearDown()
+        await CLIGate.shared.release()
+    }
+
+    static func exclusive(_ body: () async throws -> Void) async rethrows {
+        await CLIGate.shared.acquire()
+        do {
+            try await body()
+        } catch {
+            await CLIGate.shared.release()
+            throw error
+        }
         await CLIGate.shared.release()
     }
 

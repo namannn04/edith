@@ -60,6 +60,10 @@ public enum IPC {
             "com.pulkit.edith.musicRevealFolder")
         public static let presenterPauseAuto = Notification.Name(
             "com.pulkit.edith.presenterPauseAuto")
+        public static let requestUpdateCheck = Notification.Name(
+            "com.pulkit.edith.requestUpdateCheck")
+        public static let updateCheckFinished = Notification.Name(
+            "com.pulkit.edith.updateCheckFinished")
         public static let requestCalendarEvents = Notification.Name(
             "com.pulkit.edith.requestCalendarEvents")
         public static let calendarEvents = Notification.Name("com.pulkit.edith.calendarEvents")

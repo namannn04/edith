@@ -2,6 +2,12 @@ import Foundation
 
 public enum ArgumentKind: Equatable, Sendable {
     case machine
+    case appAction
+    case cleanerCategory
+    case colorFormat
+    case pruneTarget
+    case composeProject
+    case historyIndex
     case configKey
     case configValue
     case extensionID
@@ -90,6 +96,24 @@ public enum CommandTree {
                     CommandNode(
                         "import", "Apply a JSON document of settings.",
                         options: ["--json", "--dry-run"], arguments: [.localPath]),
+                ]),
+            CommandNode(
+                "app", "One-shot actions the Edith app performs.",
+                children: [
+                    CommandNode(
+                        "actions", "List the one-shot actions.", aliases: ["ls"],
+                        options: common),
+                    CommandNode("clean-keys", "Lock the keyboard for wiping.", options: common),
+                    CommandNode(
+                        "test-notification", "Send a test notification.", options: common),
+                    CommandNode("open", "Open Edith's panel.", options: common),
+                    CommandNode("quit", "Quit the Edith main window.", options: common),
+                    CommandNode(
+                        "check-updates", "Check for an update now.",
+                        options: ["--json", "--help", "--no-wait"]),
+                    CommandNode(
+                        "updates", "The update checks already made.",
+                        options: ["--json", "--help", "--limit"]),
                 ]),
             CommandNode(
                 "extensions", "Turn Edith's extensions on and off.",
@@ -181,6 +205,65 @@ public enum CommandTree {
                         options: ["--json", "--days"])
                 ]),
             CommandNode(
+                "clipboard", "The clipboard history Edith keeps.",
+                children: [
+                    CommandNode(
+                        "ls", "List the clipboard history.", aliases: ["list"],
+                        options: ["--json", "--help", "--pinned", "--limit"]),
+                    CommandNode(
+                        "get", "Print one entry as text.", options: common,
+                        arguments: [.historyIndex]),
+                    CommandNode(
+                        "copy", "Put one entry back on the pasteboard.",
+                        options: ["--json", "--help", "--plain"], arguments: [.historyIndex]),
+                    CommandNode(
+                        "rm", "Forget one entry.", options: ["--json"],
+                        arguments: [.historyIndex]),
+                    CommandNode(
+                        "clear", "Forget the whole history.",
+                        options: ["--json", "--help", "--keep-pinned"]),
+                ]),
+            CommandNode(
+                "color", "The colours picked with the colour picker.", aliases: ["colour"],
+                children: [
+                    CommandNode(
+                        "ls", "List picked colours.", aliases: ["list"],
+                        options: ["--json", "--help", "--format", "--limit"],
+                        arguments: [.colorFormat]),
+                    CommandNode("clear", "Forget every picked colour.", options: ["--json"]),
+                ]),
+            CommandNode(
+                "shelf", "The files parked on the notch shelf.",
+                children: [
+                    CommandNode(
+                        "ls", "List what is on the shelf.", aliases: ["list"], options: common),
+                    CommandNode(
+                        "path", "Print the path of one item.", options: common,
+                        arguments: [.historyIndex]),
+                    CommandNode(
+                        "add", "Copy a file onto the shelf.", options: ["--json"],
+                        arguments: [.localPath]),
+                    CommandNode(
+                        "rm", "Take one item off the shelf.", options: ["--json"],
+                        arguments: [.historyIndex]),
+                    CommandNode("clear", "Empty the shelf.", options: ["--json"]),
+                ]),
+            CommandNode(
+                "cleaner", "The developer caches the disk cleaner can reclaim.",
+                children: [
+                    CommandNode(
+                        "scan", "Measure what could be reclaimed.",
+                        options: ["--json", "--help", "--category"],
+                        arguments: [.cleanerCategory]),
+                    CommandNode(
+                        "categories", "The caches the cleaner knows.", aliases: ["ls"],
+                        options: common),
+                    CommandNode(
+                        "clean", "Move the scanned caches to the Trash.",
+                        options: ["--json", "--help", "--category", "--yes"]),
+                    CommandNode("drives", "The volumes the cleaner can scan.", options: common),
+                ]),
+            CommandNode(
                 "machines", "The computers Edith can reach over SSH.",
                 arguments: [.machine],
                 children: [
@@ -247,6 +330,34 @@ public enum CommandTree {
                             CommandNode(
                                 "rm", "Remove a container.", options: ["--json"],
                                 arguments: [.machine, .container]),
+                            CommandNode(
+                                "prune", "Reclaim space from unused objects.",
+                                options: ["--json", "--help", "--yes"],
+                                arguments: [.machine, .pruneTarget]),
+                            CommandNode(
+                                "compose", "Compose projects on a machine.",
+                                children: [
+                                    CommandNode(
+                                        "ls", "List compose projects.", aliases: ["list"],
+                                        options: common, arguments: [.machine]),
+                                    CommandNode(
+                                        "up", "Bring a project up.", options: ["--json"],
+                                        arguments: [.machine, .composeProject]),
+                                    CommandNode(
+                                        "down", "Take a project down.", options: ["--json"],
+                                        arguments: [.machine, .composeProject]),
+                                    CommandNode(
+                                        "restart", "Restart a project.", options: ["--json"],
+                                        arguments: [.machine, .composeProject]),
+                                    CommandNode(
+                                        "pull", "Pull a project's images.",
+                                        options: ["--json"],
+                                        arguments: [.machine, .composeProject]),
+                                    CommandNode(
+                                        "logs", "Logs for a whole project.",
+                                        options: ["--tail", "--follow", "--help"],
+                                        arguments: [.machine, .composeProject]),
+                                ]),
                         ]),
                     CommandNode(
                         "services", "systemd units on a machine.", options: ["--json", "--failed"],

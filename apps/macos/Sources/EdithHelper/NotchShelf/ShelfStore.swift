@@ -1,40 +1,12 @@
 import EdithKit
 import Foundation
 
-struct ShelfItem: Codable, Identifiable, Equatable {
-    let id: UUID
-    let name: String
-    let addedAt: Date
-    var position: CGPoint?
-}
-
-enum ShelfKeepDuration: String, CaseIterable {
-    case forever, oneHour, oneDay, oneWeek, oneMonth
-
-    var seconds: TimeInterval? {
-        switch self {
-        case .forever: return nil
-        case .oneHour: return 3600
-        case .oneDay: return 86400
-        case .oneWeek: return 604_800
-        case .oneMonth: return 2_592_000
-        }
-    }
-}
-
-enum ShelfExpiry {
-    static func isExpired(addedAt: Date, keep: ShelfKeepDuration, now: Date = Date()) -> Bool {
-        guard let seconds = keep.seconds else { return false }
-        return now.timeIntervalSince(addedAt) >= seconds
-    }
-}
-
 @MainActor
 final class ShelfStore {
     private(set) var items: [ShelfItem] = []
     private let root: URL
 
-    init(root: URL = AppData.supportDir.appendingPathComponent("Shelf")) {
+    init(root: URL = ShelfIndex.root) {
         self.root = root
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         migrateLegacyIndex()
@@ -42,7 +14,7 @@ final class ShelfStore {
         migrateLegacyFolders()
     }
 
-    private var indexURL: URL { root.appendingPathComponent(".index.json") }
+    private var indexURL: URL { ShelfIndex.indexFile(in: root) }
 
     private func migrateLegacyIndex() {
         let legacy = root.appendingPathComponent("index.json")
@@ -72,13 +44,11 @@ final class ShelfStore {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: indexURL) else { return }
-        items = (try? JSONDecoder().decode([ShelfItem].self, from: data)) ?? []
+        items = ShelfIndex.load(from: root)
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(items) else { return }
-        try? data.write(to: indexURL, options: .atomic)
+        ShelfIndex.save(items, to: root)
     }
 
     func fileURL(for item: ShelfItem) -> URL { root.appendingPathComponent(item.name) }

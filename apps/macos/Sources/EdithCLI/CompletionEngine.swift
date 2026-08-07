@@ -102,7 +102,12 @@ public enum CompletionEngine {
         case .shell: return ["zsh", "bash", "fish"]
         case .group: return ConfigCatalog.groups
         case .usageRange: return UsageRange.allCases.map(\.rawValue)
-        case .localPath, .remotePath, .container, .free: return []
+        case .appAction: return AppActions.all.map(\.name)
+        case .cleanerCategory: return JunkCatalog.entries.map(\.id)
+        case .colorFormat: return ColorCopyFormat.allCases.map(\.rawValue)
+        case .pruneTarget: return DockerPruneCommand.targets
+        case .localPath, .remotePath, .container, .composeProject, .historyIndex, .free:
+            return []
         }
     }
 

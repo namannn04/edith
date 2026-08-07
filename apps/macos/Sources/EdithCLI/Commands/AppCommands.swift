@@ -1,0 +1,262 @@
+import ArgumentParser
+import EdithKit
+import Foundation
+
+struct AppCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "app",
+        abstract: "One-shot actions the Edith app performs.",
+        discussion: """
+            These are verbs, not settings: things the app does once when asked, rather
+            than switches `ed config set` can flip. Each needs the app that owns it, so
+            they exit 4 and say which part is missing when it is not running.
+            """,
+        subcommands: [
+            AppActionsCommand.self, AppCleanKeysCommand.self, AppTestNotificationCommand.self,
+            AppOpenCommand.self, AppQuitCommand.self, AppCheckUpdatesCommand.self,
+            AppUpdatesCommand.self,
+        ],
+        defaultSubcommand: AppActionsCommand.self)
+}
+
+struct AppAction: Sendable {
+    let name: String
+    let summary: String
+    let needsMainApp: Bool
+}
+
+enum AppActions {
+    static let all: [AppAction] = [
+        AppAction(
+            name: "clean-keys", summary: "Lock the keyboard so it can be wiped.",
+            needsMainApp: false),
+        AppAction(
+            name: "test-notification", summary: "Send a test notification.",
+            needsMainApp: false),
+        AppAction(name: "open", summary: "Open the Edith panel.", needsMainApp: false),
+        AppAction(name: "quit", summary: "Quit the Edith main window.", needsMainApp: true),
+        AppAction(
+            name: "check-updates", summary: "Ask Sparkle to check for an update now.",
+            needsMainApp: true),
+    ]
+
+    static func require(_ action: AppAction) throws {
+        guard action.needsMainApp else {
+            try AppBridge.requireHelper(action.name)
+            return
+        }
+        try AppBridge.requireMainApp(action.name)
+    }
+
+    static func fire(_ action: AppAction, _ name: Notification.Name, json: Bool) async throws {
+        try require(action)
+        AppBridge.post(name)
+        guard !json else {
+            CLIOut.json(.object(["action": .string(action.name), "requested": .bool(true)]))
+            return
+        }
+        CLIOut.out("\(action.name) requested")
+    }
+
+    static func named(_ name: String) throws -> AppAction {
+        guard let found = all.first(where: { $0.name == name }) else {
+            throw CLIFailure.notFound(
+                "no app action named \(name)",
+                hint: "actions: " + all.map(\.name).joined(separator: ", "))
+        }
+        return found
+    }
+}
+
+struct AppActionsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "actions", abstract: "List the one-shot actions and whether they can run.",
+        aliases: ["ls"])
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            let helper = AppBridge.helperIsRunning
+            let main = AppBridge.mainAppIsRunning
+            guard !json else {
+                CLIOut.json(
+                    .array(
+                        AppActions.all.map { action in
+                            .object([
+                                "action": .string(action.name),
+                                "summary": .string(action.summary),
+                                "needs": .string(action.needsMainApp ? "mainApp" : "menuBar"),
+                                "available": .bool(action.needsMainApp ? main : helper),
+                            ])
+                        }))
+                return
+            }
+            let rows = AppActions.all.map { action in
+                [
+                    action.name, action.needsMainApp ? "main app" : "menu bar",
+                    (action.needsMainApp ? main : helper) ? "ready" : "app not running",
+                    action.summary,
+                ]
+            }
+            CLIOut.out(
+                TextTable.render(headers: ["ACTION", "NEEDS", "STATE", "WHAT"], rows: rows))
+        }
+    }
+}
+
+struct AppCleanKeysCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "clean-keys",
+        abstract: "Lock the keyboard so it can be wiped without typing.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            try await AppActions.fire(
+                AppActions.named("clean-keys"), IPC.Name.requestKeyboardClean, json: json)
+        }
+    }
+}
+
+struct AppTestNotificationCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "test-notification",
+        abstract: "Send the same test notification the settings pane sends.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            try await AppActions.fire(
+                AppActions.named("test-notification"), IPC.Name.requestTestNotification,
+                json: json)
+        }
+    }
+}
+
+struct AppOpenCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "open", abstract: "Open Edith's panel.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            try await AppActions.fire(
+                AppActions.named("open"), IPC.Name.openPanel, json: json)
+        }
+    }
+}
+
+struct AppQuitCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "quit",
+        abstract: "Quit the Edith main window, leaving the menu bar running.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            try await AppActions.fire(
+                AppActions.named("quit"), IPC.Name.quitMainApp, json: json)
+        }
+    }
+}
+
+struct AppCheckUpdatesCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "check-updates",
+        abstract: "Ask the running app to check for an update now.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Flag(help: "Return as soon as the request is sent.")
+    var noWait = false
+
+    func run() async throws {
+        try await execute {
+            let action = try AppActions.named("check-updates")
+            try AppActions.require(action)
+            let reply = await AppBridge.awaitReply(
+                IPC.Name.updateCheckFinished, timeout: noWait ? 0.1 : 60
+            ) {
+                AppBridge.post(IPC.Name.requestUpdateCheck)
+            }
+            guard let reply else {
+                guard noWait else {
+                    throw AppBridge.silence("the update check")
+                }
+                guard !json else {
+                    CLIOut.json(.object(["requested": .bool(true), "finished": .bool(false)]))
+                    return
+                }
+                CLIOut.out("update check requested")
+                return
+            }
+            let outcome = reply["outcome"] as? String ?? "unknown"
+            let version = reply["version"] as? String
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "requested": .bool(true), "finished": .bool(true),
+                        "outcome": .string(outcome), "version": .optional(version),
+                        "detail": .optional(reply["detail"] as? String),
+                    ]))
+                return
+            }
+            CLIOut.out(version.map { "\(outcome) \($0)" } ?? outcome)
+        }
+    }
+}
+
+struct AppUpdatesCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "updates", abstract: "The update checks Edith has already made.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(help: "Show at most this many checks.")
+    var limit: Int = 20
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            let records = Array(UpdateCheckLog.load().prefix(limit))
+            guard !json else {
+                CLIOut.json(
+                    .array(
+                        records.map { record in
+                            .object([
+                                "date": .date(record.date),
+                                "kind": .string(record.kind.rawValue),
+                                "outcome": .string(record.outcome.rawValue),
+                                "version": .optional(record.version),
+                                "detail": .optional(record.detail),
+                            ])
+                        }))
+                return
+            }
+            guard !records.isEmpty else {
+                CLIOut.note("no update checks recorded yet")
+                return
+            }
+            let rows = records.map { record in
+                [
+                    JSONSerializer.iso.string(from: record.date), record.kind.rawValue,
+                    record.outcome.rawValue, record.summary,
+                ]
+            }
+            CLIOut.out(
+                TextTable.render(headers: ["WHEN", "KIND", "OUTCOME", "WHAT"], rows: rows))
+        }
+    }
+}
