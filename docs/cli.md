@@ -410,6 +410,7 @@ ed tuf pwd                      /home/pulkit
 ed tuf cd Desktop
 ed tuf pwd                      /home/pulkit/Desktop
 ed tuf ls                       lists Desktop
+ed tuf cd -                     back to where you were before
 ed tuf cd                       back to the home directory
 ```
 

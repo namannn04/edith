@@ -263,16 +263,29 @@ struct MachinesExecCommand: AsyncParsableCommand {
     private func changeDirectory(
         to target: String?, from stored: String?, runner: RemoteRunner
     ) async throws {
+        var wanted = target
+        if wanted == MachineWorkingDirectory.previousMarker {
+            guard let back = MachineWorkingDirectory.loadPrevious(machineID: runner.machine.id)
+            else {
+                throw CLIFailure(
+                    "no previous directory for \(runner.machine.name) in this terminal")
+            }
+            wanted = back
+        }
         let result = try await runner.run(
-            MachineWorkingDirectory.resolveCommand(target: target, from: stored))
-        let resolved = result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard result.succeeded, !resolved.isEmpty else {
+            MachineWorkingDirectory.resolveCommand(target: wanted, from: stored))
+        guard result.succeeded,
+            let resolved = MachineWorkingDirectory.resolvedDirectory(fromOutput: result.stdoutText)
+        else {
             let detail = result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines)
             throw CLIFailure(
                 "cannot change to \(target ?? "the home directory") on \(runner.machine.name)",
                 hint: detail.isEmpty ? nil : detail)
         }
-        MachineWorkingDirectory.save(resolved, machineID: runner.machine.id)
+        let origin =
+            MachineWorkingDirectory.originDirectory(fromOutput: result.stdoutText) ?? stored
+        MachineWorkingDirectory.save(
+            resolved, previous: origin, machineID: runner.machine.id)
     }
 
     static func strippingSeparator(_ words: [String]) -> [String] {

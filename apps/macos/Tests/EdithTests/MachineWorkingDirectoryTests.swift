@@ -58,11 +58,13 @@ import Testing
     @Test func resolvesARelativeTargetAgainstTheCurrentDirectory() {
         #expect(
             MachineWorkingDirectory.resolveCommand(target: "Desktop", from: "/home/pulkit")
-                == "cd /home/pulkit 2>/dev/null; cd -- Desktop && pwd")
+                == "cd /home/pulkit 2>/dev/null; pwd; cd -- Desktop && pwd")
     }
 
     @Test func sendsABareChangeDirectoryHome() {
-        #expect(MachineWorkingDirectory.resolveCommand(target: nil, from: nil) == "cd && pwd")
+        #expect(
+            MachineWorkingDirectory.resolveCommand(target: nil, from: nil)
+                == "pwd; cd && pwd")
     }
 
     @Test func spotsAChangeDirectoryCommand() {
@@ -71,5 +73,40 @@ import Testing
         #expect(!MachineWorkingDirectory.isChangeDirectory(["cd", "a", "b"]))
         #expect(!MachineWorkingDirectory.isChangeDirectory(["ls"]))
         #expect(!MachineWorkingDirectory.isChangeDirectory(["cd Desktop && pwd"]))
+    }
+
+    @Test func keepsOnlyTheLastLineOfTheRemoteReply() {
+        #expect(
+            MachineWorkingDirectory.resolvedDirectory(fromOutput: "/home/pulkit\n/home/pulkit\n")
+                == "/home/pulkit")
+        #expect(MachineWorkingDirectory.resolvedDirectory(fromOutput: "  \n \n") == nil)
+        #expect(MachineWorkingDirectory.resolvedDirectory(fromOutput: "") == nil)
+    }
+
+    @Test func remembersTheDirectoryItCameFrom() {
+        MachineWorkingDirectory.save(
+            "/home/pulkit/Desktop", previous: "/home/pulkit", machineID: machine,
+            session: "ttys003")
+        defer { MachineWorkingDirectory.clear(machineID: machine, session: "ttys003") }
+        #expect(
+            MachineWorkingDirectory.load(machineID: machine, session: "ttys003")
+                == "/home/pulkit/Desktop")
+        #expect(
+            MachineWorkingDirectory.loadPrevious(machineID: machine, session: "ttys003")
+                == "/home/pulkit")
+    }
+
+    @Test func hasNoPreviousDirectoryUntilItMovesTwice() {
+        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys004")
+        defer { MachineWorkingDirectory.clear(machineID: machine, session: "ttys004") }
+        #expect(MachineWorkingDirectory.loadPrevious(machineID: machine, session: "ttys004") == nil)
+    }
+
+    @Test func readsWhereTheMoveStartedFromTheFirstLine() {
+        let reply = "/home/pulkit\n/home/pulkit/Desktop\n"
+        #expect(MachineWorkingDirectory.originDirectory(fromOutput: reply) == "/home/pulkit")
+        #expect(
+            MachineWorkingDirectory.resolvedDirectory(fromOutput: reply)
+                == "/home/pulkit/Desktop")
     }
 }
