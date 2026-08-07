@@ -213,9 +213,7 @@ struct MusicVolumeCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            guard (0...1).contains(level) else {
-                throw CLIFailure("volume must be between 0 and 1")
-            }
+            let level = try ArgumentChecks.fraction(self.level, "volume")
             try await MusicVerb.act(.volume(level), forced: choice.resolved(), json: json)
         }
     }

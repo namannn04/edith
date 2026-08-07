@@ -223,6 +223,7 @@ struct DockerLogsCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
+            let tail = try ArgumentChecks.nonNegative(self.tail, "--tail")
             let runner = try await DockerBridge.runner(machine)
             let status = await runner.passthrough(
                 DockerCommands.logs(container, tail: tail, follow: follow))

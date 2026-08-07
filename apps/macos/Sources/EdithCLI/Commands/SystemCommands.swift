@@ -28,6 +28,8 @@ struct SystemStatsCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
+            let interval = try ArgumentChecks.positive(self.interval, "--interval")
+            let processes = try ArgumentChecks.nonNegative(self.processes, "--processes")
             let sampler = LocalMachineSampler()
             let hello = sampler.hello()
             _ = await sampler.sample()

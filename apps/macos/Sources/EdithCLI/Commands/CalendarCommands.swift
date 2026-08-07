@@ -28,6 +28,7 @@ struct CalendarListCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
+            let days = try ArgumentChecks.nonNegative(self.days, "--days")
             try AppBridge.requireHelper("reading the calendar")
             guard
                 let reply = await AppBridge.awaitReply(

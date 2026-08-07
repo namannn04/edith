@@ -32,6 +32,36 @@ public struct CLIFailure: Error, CustomStringConvertible, Equatable {
     }
 }
 
+public enum ArgumentChecks {
+    public static func nonNegative(_ value: Int, _ name: String) throws -> Int {
+        guard value >= 0 else {
+            throw CLIFailure("\(name) cannot be negative", hint: "pass 0 or more")
+        }
+        return value
+    }
+
+    public static func positive(_ value: Int, _ name: String) throws -> Int {
+        guard value > 0 else {
+            throw CLIFailure("\(name) must be greater than zero")
+        }
+        return value
+    }
+
+    public static func positive(_ value: Double, _ name: String) throws -> Double {
+        guard value > 0, value.isFinite else {
+            throw CLIFailure("\(name) must be greater than zero")
+        }
+        return value
+    }
+
+    public static func fraction(_ value: Double, _ name: String) throws -> Double {
+        guard (0...1).contains(value) else {
+            throw CLIFailure("\(name) must be between 0 and 1")
+        }
+        return value
+    }
+}
+
 public enum CLIOut {
     nonisolated(unsafe) static var stdoutHandle = FileHandle.standardOutput
     nonisolated(unsafe) static var stderrHandle = FileHandle.standardError

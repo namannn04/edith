@@ -205,8 +205,12 @@ struct UsageProjectsCommand: AsyncParsableCommand {
     func run() async throws {
         try await execute {
             guard let value = UsageRange(rawValue: range.lowercased()) else {
-                throw CLIFailure.notFound("no range named \(range)")
+                throw CLIFailure.notFound(
+                    "no range named \(range)",
+                    hint: "ranges: "
+                        + UsageRange.allCases.map(\.rawValue).joined(separator: ", "))
             }
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
             let document = try UsageDocument.load()
             let projects = UsageAnalysis.byProject(UsageAnalysis.days(document, range: value))
                 .prefix(limit)

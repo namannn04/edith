@@ -55,6 +55,21 @@ public enum ExitCodes {
     public static let notFound: Int32 = 3
     public static let unavailable: Int32 = 4
 
+    public static func report(_ error: Error) {
+        if let failure = error as? CLIFailure {
+            CLIOut.report(failure)
+            return
+        }
+        if error is ExitCode { return }
+        let message = EdRoot.fullMessage(for: error)
+        guard !message.isEmpty else { return }
+        guard EdRoot.exitCode(for: error) == .success else {
+            CLIOut.note(message)
+            return
+        }
+        CLIOut.out(EdRoot.message(for: error))
+    }
+
     public static func code(for error: Error) -> Int32 {
         if let exit = error as? ExitCode { return exit.rawValue }
         if let failure = error as? CLIFailure { return failure.kind.rawValue }
@@ -76,10 +91,8 @@ public enum EdithCLIMain {
                 try command.run()
             }
         } catch {
-            let code = ExitCodes.code(for: error)
-            guard code == ExitCodes.usage else { EdRoot.exit(withError: error) }
-            CLIOut.note(EdRoot.fullMessage(for: error))
-            exit(code)
+            ExitCodes.report(error)
+            exit(ExitCodes.code(for: error))
         }
     }
 }
