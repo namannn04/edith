@@ -18,28 +18,33 @@ public enum ArgumentKind: Equatable, Sendable {
 public struct CommandNode: Equatable, Sendable {
     public let name: String
     public let summary: String
+    public let aliases: [String]
     public let options: [String]
     public let arguments: [ArgumentKind]
     public let children: [CommandNode]
 
     public init(
-        _ name: String, _ summary: String, options: [String] = [],
+        _ name: String, _ summary: String, aliases: [String] = [], options: [String] = [],
         arguments: [ArgumentKind] = [], children: [CommandNode] = []
     ) {
         self.name = name
         self.summary = summary
+        self.aliases = aliases
         self.options = options
         self.arguments = arguments
         self.children = children
     }
 
+    public var names: [String] { [name] + aliases }
+
     public func child(_ name: String) -> CommandNode? {
-        children.first { $0.name == name }
+        children.first { $0.names.contains(name) }
     }
 }
 
 public enum CommandTree {
     public static let common = ["--json", "--help"]
+    public static let playback = ["--json", "--help", "--player"]
 
     public static let root = CommandNode(
         "ed", "The command line for Edith.", options: ["--help", "--version"],
@@ -141,17 +146,25 @@ public enum CommandTree {
                     CommandNode("disks", "Mounted volumes and their free space.", options: common),
                 ]),
             CommandNode(
-                "music", "What is playing, and playback control.",
+                "music", "Whatever is playing, and playback control.",
+                aliases: ["nowplaying", "np"], options: playback,
                 children: [
-                    CommandNode("status", "What is playing right now.", options: common),
-                    CommandNode("play", "Resume playback.", options: ["--json"]),
-                    CommandNode("pause", "Pause playback.", options: ["--json"]),
-                    CommandNode("toggle", "Toggle play and pause.", options: ["--json"]),
-                    CommandNode("next", "Skip to the next track.", options: ["--json"]),
-                    CommandNode("previous", "Go back to the previous track.", options: ["--json"]),
                     CommandNode(
-                        "volume", "Set the player volume from 0 to 1.",
-                        options: ["--json"]),
+                        "status", "What is playing right now.", options: playback,
+                        arguments: []),
+                    CommandNode("players", "Every player, and which is active.", options: common),
+                    CommandNode("play", "Resume playback.", options: playback),
+                    CommandNode("pause", "Pause playback.", options: playback),
+                    CommandNode("stop", "Stop playback and reset the position.", options: playback),
+                    CommandNode(
+                        "toggle", "Toggle play and pause.", aliases: ["playpause"],
+                        options: playback),
+                    CommandNode("next", "Skip to the next track.", options: playback),
+                    CommandNode(
+                        "previous", "Go back to the previous track.", aliases: ["prev"],
+                        options: playback),
+                    CommandNode(
+                        "volume", "Set the player volume from 0 to 1.", options: playback),
                 ]),
             CommandNode(
                 "calendar", "Your schedule.",
@@ -236,7 +249,7 @@ public enum CommandTree {
         ])
 
     public static var topLevelNames: [String] {
-        root.children.map(\.name)
+        root.children.flatMap(\.names)
     }
 
     public static func node(at path: [String]) -> CommandNode? {

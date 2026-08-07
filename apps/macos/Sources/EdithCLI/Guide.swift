@@ -136,17 +136,25 @@ public enum Guide {
         ed system stats                 one sample of this Mac
         ed system stats --follow        keep sampling
         ed system disks
-        ed music status
-        ed music play|pause|next|previous
+        ed music status                 whatever is playing, on whichever player
+        ed music play|pause|stop|toggle|next|previous
         ed music volume 0.4
+        ed music players                every player, and which one is active
         ed calendar ls --days 7
         ed permissions ls
         ed permissions request calendar
         ```
 
-        Music and calendar run through the menu bar app, because the playback engine
-        and the calendar grant both live there. If the app is not running those
-        commands exit 4 and say so rather than pretending.
+        `ed music` targets whatever is actually playing. Spotify and Apple Music are
+        driven straight over AppleScript, so they work whether or not Edith is running;
+        Edith's own library is driven through the menu bar app. A player that is not
+        already open is never launched. Pass `--player builtin|spotify|apple` to force
+        one, and `ed music status --json` reports every player it can see plus the
+        active one. `ed nowplaying` and `ed np` are the same command.
+
+        Calendar runs through the menu bar app, because the calendar grant lives there.
+        If the app is not running those commands exit 4 and say so rather than
+        pretending.
 
         ## Completions
 
