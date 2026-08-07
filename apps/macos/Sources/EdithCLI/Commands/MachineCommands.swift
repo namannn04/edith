@@ -247,10 +247,32 @@ struct MachinesExecCommand: AsyncParsableCommand {
                 throw CLIFailure("name a command to run, for example `ed \(machine) uptime`")
             }
             let runner = try await MachineResolver.runner(machine)
+            let stored = MachineWorkingDirectory.load(machineID: runner.machine.id)
+            guard !MachineWorkingDirectory.isChangeDirectory(words) else {
+                try await changeDirectory(
+                    to: words.count == 2 ? words[1] : nil, from: stored, runner: runner)
+                return
+            }
             let line = words.count == 1 ? words[0] : ShellQuote.command(words)
-            let status = await runner.passthrough(line)
+            let status = await runner.passthrough(
+                MachineWorkingDirectory.prefixed(line, directory: stored))
             guard status == 0 else { throw ExitCode(status) }
         }
+    }
+
+    private func changeDirectory(
+        to target: String?, from stored: String?, runner: RemoteRunner
+    ) async throws {
+        let result = try await runner.run(
+            MachineWorkingDirectory.resolveCommand(target: target, from: stored))
+        let resolved = result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard result.succeeded, !resolved.isEmpty else {
+            let detail = result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw CLIFailure(
+                "cannot change to \(target ?? "the home directory") on \(runner.machine.name)",
+                hint: detail.isEmpty ? nil : detail)
+        }
+        MachineWorkingDirectory.save(resolved, machineID: runner.machine.id)
     }
 
     static func strippingSeparator(_ words: [String]) -> [String] {
