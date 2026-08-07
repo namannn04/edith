@@ -7,12 +7,20 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
         .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.15.0"),
-        .package(url: "https://github.com/smittytone/HighlighterSwift", from: "3.1.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [
         .target(
             name: "EdithKit",
+            resources: [.process("Resources")],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .target(
+            name: "Highlighter",
+            dependencies: ["EdithKit"],
+            path: "Vendor/Highlighter",
+            exclude: ["LICENCE.md"],
+            sources: ["Sources"],
             resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
@@ -40,7 +48,7 @@ let package = Package(
                 "EdithKit",
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
-                .product(name: "Highlighter", package: "HighlighterSwift"),
+                "Highlighter",
             ],
             resources: [.copy("Resources/appicon.png")],
             swiftSettings: [.swiftLanguageMode(.v5)],

@@ -25,6 +25,21 @@ public enum BundledResources {
         return nil
     }
 
+    public static func bundle(
+        named name: String, directories: [URL] = searchDirectories(),
+        fileManager: FileManager = .default
+    ) -> Bundle? {
+        for directory in directories {
+            let candidate = directory.appendingPathComponent("\(name).bundle")
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
+                isDirectory.boolValue, let found = Bundle(url: candidate)
+            else { continue }
+            return found
+        }
+        return nil
+    }
+
     public static func ownerBundle() -> Bundle { Bundle(for: BundleToken.self) }
 
     public static func searchDirectories(
