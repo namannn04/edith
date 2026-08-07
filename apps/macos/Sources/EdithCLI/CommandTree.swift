@@ -54,9 +54,13 @@ public enum CommandTree {
             CommandNode("version", "Print the Edith CLI version.", options: common),
             CommandNode(
                 "completions", "Generate or install shell completions.",
-                arguments: [.shell],
                 children: [
-                    CommandNode("install", "Install completions for the detected shells.")
+                    CommandNode(
+                        "install", "Install completions for the detected shells.",
+                        options: ["--json", "--shell"], arguments: [.shell]),
+                    CommandNode("zsh", "Print the zsh completion script."),
+                    CommandNode("bash", "Print the bash completion script."),
+                    CommandNode("fish", "Print the fish completion script."),
                 ]),
             CommandNode(
                 "install", "Link ed, edh and edith into a directory on PATH.",
@@ -67,7 +71,7 @@ public enum CommandTree {
                 "config", "Read and write every setting the UI exposes.",
                 children: [
                     CommandNode(
-                        "ls", "List settings and their current values.",
+                        "ls", "List settings and their current values.", aliases: ["list"],
                         options: ["--json", "--group", "--changed"], arguments: [.group]),
                     CommandNode(
                         "get", "Print one setting.", options: common, arguments: [.configKey]),
@@ -90,7 +94,8 @@ public enum CommandTree {
             CommandNode(
                 "extensions", "Turn Edith's extensions on and off.",
                 children: [
-                    CommandNode("ls", "List extensions.", options: common),
+                    CommandNode(
+                        "ls", "List extensions.", aliases: ["list"], options: common),
                     CommandNode(
                         "enable", "Turn an extension on.", options: ["--json"],
                         arguments: [.extensionID]),
@@ -104,7 +109,9 @@ public enum CommandTree {
             CommandNode(
                 "permissions", "Inspect and request Edith's macOS permissions.",
                 children: [
-                    CommandNode("ls", "List permissions.", options: common),
+                    CommandNode(
+                        "ls", "List permissions.", aliases: ["list"],
+                        options: ["--json", "--help", "--attention"]),
                     CommandNode(
                         "request", "Ask the app to request a permission.", options: ["--json"],
                         arguments: [.permission]),
@@ -169,12 +176,16 @@ public enum CommandTree {
             CommandNode(
                 "calendar", "Your schedule.",
                 children: [
-                    CommandNode("ls", "Upcoming events.", options: ["--json", "--days"])
+                    CommandNode(
+                        "ls", "Upcoming events.", aliases: ["list"],
+                        options: ["--json", "--days"])
                 ]),
             CommandNode(
                 "machines", "The computers Edith can reach over SSH.",
+                arguments: [.machine],
                 children: [
-                    CommandNode("ls", "List configured machines.", options: common),
+                    CommandNode(
+                        "ls", "List configured machines.", aliases: ["list"], options: common),
                     CommandNode(
                         "show", "One machine, with live facts.", options: common,
                         arguments: [.machine]),
@@ -183,13 +194,14 @@ public enum CommandTree {
                         options: ["--json", "--follow", "--interval", "--processes"],
                         arguments: [.machine]),
                     CommandNode(
-                        "exec", "Run a command on a machine.", options: ["--json"],
+                        "exec", "Run a command on a machine.", aliases: ["run"],
                         arguments: [.machine, .free]),
                     CommandNode(
                         "files", "Browse and transfer files.",
                         children: [
                             CommandNode(
-                                "ls", "List a remote directory.", options: common,
+                                "ls", "List a remote directory.", aliases: ["list"],
+                                options: ["--json", "--help", "--all"],
                                 arguments: [.machine, .remotePath]),
                             CommandNode(
                                 "get", "Download a file.", options: ["--json"],
@@ -221,7 +233,7 @@ public enum CommandTree {
                                 options: ["--tail", "--follow"],
                                 arguments: [.machine, .container]),
                             CommandNode(
-                                "inspect", "Raw inspect output.", options: ["--json"],
+                                "inspect", "Raw inspect output.",
                                 arguments: [.machine, .container]),
                             CommandNode(
                                 "start", "Start a container.", options: ["--json"],

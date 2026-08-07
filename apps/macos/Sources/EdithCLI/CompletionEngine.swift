@@ -47,7 +47,7 @@ public enum CompletionEngine {
         _ request: CompletionRequest, machines: [String], configKeys: [String],
         extensionIDs: [String]
     ) -> CompletionResult {
-        let leading = request.leading
+        let leading = ArgumentRewriting.completionOrder(request.leading)
         let prefix = request.current
         if let first = leading.first, CommandTree.root.child(first) == nil,
             machines.contains(where: { $0.lowercased() == first.lowercased() })

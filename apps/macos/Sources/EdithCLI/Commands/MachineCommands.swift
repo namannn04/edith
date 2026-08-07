@@ -11,8 +11,13 @@ struct MachinesCommand: AsyncParsableCommand {
             ControlMaster socket shared with the app, so a command lands on an already
             open channel whenever the app or an earlier `ed` call opened one.
 
-            `ed <machine> <command...>` is shorthand for `ed machines exec <machine> --
-            <command...>`.
+            The machine name comes first, subject then verb: `ed machines tuf docker ps`,
+            `ed machines tuf files ls /etc`, `ed machines tuf uptime`. The older form with
+            the machine last, `ed machines docker ps tuf`, still works. A subcommand name
+            always wins, so a machine literally called `docker` or `ls` has to be named
+            explicitly: `ed machines show docker`.
+
+            `ed <machine> <command...>` is shorthand for `ed machines <machine> <command...>`.
             """,
         subcommands: [
             MachinesListCommand.self, MachinesShowCommand.self, MachinesMetricsCommand.self,
@@ -25,7 +30,15 @@ struct MachinesCommand: AsyncParsableCommand {
 
 enum MachineResolver {
     static func machine(_ query: String) throws -> Machine {
-        try MachineDirectory.resolve(query, in: MachineDirectory.load())
+        do {
+            return try MachineDirectory.resolve(query, in: MachineDirectory.load())
+        } catch let failure as CLIFailure where failure.kind == .notFound {
+            let verbs = ArgumentRewriting.machineSubcommands.sorted().joined(separator: ", ")
+            throw CLIFailure.notFound(
+                failure.message,
+                hint: [failure.hint, "machines subcommands: " + verbs]
+                    .compactMap { $0 }.joined(separator: "; "))
+        }
     }
 
     static func runner(_ query: String) async throws -> RemoteRunner {
@@ -128,6 +141,8 @@ struct MachinesMetricsCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
+            let interval = try ArgumentChecks.positive(self.interval, "--interval")
+            let processes = try ArgumentChecks.nonNegative(self.processes, "--processes")
             let runner = try await MachineResolver.runner(machine)
             guard let script = MachineCollector.script() else {
                 throw CLIFailure("the metrics collector is missing from this build")

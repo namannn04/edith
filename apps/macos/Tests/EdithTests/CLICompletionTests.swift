@@ -66,6 +66,25 @@ import Testing
         #expect(result.candidates.contains("tuf"))
     }
 
+    @Test func machinesOffersBothItsVerbsAndTheMachineNames() {
+        let result = Self.plan(["ed", "machines", ""], 2)
+        #expect(result.candidates.contains("ls"))
+        #expect(result.candidates.contains("docker"))
+        #expect(result.candidates.contains("tuf"))
+    }
+
+    @Test func aMachineNamedFirstStillCompletesTheVerbsAfterIt() {
+        let result = Self.plan(["ed", "machines", "tuf", ""], 3)
+        #expect(result.candidates.contains("docker"))
+        #expect(result.candidates.contains("files"))
+    }
+
+    @Test func aMachineNamedFirstCompletesNestedVerbsToo() {
+        let result = Self.plan(["ed", "machines", "tuf", "docker", ""], 4)
+        #expect(result.candidates.contains("ps"))
+        #expect(result.candidates.contains("logs"))
+    }
+
     @Test func flagsCompleteWhenTheWordStartsWithADash() {
         let result = Self.plan(["ed", "machines", "ls", "--j"], 3)
         #expect(result.candidates == ["--json"])
@@ -161,6 +180,103 @@ import Testing
     @Test func theSeparatorIsStrippedBeforeTheCommandReachesSSH() {
         #expect(MachinesExecCommand.strippingSeparator(["--", "ls", "-la"]) == ["ls", "-la"])
         #expect(MachinesExecCommand.strippingSeparator(["ls", "-la"]) == ["ls", "-la"])
+    }
+
+    @Test func aBareMachineNameWithOnlyFlagsShowsTheMachine() {
+        #expect(
+            ArgumentRewriting.rewrite(["tuf", "--json"], machines: Self.machines)
+                == ["machines", "show", "tuf", "--json"])
+    }
+}
+
+@Suite struct MachineFirstOrderTests {
+    static let machines = ["Asus TUF 7", "tuf"]
+
+    static func rewrite(_ words: [String]) -> [String] {
+        ArgumentRewriting.rewrite(words, machines: machines)
+    }
+
+    @Test func theMachineNameMayComeFirstUnderMachines() {
+        #expect(
+            Self.rewrite(["machines", "tuf", "docker", "ps"])
+                == ["machines", "docker", "ps", "tuf"])
+        #expect(
+            Self.rewrite(["machines", "tuf", "metrics"]) == ["machines", "metrics", "tuf"])
+        #expect(
+            Self.rewrite(["machines", "tuf", "services", "--failed"])
+                == ["machines", "services", "tuf", "--failed"])
+    }
+
+    @Test func aNestedSubcommandKeepsItsWholePathBeforeTheMachine() {
+        #expect(
+            Self.rewrite(["machines", "tuf", "files", "ls", "/etc"])
+                == ["machines", "files", "ls", "tuf", "/etc"])
+        #expect(
+            Self.rewrite(["machines", "tuf", "docker", "logs", "api", "--tail", "5"])
+                == ["machines", "docker", "logs", "tuf", "api", "--tail", "5"])
+    }
+
+    @Test func theOldMachineLastOrderStillParsesUntouched() {
+        for words in [
+            ["machines", "docker", "ps", "tuf"], ["machines", "files", "ls", "tuf", "/etc"],
+            ["machines", "show", "tuf"], ["machines", "ls"],
+        ] {
+            #expect(Self.rewrite(words) == words)
+        }
+    }
+
+    @Test func aMachineNameAloneUnderMachinesShowsIt() {
+        #expect(Self.rewrite(["machines", "tuf"]) == ["machines", "show", "tuf"])
+        #expect(
+            Self.rewrite(["machines", "tuf", "--json"])
+                == ["machines", "show", "tuf", "--json"])
+    }
+
+    @Test func aFreeCommandAfterTheMachineBecomesAnExec() {
+        #expect(
+            Self.rewrite(["machines", "tuf", "uptime"])
+                == ["machines", "exec", "tuf", "--", "uptime"])
+        #expect(
+            Self.rewrite(["machines", "tuf", "exec", "uptime"])
+                == ["machines", "exec", "tuf", "--", "uptime"])
+        #expect(
+            Self.rewrite(["machines", "tuf", "run", "ls", "-la"])
+                == ["machines", "run", "tuf", "--", "ls", "-la"])
+    }
+
+    @Test func anUnknownMachineIsStillMovedSoTheErrorNamesIt() {
+        #expect(
+            Self.rewrite(["machines", "typo", "docker", "ps"])
+                == ["machines", "docker", "ps", "typo"])
+        #expect(Self.rewrite(["machines", "lss"]) == ["machines", "show", "lss"])
+    }
+
+    @Test func aSubcommandNameAlwaysWinsOverAMachineCalledTheSame() {
+        let colliding = ["ls", "docker", "exec"]
+        #expect(
+            ArgumentRewriting.rewrite(["machines", "ls"], machines: colliding) == [
+                "machines", "ls",
+            ])
+        #expect(
+            ArgumentRewriting.rewrite(["machines", "docker", "ps", "ls"], machines: colliding)
+                == ["machines", "docker", "ps", "ls"])
+        #expect(
+            ArgumentRewriting.rewrite(["machines", "show", "docker"], machines: colliding)
+                == ["machines", "show", "docker"])
+    }
+
+    @Test func aFlagStraightAfterMachinesIsNeverAMachineName() {
+        #expect(Self.rewrite(["machines", "--help"]) == ["machines", "--help"])
+        #expect(Self.rewrite(["machines"]) == ["machines"])
+    }
+
+    @Test func completionSeesTheSameOrderTheParserWill() {
+        #expect(
+            ArgumentRewriting.completionOrder(["machines", "tuf", "docker"])
+                == ["machines", "docker", "tuf"])
+        #expect(ArgumentRewriting.completionOrder(["machines", "tuf"]) == ["machines", "tuf"])
+        #expect(ArgumentRewriting.completionOrder(["machines"]) == ["machines"])
+        #expect(ArgumentRewriting.completionOrder(["config", "set"]) == ["config", "set"])
     }
 }
 
