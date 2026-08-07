@@ -194,7 +194,7 @@ import Testing
     }
 
     @Test func everyShellScriptDrivesTheHiddenCompletionCommand() {
-        for shell in EdithCLI.CompletionShell.allCases {
+        for shell in EdithKit.CompletionScripts.Shell.allCases {
             let script = CompletionScripts.script(for: shell)
             #expect(script.contains("__complete"))
             #expect(!script.isEmpty)

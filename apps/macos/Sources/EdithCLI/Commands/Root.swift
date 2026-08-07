@@ -206,9 +206,9 @@ struct CompletionsInstallCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            let shells: [CompletionShell]
+            let shells: [CompletionScripts.Shell]
             if let shell {
-                guard let value = CompletionShell(rawValue: shell.lowercased()) else {
+                guard let value = CompletionScripts.Shell(rawValue: shell.lowercased()) else {
                     throw CLIFailure.notFound("\(shell) is not a supported shell")
                 }
                 shells = [value]
