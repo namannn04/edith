@@ -132,7 +132,7 @@ import Testing
     }
 
     @Test func completionScriptsCoverEveryShellAndNameEveryAlias() {
-        for shell in CompletionShell.allCases {
+        for shell in CompletionScripts.Shell.allCases {
             let script = CompletionScripts.script(for: shell)
             #expect(script.contains("ed"))
             #expect(script.contains("edith"))
