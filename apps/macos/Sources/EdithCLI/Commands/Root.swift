@@ -48,12 +48,39 @@ public struct EdRoot: AsyncParsableCommand {
     public init() {}
 }
 
+public enum ExitCodes {
+    public static let success: Int32 = 0
+    public static let failure: Int32 = 1
+    public static let usage: Int32 = 2
+    public static let notFound: Int32 = 3
+    public static let unavailable: Int32 = 4
+
+    public static func code(for error: Error) -> Int32 {
+        if let exit = error as? ExitCode { return exit.rawValue }
+        if let failure = error as? CLIFailure { return failure.kind.rawValue }
+        let resolved = EdRoot.exitCode(for: error).rawValue
+        return resolved == ExitCode.validationFailure.rawValue ? usage : resolved
+    }
+}
+
 public enum EdithCLIMain {
     public static func run() async {
         let raw = Array(CommandLine.arguments.dropFirst())
         let machines = MachineDirectory.names(from: MachineDirectory.load())
         let arguments = ArgumentRewriting.rewrite(raw, machines: machines)
-        await EdRoot.main(arguments)
+        do {
+            var command = try EdRoot.parseAsRoot(arguments)
+            if var runnable = command as? AsyncParsableCommand {
+                try await runnable.run()
+            } else {
+                try command.run()
+            }
+        } catch {
+            let code = ExitCodes.code(for: error)
+            guard code == ExitCodes.usage else { EdRoot.exit(withError: error) }
+            CLIOut.note(EdRoot.fullMessage(for: error))
+            exit(code)
+        }
     }
 }
 
