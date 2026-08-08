@@ -6,6 +6,9 @@ import Testing
 @Suite struct MachineWorkingDirectoryTests {
     private let machine = UUID(uuidString: "4303DCF1-52AA-4BBB-8CCC-9DDDEEEFFF00")!
 
+    private let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ed-cwd-\(UUID().uuidString)")
+
     @Test func namesASessionAfterItsTerminal() {
         #expect(MachineWorkingDirectory.sanitize("/dev/ttys004") == "ttys004")
         #expect(MachineWorkingDirectory.sanitize("/dev/pts/3") == "pts-3")
@@ -17,26 +20,32 @@ import Testing
     }
 
     @Test func keepsEachTerminalSeparate() {
-        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys009")
-        MachineWorkingDirectory.save("/var", machineID: machine, session: "ttys023")
+        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys009", root: root)
+        MachineWorkingDirectory.save("/var", machineID: machine, session: "ttys023", root: root)
         defer {
-            MachineWorkingDirectory.clear(machineID: machine, session: "ttys009")
-            MachineWorkingDirectory.clear(machineID: machine, session: "ttys023")
+            MachineWorkingDirectory.clear(machineID: machine, session: "ttys009", root: root)
+            MachineWorkingDirectory.clear(machineID: machine, session: "ttys023", root: root)
         }
-        #expect(MachineWorkingDirectory.load(machineID: machine, session: "ttys009") == "/etc")
-        #expect(MachineWorkingDirectory.load(machineID: machine, session: "ttys023") == "/var")
+        #expect(
+            MachineWorkingDirectory.load(machineID: machine, session: "ttys009", root: root)
+                == "/etc")
+        #expect(
+            MachineWorkingDirectory.load(machineID: machine, session: "ttys023", root: root)
+                == "/var")
     }
 
     @Test func forgetsADirectoryOnceCleared() {
-        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys001")
-        MachineWorkingDirectory.clear(machineID: machine, session: "ttys001")
-        #expect(MachineWorkingDirectory.load(machineID: machine, session: "ttys001") == nil)
+        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys001", root: root)
+        MachineWorkingDirectory.clear(machineID: machine, session: "ttys001", root: root)
+        #expect(
+            MachineWorkingDirectory.load(machineID: machine, session: "ttys001", root: root) == nil)
     }
 
     @Test func treatsAnEmptyDirectoryAsNoDirectory() {
-        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys002")
-        MachineWorkingDirectory.save("   ", machineID: machine, session: "ttys002")
-        #expect(MachineWorkingDirectory.load(machineID: machine, session: "ttys002") == nil)
+        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys002", root: root)
+        MachineWorkingDirectory.save("   ", machineID: machine, session: "ttys002", root: root)
+        #expect(
+            MachineWorkingDirectory.load(machineID: machine, session: "ttys002", root: root) == nil)
     }
 
     @Test func runsCommandsWhereTheSessionLeftOff() {
@@ -86,20 +95,22 @@ import Testing
     @Test func remembersTheDirectoryItCameFrom() {
         MachineWorkingDirectory.save(
             "/home/pulkit/Desktop", previous: "/home/pulkit", machineID: machine,
-            session: "ttys003")
-        defer { MachineWorkingDirectory.clear(machineID: machine, session: "ttys003") }
+            session: "ttys003", root: root)
+        defer { MachineWorkingDirectory.clear(machineID: machine, session: "ttys003", root: root) }
         #expect(
-            MachineWorkingDirectory.load(machineID: machine, session: "ttys003")
+            MachineWorkingDirectory.load(machineID: machine, session: "ttys003", root: root)
                 == "/home/pulkit/Desktop")
         #expect(
-            MachineWorkingDirectory.loadPrevious(machineID: machine, session: "ttys003")
+            MachineWorkingDirectory.loadPrevious(machineID: machine, session: "ttys003", root: root)
                 == "/home/pulkit")
     }
 
     @Test func hasNoPreviousDirectoryUntilItMovesTwice() {
-        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys004")
-        defer { MachineWorkingDirectory.clear(machineID: machine, session: "ttys004") }
-        #expect(MachineWorkingDirectory.loadPrevious(machineID: machine, session: "ttys004") == nil)
+        MachineWorkingDirectory.save("/etc", machineID: machine, session: "ttys004", root: root)
+        defer { MachineWorkingDirectory.clear(machineID: machine, session: "ttys004", root: root) }
+        #expect(
+            MachineWorkingDirectory.loadPrevious(machineID: machine, session: "ttys004", root: root)
+                == nil)
     }
 
     @Test func readsWhereTheMoveStartedFromTheFirstLine() {
