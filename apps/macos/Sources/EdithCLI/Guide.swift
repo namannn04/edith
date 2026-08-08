@@ -207,6 +207,8 @@ public enum Guide {
         running, because it lives in files and preferences rather than in memory.
 
         ```
+        ed tools ls                     yt-dlp and the agent CLIs
+        ed machines broadcast -- uptime one command, every machine
         ed apps ls                      what is running here
         ed apps quit Safari | --all --yes
         ed download ls                  the yt-dlp queue

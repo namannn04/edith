@@ -38,6 +38,8 @@ public enum IPC {
             "com.pulkit.edith.downloadQueueChanged")
         public static let requestQuitApps = Notification.Name(
             "com.pulkit.edith.requestQuitApps")
+        public static let requestToolInstall = Notification.Name(
+            "com.pulkit.edith.requestToolInstall")
         public static let presenterAutoActiveChanged = Notification.Name(
             "com.pulkit.edith.presenterAutoActiveChanged")
         public static let musicCommand = Notification.Name("com.pulkit.edith.musicCommand")

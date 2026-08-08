@@ -45,8 +45,16 @@ struct UsageLimitsCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Emit JSON on stdout.")
     var json = false
 
+    @Flag(help: "Ask the app to poll the providers again before reporting.")
+    var refresh = false
+
     func run() async throws {
         try await execute {
+            if refresh {
+                try AppBridge.requireHelper("refreshing the rate limits")
+                AppBridge.post(IPC.Name.requestLimitsRefresh)
+                _ = await AppBridge.awaitReply(IPC.Name.limitsUpdated, timeout: 20) {}
+            }
             let providers = LimitsReport.providers()
             guard !providers.isEmpty else {
                 throw CLIFailure.unavailable(

@@ -148,7 +148,7 @@ public enum CommandTree {
                 children: [
                     CommandNode(
                         "limits", "Session and weekly limits per provider.",
-                        options: common),
+                        options: ["--json", "--help", "--refresh"]),
                     CommandNode(
                         "summary", "Cost and tokens over a window.",
                         options: ["--json", "--range", "--source"], arguments: [.usageRange]),
@@ -219,6 +219,16 @@ public enum CommandTree {
                     CommandNode(
                         "ls", "Upcoming events.", aliases: ["list"],
                         options: ["--json", "--days"])
+                ]),
+            CommandNode(
+                "tools", "Command line tools the extensions rely on.",
+                children: [
+                    CommandNode(
+                        "ls", "List the tools and whether they are installed.",
+                        aliases: ["list"], options: common),
+                    CommandNode(
+                        "install", "Install one of the tools.", options: common,
+                        arguments: [.free]),
                 ]),
             CommandNode(
                 "apps", "The applications running on this Mac.",
@@ -396,6 +406,9 @@ public enum CommandTree {
                                 "wake", "Send a wake-on-LAN packet.", options: common,
                                 arguments: [.machine]),
                         ]),
+                    CommandNode(
+                        "broadcast", "Run one command on every machine.",
+                        options: ["--json", "--help", "--only"], arguments: [.free]),
                     CommandNode(
                         "kill", "End a process on a machine.",
                         options: ["--json", "--help", "--signal"],
