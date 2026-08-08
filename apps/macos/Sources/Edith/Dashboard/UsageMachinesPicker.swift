@@ -107,7 +107,7 @@ struct UsageMachinesPicker: View {
                         .foregroundStyle(DashSkin.inkFaint(dark))
                 }
                 .buttonStyle(.plain).pointerCursor()
-                .help("Drop what \(machine.name) already gave")
+                .help("Drop what \(machine.name) gave and stop counting it")
             }
         }
         .padding(.horizontal, UIScale.pt(6))
@@ -138,8 +138,9 @@ struct UsageMachinesPicker: View {
     }
 
     private func forget(_ machine: Machine) {
-        guard MachineUsageStore.forget(machineID: machine.id) else { return }
-        IPC.post(IPC.Name.requestUsageRefresh)
+        let dropped = MachineUsageStore.forget(machineID: machine.id)
+        MachineUsageSelection.exclude(machine.id)
+        if dropped { IPC.post(IPC.Name.requestUsageRefresh) }
         reload()
     }
 

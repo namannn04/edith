@@ -185,7 +185,7 @@ public enum CommandTree {
                                 "disable", "Stop collecting from this machine.",
                                 options: ["--json"], arguments: [.machine]),
                             CommandNode(
-                                "forget", "Drop what a machine already gave.",
+                                "forget", "Drop what a machine gave and stop counting it.",
                                 options: ["--json"], arguments: [.machine]),
                         ]),
                     CommandNode(

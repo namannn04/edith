@@ -265,7 +265,8 @@ struct UsageMachinesDisableCommand: AsyncParsableCommand {
 
 struct UsageMachinesForgetCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "forget", abstract: "Drop the usage already collected from a machine.")
+        commandName: "forget",
+        abstract: "Drop what a machine gave and stop collecting from it.")
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
     var json = false
@@ -287,7 +288,10 @@ struct UsageMachinesForgetCommand: AsyncParsableCommand {
                     ]))
                 return
             }
-            CLIOut.out(dropped ? "dropped the usage collected from \(machine)" : "nothing stored")
+            CLIOut.out(
+                dropped
+                    ? "dropped the usage collected from \(machine); it is no longer counted"
+                    : "nothing stored")
         }
     }
 

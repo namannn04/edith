@@ -289,7 +289,7 @@ refreshes while keeping the numbers.
 Each agent on a machine arrives as its own source, `<machine-slug>:<agent>`,
 labelled with the machine name, so `--source asus-tuf-7:cli` narrows to one
 agent on one machine and `ed usage sources` lists them next to the local ones.
-`forget` drops everything one machine gave.
+`forget` drops everything one machine gave and stops counting it.
 
 ```
 $ ed usage machines
