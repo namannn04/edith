@@ -727,7 +727,10 @@ const machineDoc = (over = {}) => ({
           cost: 2,
           chats: [{ id: "c9", source: "cli", tokens: 3, cost: 2 }],
           worktrees: [
-            { name: "wt", chats: [{ id: "c8", source: "codex", tokens: 0, cost: 0 }] },
+            {
+              name: "wt",
+              chats: [{ id: "c8", source: "codex", tokens: 0, cost: 0 }],
+            },
           ],
         },
       ],
@@ -752,7 +755,10 @@ describe("FLEET", () => {
   test("a day seen on both sides keeps one row with both sides' sources", () => {
     const out = fleet([localDoc(), machineDoc()]);
     expect(out.daily).toHaveLength(1);
-    expect(Object.keys(out.daily[0].bySource).sort()).toEqual(["cli", "tuf:cli"]);
+    expect(Object.keys(out.daily[0].bySource).sort()).toEqual([
+      "cli",
+      "tuf:cli",
+    ]);
     expect(out.daily[0].hours).toHaveLength(24);
     expect(out.daily[0].hours[0]).toEqual({ tokens: 103, cost: 3 });
   });
@@ -760,7 +766,10 @@ describe("FLEET", () => {
   test("machine projects and chats stay separable from the local ones", () => {
     const out = fleet([localDoc(), machineDoc()]);
     const projects = out.daily[0].projects;
-    expect(projects.map((p) => p.projectName)).toEqual(["edith", "edith · tuf"]);
+    expect(projects.map((p) => p.projectName)).toEqual([
+      "edith",
+      "edith · tuf",
+    ]);
     expect(projects[1].path).toBe("tuf:/home/p/edith");
     expect(projects[1].chats[0].source).toBe("tuf:cli");
     expect(projects[1].worktrees[0].chats[0].source).toBe("tuf:codex");
@@ -814,7 +823,10 @@ describe("FLEET", () => {
       ],
     });
     const out = fleet([localDoc(), machineDoc(), other]);
-    expect(out.daily.map((d) => d.period)).toEqual(["2026-08-06", "2026-08-07"]);
+    expect(out.daily.map((d) => d.period)).toEqual([
+      "2026-08-06",
+      "2026-08-07",
+    ]);
     expect(Object.keys(out.daily[0].bySource)).toEqual(["pi:cli"]);
     expect(out.totals.cost).toBe(8);
     expect(jqExit(VALIDATE, JSON.stringify(out))).toBe(0);

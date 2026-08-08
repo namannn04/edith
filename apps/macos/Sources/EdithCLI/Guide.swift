@@ -169,11 +169,18 @@ public enum Guide {
         ed usage models
         ed usage projects
         ed usage sources
+        ed usage machines               machines counted with this Mac
+        ed usage machines collect tuf   run the collector there, bring it back
         ed usage refresh                ask the running app to re-collect
         ```
 
         `--range` is one of today, week, month, all. `--source` filters to one agent
         and repeats.
+
+        A machine keeps its agent history on its own disk, so `ed usage machines
+        collect` pipes the collector over SSH and runs it there, installing what is
+        missing under ~/.cache/edith on that machine. Its agents come back as sources
+        named `<machine>:<agent>`, which every other usage command then counts.
 
         ## The Mac itself
 
