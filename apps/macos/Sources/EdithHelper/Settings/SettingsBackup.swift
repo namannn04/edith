@@ -78,6 +78,7 @@ final class SettingsBackup: ObservableObject {
     @Published private(set) var clipboardBackupRunning = false
 
     nonisolated static let backedKeys = [
+        "onboardingCompleted", "dashPaths", "musicCrossfadeEnabled", "musicCrossfadeSeconds",
         "theme", "tab", "presenterMode", "presenterBlurMusic", "presenterBlurMoney",
         "presenterBlurUsage",
         "presenterEnabled",
@@ -130,11 +131,13 @@ final class SettingsBackup: ObservableObject {
         "colorPickerHotKeyLabel",
         "creditHidden", "homeClockZones", "presenterBlurCalendar", "showDockIcon",
         "tabCalendarEnabled", "musicLooping", "musicShuffling", "musicGridView",
-        "musicFavourites",
+        "musicFavourites", "musicLastTrack", "musicLastPosition", "musicWasPlaying",
+        "SUAutomaticallyUpdate", "SUEnableAutomaticChecks", "SUScheduledCheckInterval",
         "mainWindowSection", "settingsTab", "mainSidebarOpen", "mainSidebarWidth",
     ]
 
     nonisolated static let sharedKeys: Set<String> = [
+        "onboardingCompleted", "dashPaths", "musicCrossfadeEnabled", "musicCrossfadeSeconds",
         "theme", "lastPaletteTheme", "appearance", "musicDownloadKind",
         "presenterMode", "presenterEnabled", "presenterBlurMusic", "presenterBlurMoney",
         "presenterBlurUsage",
