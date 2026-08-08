@@ -47,6 +47,7 @@ public enum MachineUsageRound {
         registry: [Machine] = MachineRegistry.machines(),
         dataDir: URL = Repo.dataDir,
         timeout: TimeInterval = MachineUsageCollector.defaultTimeout,
+        echoingTheCollector verbose: Bool = false,
         onEvent: @escaping @Sendable (UsageRefreshEvent) -> Void = { _ in }
     ) async -> MachineUsageRoundResult {
         guard !machines.isEmpty else { return MachineUsageRoundResult() }
@@ -64,9 +65,17 @@ public enum MachineUsageRound {
             let connection = SSHConnection(machine: machine)
             do {
                 try await connection.connect()
-                let run = try await MachineUsageCollector.collect(
-                    machine: machine, slug: slug, over: connection, timeout: timeout)
+                let run = try await withOneRetryOnADroppedLink(connection) {
+                    try await MachineUsageCollector.collect(
+                        machine: machine, slug: slug, over: connection, timeout: timeout)
+                }
                 result.collected.append(run.summary)
+                if verbose {
+                    for line in run.log.split(separator: "\n") {
+                        let text = line.trimmingCharacters(in: .whitespaces)
+                        if !text.isEmpty { onEvent(.note(text)) }
+                    }
+                }
                 onEvent(
                     .phase(
                         name: machine.name, detail: describe(run.summary),
@@ -79,6 +88,22 @@ public enum MachineUsageRound {
         }
         MachineUsageStore.prune(keeping: registry.map(\.id))
         return result
+    }
+
+    static func withOneRetryOnADroppedLink(
+        _ connection: SSHConnection,
+        _ body: () async throws -> MachineUsageCollection
+    ) async throws -> MachineUsageCollection {
+        do {
+            return try await body()
+        } catch let error as MachineUsageError {
+            guard case let .collectorFailed(_, status, _) = error,
+                status == MachineUsageCollector.transportFailure
+            else { throw error }
+            await connection.disconnect()
+            try await connection.connect()
+            return try await body()
+        }
     }
 
     public static func describe(_ summary: MachineUsageSummary) -> String {

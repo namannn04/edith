@@ -366,3 +366,24 @@ import Testing
         #expect(UsageMachineFilter.sources(matching: "pi", in: try document()).isEmpty)
     }
 }
+
+@Suite struct MachineCollectorSpeechTests {
+    @Test func aWireLineIsReadBackAsSomethingASentenceCanHold() {
+        #expect(
+            MachineUsageCollector.lastLine(of: "note\tdiscovering sources\n")
+                == "discovering sources")
+        #expect(
+            MachineUsageCollector.lastLine(of: "phase\tcli\t28 days\t1.35\n") == "cli: 28 days")
+        #expect(
+            MachineUsageCollector.lastLine(of: "error\tjq is missing\n") == "jq is missing")
+    }
+
+    @Test func aPlainLineIsLeftAlone() {
+        #expect(MachineUsageCollector.lastLine(of: "  ✖ it broke\n") == "✖ it broke")
+        #expect(MachineUsageCollector.lastLine(of: "") == "")
+    }
+
+    @Test func theTransportFailureIsTheOneSSHUses() {
+        #expect(MachineUsageCollector.transportFailure == 255)
+    }
+}

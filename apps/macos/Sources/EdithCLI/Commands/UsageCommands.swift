@@ -329,11 +329,15 @@ struct UsageSourcesCommand: AsyncParsableCommand {
 struct UsageRefreshCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "refresh",
-        abstract: "Re-collect usage data from every agent on this Mac.",
+        abstract: "Re-collect usage data from every agent, here and on the machines.",
         discussion: """
             Runs the collection pipeline in this process, so it works whether or not the
             Edith app is open. If a refresh is already running somewhere else, this
             attaches to it and reports its progress instead of starting a second one.
+
+            Machines counted towards usage are topped up first, if nothing has collected
+            from them in the last half hour. `--machines` collects from all of them
+            regardless, `--no-machines` leaves them alone.
             """)
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
@@ -341,6 +345,11 @@ struct UsageRefreshCommand: AsyncParsableCommand {
 
     @Flag(help: "Attach to a refresh that is already running instead of starting one.")
     var follow = false
+
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Collect from the machines first. On by default for the ones that are stale.")
+    var machines = true
 
     func run() async throws {
         try await execute {
@@ -350,6 +359,9 @@ struct UsageRefreshCommand: AsyncParsableCommand {
 
             let driver = CLIEnvironment.usageRefresh
             progress.header("EDITH · refresh usage · " + UsageRefreshPrinter.stamp(Date()))
+            if machines, !follow {
+                await Self.topUpMachines(progress: progress, sink: sink)
+            }
             do {
                 var followed = follow
                 let result: UsageRefreshResult
@@ -384,6 +396,19 @@ struct UsageRefreshCommand: AsyncParsableCommand {
                 progress.end()
                 throw error
             }
+        }
+    }
+
+    private static func topUpMachines(
+        progress: CLIProgress, sink: @escaping @Sendable (UsageRefreshEvent) -> Void
+    ) async {
+        let due = MachineUsageRound.due(force: false)
+        guard !due.isEmpty else { return }
+        progress.begin(due.count == 1 ? "reaching \(due[0].name)" : "reaching the machines")
+        let round = await MachineUsageRound.collect(due, onEvent: sink)
+        progress.end()
+        if round.skippedBecauseBusy {
+            progress.note("another collection is already running, leaving the machines to it")
         }
     }
 
