@@ -389,6 +389,14 @@ public enum CommandTree {
                                 "rm", "Remove a container.", options: ["--json"],
                                 arguments: [.machine, .container]),
                             CommandNode(
+                                "rmi", "Remove an image.", aliases: ["remove-image"],
+                                options: ["--json", "--help", "--force"],
+                                arguments: [.machine, .free]),
+                            CommandNode(
+                                "volume-rm", "Remove a volume and the data in it.",
+                                options: ["--json", "--help", "--yes"],
+                                arguments: [.machine, .free]),
+                            CommandNode(
                                 "prune", "Reclaim space from unused objects.",
                                 options: ["--json", "--help", "--yes"],
                                 arguments: [.machine, .pruneTarget]),

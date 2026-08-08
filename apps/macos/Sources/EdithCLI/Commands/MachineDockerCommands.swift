@@ -15,7 +15,9 @@ struct MachinesDockerCommand: AsyncParsableCommand {
             DockerPsCommand.self, DockerImagesCommand.self, DockerVolumesCommand.self,
             DockerNetworksCommand.self, DockerDiskUsageCommand.self, DockerLogsCommand.self,
             DockerInspectCommand.self, DockerStartCommand.self, DockerStopCommand.self,
-            DockerRestartCommand.self, DockerRemoveCommand.self, DockerPruneCommand.self,
+            DockerRestartCommand.self, DockerRemoveCommand.self,
+            DockerRemoveImageCommand.self, DockerRemoveVolumeCommand.self,
+            DockerPruneCommand.self,
             DockerComposeCommand.self,
         ],
         defaultSubcommand: DockerPsCommand.self)
@@ -356,6 +358,104 @@ struct DockerRemoveCommand: DockerLifecycleCommand {
     var container: String
 
     func run() async throws { try await apply() }
+}
+
+struct DockerRemoveImageCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "rmi", abstract: "Remove an image.", aliases: ["remove-image"])
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Flag(help: "Remove it even when a container still refers to it.")
+    var force = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Image name or id.")
+    var image: String
+
+    func run() async throws {
+        try await execute {
+            let runner = try await DockerBridge.runner(machine)
+            let result = try await runner.run(
+                DockerCommands.removeImage(image, force: force), timeout: 120)
+            guard result.succeeded else {
+                throw CLIFailure(
+                    "docker rmi failed on \(runner.machine.name)",
+                    hint: result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(runner.machine.name),
+                        "image": .string(image),
+                        "forced": .bool(force),
+                    ]))
+                return
+            }
+            CLIOut.out("removed image \(image)")
+        }
+    }
+}
+
+struct DockerRemoveVolumeCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "volume-rm",
+        abstract: "Remove a volume, and the data in it.",
+        discussion: """
+            A volume is where a container keeps the data it means to survive a restart, so
+            this is not undoable. Nothing is removed without --yes.
+            """)
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Flag(help: "Actually remove it. Without this nothing is touched.")
+    var yes = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Volume name.")
+    var volume: String
+
+    func run() async throws {
+        try await execute {
+            let runner = try await DockerBridge.runner(machine)
+            guard yes else {
+                guard !json else {
+                    CLIOut.json(
+                        .object([
+                            "machine": .string(runner.machine.name),
+                            "volume": .string(volume),
+                            "removed": .bool(false),
+                        ]))
+                    return
+                }
+                CLIOut.out("would remove volume \(volume) and everything in it")
+                CLIOut.note("nothing was removed; pass --yes to go ahead")
+                return
+            }
+            let result = try await runner.run(DockerCommands.removeVolume(volume), timeout: 120)
+            guard result.succeeded else {
+                throw CLIFailure(
+                    "docker volume rm failed on \(runner.machine.name)",
+                    hint: result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(runner.machine.name),
+                        "volume": .string(volume),
+                        "removed": .bool(true),
+                    ]))
+                return
+            }
+            CLIOut.out("removed volume \(volume)")
+        }
+    }
 }
 
 struct DockerPruneCommand: AsyncParsableCommand {

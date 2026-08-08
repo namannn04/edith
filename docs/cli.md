@@ -488,7 +488,12 @@ ed machines docker df      <machine> [--json]
 ed machines docker logs    <machine> <container> [--tail <n>] [--follow]
 ed machines docker inspect <machine> <container>
 ed machines docker start | stop | restart | rm <machine> <container> [--json]
+ed machines docker rmi       <machine> <image> [--force] [--json]
+ed machines docker volume-rm <machine> <volume> [--yes] [--json]
 ```
+
+`volume-rm` is where containers keep the data meant to outlive them, so it does
+nothing without `--yes`.
 
 `ps` merges `docker ps` with `docker stats`, so a container row carries live CPU
 and memory alongside its state and ports. `--all` includes stopped containers.

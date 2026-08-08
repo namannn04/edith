@@ -50,6 +50,24 @@ tracked path. The lefthook pre-push runs the full swift build + tests + comment 
 it fails only because of another in-flight job's tree state, push with `--no-verify` AFTER
 running build/tests/comment-check yourself on the staged files.
 
+## Every UI action needs a CLI verb
+
+The app and `ed` are peers over one shared core in `EdithKit`, not client and
+server. Neither shells out to the other, so parity is a rule rather than a
+consequence: anything the UI can change, `ed` must be able to change too, through
+the same function.
+
+- Mutations live in `EdithKit` (`ClipboardActions`, `MachineRegistry`, ...). Views
+  and CLI commands call them; neither reads-modifies-writes a store file itself.
+- Adding a UI action means adding a row to `UIParity.capabilities` in
+  `Tests/EdithTests/CLIParityTests.swift` naming the `ed` verb that does the same
+  thing. `everyMutatingCommandIsClaimedByAUIAction` fails when a mutating verb has
+  no row, and `everyUIActionParsesWithTheArgumentsItClaims` fails when the verb it
+  names does not exist or does not take those arguments.
+- A new command also needs a `CommandNode` in `CommandTree.swift` (completion), a
+  `JSONCase` in `CLIContractTests.swift` if it takes `--json`, and an entry in
+  `docs/cli.md` and `Guide.swift`.
+
 ## Checks
 
 - `bun run check-comments` - no disallowed comments (all tracked source).

@@ -149,6 +149,12 @@ enum JSONContract {
             "ed machines docker rm",
             ["machines", "docker", "rm", "nowhere-at-all", "api", "--json"]),
         JSONCase(
+            "ed machines docker rmi",
+            ["machines", "docker", "rmi", "nowhere-at-all", "nginx", "--json"]),
+        JSONCase(
+            "ed machines docker volume-rm",
+            ["machines", "docker", "volume-rm", "nowhere-at-all", "data", "--json"]),
+        JSONCase(
             "ed machines docker prune",
             ["machines", "docker", "prune", "nowhere-at-all", "system", "--json"]),
         JSONCase(
