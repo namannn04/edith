@@ -308,7 +308,7 @@ struct MachineToolsTab: View {
             let result = await session.runCommand(
                 ServiceCommands.action(action, unit: unit), timeout: 60)
             if case let .failure(error) = result {
-                message = error.localizedDescription
+                message = PowerOutcome.explain(error)
             } else {
                 message = "\(unit) \(action)ed."
             }
