@@ -40,23 +40,21 @@ Requires macOS 14 or later on Apple Silicon.
 ## Command line
 
 Installing Edith installs `ed`, a first-class CLI that reaches everything the UI
-does. `edh` and `edith` are the same binary. Full reference: [docs/cli.md](docs/cli.md),
-or run `ed guide` for the built-in manual.
+does. `edh` and `edith` are the same binary.
 
 ```
 ed config set preventSleep true     every setting the UI exposes, applied live
-ed extensions enable machines       turn features on and off
 ed usage limits --json              the same numbers the rings show
-ed system stats --follow            this Mac, sampled continuously
 ed machines ls                      the computers Edith can reach over SSH
 ed tuf docker ps                    run anything on one of them
 ```
 
 Every read command takes `--json`, stdout is exactly one document, logs go to
 stderr, and exit codes are reliable, so an agent can drive Edith headlessly.
-`ed completions install` sets up zsh, bash and fish; after a machine name,
-completion asks that machine what it would have offered, so `ed tuf docker <TAB>`
-completes docker's own subcommands.
+
+Full reference: **[docs/cli](docs/cli/README.md)**, one page per command group,
+also published to the [wiki](https://github.com/pulkitxm/edith/wiki). `ed guide`
+prints the same material as a built-in manual.
 
 ## Privacy
 
