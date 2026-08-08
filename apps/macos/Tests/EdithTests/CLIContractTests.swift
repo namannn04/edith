@@ -174,6 +174,27 @@ enum JSONContract {
             ["machines", "files", "mkdir", "nowhere-at-all", "/a", "--json"]),
         JSONCase(
             "ed machines files rm", ["machines", "files", "rm", "nowhere-at-all", "/a", "--json"]),
+        JSONCase(
+            "ed machines forwards on",
+            ["machines", "forwards", "on", "nowhere-at-all", "1", "--json"]),
+        JSONCase(
+            "ed machines forwards off",
+            ["machines", "forwards", "off", "nowhere-at-all", "1", "--json"]),
+        JSONCase(
+            "ed machines files search",
+            ["machines", "files", "search", "nowhere-at-all", "/a", "x", "--json"]),
+        JSONCase(
+            "ed machines files info",
+            ["machines", "files", "info", "nowhere-at-all", "/a", "--json"]),
+        JSONCase(
+            "ed machines files duplicate",
+            ["machines", "files", "duplicate", "nowhere-at-all", "/a", "--json"]),
+        JSONCase(
+            "ed machines docker pause",
+            ["machines", "docker", "pause", "nowhere-at-all", "api", "--json"]),
+        JSONCase(
+            "ed machines docker unpause",
+            ["machines", "docker", "unpause", "nowhere-at-all", "api", "--json"]),
         JSONCase("ed machines connect", ["machines", "connect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines disconnect", ["machines", "disconnect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines services", ["machines", "services", "nowhere-at-all", "--json"]),

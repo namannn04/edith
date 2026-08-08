@@ -575,6 +575,8 @@ because every other command resolves machines by name.
 ed machines forwards ls  <machine> [--json]
 ed machines forwards add <machine> --local <n> --remote <n>
                                    [--remote-host <h>] [--title <t>] [--json]
+ed machines forwards on  <machine> <n> [--json]
+ed machines forwards off <machine> <n> [--json]
 ed machines forwards rm  <machine> <n> [--json]
 
 ed machines snippets ls  <machine> [--json]
@@ -584,7 +586,9 @@ ed machines snippets rm  <machine> <n> [--json]
 
 These are the same lists the machine's Tools tab shows. Forwards are numbered by
 local port, snippets in the order they were saved, and both are numbered from 1.
-Two forwards cannot claim the same local port. `--shared` saves a snippet
+`on` and `off` open and close the tunnel on the shared connection, which is the
+switch on each row of the Tools tab; `add` only saves it. Two forwards cannot
+claim the same local port. `--shared` saves a snippet
 against every machine rather than just this one, which is what leaving the
 machine unset does in the UI.
 
@@ -662,6 +666,9 @@ ed machines files mv     <machine> <path>... <directory> [--json]
 ed machines files rename <machine> <path> <name> [--json]
 ed machines files mkdir  <machine> <path> [--json]
 ed machines files rm     <machine> <path>... [--delete] [--yes] [--json]
+ed machines files search <machine> <directory> <text> [--limit <n>] [--json]
+ed machines files info   <machine> <path> [--json]
+ed machines files duplicate <machine> <path> [--json]
 ```
 
 `cp` and `mv` take the destination directory last, like the shell tools they
@@ -670,6 +677,11 @@ renaming onto a name that already exists is refused rather than overwriting.
 
 `rm` moves to the machine's own trash so it can be put back. `--delete` removes
 for good and does nothing without `--yes`.
+
+`search` is the window's search field: a name match under a directory, capped at
+300 hits unless `--limit` says otherwise. `info` measures a path with `du`, so
+it answers for directories where `ls` only reports the entry. `duplicate` names
+the copy the way the window does, `report copy.txt` then `report copy 2.txt`.
 
 ### Docker
 
@@ -681,7 +693,7 @@ ed machines docker networks <machine> [--json]
 ed machines docker df      <machine> [--json]
 ed machines docker logs    <machine> <container> [--tail <n>] [--follow]
 ed machines docker inspect <machine> <container>
-ed machines docker start | stop | restart | rm <machine> <container> [--json]
+ed machines docker start | stop | restart | pause | unpause | rm <machine> <container> [--json]
 ed machines docker rmi       <machine> <image> [--force] [--json]
 ed machines docker volume-rm <machine> <volume> [--yes] [--json]
 ```
@@ -710,7 +722,13 @@ compose up -d` is a normal thing to type.
 
 ```
 ed <machine> <command...>
+ed machines exec [--tty] <machine> [--] <command...>
 ```
+
+`--tty` runs the command on a terminal, which is what anything interactive
+needs: `vim`, `top`, a `sudo` password prompt, or `docker exec -it`. Without it
+the command runs with no pty, which is right for scripting and wrong for a
+shell.
 
 Naming a machine as the first word runs the rest of the line there. It is
 shorthand for `ed machines exec <machine> -- <command...>`, and it is the

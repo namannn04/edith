@@ -190,3 +190,131 @@ struct MachinesFilesRemoveCommand: AsyncParsableCommand {
         }
     }
 }
+
+struct MachinesFilesSearchCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "search", abstract: "Find files under a directory by name.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(help: "Stop after this many matches.")
+    var limit: Int = 300
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Directory to search under.")
+    var path: String
+
+    @Argument(help: "Text to look for in the file name.")
+    var query: String
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            let runner = try await MachineResolver.runner(machine)
+            let output = try await runner.text(
+                FileOperations.searchCommand(path: path, query: query, limit: limit),
+                timeout: 120)
+            let hits = output.split(separator: "\n").map(String.init)
+            guard !json else {
+                CLIOut.json(.strings(hits))
+                return
+            }
+            guard !hits.isEmpty else {
+                CLIOut.note("nothing under \(path) matches \(query)")
+                return
+            }
+            for hit in hits { CLIOut.out(hit) }
+        }
+    }
+}
+
+struct MachinesFilesInfoCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "info",
+        abstract: "How big something is on the machine, directories included.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "The path to measure.")
+    var path: String
+
+    func run() async throws {
+        try await execute {
+            let runner = try await MachineResolver.runner(machine)
+            let output = try await runner.text(
+                FileOperations.directorySizeCommand(path: path), timeout: 120)
+            let kilobytes = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+            let bytes = kilobytes * 1024
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(runner.machine.name),
+                        "path": .string(path),
+                        "sizeBytes": .int(bytes),
+                    ]))
+                return
+            }
+            CLIOut.out(
+                "\(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))"
+                    + "  \(path)")
+        }
+    }
+}
+
+struct MachinesFilesDuplicateCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "duplicate",
+        abstract: "Copy a file beside itself, the way the Finder window does.",
+        discussion: """
+            The copy is named the way the window names it: `report copy`, then
+            `report copy 2`, keeping any extension, so duplicating twice never overwrites
+            the first one.
+            """)
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "The path to duplicate.")
+    var path: String
+
+    func run() async throws {
+        try await execute {
+            let runner = try await MachineResolver.runner(machine)
+            let quoted = ShellQuote.quote(path)
+            let script = """
+                src=\(quoted); dir=$(dirname "$src"); base=$(basename "$src")
+                stem="${base%.*}"; ext=""
+                case "$base" in *.*) ext=".${base##*.}";; esac
+                target="$dir/$stem copy$ext"; n=2
+                while [ -e "$target" ]; do target="$dir/$stem copy $n$ext"; n=$((n+1)); done
+                cp -R "$src" "$target" && printf '%s' "$target"
+                """
+            let result = try await runner.run(script, timeout: 300)
+            let created = result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard result.succeeded, !created.isEmpty else {
+                throw CLIFailure(
+                    "could not duplicate \(path) on \(runner.machine.name)",
+                    hint: result.combinedText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(runner.machine.name),
+                        "path": .string(path), "to": .string(created),
+                    ]))
+                return
+            }
+            CLIOut.out("duplicated to \(created)")
+        }
+    }
+}

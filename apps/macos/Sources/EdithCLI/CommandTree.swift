@@ -385,6 +385,12 @@ public enum CommandTree {
                                 ],
                                 arguments: [.machine]),
                             CommandNode(
+                                "on", "Open a saved forward on the connection.",
+                                options: common, arguments: [.machine, .historyIndex]),
+                            CommandNode(
+                                "off", "Close a saved forward.", options: common,
+                                arguments: [.machine, .historyIndex]),
+                            CommandNode(
                                 "rm", "Forget one port forward.", aliases: ["remove"],
                                 options: common, arguments: [.machine, .historyIndex]),
                         ]),
@@ -458,6 +464,16 @@ public enum CommandTree {
                                 "mkdir", "Make a directory there.", options: common,
                                 arguments: [.machine, .remotePath]),
                             CommandNode(
+                                "search", "Find files by name under a directory.",
+                                options: ["--json", "--help", "--limit"],
+                                arguments: [.machine, .remotePath, .free]),
+                            CommandNode(
+                                "info", "How big something is, directories included.",
+                                options: common, arguments: [.machine, .remotePath]),
+                            CommandNode(
+                                "duplicate", "Copy a file beside itself.", options: common,
+                                arguments: [.machine, .remotePath]),
+                            CommandNode(
                                 "rm", "Trash or delete files there.",
                                 options: ["--json", "--help", "--delete", "--yes"],
                                 arguments: [.machine, .remotePath]),
@@ -498,6 +514,12 @@ public enum CommandTree {
                                 arguments: [.machine, .container]),
                             CommandNode(
                                 "rm", "Remove a container.", options: ["--json"],
+                                arguments: [.machine, .container]),
+                            CommandNode(
+                                "pause", "Freeze a container.", options: ["--json"],
+                                arguments: [.machine, .container]),
+                            CommandNode(
+                                "unpause", "Let a frozen container run.", options: ["--json"],
                                 arguments: [.machine, .container]),
                             CommandNode(
                                 "rmi", "Remove an image.", aliases: ["remove-image"],
