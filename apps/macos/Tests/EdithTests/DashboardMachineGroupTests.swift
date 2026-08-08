@@ -174,3 +174,47 @@ import Testing
         return try JSONDecoder().decode(DashUsage.self, from: Data(json.utf8))
     }
 }
+
+@Suite struct MachineUsageRowsTests {
+    private func summary(_ name: String) -> MachineUsageSummary {
+        MachineUsageSummary(
+            machineID: UUID(), name: name, slug: name, host: "h", collectedAt: Date(),
+            sources: ["cli"], days: 3, cost: 1, tokens: 2)
+    }
+
+    @Test func aRunningRoundSpeaksItsPhasesAndNotes() {
+        #expect(
+            MachineUsageRows.spoken(.phase(name: "tuf", detail: "5 days · 1 agent", seconds: 2))
+                == "tuf: 5 days · 1 agent")
+        #expect(MachineUsageRows.spoken(.note("tuf: timed out")) == "tuf: timed out")
+        #expect(MachineUsageRows.spoken(.finished(seconds: 1)) == nil)
+    }
+
+    @Test func theOutcomeSaysWhatActuallyHappened() {
+        #expect(
+            MachineUsageRows.outcome(MachineUsageRoundResult(collected: [summary("tuf")]))
+                == "1 machine collected")
+        #expect(
+            MachineUsageRows.outcome(
+                MachineUsageRoundResult(collected: [summary("a"), summary("b")]))
+                == "2 machines collected")
+        #expect(MachineUsageRows.outcome(MachineUsageRoundResult()) == "nothing to collect")
+    }
+
+    @Test func aFailedRoundNamesTheMachineAndTheReason() {
+        let failed = MachineUsageRoundResult(failures: [(machine: "tuf", reason: "down")])
+        #expect(MachineUsageRows.outcome(failed) == "tuf: down")
+    }
+
+    @Test func aPartlyFailedRoundCountsBothSides() {
+        let mixed = MachineUsageRoundResult(
+            collected: [summary("tuf")], failures: [(machine: "pi", reason: "down")])
+        #expect(MachineUsageRows.outcome(mixed) == "1 machine collected, 1 failed")
+    }
+
+    @Test func aRoundThatStoodAsideSaysSoRatherThanClaimingNothingToDo() {
+        #expect(
+            MachineUsageRows.outcome(MachineUsageRoundResult(skippedBecauseBusy: true))
+                == "another collection is already running")
+    }
+}

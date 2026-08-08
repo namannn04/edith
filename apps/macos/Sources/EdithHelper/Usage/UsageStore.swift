@@ -53,7 +53,6 @@ final class UsageStore: ObservableObject, FeatureModule {
     private var refreshRequestObserver: NSObjectProtocol?
     private var refreshStartedObserver: NSObjectProtocol?
     private var limitsRefreshObserver: NSObjectProtocol?
-    private var machineCollectObserver: NSObjectProtocol?
     private var hasLiveLimits = false
     private var limitsRefreshStartedAt: Date?
     private var limitsRefreshGeneration = 0
@@ -164,10 +163,6 @@ final class UsageStore: ObservableObject, FeatureModule {
             Task { @MainActor in self?.adoptExternalRefresh() }
         }
 
-        machineCollectObserver = IPC.observe(IPC.Name.requestUsageMachineCollect) { [weak self] in
-            self?.runUpdate(forceMachines: true)
-        }
-
         limitsRefreshObserver = IPC.observe(IPC.Name.requestLimitsRefresh) { [weak self] in
             Task { @MainActor in await self?.refreshLimits(force: true) }
         }
@@ -265,10 +260,6 @@ final class UsageStore: ObservableObject, FeatureModule {
         quickRetryTask = nil
         machineTask?.cancel()
         machineTask = nil
-        if let machineCollectObserver {
-            IPC.stopObserving(machineCollectObserver)
-            self.machineCollectObserver = nil
-        }
     }
 
     func syncStatusItem() {
@@ -864,8 +855,8 @@ final class UsageStore: ObservableObject, FeatureModule {
         limitPoints = points
     }
 
-    func runUpdate(collectMachines: Bool = true, forceMachines: Bool = false) {
-        if collectMachines { collectFromMachines(force: forceMachines) }
+    func runUpdate(collectMachines: Bool = true) {
+        if collectMachines { collectFromMachines(force: false) }
         guard !updating else { return }
         MachineUsageStore.prune(keeping: MachineRegistry.machines().map(\.id))
         beginTranscript()
