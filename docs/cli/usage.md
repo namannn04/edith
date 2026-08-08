@@ -26,6 +26,12 @@ reporting and exit 4 when it is closed.
 | `ed usage models` | Cost and tokens per model, most expensive first |
 | `ed usage projects` | Cost and tokens per project, most expensive first |
 | `ed usage sources` | The agents that produced the history, with their ids |
+| `ed usage machines` | Runs `ed usage machines ls`, the default subcommand |
+| `ed usage machines ls` | Every configured machine, whether it is counted, and what it adds up to |
+| `ed usage machines collect` | Runs the collector on a machine over SSH and brings its numbers back |
+| `ed usage machines enable` | Counts a machine on every later refresh |
+| `ed usage machines disable` | Stops collecting from a machine, keeping what it already gave |
+| `ed usage machines forget` | Drops what a machine gave and stops counting it |
 | `ed usage refresh` | Asks the running app to re-collect usage data |
 
 ## Commands
@@ -141,7 +147,7 @@ Totals cost and tokens over a window, then breaks the same totals down by
 source. This is what a bare `ed usage` runs.
 
 ```
-ed usage summary [--range <range>] [--source <source>]... [--json]
+ed usage summary [--range <range>] [--source <source>]... [--machine <machine>]... [--json]
 ```
 
 #### Options
@@ -150,6 +156,7 @@ ed usage summary [--range <range>] [--source <source>]... [--json]
 | --- | --- | --- | --- |
 | `--range` | `today`, `week`, `month`, `all` | `all` | Which days to include: today only, the last 7 days, the last 30 days, or everything on file |
 | `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several |
+| `--machine` | machine name, ssh alias, id, or `local` | every machine | Count only the agents that ran on these machines. `local` is this Mac. Repeat the flag to include several. Union with `--source` rather than an intersection |
 | `--json` | flag | off | Emit JSON on stdout |
 
 #### `--json` shape
@@ -233,7 +240,7 @@ codex   28.77    40105020
 One row per day in the window, cost and tokens.
 
 ```
-ed usage daily [--range <range>] [--source <source>]... [--json]
+ed usage daily [--range <range>] [--source <source>]... [--machine <machine>]... [--json]
 ```
 
 #### Options
@@ -242,6 +249,7 @@ ed usage daily [--range <range>] [--source <source>]... [--json]
 | --- | --- | --- | --- |
 | `--range` | `today`, `week`, `month`, `all` | `all` | Which days to include |
 | `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several |
+| `--machine` | machine name, ssh alias, id, or `local` | every machine | Count only the agents that ran on these machines. `local` is this Mac. Repeat the flag to include several. Union with `--source` rather than an intersection |
 | `--json` | flag | off | Emit JSON on stdout |
 
 #### `--json` shape
@@ -314,7 +322,7 @@ Cost and tokens per model, so you can see which model is actually spending the
 money.
 
 ```
-ed usage models [--range <range>] [--source <source>]... [--json]
+ed usage models [--range <range>] [--source <source>]... [--machine <machine>]... [--json]
 ```
 
 #### Options
@@ -323,6 +331,7 @@ ed usage models [--range <range>] [--source <source>]... [--json]
 | --- | --- | --- | --- |
 | `--range` | `today`, `week`, `month`, `all` | `all` | Which days to include |
 | `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several |
+| `--machine` | machine name, ssh alias, id, or `local` | every machine | Count only the agents that ran on these machines. `local` is this Mac. Repeat the flag to include several. Union with `--source` rather than an intersection |
 | `--json` | flag | off | Emit JSON on stdout |
 
 #### `--json` shape
@@ -563,6 +572,198 @@ asus-tuf-7:cli  Claude Code · Asus TUF 7  Claude Code
 opencode        OpenCode                  OpenCode
 cowork          Cowork                    Claude Code
 ```
+
+### `ed usage machines`
+
+Counts the agents running on your SSH machines alongside the ones on this Mac.
+`ed usage machines` on its own runs `ls`.
+
+The collector Edith runs here is piped to the machine and run against that
+machine's home directory, and the numbers come back into the same `usage.json`
+the dashboard reads. Each agent on a machine arrives as its own source, named
+`<machine-slug>:<agent>`, so `ed usage summary` counts the fleet, `--source
+asus-tuf-7:cli` narrows to one agent on one machine, and `--machine` narrows to
+everything one machine ran.
+
+Whatever the collector needs and cannot find there, jq, bun and ccusage, is
+installed under `~/.cache/edith` on that machine. That is why collecting waits
+to be asked rather than happening for every machine you have configured, and why
+the first run on a machine can take minutes.
+
+#### `ed usage machines ls`
+
+Lists every configured machine, whether it is counted, and what it has given.
+
+```
+ed usage machines ls [--json]
+```
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emit JSON on stdout |
+
+`--json` shape, an array with one object per configured machine, whether or not
+it has ever been collected:
+
+```json
+[
+  {
+    "collectedAt": "2026-08-08T16:14:51Z",
+    "cost": 249.81,
+    "counted": true,
+    "days": 81,
+    "host": "asus-tuf-7",
+    "id": "1F0A9C22-4E64-4C63-9E0B-2F5A1E7D2C10",
+    "machine": "Asus TUF 7",
+    "sources": ["asus-tuf-7:cli"],
+    "tokens": 321812580
+  }
+]
+```
+
+A machine that has never been collected still appears, with `collectedAt` and
+`host` as `null`, `sources` empty, and `days`, `cost` and `tokens` at zero. The
+human table writes `-` in those columns instead.
+
+```
+$ ed usage machines
+MACHINE     COUNTED  COLLECTED             SOURCES  COST    TOKENS
+Asus TUF 7  yes      2026-08-08T16:14:51Z  1        249.81  321812580
+```
+
+Reads only, mutates nothing, needs no app. With no machines configured at all it
+exits 3 with `no machines are configured`.
+
+#### `ed usage machines collect`
+
+Runs the collector on a machine over the shared SSH connection and folds the
+result in.
+
+```
+ed usage machines collect [<machine>] [--once] [--verbose] [--timeout <seconds>] [--json]
+```
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<machine>` | machine name, ssh alias or id | every machine already taking part | Which machine to collect. Naming one also signs it up for later refreshes unless `--once` is passed |
+| `--once` | flag | off | Collect without signing the machine up, so later refreshes skip it |
+| `--verbose` | flag | off | Print everything the collector said on the machine, on stderr |
+| `--timeout` | integer seconds, greater than 0 | `900` | Give up on a machine after this long |
+| `--json` | flag | off | Emit JSON on stdout |
+
+`--json` shape:
+
+```json
+{
+  "collected": [
+    {
+      "cost": 249.81,
+      "days": 81,
+      "id": "1F0A9C22-4E64-4C63-9E0B-2F5A1E7D2C10",
+      "machine": "Asus TUF 7",
+      "sources": ["asus-tuf-7:cli"],
+      "tokens": 321812580
+    }
+  ],
+  "failed": [],
+  "merging": true
+}
+```
+
+`merging` says whether the menu bar app was running and was asked to fold the
+new numbers into the dashboard. When it is `false` the numbers are on disk but
+the dashboard will not show them until Edith starts or you run
+`ed usage refresh`.
+
+```
+ed usage machines collect "Asus TUF 7"
+ed usage machines collect tuf --once
+ed usage machines collect --timeout 1800 --verbose
+ed usage machines collect --json | jq '.collected[].sources'
+```
+
+Failures are per machine rather than fatal: a machine that cannot be reached is
+listed in `failed` with its error while the others still count. The command only
+fails when nothing at all was collected, and then it exits 4 with the first
+error. With no machine named and none signed up yet it exits 3 with `no machine
+is counted towards usage yet`. A `--timeout` of zero or less exits 2.
+
+Collecting also prunes stored usage for machines that are no longer in the
+directory, so removing a machine and collecting again forgets it.
+
+#### `ed usage machines enable`
+
+Signs a machine up so every later refresh collects it.
+
+```
+ed usage machines enable <machine> [--json]
+```
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<machine>` | machine name, ssh alias or id | required | Which machine to count |
+| `--json` | flag | off | Emit JSON on stdout |
+
+```json
+{
+  "counted": true,
+  "machine": "Asus TUF 7"
+}
+```
+
+This only changes whether the machine takes part; it collects nothing by itself,
+so a machine enabled but never collected still reports nothing until a refresh
+runs. A name that matches no machine exits 3.
+
+#### `ed usage machines disable`
+
+Stops collecting from a machine while keeping the numbers it already gave.
+
+```
+ed usage machines disable <machine> [--json]
+```
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<machine>` | machine name, ssh alias or id | required | Which machine to stop collecting |
+| `--json` | flag | off | Emit JSON on stdout |
+
+```json
+{
+  "counted": false,
+  "machine": "Asus TUF 7"
+}
+```
+
+The machine's existing sources stay in `usage.json` and keep counting towards
+every total. Use `forget` to drop them. A name that matches no machine exits 3.
+
+#### `ed usage machines forget`
+
+Drops everything a machine gave and stops counting it.
+
+```
+ed usage machines forget <machine> [--json]
+```
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<machine>` | machine name, ssh alias or id | required | Which machine to drop |
+| `--json` | flag | off | Emit JSON on stdout |
+
+```json
+{
+  "dropped": true,
+  "machine": "Asus TUF 7",
+  "merging": true
+}
+```
+
+`dropped` is `false` when there was nothing stored for that machine, and then
+`merging` is `false` too, because the app is only asked to re-fold when
+something actually went away. This is the one verb here that accepts a raw id
+for a machine that is no longer in the directory, so usage left behind by a
+deleted machine can still be cleared.
 
 ### `ed usage refresh`
 
