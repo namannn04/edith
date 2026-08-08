@@ -1,6 +1,6 @@
 FLAGS := $(if $(PR),--pr $(PR)) $(if $(BRANCH),--branch $(BRANCH))
 
-.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check site-dev cli
+.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check site-dev cli wiki wiki-push
 
 ci:
 	bun install --frozen-lockfile
@@ -13,6 +13,12 @@ cli:
 	cd apps/macos && swift build -c release --product ed --product edh
 	apps/macos/.build/release/ed install --directory $(HOME)/.local/bin
 	apps/macos/.build/release/ed completions install
+
+wiki:
+	bun scripts/sync-wiki.mjs
+
+wiki-push:
+	bun scripts/sync-wiki.mjs --push
 
 ci-comments:
 	bun scripts/strip-comments.mjs --selftest
