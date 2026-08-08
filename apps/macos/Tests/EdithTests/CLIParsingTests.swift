@@ -142,7 +142,7 @@ import Testing
     @Test func aVolumeOutsideZeroToOneIsRejected() async {
         for level in ["5", "1.0001", "99"] {
             let result = await CLIProbe.run(["music", "volume", level])
-            #expect(result.code == ExitCodes.failure, "volume \(level) exited \(result.code)")
+            #expect(result.code == ExitCodes.usage, "volume \(level) exited \(result.code)")
             #expect(result.stderr.contains("between 0 and 1"))
         }
     }
@@ -154,13 +154,13 @@ import Testing
 
     @Test func aNegativeDayCountIsRejectedBeforeTheAppIsAsked() async {
         let result = await CLIProbe.run(["calendar", "ls", "--days=-3"])
-        #expect(result.code == ExitCodes.failure)
+        #expect(result.code == ExitCodes.usage)
         #expect(result.stderr.contains("--days cannot be negative"))
     }
 
     @Test func aNegativeProjectLimitIsRejected() async {
         let result = await CLIProbe.run(["usage", "projects", "--limit=-1"])
-        #expect(result.code == ExitCodes.failure)
+        #expect(result.code == ExitCodes.usage)
         #expect(result.stderr.contains("--limit must be greater than zero"))
     }
 
@@ -170,14 +170,14 @@ import Testing
             ["machines", "metrics", "--interval=-2", "somewhere"],
         ] {
             let result = await CLIProbe.run(arguments)
-            #expect(result.code == ExitCodes.failure, "\(arguments) exited \(result.code)")
+            #expect(result.code == ExitCodes.usage, "\(arguments) exited \(result.code)")
             #expect(result.stderr.contains("--interval must be greater than zero"))
         }
     }
 
     @Test func aNegativeProcessCountIsRejected() async {
         let result = await CLIProbe.run(["system", "stats", "--processes=-4"])
-        #expect(result.code == ExitCodes.failure)
+        #expect(result.code == ExitCodes.usage)
         #expect(result.stderr.contains("--processes cannot be negative"))
     }
 
@@ -185,7 +185,7 @@ import Testing
         let result = await CLIProbe.run([
             "machines", "docker", "logs", "--tail=-10", "somewhere", "api",
         ])
-        #expect(result.code == ExitCodes.failure)
+        #expect(result.code == ExitCodes.usage)
         #expect(result.stderr.contains("--tail cannot be negative"))
     }
 

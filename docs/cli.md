@@ -71,7 +71,7 @@ These hold for every command, and they are the contract an agent should rely on.
   | --- | --- |
   | 0 | success |
   | 1 | the command failed |
-  | 2 | the command line was wrong (unknown flag, missing argument) |
+  | 2 | the command line was wrong: an unknown flag, a missing argument, or a value outside what the option accepts |
   | 3 | the thing you named does not exist (machine, setting, extension) |
   | 4 | unavailable: the app is not running, a machine is down, a permission is missing |
 

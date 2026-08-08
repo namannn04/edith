@@ -485,7 +485,7 @@ import Testing
                 .spotify: PlayerSnapshot(player: .spotify, isRunning: true, title: "x")
             ])
             let result = await CLIProbe.capture(["music", "volume", "5"])
-            #expect(result.code == ExitCodes.failure)
+            #expect(result.code == ExitCodes.usage)
             #expect(result.stderr.contains("between 0 and 1"))
             #expect(world.recordedScripts().isEmpty)
         }
