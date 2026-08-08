@@ -207,6 +207,12 @@ public enum Guide {
         running, because it lives in files and preferences rather than in memory.
 
         ```
+        ed download ls                  the yt-dlp queue
+        ed download add <url> --kind audio
+        ed download retry --all | clear | tool --update
+        ```
+
+        ```
         ed clipboard ls                 the clipboard history, pinned first
         ed clipboard ls --search token  only entries mentioning it
         ed clipboard stats              how many entries, and what they weigh

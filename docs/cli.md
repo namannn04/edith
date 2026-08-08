@@ -25,6 +25,7 @@ and is the shortest path to being useful. This page is the complete reference.
 - [`ed music`](#ed-music)
 - [`ed calendar`](#ed-calendar)
 - [`ed clipboard`](#ed-clipboard)
+- [`ed download`](#ed-download)
 - [`ed color`](#ed-color)
 - [`ed shelf`](#ed-shelf)
 - [`ed cleaner`](#ed-cleaner)
@@ -386,6 +387,32 @@ bumps it to the top of the history. `--plain` strips styling from a rich entry.
 `pin` keeps an entry out of the retention sweep that `clipboardMaxItems` and
 `clipboardMaxAgeDays` drive; pinning something already pinned reports that on
 stderr and still exits 0.
+
+## `ed download`
+
+The queue Edith feeds to yt-dlp. It is a file, so listing, adding and clearing
+work whether or not the app is running. Edith is what actually runs yt-dlp, so
+anything added while it is closed waits and starts when you open it, and `ed`
+says so on stderr.
+
+```
+ed download ls [--active] [--limit <n>] [--json]
+ed download add <url>... [--kind audio|video] [--prefix <text>] [--json]
+ed download retry <n> | --all [--json]
+ed download rm <n> [--json]
+ed download clear [--everything] [--json]
+ed download tool [--update] [--json]
+```
+
+`add` accepts several links at once and ignores anything in the argument that is
+not a URL, the same parser the sheet's paste box uses. `clear` forgets what has
+finished; `--everything` also drops what is queued or running. `tool` reports
+which yt-dlp is being used and its version, and `--update` runs its self-update:
+
+```
+$ ed download tool
+2026.07.04  /Users/pulkit/Library/Application Support/Edith/bin/yt-dlp
+```
 
 ## `ed color`
 

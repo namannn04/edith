@@ -195,6 +195,7 @@ public final class YoutubeDownloader: ObservableObject {
     private var currentItemID: UUID?
     private var ytdlpExecutableCache: (url: URL, prefix: [String])?
     private var provisioningObserver: NSObjectProtocol?
+    private var queueObserver: NSObjectProtocol?
 
     public struct DownloadItem: Identifiable, Equatable {
         public let id = UUID()
@@ -275,6 +276,9 @@ public final class YoutubeDownloader: ObservableObject {
             NotificationCenter.default.post(name: .musicFolderChanged, object: nil)
             IPC.post(IPC.Name.musicFolderChanged)
         }
+        queueObserver = IPC.observe(IPC.Name.downloadQueueChanged) { [weak self] in
+            Task { @MainActor in self?.adoptQueueFromDisk() }
+        }
         provisioningObserver = NotificationCenter.default.addObserver(
             forName: .cliToolProvisioned, object: nil, queue: .main
         ) { [weak self] notification in
@@ -307,6 +311,11 @@ public final class YoutubeDownloader: ObservableObject {
                 createdAt: $0.createdAt, kind: $0.kind ?? .audio)
         }
         .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private func adoptQueueFromDisk() {
+        load()
+        if !isRunning { processNext() }
     }
 
     public func checkAvailability() {
