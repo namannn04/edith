@@ -294,7 +294,16 @@ it pipes into `jq` cleanly. `--processes n` includes the top n processes by CPU.
 ed music status [--json]
 ed music play | pause | toggle | next | previous
 ed music volume <0..1>
+ed music start <track> | --folder <folder>
+ed music seek <0..1>
+ed music shuffle [on|off]
+ed music repeat  [on|off]
 ```
+
+`start` plays something specific out of Edith's own library, so it needs the app
+running; `play` resumes whatever player is already going, including Spotify and
+Apple Music. `shuffle` and `repeat` report the current state when given no
+argument.
 
 ### The library
 

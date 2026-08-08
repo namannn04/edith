@@ -197,6 +197,18 @@ public enum CommandTree {
                     CommandNode(
                         "volume", "Set the player volume from 0 to 1.", options: playback),
                     CommandNode(
+                        "start", "Play one track, or a whole folder.",
+                        options: ["--json", "--help", "--folder"], arguments: [.free]),
+                    CommandNode(
+                        "seek", "Jump to a point in the track.", options: common,
+                        arguments: [.free]),
+                    CommandNode(
+                        "shuffle", "Turn shuffle on or off.", options: common,
+                        arguments: [.free]),
+                    CommandNode(
+                        "repeat", "Turn repeat on or off.", aliases: ["loop"], options: common,
+                        arguments: [.free]),
+                    CommandNode(
                         "ls", "List the library a folder at a time.", aliases: ["list"],
                         options: ["--json", "--help", "--folders", "--recursive", "--search"],
                         arguments: [.free]),

@@ -114,6 +114,10 @@ enum UIParity {
         UICapability("Music player", "skip back", ["music", "previous"]),
         UICapability("Music player", "change the volume", ["music", "volume", "0.5"]),
         UICapability("Music page", "browse the library", ["music", "ls"]),
+        UICapability("Music page", "click a track to play it", ["music", "start", "song"]),
+        UICapability(
+            "Music page", "play a whole folder", ["music", "start", "--folder", "Chill"]),
+        UICapability("Music footer", "drag the seek bar", ["music", "seek", "0.5"]),
         UICapability(
             "Music page", "choose the music folder",
             ["config", "set", "musicFolderPath", "~/Music"]),
@@ -126,9 +130,8 @@ enum UIParity {
         UICapability(
             "Music page", "move a folder to the Trash",
             ["music", "rm", "--folder", "Chill", "--yes"]),
-        UICapability(
-            "Music footer", "toggle shuffle", ["config", "set", "musicShuffling", "true"]),
-        UICapability("Music footer", "toggle repeat", ["config", "set", "musicLooping", "true"]),
+        UICapability("Music footer", "toggle shuffle", ["music", "shuffle", "on"]),
+        UICapability("Music footer", "toggle repeat", ["music", "repeat", "on"]),
 
         UICapability(
             "Machine finder", "download a remote file",

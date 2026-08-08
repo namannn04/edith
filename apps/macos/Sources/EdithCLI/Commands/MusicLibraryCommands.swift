@@ -319,3 +319,154 @@ struct MusicRemoveCommand: AsyncParsableCommand {
         CLIOut.note("nothing was moved; pass --yes to go ahead")
     }
 }
+
+struct MusicPlayTrackCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "start",
+        abstract: "Play one track, or everything in a folder.",
+        discussion: """
+            This drives Edith's own library player, so it needs the app running. `ed music
+            play` without a track resumes whatever player is already going, including
+            Spotify and Apple Music.
+            """)
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Flag(help: "Treat the argument as a folder and play everything under it.")
+    var folder = false
+
+    @Argument(help: "Track path or title, or a folder path with --folder.")
+    var target: String
+
+    func run() async throws {
+        try await execute {
+            try AppBridge.requireHelper("playing from the library")
+            guard !folder else {
+                let found = try LibraryBridge.folder(target)
+                AppBridge.post(
+                    IPC.Name.musicCommand,
+                    userInfo: [
+                        "action": "playSource", "kind": "folder",
+                        "path": found.relativePath,
+                    ])
+                guard !json else {
+                    CLIOut.json(
+                        .object([
+                            "playing": .string(found.relativePath), "folder": .bool(true),
+                        ]))
+                    return
+                }
+                CLIOut.out("playing \(found.relativePath)")
+                return
+            }
+            let track = try LibraryBridge.track(target)
+            AppBridge.post(
+                IPC.Name.musicCommand,
+                userInfo: ["action": "toggle", "track": track.relativePath])
+            guard !json else {
+                CLIOut.json(LibraryBridge.json(track))
+                return
+            }
+            CLIOut.out("playing \(track.title)")
+        }
+    }
+}
+
+struct MusicSeekCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "seek", abstract: "Jump to a point in the current track, from 0 to 1.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Where to jump to, as a fraction of the track from 0 to 1.")
+    var position: Double
+
+    func run() async throws {
+        try await execute {
+            let fraction = try ArgumentChecks.fraction(position, "position")
+            try AppBridge.requireHelper("seeking")
+            AppBridge.post(
+                IPC.Name.musicCommand, userInfo: ["action": "seek", "value": fraction])
+            guard !json else {
+                CLIOut.json(.object(["position": .double(fraction)]))
+                return
+            }
+            CLIOut.out("seeked to \(Int(fraction * 100))%")
+        }
+    }
+}
+
+struct MusicShuffleCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "shuffle", abstract: "Turn shuffle on or off.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "on or off. Leave it out to report what it is.")
+    var state: String?
+
+    func run() async throws {
+        try await MusicToggleState.apply(
+            key: "musicShuffling", action: "shuffle", label: "shuffle", state: state, json: json)
+    }
+}
+
+struct MusicRepeatCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "repeat", abstract: "Turn repeat on or off.", aliases: ["loop"])
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "on or off. Leave it out to report what it is.")
+    var state: String?
+
+    func run() async throws {
+        try await MusicToggleState.apply(
+            key: "musicLooping", action: "loop", label: "repeat", state: state, json: json)
+    }
+}
+
+enum MusicToggleState {
+    static func apply(
+        key: String, action: String, label: String, state: String?, json: Bool
+    ) async throws {
+        try await execute {
+            let defaults = CLIEnvironment.standardDefaults
+            guard let state else {
+                let on = defaults.bool(forKey: key)
+                guard !json else {
+                    CLIOut.json(.object([label: .bool(on)]))
+                    return
+                }
+                CLIOut.out(on ? "on" : "off")
+                return
+            }
+            guard let wanted = BooleanWord.parse(state) else {
+                throw CLIFailure(
+                    "\(state) is not on or off", hint: "pass on, off, true or false")
+            }
+            defaults.set(wanted, forKey: key)
+            AppBridge.post(
+                IPC.Name.musicCommand, userInfo: ["action": action, "value": wanted])
+            guard !json else {
+                CLIOut.json(.object([label: .bool(wanted)]))
+                return
+            }
+            CLIOut.out("\(label) \(wanted ? "on" : "off")")
+        }
+    }
+}
+
+enum BooleanWord {
+    static func parse(_ raw: String) -> Bool? {
+        switch raw.lowercased() {
+        case "on", "true", "yes", "1", "enabled": return true
+        case "off", "false", "no", "0", "disabled": return false
+        default: return nil
+        }
+    }
+}
