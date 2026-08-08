@@ -221,6 +221,29 @@ public enum CommandTree {
                         options: ["--json", "--days"])
                 ]),
             CommandNode(
+                "download", "The download queue Edith feeds to yt-dlp.",
+                aliases: ["downloads", "dl"],
+                children: [
+                    CommandNode(
+                        "ls", "List the queue.", aliases: ["list"],
+                        options: ["--json", "--help", "--active", "--limit"]),
+                    CommandNode(
+                        "add", "Queue one or more URLs.",
+                        options: ["--json", "--help", "--kind", "--prefix"], arguments: [.free]),
+                    CommandNode(
+                        "retry", "Queue a failed download again.",
+                        options: ["--json", "--help", "--all"], arguments: [.historyIndex]),
+                    CommandNode(
+                        "rm", "Take one entry out of the queue.", options: common,
+                        arguments: [.historyIndex]),
+                    CommandNode(
+                        "clear", "Forget what has finished.",
+                        options: ["--json", "--help", "--everything"]),
+                    CommandNode(
+                        "tool", "Report or update yt-dlp.",
+                        options: ["--json", "--help", "--update"]),
+                ]),
+            CommandNode(
                 "clipboard", "The clipboard history Edith keeps.",
                 children: [
                     CommandNode(

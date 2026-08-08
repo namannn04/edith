@@ -45,6 +45,15 @@ enum JSONContract {
         JSONCase("ed music mv", ["music", "mv", "nothing-at-all", "Chill", "--json"]),
         JSONCase("ed music rename", ["music", "rename", "nothing-at-all", "New", "--json"]),
         JSONCase("ed music rm", ["music", "rm", "nothing-at-all", "--json"]),
+        JSONCase("ed download ls", ["download", "ls", "--json"]),
+        JSONCase(
+            "ed download add", ["download", "add", "https://youtu.be/x", "--json"],
+            mutatesTheMachine: true),
+        JSONCase("ed download retry", ["download", "retry", "--all", "--json"]),
+        JSONCase("ed download rm", ["download", "rm", "1", "--json"], mutatesTheMachine: true),
+        JSONCase(
+            "ed download clear", ["download", "clear", "--json"], mutatesTheMachine: true),
+        JSONCase("ed download tool", ["download", "tool", "--json"]),
         JSONCase("ed color ls", ["color", "ls", "--json"]),
         JSONCase("ed color clear", ["color", "clear", "--json"]),
         JSONCase("ed shelf ls", ["shelf", "ls", "--json"]),
