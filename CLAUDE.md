@@ -72,8 +72,23 @@ the same function.
   and `everyUIActionParsesWithTheArgumentsItClaims` fails when the verb it names
   does not exist or does not take those arguments.
 - A new command also needs a `CommandNode` in `CommandTree.swift` (completion), a
-  `JSONCase` in `CLIContractTests.swift` if it takes `--json`, and an entry in
-  `docs/cli.md` and `Guide.swift`.
+  `JSONCase` in `CLIContractTests.swift` if it takes `--json`, a section on the right
+  page under `docs/cli/`, and an entry in `Guide.swift`.
+  `CLIDocsTests.everyCommandInTheTreeIsDocumented` fails when a command in the tree
+  is documented nowhere, and a brand new page must be linked from `docs/cli/README.md`.
+
+## Documentation
+
+`docs/cli/` is the CLI reference: `README.md` is the index, and every other page
+covers one command group. It is the only place the CLI is documented at length;
+the root `README.md` links to it rather than repeating it.
+
+`scripts/sync-wiki.mjs` mirrors `docs/` into this repo's GitHub wiki, one wiki page
+per markdown file, plus a generated `Home`, `_Sidebar` and `_Footer`. Relative links
+between docs are rewritten to wiki slugs. `.github/workflows/wiki-sync.yml` runs it
+on every push to `main` that touches `docs/`. Preview the output locally with
+`make wiki` (writes `.wiki-build/`, never pushes); `make wiki-push` publishes.
+The wiki is generated output: edit `docs/`, never the wiki.
 
 ## Checks
 
@@ -84,6 +99,7 @@ the same function.
 - `bun test ./scripts` - JS tests. Do not pass a bare `scripts`; it also matches the
   gitignored `extras/` tree and reports unrelated failures.
 - `cd apps/promo-video && npm ci && npx tsc --noEmit` - promo-video (Remotion) type-check.
+- `make wiki` - render the wiki into `.wiki-build/` to check what a push would publish.
 
 ## Website
 
