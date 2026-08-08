@@ -599,6 +599,25 @@ and exits; with it, a sample every `--interval` seconds. `--json` gives cpu
 uptime, per-device disk throughput, per-interface network throughput, and
 optionally the top processes.
 
+### Workspaces
+
+A workspace is a saved arrangement of panes, each pointed at a machine and a
+screen. These read and write the same file the Workspace view does.
+
+```
+ed machines workspace ls [--json]
+ed machines workspace use <workspace> [--json]
+ed machines workspace new <machine>... [--screen <s>] [--name <n>] [--json]
+ed machines workspace rename <workspace> <name> [--json]
+ed machines workspace rm <workspace> [--json]
+```
+
+`new` is the Layout menu's presets as a command: one machine gives a single
+pane, several give them tiled side by side. `--screen` is `overview`,
+`processes`, `docker`, `files` or `terminal`. Splitting a pane by hand and
+dragging dividers stay in the view; what `ed` reaches is which layouts exist,
+which one is current, and what each pane points at.
+
 `broadcast` is the terminal's broadcast bar as a command: it runs one line on
 every configured machine, labels each machine's output, keeps going when one is
 unreachable, and exits 1 if any of them failed. `--only` narrows it to a

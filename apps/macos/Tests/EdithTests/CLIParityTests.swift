@@ -130,6 +130,16 @@ enum UIParity {
         UICapability(
             "Machine finder", "duplicate a file",
             ["machines", "files", "duplicate", "box", "/a"]),
+        UICapability("Workspace view", "list saved layouts", ["machines", "workspace", "ls"]),
+        UICapability(
+            "Workspace toolbar", "apply a layout preset",
+            ["machines", "workspace", "new", "box", "--screen", "terminal"]),
+        UICapability(
+            "Workspace picker", "switch to another layout", ["machines", "workspace", "use", "a"]),
+        UICapability(
+            "Workspace picker", "rename a layout", ["machines", "workspace", "rename", "a", "b"]),
+        UICapability(
+            "Workspace picker", "delete a layout", ["machines", "workspace", "rm", "a"]),
         UICapability("Machines", "open the shared connection", ["machines", "connect", "box"]),
         UICapability("Machines", "close the shared connection", ["machines", "disconnect", "box"]),
 

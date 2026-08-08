@@ -195,6 +195,16 @@ enum JSONContract {
         JSONCase(
             "ed machines docker unpause",
             ["machines", "docker", "unpause", "nowhere-at-all", "api", "--json"]),
+        JSONCase("ed machines workspace ls", ["machines", "workspace", "ls", "--json"]),
+        JSONCase(
+            "ed machines workspace use", ["machines", "workspace", "use", "nope", "--json"]),
+        JSONCase(
+            "ed machines workspace new",
+            ["machines", "workspace", "new", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines workspace rename",
+            ["machines", "workspace", "rename", "nope", "x", "--json"]),
+        JSONCase("ed machines workspace rm", ["machines", "workspace", "rm", "nope", "--json"]),
         JSONCase("ed machines connect", ["machines", "connect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines disconnect", ["machines", "disconnect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines services", ["machines", "services", "nowhere-at-all", "--json"]),
