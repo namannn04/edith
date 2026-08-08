@@ -359,6 +359,12 @@ public enum ConfigCatalog {
             "musicGridView", .bool, group: "music", summary: "Show the library as a grid.",
             fallback: .bool(false)),
         SettingDefinition(
+            "musicFolderPath", .string, group: "music",
+            summary: "Folder the music library plays from."),
+        SettingDefinition(
+            "musicShuffling", .bool, group: "music", summary: "Play the folder in a random order.",
+            fallback: .bool(false), scope: .standard),
+        SettingDefinition(
             "musicFavourites", .stringList, group: "music",
             summary: "Relative paths of favourited tracks."),
         SettingDefinition(
