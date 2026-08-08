@@ -247,10 +247,45 @@ struct MachinesExecCommand: AsyncParsableCommand {
                 throw CLIFailure("name a command to run, for example `ed \(machine) uptime`")
             }
             let runner = try await MachineResolver.runner(machine)
+            let stored = MachineWorkingDirectory.load(machineID: runner.machine.id)
+            guard !MachineWorkingDirectory.isChangeDirectory(words) else {
+                try await changeDirectory(
+                    to: words.count == 2 ? words[1] : nil, from: stored, runner: runner)
+                return
+            }
             let line = words.count == 1 ? words[0] : ShellQuote.command(words)
-            let status = await runner.passthrough(line)
+            let status = await runner.passthrough(
+                MachineWorkingDirectory.prefixed(line, directory: stored))
             guard status == 0 else { throw ExitCode(status) }
         }
+    }
+
+    private func changeDirectory(
+        to target: String?, from stored: String?, runner: RemoteRunner
+    ) async throws {
+        var wanted = target
+        if wanted == MachineWorkingDirectory.previousMarker {
+            guard let back = MachineWorkingDirectory.loadPrevious(machineID: runner.machine.id)
+            else {
+                throw CLIFailure(
+                    "no previous directory for \(runner.machine.name) in this terminal")
+            }
+            wanted = back
+        }
+        let result = try await runner.run(
+            MachineWorkingDirectory.resolveCommand(target: wanted, from: stored))
+        guard result.succeeded,
+            let resolved = MachineWorkingDirectory.resolvedDirectory(fromOutput: result.stdoutText)
+        else {
+            let detail = result.stderrText.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw CLIFailure(
+                "cannot change to \(target ?? "the home directory") on \(runner.machine.name)",
+                hint: detail.isEmpty ? nil : detail)
+        }
+        let origin =
+            MachineWorkingDirectory.originDirectory(fromOutput: result.stdoutText) ?? stored
+        MachineWorkingDirectory.save(
+            resolved, previous: origin, machineID: runner.machine.id)
     }
 
     static func strippingSeparator(_ words: [String]) -> [String] {

@@ -52,10 +52,11 @@ public enum RemoteCompletion {
         guard cursor >= 0 else { return [] }
         guard MachineDirectory.hasLiveControlSocket(machine) else { return [] }
         let connection = SSHConnection(machine: machine)
-        let command =
+        let command = MachineWorkingDirectory.prefixed(
             cursor == 0
-            ? commandNamesCommand(prefix: request.current)
-            : harnessCommand(words: words, cursor: cursor)
+                ? commandNamesCommand(prefix: request.current)
+                : harnessCommand(words: words, cursor: cursor),
+            directory: MachineWorkingDirectory.load(machineID: machine.id))
         guard let result = try? await connection.run(command, timeout: 6), result.succeeded else {
             return []
         }

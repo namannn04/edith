@@ -123,6 +123,17 @@ public enum Guide {
         docker: `ed tuf systemctl status nginx`, `ed tuf tail -f /var/log/syslog`, `ed
         tuf 'ls -la | head'`. Stdin is forwarded, so pipes work in both directions.
 
+        `cd` sticks, so the commands after it run where you left off. The directory
+        belongs to the terminal it was set in, like a local shell, and remote path
+        completion follows it.
+
+        ```
+        ed tuf cd Desktop
+        ed tuf pwd                              /home/pulkit/Desktop
+        ed tuf cd -                             back to where you were before
+        ed tuf cd                               back to the home directory
+        ```
+
         ## Usage and limits
 
         Usage numbers come from the same `usage.json` the dashboard reads, and limits
