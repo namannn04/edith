@@ -329,10 +329,26 @@ public enum MachineUsageCollector {
         return MachineUsageCollection(summary: summary, log: run.combinedText)
     }
 
+    public static let transportFailure: Int32 = 255
+
     public static func lastLine(of output: String) -> String {
-        output
+        let lines =
+            output
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
-            .last { !$0.isEmpty } ?? ""
+            .filter { !$0.isEmpty }
+        guard let last = lines.last else { return "" }
+        return spoken(last)
+    }
+
+    public static func spoken(_ line: String) -> String {
+        guard let event = UsageRefreshEvent.parse(line) else { return line }
+        switch event {
+        case let .phase(name, detail, _): return "\(name): \(detail)"
+        case let .note(text): return text
+        case let .summary(label, value): return "\(label) \(value)"
+        case let .failure(text): return text
+        case let .finished(seconds): return "finished in \(String(format: "%.2f", seconds))s"
+        }
     }
 }

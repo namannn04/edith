@@ -60,10 +60,23 @@ enum UsageMachineBridge {
 
     static let headers = ["MACHINE", "COUNTED", "COLLECTED", "SOURCES", "COST", "TOKENS"]
 
-    static func askTheAppToMerge() -> Bool {
-        guard AppBridge.helperIsRunning else { return false }
-        AppBridge.post(IPC.Name.requestUsageRefresh)
-        return true
+    static func merge(progress: CLIProgress) async -> Bool {
+        let driver = CLIEnvironment.usageRefresh
+        progress.begin("folding it in")
+        defer { progress.end() }
+        do {
+            _ = try await driver.start { event in
+                guard case let .phase(name, detail, seconds) = event else { return }
+                progress.step(name, detail, seconds: seconds)
+            }
+            return true
+        } catch UsageRefreshFailure.busy {
+            progress.note("a usage refresh is already running, it will pick this up")
+            return true
+        } catch {
+            progress.note("could not fold it in: \(error.localizedDescription)")
+            return false
+        }
     }
 }
 
@@ -133,58 +146,52 @@ struct UsageMachinesCollectCommand: AsyncParsableCommand {
             let seconds = TimeInterval(try ArgumentChecks.positive(timeout, "--timeout"))
             let machines = MachineDirectory.load()
             let targets = try targets(in: machines)
-            let slugs = MachineUsageSlug.slugs(for: machines)
+            let progress = CLIProgress.forCommand(json: json)
+            progress.header("EDITH · collect usage · " + UsageRefreshPrinter.stamp(Date()))
+            progress.begin("reaching \(targets.count == 1 ? targets[0].name : "the machines")")
 
-            var collected: [MachineUsageSummary] = []
-            var failures: [(String, String)] = []
-            for target in targets {
-                let slug = slugs[target.id] ?? MachineUsageSlug.slug(for: target.name)
-                do {
-                    let runner = try await MachineResolver.runner(target.name)
-                    let run = try await MachineUsageCollector.collect(
-                        machine: target, slug: slug, over: runner.ssh, timeout: seconds)
-                    if verbose { CLIOut.note(run.log) }
-                    collected.append(run.summary)
-                    if !once { MachineUsageSelection.include(target.id) }
-                } catch {
-                    failures.append((target.name, error.localizedDescription))
+            let sink: @Sendable (UsageRefreshEvent) -> Void = { event in
+                switch event {
+                case let .phase(name, detail, elapsed):
+                    progress.step(name, detail, seconds: elapsed)
+                case let .note(text):
+                    progress.note(text)
+                default:
+                    break
                 }
             }
-            MachineUsageStore.prune(keeping: machines.map(\.id))
-            let merging = collected.isEmpty ? false : UsageMachineBridge.askTheAppToMerge()
+            let round = await MachineUsageRound.collect(
+                targets, registry: machines, timeout: seconds, echoingTheCollector: verbose,
+                onEvent: sink)
+            progress.end()
+            if round.skippedBecauseBusy {
+                throw CLIFailure.unavailable(
+                    "another collection is already running",
+                    hint: "wait for it to finish, then retry")
+            }
+            if !once {
+                for target in targets
+                where round.collected.contains(where: {
+                    $0.machineID == target.id
+                }) {
+                    MachineUsageSelection.include(target.id)
+                }
+            }
+            let merged = await Self.merge(round, progress: progress)
 
             guard !json else {
-                CLIOut.json(
-                    .object([
-                        "collected": .array(
-                            collected.map { summary in
-                                .object([
-                                    "machine": .string(summary.name),
-                                    "id": .string(summary.machineID.uuidString),
-                                    "sources": .array(summary.sources.map { .string($0) }),
-                                    "days": .int(summary.days),
-                                    "cost": .double(summary.cost),
-                                    "tokens": .double(summary.tokens),
-                                ])
-                            }),
-                        "failed": .array(
-                            failures.map {
-                                .object(["machine": .string($0.0), "error": .string($0.1)])
-                            }),
-                        "merging": .bool(merging),
-                    ]))
-                guard collected.isEmpty, let first = failures.first else { return }
-                throw CLIFailure.unavailable("\(first.0): \(first.1)")
+                CLIOut.json(Self.payload(round, merged: merged))
+                guard round.collected.isEmpty, let first = round.failures.first else { return }
+                throw CLIFailure.unavailable("\(first.machine): \(first.reason)")
             }
-
-            for failure in failures {
-                CLIOut.note("error: \(failure.0): \(failure.1)")
+            for failure in round.failures {
+                CLIOut.note("error: \(failure.machine): \(failure.reason)")
             }
-            guard !collected.isEmpty else {
-                guard let first = failures.first else { return }
-                throw CLIFailure.unavailable("\(first.0): \(first.1)")
+            guard !round.collected.isEmpty else {
+                guard let first = round.failures.first else { return }
+                throw CLIFailure.unavailable("\(first.machine): \(first.reason)")
             }
-            let rows = collected.map { summary in
+            let rows = round.collected.map { summary in
                 [
                     summary.name, String(summary.sources.count), String(summary.days),
                     String(format: "%.2f", summary.cost), String(Int(summary.tokens)),
@@ -194,10 +201,36 @@ struct UsageMachinesCollectCommand: AsyncParsableCommand {
                 TextTable.render(
                     headers: ["MACHINE", "SOURCES", "DAYS", "COST", "TOKENS"], rows: rows))
             CLIOut.out(
-                merging
-                    ? "Edith is folding this into the dashboard"
-                    : "start Edith, or run `ed usage refresh`, to fold this into the dashboard")
+                merged
+                    ? "folded into the dashboard"
+                    : "run `ed usage refresh` to fold this into the dashboard")
         }
+    }
+
+    static func merge(_ round: MachineUsageRoundResult, progress: CLIProgress) async -> Bool {
+        guard round.changedAnything else { return false }
+        return await UsageMachineBridge.merge(progress: progress)
+    }
+
+    static func payload(_ round: MachineUsageRoundResult, merged: Bool) -> JSONValue {
+        .object([
+            "collected": .array(
+                round.collected.map { summary in
+                    .object([
+                        "machine": .string(summary.name),
+                        "id": .string(summary.machineID.uuidString),
+                        "sources": .array(summary.sources.map { .string($0) }),
+                        "days": .int(summary.days),
+                        "cost": .double(summary.cost),
+                        "tokens": .double(summary.tokens),
+                    ])
+                }),
+            "failed": .array(
+                round.failures.map {
+                    .object(["machine": .string($0.machine), "error": .string($0.reason)])
+                }),
+            "merged": .bool(merged),
+        ])
     }
 
     private func targets(in machines: [Machine]) throws -> [Machine] {
@@ -279,7 +312,9 @@ struct UsageMachinesForgetCommand: AsyncParsableCommand {
             let id = try identify()
             let dropped = MachineUsageStore.forget(machineID: id)
             MachineUsageSelection.exclude(id)
-            let merging = dropped ? UsageMachineBridge.askTheAppToMerge() : false
+            let progress = CLIProgress.forCommand(json: json)
+            let merging =
+                dropped ? await UsageMachineBridge.merge(progress: progress) : false
             guard !json else {
                 CLIOut.json(
                     .object([

@@ -7,7 +7,8 @@ struct UsageMachineRows: View {
     @State private var machines: [Machine] = []
     @State private var counted: Set<UUID> = []
     @State private var summaries: [UUID: MachineUsageSummary] = [:]
-    @State private var asked = false
+    @State private var collecting: Task<Void, Never>?
+    @State private var status = ""
 
     var body: some View {
         Section {
@@ -19,14 +20,21 @@ struct UsageMachineRows: View {
                 ForEach(machines) { machine in
                     row(machine)
                 }
-                HStack {
-                    Text(footnote)
+                HStack(spacing: UIScale.pt(8)) {
+                    Text(status.isEmpty ? footnote : status)
                         .font(.system(size: UIScale.pt(10)))
                         .foregroundStyle(.secondary)
-                    Spacer()
-                    Button(asked ? "Collecting…" : "Collect now") { collect() }
-                        .pointerCursor()
-                        .disabled(counted.isEmpty || asked)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 0)
+                    if collecting != nil {
+                        ProgressView().controlSize(.small)
+                        Button("Stop") { stop() }.pointerCursor()
+                    } else {
+                        Button("Collect now") { collect() }
+                            .pointerCursor()
+                            .disabled(counted.isEmpty)
+                    }
                 }
             }
         } header: {
@@ -107,7 +115,51 @@ struct UsageMachineRows: View {
     }
 
     private func collect() {
-        asked = true
-        IPC.post(IPC.Name.requestUsageMachineCollect)
+        guard collecting == nil else { return }
+        let targets = MachineUsageSelection.included(in: machines)
+        guard !targets.isEmpty else { return }
+        status = "reaching \(targets.count == 1 ? targets[0].name : "the machines")…"
+        collecting = Task {
+            let round = await MachineUsageRound.collect(targets) { event in
+                guard let line = MachineUsageRows.spoken(event) else { return }
+                Task { @MainActor in status = line }
+            }
+            await MainActor.run {
+                reload()
+                status = MachineUsageRows.outcome(round)
+                collecting = nil
+            }
+            guard round.changedAnything else { return }
+            IPC.post(IPC.Name.requestUsageRefresh)
+        }
+    }
+
+    private func stop() {
+        collecting?.cancel()
+        collecting = nil
+        status = "stopped"
+    }
+}
+
+enum MachineUsageRows {
+    static func spoken(_ event: UsageRefreshEvent) -> String? {
+        switch event {
+        case let .phase(name, detail, _): return "\(name): \(detail)"
+        case let .note(text): return text
+        default: return nil
+        }
+    }
+
+    static func outcome(_ round: MachineUsageRoundResult) -> String {
+        if round.skippedBecauseBusy { return "another collection is already running" }
+        if let failure = round.failures.first, round.collected.isEmpty {
+            return "\(failure.machine): \(failure.reason)"
+        }
+        let collected = round.collected.count
+        let counted = collected == 1 ? "1 machine" : "\(collected) machines"
+        guard round.failures.isEmpty else {
+            return "\(counted) collected, \(round.failures.count) failed"
+        }
+        return collected == 0 ? "nothing to collect" : "\(counted) collected"
     }
 }

@@ -246,38 +246,70 @@ import Testing
     }
 }
 
-@Suite struct MachineUsageScheduleTests {
+@Suite struct MachineUsageRoundTests {
     private let now = Date(timeIntervalSince1970: 1_780_000_000)
     private let machine = Machine(id: UUID(), name: "tuf", host: "h")
 
     @Test func aMachineNobodyHasCollectedFromIsDue() {
-        let due = UsageStore.machinesDue(
+        let due = MachineUsageRound.due(
             [machine], force: false, now: now, collectedAt: { _ in nil })
         #expect(due.map(\.name) == ["tuf"])
     }
 
     @Test func aMachineCollectedJustNowWaits() {
-        let due = UsageStore.machinesDue(
+        let due = MachineUsageRound.due(
             [machine], force: false, now: now, collectedAt: { _ in now.addingTimeInterval(-60) })
         #expect(due.isEmpty)
     }
 
     @Test func aMachineGoesStaleAfterTheInterval() {
-        let stale = now.addingTimeInterval(-UsageStore.machineInterval)
-        let due = UsageStore.machinesDue(
+        let stale = now.addingTimeInterval(-MachineUsageRound.interval)
+        let due = MachineUsageRound.due(
             [machine], force: false, now: now, collectedAt: { _ in stale })
         #expect(due.map(\.name) == ["tuf"])
     }
 
     @Test func askingForItCollectsEvenFromAFreshMachine() {
-        let due = UsageStore.machinesDue(
+        let due = MachineUsageRound.due(
             [machine], force: true, now: now, collectedAt: { _ in now })
         #expect(due.map(\.name) == ["tuf"])
     }
 
     @Test func nothingIsDueWhenNoMachineTakesPart() {
-        let due = UsageStore.machinesDue([], force: true, now: now, collectedAt: { _ in nil })
+        let due = MachineUsageRound.due([], force: true, now: now, collectedAt: { _ in nil })
         #expect(due.isEmpty)
+    }
+
+    @Test func aRoundWithNothingToDoNeverTakesTheLock() async {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("machine-round-\(UUID().uuidString)")
+        let result = await MachineUsageRound.collect([], dataDir: dir)
+        #expect(result.collected.isEmpty)
+        #expect(!result.skippedBecauseBusy)
+        let lock = MachineUsageRound.lockURL(dataDir: dir)
+        #expect(!FileManager.default.fileExists(atPath: lock.path))
+    }
+
+    @Test func aSecondRoundStandsAsideWhileOneIsRunning() async throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("machine-round-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let held = try #require(
+            UsageRefreshLock.acquire(at: MachineUsageRound.lockURL(dataDir: dir)))
+        defer { held.release() }
+
+        let result = await MachineUsageRound.collect(
+            [Machine(name: "unreachable", host: "127.0.0.1")], dataDir: dir)
+        #expect(result.skippedBecauseBusy)
+        #expect(result.collected.isEmpty)
+    }
+
+    @Test func aCollectedMachineIsDescribedByDaysAndAgents() {
+        let summary = MachineUsageSummary(
+            machineID: UUID(), name: "tuf", slug: "tuf", host: "h", collectedAt: now,
+            sources: ["cli"], days: 5, cost: 1, tokens: 2)
+        #expect(MachineUsageRound.describe(summary) == "5 days · 1 agent")
     }
 }
 
@@ -332,5 +364,26 @@ import Testing
 
     @Test func aMachineThatGaveNothingMatchesNothing() throws {
         #expect(UsageMachineFilter.sources(matching: "pi", in: try document()).isEmpty)
+    }
+}
+
+@Suite struct MachineCollectorSpeechTests {
+    @Test func aWireLineIsReadBackAsSomethingASentenceCanHold() {
+        #expect(
+            MachineUsageCollector.lastLine(of: "note\tdiscovering sources\n")
+                == "discovering sources")
+        #expect(
+            MachineUsageCollector.lastLine(of: "phase\tcli\t28 days\t1.35\n") == "cli: 28 days")
+        #expect(
+            MachineUsageCollector.lastLine(of: "error\tjq is missing\n") == "jq is missing")
+    }
+
+    @Test func aPlainLineIsLeftAlone() {
+        #expect(MachineUsageCollector.lastLine(of: "  ✖ it broke\n") == "✖ it broke")
+        #expect(MachineUsageCollector.lastLine(of: "") == "")
+    }
+
+    @Test func theTransportFailureIsTheOneSSHUses() {
+        #expect(MachineUsageCollector.transportFailure == 255)
     }
 }

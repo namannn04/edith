@@ -681,19 +681,33 @@ ed usage machines collect [<machine>] [--once] [--verbose] [--timeout <seconds>]
       "days": 81,
       "id": "1F0A9C22-4E64-4C63-9E0B-2F5A1E7D2C10",
       "machine": "Asus TUF 7",
-      "sources": ["asus-tuf-7:cli"],
+      "sources": ["cli"],
       "tokens": 321812580
     }
   ],
   "failed": [],
-  "merging": true
+  "merged": true
 }
 ```
 
-`merging` says whether the menu bar app was running and was asked to fold the
-new numbers into the dashboard. When it is `false` the numbers are on disk but
-the dashboard will not show them until Edith starts or you run
-`ed usage refresh`.
+`sources` names the agents as that machine knows them, so `cli` there is the
+source `asus-tuf-7:cli` once it has been folded in.
+
+`merged` says whether the numbers reached `usage.json`. The command runs the
+merge itself, in this process, so it does not need the app; it is `false` only
+when the merge could not run at all, and the numbers then sit on disk until the
+next `ed usage refresh`. A refresh already running elsewhere counts as merged,
+because that run picks the new files up.
+
+Progress goes to stderr as each machine lands, so stdout stays parseable:
+
+```
+  ▸ Asus TUF 7  5 days · 1 agent                   7.19s
+```
+
+Two collections never run at once. The second stands aside with `another
+collection is already running`, whether it came from another `ed`, the menu bar
+app's own half-hourly round, or the button in Settings.
 
 ```
 ed usage machines collect "Asus TUF 7"
@@ -787,17 +801,26 @@ deleted machine can still be cleared.
 
 ### `ed usage refresh`
 
-Re-collects usage data from every agent on this Mac and rewrites `usage.json`.
+Re-collects usage data from every agent, on this Mac and on the machines, and
+rewrites `usage.json`.
 
 ```
-ed usage refresh [--follow] [--json]
+ed usage refresh [--follow] [--machines | --no-machines] [--json]
 ```
+
+Machines counted towards usage are topped up first, but only the stale ones:
+a machine collected within the last half hour is left alone, so a refresh on a
+loop does not open an SSH connection every time. `--machines` collects from all
+of them regardless of when they were last seen, `--no-machines` skips them and
+merges whatever is already on disk. `--follow` never collects, since it is
+watching a run that someone else started.
 
 #### Options
 
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `--follow` | flag | off | Attach to a refresh that is already running instead of starting one, and fail when there is nothing to watch |
+| `--machines` / `--no-machines` | flag | on | Collect from the machines that have gone stale before collecting this Mac |
 | `--json` | flag | off | Emit JSON on stdout |
 
 #### `--json` shape
