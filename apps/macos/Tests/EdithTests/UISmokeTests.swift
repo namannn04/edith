@@ -85,6 +85,15 @@ private func renders(_ view: some View, width: CGFloat = 900, height: CGFloat = 
         #expect(renders(PermissionsPane()))
     }
 
+    @Test func terminalPaneRenders() {
+        #expect(renders(TerminalSettingsPane()))
+    }
+
+    @Test func terminalSettingsTabRenders() {
+        SharedDefaults.store.set("terminal", forKey: "settingsTab")
+        #expect(renders(SettingsPane(updater: UpdaterModel())))
+    }
+
     @Test func updateSchedulePanelRenders() {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("smoke-update-checks-\(UUID().uuidString).json")

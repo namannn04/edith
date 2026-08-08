@@ -156,6 +156,7 @@ public enum CompletionScripts {
     }
 
     public static let recordKey = "completionScriptPaths"
+    public static let autoRefreshKey = "completionsAutoRefresh"
 
     public static func contents(for shell: Shell) -> String {
         script(for: shell) + "\n"

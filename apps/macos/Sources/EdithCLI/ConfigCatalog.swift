@@ -46,14 +46,14 @@ public enum ConfigCatalog {
     public static let groups = [
         "appearance", "panel", "usage", "limits", "menubar", "alerts", "budget", "dashboard",
         "machines", "finder", "system", "cleaner", "music", "calendar", "clipboard", "notch",
-        "focusdim", "presenter", "colorpicker", "micmute", "backup", "permissions",
+        "focusdim", "presenter", "colorpicker", "micmute", "backup", "permissions", "terminal",
     ]
 
     public static let settings: [SettingDefinition] =
         appearance + panel + usageAndLimits
         + menuBar + alerts + budget + dashboard + machines + finder + system + cleaner + music
         + calendar + clipboard + notch + focusDim + presenter + colorPicker + micMute + backup
-        + permissions
+        + permissions + terminal
 
     public static var keys: [String] { settings.map(\.key) }
 
@@ -596,6 +596,13 @@ public enum ConfigCatalog {
         SettingDefinition(
             "micHotKeyLabel", .string, group: "micmute",
             summary: "Printable label for the mic mute shortcut."),
+    ]
+
+    private static let terminal: [SettingDefinition] = [
+        SettingDefinition(
+            CompletionScripts.autoRefreshKey, .bool, group: "terminal",
+            summary: "Keep the shell completion scripts current when the app starts.",
+            fallback: .bool(true))
     ]
 
     private static let backup: [SettingDefinition] = [

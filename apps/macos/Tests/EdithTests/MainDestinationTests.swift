@@ -41,7 +41,9 @@ import Testing
 
     @Test func settingsTabsUseInformationArchitectureOrder() {
         #expect(
-            SettingsPane.Tab.allCases == [.general, .permissions, .shortcuts, .icloud, .updates])
+            SettingsPane.Tab.allCases == [
+                .general, .permissions, .shortcuts, .terminal, .icloud, .updates,
+            ])
     }
 
     @Test func resolveKeepsDestinationsAndRejectsLegacyValues() {
