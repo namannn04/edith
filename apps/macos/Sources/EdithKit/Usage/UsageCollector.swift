@@ -16,7 +16,7 @@ public enum UsageCollector {
         Repo.dataDir.appendingPathComponent("machines")
     }
 
-    public static func machineFile(id: UUID) -> URL {
-        machinesDirectory.appendingPathComponent("\(id.uuidString).json")
+    public static func machineFile(id: UUID, in directory: URL = machinesDirectory) -> URL {
+        directory.appendingPathComponent("\(id.uuidString).json")
     }
 }

@@ -388,7 +388,7 @@ compgen -G "$MACHINES_DIR/*.json" >/dev/null 2>&1 && HAS_MACHINES=1
 
 if [ ! -s "$TMP/manifest.jsonl" ] && [ "$HAS_MACHINES" = "0" ]; then
   printf '  ✖ no usage found from any source\n' >&2
-  exit 1
+  exit 3
 fi
 [ -s "$TMP/sessions.jsonl" ] || : >"$TMP/sessions.jsonl"
 
