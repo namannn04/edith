@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import EdithCLI
 @testable import EdithHelper
 @testable import EdithKit
 
@@ -239,5 +240,59 @@ import Testing
     @Test func nothingIsDueWhenNoMachineTakesPart() {
         let due = UsageStore.machinesDue([], force: true, now: now, collectedAt: { _ in nil })
         #expect(due.isEmpty)
+    }
+}
+
+@Suite struct UsageMachineFilterTests {
+    private let tufID = "4303DCF1-52D8-4075-AE9B-C2FD86D3821A"
+
+    private func document() throws -> UsageDocument {
+        let json = """
+            {
+              "sources": ["cli", "codex", "tuf:cli", "tuf:codex"],
+              "sourceMeta": {
+                "cli": {"label": "Claude Code"},
+                "codex": {"label": "Codex"},
+                "tuf:cli": {
+                  "label": "Claude Code · Asus TUF 7", "machine": "Asus TUF 7",
+                  "machineID": "\(tufID)"
+                },
+                "tuf:codex": {
+                  "label": "Codex · Asus TUF 7", "machine": "Asus TUF 7",
+                  "machineID": "\(tufID)"
+                }
+              },
+              "daily": []
+            }
+            """
+        return try JSONDecoder().decode(UsageDocument.self, from: Data(json.utf8))
+    }
+
+    @Test func aMachineNameSelectsEveryAgentItRan() throws {
+        let sources = UsageMachineFilter.sources(matching: "Asus TUF 7", in: try document())
+        #expect(sources == ["tuf:cli", "tuf:codex"])
+    }
+
+    @Test func theNameIsMatchedWithoutCaringAboutCase() throws {
+        #expect(
+            UsageMachineFilter.sources(matching: "asus tuf 7", in: try document())
+                == ["tuf:cli", "tuf:codex"])
+    }
+
+    @Test func aRenamedMachineIsStillFoundByItsID() throws {
+        let id = UUID(uuidString: tufID)
+        let sources = UsageMachineFilter.sources(
+            matching: "workshop box", in: try document(), machineID: id)
+        #expect(sources == ["tuf:cli", "tuf:codex"])
+    }
+
+    @Test func localMeansTheSourcesNoMachineClaimed() throws {
+        let doc = try document()
+        #expect(UsageMachineFilter.sources(matching: "local", in: doc) == ["cli", "codex"])
+        #expect(UsageMachineFilter.sources(matching: "This Mac", in: doc) == ["cli", "codex"])
+    }
+
+    @Test func aMachineThatGaveNothingMatchesNothing() throws {
+        #expect(UsageMachineFilter.sources(matching: "pi", in: try document()).isEmpty)
     }
 }
