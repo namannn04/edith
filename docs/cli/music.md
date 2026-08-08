@@ -770,10 +770,11 @@ not that sound came out. What it posts for a single track is the same `toggle`
 the UI posts when you click a row, which means running `ed music start` on the
 track that is already playing pauses it rather than restarting it.
 
-`--folder` currently posts a payload the running player does not read: the CLI
-sends the folder under the keys `kind` and `path`, while the app's handler looks
-for `sourceKind` and `sourcePath`. The command reports the folder and exits 0,
-and nothing starts playing. Playing a specific track works.
+`--folder` posts the same `playSource` request the Music page posts when you
+play a folder from the UI, with the folder carried under the keys `sourceKind`
+and `sourcePath` that the app's handler reads. The queue becomes every track
+anywhere under that folder, and playback starts at the head of it, which
+`ed music shuffle` reorders.
 
 ### `ed music seek`
 
@@ -892,8 +893,7 @@ ed music rescan [--json]
 
 ```json
 {
-  "tracks": 128,
-  "wasTracks": 126
+  "tracks": 128
 }
 ```
 
@@ -902,14 +902,15 @@ ed music rescan
 ed music rescan --json
 ```
 
-`wasTracks` is the count taken before the cached library root and per-folder
-track counts were dropped, `tracks` the count after, so the two normally agree
-and differ only when the stored folder itself moved. The human line prints just
-the new count: `128 track(s) in the library`.
+`tracks` is the count taken after the cached library root and per-folder track
+counts were dropped and the folder was walked again. It is the only field: a
+fresh `ed` starts with a cold cache, so a count taken before the walk would only
+ever repeat it. The human line prints the same number: `128 track(s) in the
+library`.
 
 This walks the disk itself and needs nothing running, then posts
-`requestMusicRescan` and `musicFolderChanged` so a live Edith rescans too. With
-no music folder configured it exits 4.
+`musicFolderChanged` so a live Edith rescans too. With no music folder
+configured it exits 4.
 
 ## Exit codes
 

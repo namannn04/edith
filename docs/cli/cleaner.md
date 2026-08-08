@@ -192,7 +192,7 @@ error: no cleaner category named bogus
 hint: categories: derivedData, swiftpm, npm, yarn, bun, pip, homebrew, playwright, puppeteer, claudeCode, claudeMcp, nodeModules, pycache, pyvenv, rustTarget, gradle, pods, nextBuild, turbo
 ```
 
-Behaviour: `scan` reads the filesystem and writes nothing, anywhere. It needs
+Behaviour: `scan` reads the filesystem and changes nothing on it. It needs
 neither the main app nor the menu bar helper, and it does not read or write the
 Cleaner card's saved selection. A scan that finds nothing writes
 `nothing to reclaim` to stderr, leaves stdout empty and exits 0; with `--json`
@@ -200,6 +200,15 @@ it prints the usual document on stdout with an empty `categories` array and a
 `totalBytes` of 0 instead. Sizes are on-disk allocated size, summed over regular
 files only, so directories and symlinks contribute nothing and the number can
 differ from what `ls -l` implies.
+
+While it walks it says what it is walking. A single spinner line on stderr
+starts as `scanning` and then names each fixed cache as the scan reaches it, by
+display name rather than id, so `Xcode DerivedData`, then `Swift Package cache`,
+then `npm cache`; the swept folders follow as
+`Scanning <folder> for project junk…`, one per `--root`. The line is rewritten
+in place, carries the seconds elapsed since the scan began, and is erased before
+the table lands, so it leaves nothing in the transcript. It never touches
+stdout: the table and the `--json` document are the same either way.
 
 ### `ed cleaner categories`
 
@@ -379,6 +388,12 @@ so a bare `ed cleaner clean --yes` takes the Playwright browsers and the
 Puppeteer Chromium builds that the card leaves unticked. Narrow it with
 `--category` when that is not what you want.
 
+`clean` shows the same spinner line as `scan` on stderr, and under the same
+rules, while it does its own walk. With `--yes` a second phase follows it,
+`moving <n> items to the Trash`, for as long as `trashItem` is working through
+the list; a dry run stops after the scan phase. Both lines erase themselves, so
+the counts on stdout are all that survives the run.
+
 A path that cannot be trashed is skipped silently: it is left in place, its
 bytes are not counted in `reclaimedBytes`, and the command still exits 0. A run
 that trashes nothing at all prints `moved 0 B to the Trash` and also exits 0,
@@ -520,7 +535,15 @@ permission to be missing, so there is nothing that can be unavailable.
   rather than logical file length.
 - A scan is not cheap and is not cached. Every invocation walks the caches
   again, and `clean` walks them a second time before it touches anything, so
-  the two-step `scan` then `clean --yes` costs two full walks.
+  the two-step `scan` then `clean --yes` costs two full walks. The spinner line
+  is where you see which cache the seconds are going into; on a machine with a
+  large Bun or npm cache it will sit on that one row for most of the run.
+- The spinner line is for a person watching and nothing else. It goes to
+  stderr, and it is skipped entirely when stderr is not a terminal, when
+  `--json` is passed, or when `NO_COLOR` is set or `TERM` is `dumb`. A run whose
+  stderr is a pipe or a file therefore produces the table and not a single
+  progress byte; redirecting stdout alone does not turn it off, because it is
+  stderr that is checked.
 - Completion knows less than the commands do. `ed cleaner clean --<TAB>` never
   offers `--root`, and `ed cleaner clean --category <TAB>` offers nothing at
   all. The eleven fixed ids hang off `scan`'s first positional slot, and because

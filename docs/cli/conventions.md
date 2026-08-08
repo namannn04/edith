@@ -82,7 +82,9 @@ ed machines metrics <machine> --json --follow   one compact document per line
 
 Following flips the serialiser to its compact form, which is newline-delimited
 JSON, so `ed system stats --json --follow | jq .` reads a sample at a time
-instead of waiting for a document that never ends.
+instead of waiting for a document that never ends. The third `--follow`, on
+`ed usage refresh`, means something else: it attaches to a refresh already in
+flight, and still ends in one document.
 
 One more place emits compact JSON without being asked: `ed config get` on a
 setting that is not a string prints the value on one line in its human output,
@@ -90,9 +92,10 @@ so a list setting reads as `["a","b"]` rather than as one line per element.
 
 ## stdout is data, stderr is commentary
 
-Every write goes through `CLIOut`, and which function you call decides the
-stream. `out` and `raw` write to stdout. `note`, `rawError` and `report` write
-to stderr. Nothing else writes anywhere.
+Every write goes through `CLIOut` or `CLIProgress`, and which function you call
+decides the stream. `out` and `raw` write to stdout. `note`, `rawError` and
+`report` write to stderr, and so does every line `CLIProgress` paints. Nothing
+else writes anywhere.
 
 So stdout carries the answer and nothing else: the table, the JSON document, the
 file contents, the remote command's own output. stderr carries everything about
@@ -100,6 +103,20 @@ the answer: errors, hints, the note that a list was truncated, the note that
 Edith is closed so a queued download waits, and the `waiting for Edith to
 answer...` line that appears when a request to the app takes more than a second.
 A test asserts that stdout never contains the substrings `error:` or `hint:`.
+
+Progress is the rest of what stderr carries. A command that would otherwise sit
+silent while it works reports through `CLIProgress`, which paints a header, a
+row per phase as it lands, a summary, and a spinner for the work in flight that
+is rewritten in place and cleared when that work ends. `ed usage refresh` uses
+all of it, phases and summaries included, and `ed tools install` prints a header
+and streams each line the installer emits. `ed tools ls`, `ed cleaner scan`,
+`ed cleaner clean`, `ed machines files get`, `ed machines files put` and `ed app
+relaunch` use the spinner alone to name what they are on, with the two transfers
+counting bytes against the total. None of it touches stdout, and it is switched
+off whole rather than trimmed when there is nobody to watch it: `--json` turns
+it off, and so does stderr not being a terminal, `NO_COLOR` being set, or `TERM`
+being `dumb`. A piped or redirected run therefore sees none of it, and no
+spinner or escape sequence lands in a log.
 
 On a non-zero exit, stdout is empty. That is a contract rather than a habit, and
 it is pinned by the same test that pins the exit codes: a command that fails
@@ -156,16 +173,18 @@ checks produce it after parsing for a value it will not accept: `--interval 0`,
 **3** is the code for a name. Machines resolve through one function and it
 throws 3 in three places: no machines are configured at all, the query matches
 more than one machine, or it matches none. An unknown config key, permission,
-app action, guide topic, completion shell and `--range` value are the same code
-from the same shape of check, and the hint carries the candidates.
+app action, guide topic, completion shell, `--range` value and `--source` name
+are the same code from the same shape of check, and the hint carries the
+candidates.
 
 **4** is wider than "the app is closed", which is only its most common cause. It
 is also the code for an empty store, because an empty store is something you
 cannot act on rather than something that failed: no clipboard history yet, an
 empty shelf, an empty download queue, no limits collected yet, no workspaces
 saved, no music folder chosen. It is also the code for a machine that will not
-answer, for docker that is missing or unreachable on the far side, and for every
-branch of the app-silence diagnosis below.
+answer, for docker that is missing or unreachable on the far side, for a usage
+refresh whose pipeline failed and an install that did not leave the tool on
+`PATH`, and for every branch of the app-silence diagnosis below.
 
 ### The passthrough exception
 
@@ -276,9 +295,10 @@ flag is either passed or not. The words `on`, `off`, `true`, `false`, `yes`,
 `ed config set` and by `ed music shuffle` and `ed music repeat`, and never as
 flag values.
 
-Options that repeat collect their values: `--source` on `ed usage summary`,
-`daily` and `models` narrows to several agents, and `--root` on `ed cleaner
-scan` and `clean` sweeps several folders. Everything else takes its last value.
+Options that repeat collect their values: `--source` and `--machine` on `ed
+usage summary`, `daily` and `models` narrow to several agents, and `--root` on
+`ed cleaner scan` and `clean` sweeps several folders. Everything else takes its
+last value.
 
 Numbers are checked twice. The parser rejects text that is not a number, which
 is exit 2, and the command then runs the value through one of four checks,
@@ -308,12 +328,14 @@ looks shared is a flag declared again on each command.
 `volume`. It takes `builtin`, `spotify` or `apple`, and leaving it out means
 whichever player is active. An unknown name exits 3.
 
-`--range` and `--source` come from the usage window group and appear on three
-commands: `ed usage summary`, `daily` and `models`. `--range` takes `today`,
-`week`, `month` or `all` and defaults to `all`; an unknown range exits 3 with
-the valid ones listed. `--source` repeats and is unset by default. `ed usage
-projects` is the odd one out: it declares its own `--range` with the same
-default and takes no `--source` at all.
+`--range`, `--source` and `--machine` come from the usage window group and
+appear on three commands: `ed usage summary`, `daily` and `models`. `--range`
+takes `today`, `week`, `month` or `all` and defaults to `all`; an unknown range
+exits 3 with the valid ones listed. `--source` and `--machine` repeat and are
+unset by default, and a source or a machine the collected history has never seen
+exits 3 and points at the ones it has. `ed usage projects` is the odd one out:
+it declares its own `--range` with the same default and takes neither `--source`
+nor `--machine`.
 
 Because the rest are re-declared per command, a flag with the same name can have
 a different default and a different validator in two places. `--limit` is the
@@ -377,18 +399,19 @@ is a local question that needs no permission and no round trip.
 | `ed app quit`, `ed app check-updates` | main window | both act on the window, and the updater lives in it |
 | `ed calendar ls` | menu bar | the calendar grant belongs to the Edith bundle, not to `ed` |
 | `ed permissions request`, `ed permissions refresh` | menu bar | only the bundle can raise a TCC prompt or re-read its own state |
-| `ed usage refresh`, `ed usage limits --refresh` | menu bar | the collectors run in the app; without `--refresh`, `limits` reads the file |
-| `ed tools install` | menu bar | the app fetches the tool the way the extension sheet does |
+| `ed usage limits --refresh` | menu bar | only the app polls the providers again; without `--refresh`, `limits` reads the file |
 | `ed apps quit` | menu bar | quitting another app is the app's Automation grant, not `ed`'s |
 | `ed music start`, `ed music seek` | menu bar | both drive Edith's own player, which lives in the helper |
 | `ed music play`, `pause`, `stop`, `toggle`, `next`, `previous`, `volume` | menu bar, only for Edith's own player | against Spotify or Apple Music these go through AppleScript and need only that app |
 | `ed machines files undo` | main window | the undo history belongs to an open Finder window and lives in memory |
-| `ed app relaunch` | no, but the app must be installed | it posts a quit and then opens the bundle; exits 4 when it cannot find one |
+| `ed app relaunch` | no, but the app must be installed | it terminates both bundle ids, waits, escalates to a force quit, then launches; exits 4 when it cannot find a bundle and 1 when the quit or the launch fails |
 | `ed config`, `ed extensions`, `ed schema`, `ed guide`, `ed version`, `ed install`, `ed uninstall`, `ed completions` | no | defaults and files; a write reaches a running app live |
 | `ed usage limits`, `summary`, `daily`, `models`, `projects`, `sources` | no | they read the collected files the dashboard reads |
+| `ed usage refresh` | no | it runs the collection pipeline in this process, and attaches to the app's run when one is already going |
 | `ed system stats`, `ed system disks` | no | the same sampler, run in this process |
 | `ed clipboard`, `ed color`, `ed shelf`, `ed download`, `ed cleaner` | no | stores under Application Support and the shared defaults suite |
 | `ed apps ls`, `ed tools ls`, `ed app actions`, `ed app updates`, `ed app clear-updates` | no | the process table, `PATH`, and a log file |
+| `ed tools install` | no | it fetches and installs the tool itself, then checks the tool landed on `PATH` |
 | `ed music ls`, `mkdir`, `mv`, `rename`, `rm`, `rescan`, `shuffle`, `repeat`, `status`, `players` | no | the library is a folder of files and two defaults keys |
 | `ed machines`, and `ed <machine> <command...>` | no, except `files undo` | `/usr/bin/ssh` over a ControlMaster socket shared with the app |
 
@@ -407,9 +430,9 @@ can never drift on what a command means.
 
 Most messages are one-way: a config write posts `settingsChanged`, a machine
 change posts `machinesChanged`, a clipboard mutation posts `clipboardChanged`, a
-download change posts `downloadQueueChanged`, and `ed app open`, `clean-keys`
-and `test-notification` post and return. Nothing is waited for, so these cost
-nothing when the app is closed.
+shelf edit posts `shelfChanged`, a download change posts `downloadQueueChanged`,
+and `ed app open`, `clean-keys` and `test-notification` post and return. Nothing
+is waited for, so these cost nothing when the app is closed.
 
 The rest are request and reply: `ed` registers an observer for the reply, posts
 the request, then polls until an answer arrives or the deadline passes. After
@@ -419,15 +442,14 @@ stderr. The deadlines are per command:
 ```
 ed calendar ls                 4 seconds
 ed usage limits --refresh      20 seconds
-ed usage refresh               180 seconds, or 0.1 with --no-wait
 ed app check-updates           60 seconds, or 0.1 with --no-wait
 ed machines files undo         20 seconds
 ed music status                2 seconds, for Edith's own player
 ```
 
-`--no-wait` on the two long ones does not cancel the request, it collapses the
-deadline: the message is still posted and the app still does the work, `ed` just
-stops waiting to hear about it and exits 0.
+`--no-wait`, which only `ed app check-updates` has, does not cancel the request,
+it collapses the deadline: the message is still posted and the app still does
+the work, `ed` just stops waiting to hear about it and exits 0.
 
 ### When the app says nothing
 
@@ -451,10 +473,13 @@ so an app that answers and says the extension is off, or that the calendar grant
 is missing, produces the specific message rather than the generic one. Both are
 still exit 4.
 
-Two commands deliberately do not fail when the app is closed. `ed download add`
-and `ed download retry` write the queue either way and note on stderr that
+Three commands deliberately do not fail when the app is closed. `ed download
+add` and `ed download retry` write the queue either way and note on stderr that
 `Edith is not running, so this starts when you next open it`, then exit 0. The
-work is queued rather than lost, so failing would be wrong.
+work is queued rather than lost, so failing would be wrong. `ed download cancel`
+empties the queue either way too, and with Edith closed it notes that `Edith was
+not running, so the queue was emptied without stopping yt-dlp` rather than
+claiming it stopped a transfer.
 
 ## Where to go next
 
@@ -463,6 +488,6 @@ work is queued rather than lost, so failing would be wrong.
 - [`ed app`](./app.md) for the one-shot actions and which process each needs.
 - [`ed permissions`](./permissions.md) for why the grants belong to the bundle
   rather than to `ed`.
-- [`ed usage`](./usage.md) for the commands that read files and the two that
-  ask the app.
+- [`ed usage`](./usage.md) for the commands that read files, the one that
+  collects them again, and the one that asks the app.
 - [All command pages](./README.md).

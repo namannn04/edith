@@ -27,7 +27,7 @@ The one binary `ed` runs itself is the yt-dlp that `ed download tool` reports on
 | `ed download rm` | Takes one entry out of the queue. |
 | `ed download clear` | Forgets what has finished, or the whole queue with `--everything`. |
 | `ed download tool` | Reports the yt-dlp being used, or runs its self-update. |
-| `ed download cancel` | Empties everything that has not finished. |
+| `ed download cancel` | Stops what is downloading and empties everything that has not finished. |
 
 `ed download list` is the same command as `ed download ls`.
 
@@ -440,11 +440,12 @@ dropped from the search, so an unplugged external disk never decides the
 answer. This is the same lookup the app uses, so `ed` and the Download sheet
 always agree on which binary runs.
 
-Installing is not here. `ed tools install yt-dlp` asks the app to fetch
-`yt-dlp_macos` from the official yt-dlp release, mark it executable and save it
-into `~/Library/Application Support/Edith/bin`, the same fetch the Music
-extension's setup panel runs, so it needs the menu bar app and exits 4 when
-Edith is closed. `brew install yt-dlp` works just as well, and
+Installing is not here. `ed tools install yt-dlp` fetches `yt-dlp_macos` from
+the official yt-dlp release itself, marks it executable and saves it into
+`~/Library/Application Support/Edith/bin`, the same fetch the Music
+extension's setup panel runs. It needs no app: it streams each step as it runs,
+checks the binary answers `--version` afterwards, and fails with the manual
+instruction when it did not land. `brew install yt-dlp` works just as well, and
 `ed tools ls` reports which one PATH is offering.
 
 `--json` shape without `--update`:
@@ -531,9 +532,17 @@ the finished ones and keeps the rest.
 
 ```json
 {
-  "cancelled": 3
+  "appRunning": true,
+  "cancelled": 3,
+  "stoppedRunning": true
 }
 ```
+
+`cancelled` counts the records taken out of the queue. `appRunning` says whether
+the main Edith app was there to be asked, and `stoppedRunning` says whether it
+was asked, so `false` means the queue was emptied without a transfer being
+stopped. With nothing to cancel, `stoppedRunning` is always `false` while
+`appRunning` still reports what it found.
 
 Examples:
 
@@ -547,17 +556,28 @@ $ ed download cancel
 cancelled 3
 ```
 
+With Edith closed:
+
+```
+$ ed download cancel
+cancelled 3
+Edith was not running, so the queue was emptied without stopping yt-dlp
+```
+
 Behaviour: with nothing in flight the command writes `nothing is downloading`
-to stderr, changes no file, and exits 0; under `--json` it still prints
-`{"cancelled": 0}` on stdout alongside that note. Otherwise it posts
-`requestDownloadCancel`, removes the unfinished records, and posts
-`downloadQueueChanged`. What actually stops further work is the queue rewrite:
-the app re-reads the emptied file and has nothing left to start. A yt-dlp
-process already running is not killed by this, so the file it was mid-way
-through can still land in your music folder, without a record of it in the
-queue. The Download sheet's own Cancel All button does kill the process and
-leaves the entries behind as `interrupted`, which is why the sheet can retry
-them and `ed download cancel` cannot.
+to stderr, changes no file, and exits 0; under `--json` that note is not
+printed and stdout carries `"cancelled": 0` instead. Otherwise, when the main
+Edith app is running, it posts `requestDownloadCancel`, which the app's
+downloader observes: it terminates the yt-dlp it has running and stops taking
+new work. `ed` then removes the unfinished records and posts
+`downloadQueueChanged`, so the app re-reads the emptied file and finds nothing
+left to start. With the main app closed there is no downloader to ask and
+nothing of Edith's is running, so `ed` empties the queue and says so on stderr:
+`Edith was not running, so the queue was emptied without stopping yt-dlp`. That
+note is on the human path only, and the exit code is 0 either way. The Download
+sheet's Cancel All button runs the same cancel in the app but keeps the entries
+as `interrupted`, which is why the sheet can retry them and
+`ed download cancel`, which removes the records, leaves nothing to retry.
 
 ## Exit codes
 
@@ -594,7 +614,9 @@ answer a question, so none of them fails because the app is closed.
   "Edith is not running" note checks for the helper. The two normally start
   together, but the note is a hint rather than a guarantee: the queue drains
   when the app's downloader is alive, which in practice is once the Music page
-  or Download sheet has been opened in that session.
+  or Download sheet has been opened in that session. `cancel` is the one verb
+  that looks for the main app instead, because the main app is what holds the
+  yt-dlp there is to stop.
 - `ed download add --kind` always defaults to `audio`. It does not read
   `musicDownloadKind`, the setting the sheet's Audio/Video picker writes, so
   choosing Video in the UI does not change what `ed` queues. Pass `--kind

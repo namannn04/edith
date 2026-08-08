@@ -11,9 +11,9 @@ is a distributed notification addressed to whichever of the two owns the work,
 so each needs that process to be running and exits 4 naming the part that is
 missing. `clean-keys`, `test-notification` and `open` are answered by the menu
 bar helper. `quit` and `check-updates` are answered by the main window, because
-the window and Sparkle both live there. `updates`, `clear-updates` and
-`relaunch` touch a file and the app bundle rather than a running process, so
-they work with Edith closed.
+the window and Sparkle both live there. `updates` and `clear-updates` touch a
+file, and `relaunch` terminates both bundle ids itself and launches the app
+bundle again, so all three work with Edith closed.
 
 Reach for this group when you want the app to do something now. Reach for
 `ed config` when you want to change what it does from now on.
@@ -418,7 +418,7 @@ route.
 
 ### `ed app relaunch`
 
-Quits the Edith main window and starts the app again, which is what a new
+Quits both Edith processes and starts the app again, which is what a new
 permission grant needs before it takes effect.
 
 ```
@@ -445,23 +445,36 @@ ed app relaunch
 ed app relaunch --json
 ```
 
-Without `--json` it prints `relaunching Edith`. This is the Permissions pane's
-relaunch button as a command: macOS hands a process its TCC answers when it
-starts, so a grant you have just given is invisible until the app runs again.
+Without `--json` it prints `relaunched Edith`, and only once the quit and the
+launch have both happened. While it works it paints two transient spinner lines
+on stderr, `waiting for Edith to quit` and then `starting Edith`; they are
+skipped with `--json` and whenever stderr is not a terminal, so stdout stays one
+document. This is the Permissions pane's relaunch button as a command, with a
+longer reach: the button restarts the menu bar helper it lives in, while `ed`
+takes both processes down. macOS hands a process its TCC answers when it starts,
+so a grant you have just given is invisible until the app runs again.
 
-It needs no running process, but it does need to find the app. When neither the
-bundle this binary sits inside nor `/Applications/Edith.app` exists, it exits 4
-with `Edith is not installed where ed can find it`, hint `it looks in
-/Applications and alongside this binary`.
+It needs no running process, but it does need to find the app, which it checks
+before it quits anything. When neither the bundle this binary sits inside nor
+`/Applications/Edith.app` exists, it exits 4 with `Edith is not installed where
+ed can find it`, hint `it looks in /Applications and alongside this binary`.
 
-The order is: post the quit request, then launch the bundle with
-`/usr/bin/open -n -a`. A second notification goes out with the quit, the
-`requestQuitApps` one carrying `edith`, and the helper drops it because it names
-neither `all` nor a pid. It does not wait for the old window to go away, and the
-launch is best effort, so a failure to start is silent and the command still
-prints `relaunching Edith` and exits 0. What comes back is the main window; the
-menu bar helper is never quit by this, so a grant that belongs to the helper
-bundle rather than the main one is not picked up by a relaunch.
+The order is: post the quit request, then terminate every process carrying
+either bundle id, wait up to 8 seconds for them to go, force quit whatever is
+still there and give that 3 seconds more, and only then launch the bundle and
+wait for it to come up. With Edith already closed the quit step finishes at
+once. The launch asks for a fresh instance and does not activate it, so Edith
+comes back without taking focus.
+
+Either half can fail the command, and neither failure is silent. If anything is
+still alive after the force quit it exits 1 with `Edith did not quit, so it was
+not relaunched`, hinting that you quit it from the menu bar and run the command
+again, and nothing is launched. A launch that throws exits 1 with `could not
+start Edith:` and the reason, hinting at opening the bundle from Finder.
+
+Both processes come back: the helper is terminated along with the main window,
+and the main app starts it again as it launches, so a grant that belongs to the
+helper bundle rather than the main one is picked up by a relaunch too.
 
 ### `ed app clear-updates`
 
@@ -506,30 +519,37 @@ neither process needs to be running.
 | Code | What produces it here |
 | --- | --- |
 | 0 | The command did what it says, including a request that was sent but never confirmed, `check-updates --no-wait` with no answer, `updates` with an empty log, and `actions` when nothing is running. |
+| 1 | `relaunch` could not finish the work: Edith was still running after the force quit, or the launch itself threw. |
 | 2 | The command line was wrong: an unknown flag, an unknown subcommand, or `--limit` at zero or below on `ed app updates`. |
 | 4 | The process the verb needs is not running: the menu bar helper for `clean-keys`, `test-notification` and `open`, the main window for `quit` and `check-updates`. Also `check-updates` when the app never answers within 60 seconds, and `relaunch` when no `Edith.app` can be found. |
 
-1 and 3 do not come out of this group. Nothing here reports a generic failure,
-and the action names are fixed rather than typed, so there is no name for you to
-get wrong: `ed app frobnicate` is parsed as a stray argument to the default
-`actions` subcommand and exits 2 rather than 3.
+3 does not come out of this group, and 1 comes only from `relaunch`. The action
+names are fixed rather than typed, so there is no name for you to get wrong:
+`ed app frobnicate` is parsed as a stray argument to the default `actions`
+subcommand and exits 2 rather than 3.
 
 ## Notes and gotchas
 
 The transport is `DistributedNotificationCenter`, wrapped as `IPC`, with names
 like `com.pulkit.edith.requestKeyboardClean`. Neither binary shells out to the
 other and there is no socket, so a verb reaches Edith only when Edith is
-listening for that exact name.
+listening for that exact name. `relaunch` is the exception: it posts a quit but
+does not depend on anyone hearing it, terminating and starting the processes
+itself.
 
 "Running" means a process with that bundle id is registered with the window
 server, which is what `NSRunningApplication` reports. An app in the middle of
-launching reads as not running, so `ed app relaunch && ed app quit` races
-against the launch.
+launching reads as not running. `ed app relaunch` waits for the main app to
+register before it returns, but the helper is started by the main app after
+that, so `ed app relaunch && ed app clean-keys` still races the helper's launch.
 
 Four of the five actions are fire and forget: `ed` posts and returns without
 waiting for confirmation, so exit 0 means the notification was sent. Only
 `check-updates` waits for a reply, and only it can fail on silence.
 `ed app actions` is the way to check first rather than reading exit codes after.
+`relaunch` is not one of the five and is neither fire and forget nor a reply: it
+watches the processes go and come back, so its exit code says what actually
+happened.
 
 Extensions gate two of the actions inside the app rather than in `ed`.
 `clean-keys` needs the `system` extension and `test-notification` needs `usage`;
@@ -559,9 +579,10 @@ history list is held in memory and is not told the file went, so it keeps
 showing the old rows until the next check is recorded, at which point it
 rewrites itself from the now-empty file and shows that one check.
 
-`ed app quit` and `ed app relaunch` both leave the menu bar helper alive. There
-is no verb in this group that quits the helper: `RunningApps` protects both
-Edith bundle ids from every quit path, `ed apps quit --all` included.
+`ed app quit` leaves the menu bar helper alive. `ed app relaunch` is the one verb
+here that takes the helper down, and it does that by terminating the process
+itself rather than asking Edith to; `RunningApps` still protects both Edith
+bundle ids from every quit path it drives, `ed apps quit --all` included.
 
 ## Where to go next
 

@@ -1,19 +1,21 @@
 # `ed usage`
 
 `ed usage` reports what your coding agents cost and how close you are to a
-provider's rate limit. Every number is read back out of the two files the app's
-dashboard already writes, `usage.json` and `limits-history.jsonl`, so `ed` never
-recomputes anything and the CLI and the UI cannot disagree. Reach for it when
-you want a spend figure in a script, a per-project breakdown without opening the
-window, or a gate on how much session budget is left.
+provider's rate limit. Every number is read back out of the two files behind the
+app's dashboard, `usage.json` and `limits-history.jsonl`, so the reporting verbs
+never recompute anything and the CLI and the UI cannot disagree. Reach for it
+when you want a spend figure in a script, a per-project breakdown without
+opening the window, or a gate on how much session budget is left.
 
 Both files live in `Repo.dataDir`, which is
 `~/Library/Application Support/Edith/data` unless the `repoPath` setting names a
 confirmed development checkout, in which case it is `apps/dashboard/data` inside
-that checkout. Every verb here reads those files and works whether or not Edith
-is running. Two invocations are the exception, `ed usage limits --refresh` and
-`ed usage refresh`, which ask the app to go and collect fresh data before
-reporting and exit 4 when it is closed.
+that checkout. Every read verb here works whether or not Edith is running. Two
+invocations go further. `ed usage refresh` runs the collection pipeline itself,
+in this process, and rewrites `usage.json` with the app open or closed.
+`ed usage limits --refresh` asks the app to poll the providers first, which
+makes it the one invocation here that needs Edith running and exits 4 when it is
+closed.
 
 ## At a glance
 
@@ -32,7 +34,7 @@ reporting and exit 4 when it is closed.
 | `ed usage machines enable` | Counts a machine on every later refresh |
 | `ed usage machines disable` | Stops collecting from a machine, keeping what it already gave |
 | `ed usage machines forget` | Drops what a machine gave and stops counting it |
-| `ed usage refresh` | Asks the running app to re-collect usage data |
+| `ed usage refresh` | Re-collects usage data from every agent on this Mac |
 
 ## Commands
 
@@ -48,7 +50,7 @@ ed usage limits [--refresh] [--json]
 
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
-| `--refresh` | flag | off | Asks the app to poll the providers again and waits up to 20 seconds for it to say it did, before reading the file |
+| `--refresh` | flag | off | Asks the app to poll the providers again and waits up to 20 seconds for it to say it did, before reading the file. Fails when nothing answers |
 | `--json` | flag | off | Emit JSON on stdout |
 
 #### `--json` shape
@@ -116,14 +118,16 @@ column the provider has not reported.
 app and exits 4 with `refreshing the rate limits needs the Edith menu bar app to
 be running` when Edith is closed. The reply it waits for is only posted when a
 poll actually succeeds, so a provider that is failing to answer costs you the
-full 20 seconds and then the old numbers are printed anyway, exit 0. After one
-second of waiting `ed` prints `waiting for Edith to answer...` once, on stderr.
+full 20 seconds and then the command fails rather than printing the old numbers:
+exit 4 with `Edith did not answer for refreshing the rate limits in time`, or
+with `the extension behind refreshing the rate limits is off` when
+`tabUsageEnabled` is false. After one second of waiting `ed` prints `waiting for
+Edith to answer...` once, on stderr.
 
-Unlike `ed usage refresh`, this one posts its request before it starts
-listening, so an app that answers within the same instant can beat the listener
-and cost you the full 20 seconds for a poll that in fact worked. The numbers
-printed afterwards are read from the file either way, so the wait is the only
-thing you lose.
+The listener goes up before the request goes out, so an app that answers within
+the same instant cannot beat it and a poll that worked is never reported as
+silence. The numbers printed afterwards are read from the file rather than out
+of the reply.
 
 Even a successful refresh does not guarantee a newer `observedAt`: the app
 appends a history row only when the values differ from the previous one, so
@@ -131,8 +135,8 @@ polling twice inside a quiet window leaves the timestamp where it was.
 
 When no provider has ever been recorded the command exits 4 with `no limit
 history yet`, hinted with `enable the Agent Usage extension and let Edith poll
-once`. That check comes after the refresh, so `--refresh` on a fresh install
-does the poll and then reports the emptiness if nothing landed.
+once`. That check comes after the refresh, so a `--refresh` the app answers on a
+fresh install reports the emptiness afterwards if nothing landed.
 
 ```
 $ ed usage limits
@@ -155,7 +159,7 @@ ed usage summary [--range <range>] [--source <source>]... [--machine <machine>].
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `--range` | `today`, `week`, `month`, `all` | `all` | Which days to include: today only, the last 7 days, the last 30 days, or everything on file |
-| `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several |
+| `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several. An id the file does not list is an error |
 | `--machine` | machine name, ssh alias, id, or `local` | every machine | Count only the agents that ran on these machines. `local` is this Mac. Repeat the flag to include several. Union with `--source` rather than an intersection |
 | `--json` | flag | off | Emit JSON on stdout |
 
@@ -216,10 +220,12 @@ Reads only, mutates nothing, and needs no app. It exits 4 when `usage.json` is
 missing, 1 when the file is there but will not decode, and 3 when `--range` is
 not one of the four ranges.
 
-`--source` is not validated against the file. An id nobody recognises is not an
-error: it matches nothing, so `totals` comes back at zero and `bySource` comes
-back as `{}`, while `days` still counts the days in the window, exit 0. Run
-`ed usage sources` first to get ids that exist.
+`--source` is validated against the file. An id nobody recognises exits 3 with
+`no usage source named <id>`, hinted with the ids the file does list, or with a
+pointer to `ed usage refresh` when it lists none, so a typo can no longer come
+back as a confident all-zero report. Run `ed usage sources` first to get ids
+that exist. `--machine` is checked the same way: a machine nothing was collected
+from exits 3 with `no collected usage from a machine called <name>`.
 
 The human output puts three lines above the table, a dollar sign only on the
 cost line, and orders the table by source id:
@@ -248,7 +254,7 @@ ed usage daily [--range <range>] [--source <source>]... [--machine <machine>]...
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `--range` | `today`, `week`, `month`, `all` | `all` | Which days to include |
-| `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several |
+| `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several. An id the file does not list is an error |
 | `--machine` | machine name, ssh alias, id, or `local` | every machine | Count only the agents that ran on these machines. `local` is this Mac. Repeat the flag to include several. Union with `--source` rather than an intersection |
 | `--json` | flag | off | Emit JSON on stdout |
 
@@ -296,7 +302,7 @@ ed usage daily --json | jq -r '.[] | [.date, .totals.cost] | @tsv'
 
 Reads only, mutates nothing, and needs no app. Same exit codes as
 `ed usage summary`: 4 with no `usage.json`, 1 on a file that will not decode, 3
-on a bad `--range`.
+on a bad `--range` or a `--source` the file does not list.
 
 Days are not filtered out by `--source`. A day that exists in the window but has
 no rows for the sources you asked for still gets a row, with every total at
@@ -330,7 +336,7 @@ ed usage models [--range <range>] [--source <source>]... [--machine <machine>]..
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `--range` | `today`, `week`, `month`, `all` | `all` | Which days to include |
-| `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several |
+| `--source` | string, repeatable | every source | Count only these source ids. Repeat the flag to include several. An id the file does not list is an error |
 | `--machine` | machine name, ssh alias, id, or `local` | every machine | Count only the agents that ran on these machines. `local` is this Mac. Repeat the flag to include several. Union with `--source` rather than an intersection |
 | `--json` | flag | off | Emit JSON on stdout |
 
@@ -493,8 +499,9 @@ ed usage sources [--json]
 
 #### `--json` shape
 
-A top-level array in the file's own order, not sorted. `label` and `tool` are
-`null` when the file carries no metadata for that id.
+A top-level array in the file's own order, not sorted. `label`, `tool`,
+`machine` and `machineID` are `null` when the file carries no such metadata for
+that id, and an agent that ran on this Mac carries no machine at all.
 
 ```json
 [
@@ -502,36 +509,48 @@ A top-level array in the file's own order, not sorted. `label` and `tool` are
     "default": true,
     "id": "cli",
     "label": "Claude Code",
+    "machine": null,
+    "machineID": null,
     "tool": "Claude Code"
   },
   {
     "default": true,
     "id": "codex",
     "label": "Codex",
+    "machine": null,
+    "machineID": null,
     "tool": "Codex"
   },
   {
     "default": true,
     "id": "commandcode",
     "label": "Command Code",
+    "machine": null,
+    "machineID": null,
     "tool": "Command Code"
   },
   {
     "default": true,
     "id": "asus-tuf-7:cli",
     "label": "Claude Code · Asus TUF 7",
+    "machine": "Asus TUF 7",
+    "machineID": "4303DCF1-52D8-4075-AE9B-C2FD86D3821A",
     "tool": "Claude Code"
   },
   {
     "default": true,
     "id": "opencode",
     "label": "OpenCode",
+    "machine": null,
+    "machineID": null,
     "tool": "OpenCode"
   },
   {
     "default": true,
     "id": "cowork",
     "label": "Cowork",
+    "machine": null,
+    "machineID": null,
     "tool": "Claude Code"
   }
 ]
@@ -556,21 +575,22 @@ and 1 on a file that will not decode. It takes no window options, so there is no
 exit 3 here.
 
 The human table falls back to the id in the `LABEL` column when the file has no
-label, and prints an empty `TOOL` cell when it has no tool. When the file lists
-no sources at all the command prints the header line by itself and exits 0.
-`ed` reads only `label` and `tool` out of the file's per-source metadata, so
-extra fields the collector writes for remote sources, such as the machine name
-and id behind an `asus-tuf-7:cli`, do not appear in `--json`.
+label, and prints an empty `TOOL` cell when it has no tool. The `MACHINE` column
+reads `this Mac` for a source with no machine metadata and the machine's name
+for one the collector brought back over SSH; `--json` carries the same name as
+`machine`, alongside the `machineID` the machine directory knows it by. When the
+file lists no sources at all the command prints the header line by itself and
+exits 0.
 
 ```
 $ ed usage sources
-ID              LABEL                     TOOL
-cli             Claude Code               Claude Code
-codex           Codex                     Codex
-commandcode     Command Code              Command Code
-asus-tuf-7:cli  Claude Code · Asus TUF 7  Claude Code
-opencode        OpenCode                  OpenCode
-cowork          Cowork                    Claude Code
+ID              LABEL                     TOOL          MACHINE
+cli             Claude Code               Claude Code   this Mac
+codex           Codex                     Codex         this Mac
+commandcode     Command Code              Command Code  this Mac
+asus-tuf-7:cli  Claude Code · Asus TUF 7  Claude Code   Asus TUF 7
+opencode        OpenCode                  OpenCode      this Mac
+cowork          Cowork                    Claude Code   this Mac
 ```
 
 ### `ed usage machines`
@@ -767,17 +787,17 @@ deleted machine can still be cleared.
 
 ### `ed usage refresh`
 
-Asks the running app to re-collect usage data and rewrite `usage.json`.
+Re-collects usage data from every agent on this Mac and rewrites `usage.json`.
 
 ```
-ed usage refresh [--no-wait] [--json]
+ed usage refresh [--follow] [--json]
 ```
 
 #### Options
 
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
-| `--no-wait` | flag | off | Return as soon as the request is sent, instead of waiting up to 180 seconds for the app to finish |
+| `--follow` | flag | off | Attach to a refresh that is already running instead of starting one, and fail when there is nothing to watch |
 | `--json` | flag | off | Emit JSON on stdout |
 
 #### `--json` shape
@@ -785,55 +805,113 @@ ed usage refresh [--no-wait] [--json]
 ```json
 {
   "completed": true,
-  "requested": true
+  "followed": false,
+  "phases": [
+    {
+      "detail": "cached",
+      "name": "ccusage",
+      "seconds": 0.01
+    },
+    {
+      "detail": "27 days",
+      "name": "cli",
+      "seconds": 1.47
+    },
+    {
+      "detail": "125311 messages",
+      "name": "walk",
+      "seconds": 3
+    }
+  ],
+  "seconds": 9.98,
+  "summary": {
+    "machines": "Asus TUF 7",
+    "sources": "cli, codex, commandcode, asus-tuf-7:cli",
+    "spend": "$10876.85 · 378 sessions · 401 KB",
+    "window": "2026-07-08 to 2026-08-08 · 27 days · 7 models"
+  }
 }
 ```
 
-`requested` is always `true`: reaching the JSON at all means the request went
-out. `completed` says whether the app answered inside the timeout.
+`completed` is always `true`: reaching the JSON at all means the pipeline
+finished, because every other outcome is an error. `followed` says whether this
+invocation watched a run someone else had started instead of starting its own.
+`seconds` is the pipeline's own total, `phases` carries every phase row in the
+order they landed, three of the eight above, and `summary` is the closing block
+keyed by label.
 
 #### Examples
 
 ```
 ed usage refresh
-ed usage refresh --no-wait
-ed usage refresh --json | jq .completed
+ed usage refresh --follow
+ed usage refresh --json | jq -r '.summary.spend'
 ed usage refresh && ed usage summary --range today
 ```
 
 #### Behaviour
 
-This is the only verb in the group that changes anything, and the change is made
-by the app, not by `ed`. It needs the menu bar app and exits 4 with `refreshing
-usage needs the Edith menu bar app to be running`, hinted `start Edith, then
-retry`, when Edith is closed. The collection itself is the app running its
-bundled `refresh-usage` script, the same work the dashboard's refresh does, and
-it takes noticeably longer on a first run, because the collector installs
-`ccusage` before it can read anything.
+This is the only verb in the group that changes anything, and `ed` does the work
+itself. It runs the same collection pipeline EdithKit hands the app, in this
+process, so it needs no menu bar app and there is nothing to time out on. A
+first run takes noticeably longer, because the collector installs `ccusage`, and
+`jq` or `bun` when they are missing, before it can read anything.
 
-By default `ed` waits up to 180 seconds for the app to say it finished and then
-prints `usage refreshed`; `--no-wait` collapses that wait to 0.1 seconds, which
-in practice always times out, so it prints `refresh requested` and returns. Once
-a second has passed `ed` prints `waiting for Edith to answer...` once, on
-stderr.
+Progress goes to stderr and stdout stays clean: one `usage refreshed` line at
+the end, or the JSON object. Each phase is printed as it lands, with a spinner on
+the phase in flight, and the whole display is skipped when `--json` is passed or
+stderr is not a terminal, so a pipe sees nothing extra. `NO_COLOR` and
+`TERM=dumb` switch it off too, rather than only dropping the colour.
 
-A timeout is not an error. The command exits 0 either way, with `completed`
-recording which happened, so exit code alone is not a signal that fresh data
-landed. Neither is `completed: true`: the app posts its finished notification
-from the collector's termination handler whatever status the script exited with,
-so a collection that failed still reports as completed and leaves the previous
-`usage.json` in place. If you need to know the data moved, compare
-`generatedAt` from `ed usage summary --json` before and after.
+A run holds a lock on `refresh.lock` in the data directory, so two of them
+cannot clobber `usage.json`. When one is already running, in the app or in
+another terminal, `ed` attaches to it instead of starting a second, printing `a
+refresh is already running, attaching to it` and reporting that run's phases as
+they land. `--follow` asks for that explicitly, and that is the difference
+between the two: with nothing running it exits 4 with `no usage refresh is
+running`, hinted `drop --follow to start one`, where a plain `ed usage refresh`
+would have started one.
+
+A pipeline failure is an error rather than a quiet success. What the collector
+reported becomes the message, exit 4, hinted at `data/refresh.log`, which is
+where the same transcript is written line by line while the run happens. A run
+that was attached to and then stopped without finishing fails the same way.
+
+```
+$ ed usage refresh
+
+  EDITH · refresh usage · 2026-08-08 23:57:31
+  ────────────────────────────────────────────────────
+  ▸ ccusage    cached                             0.01s
+  · discovering sources
+  ▸ cli        27 days                            1.47s
+  ▸ codex      12 days                            0.83s
+  ▸ commandcode 1 days                             0.85s
+  · assembling usage.json
+  · walking 900 transcript files
+  ▸ walk       125311 messages                    3.00s
+  ▸ projects   174 repos                          2.35s
+  ▸ merge      hours + projects merged            1.32s
+  ▸ machines   1 folded in                        0.05s
+  ────────────────────────────────────────────────────
+  ✓ sources   cli, codex, commandcode, asus-tuf-7:cli
+  ✓ machines  Asus TUF 7
+  ✓ window    2026-07-08 to 2026-08-08 · 27 days · 7 models
+  ✓ spend     $10876.85 · 378 sessions · 401 KB
+  ✓ done in 9.98s
+
+usage refreshed
+```
 
 ## Exit codes
 
 | Code | When this group produces it |
 | --- | --- |
-| 0 | The command printed its report. Also a refresh that timed out, and a read that legitimately found nothing to show |
+| 0 | The command printed its report, or the refresh finished. Also a read that legitimately found nothing to show |
 | 1 | `usage.json` exists but will not decode: `could not read <path>: <reason>` |
 | 2 | `--limit 0` or a negative limit on `ed usage projects`, plus the usual parse failures, an unknown flag, a missing value, or `--source` passed to `ed usage projects` |
-| 3 | `--range` is not `today`, `week`, `month` or `all`. The hint lists the four |
-| 4 | No `usage.json` at all; no rate limit history at all; or Edith is not running for `ed usage refresh` and `ed usage limits --refresh` |
+| 3 | `--range` is not `today`, `week`, `month` or `all`, and the hint lists the four. Also a `--source` id or a `--machine` the file knows nothing about |
+| 4 | No `usage.json` at all; no rate limit history at all; a usage refresh whose pipeline failed, or `--follow` with nothing running; or Edith not running, or not answering, for `ed usage limits --refresh` |
 
 ## Notes and gotchas
 
@@ -857,16 +935,19 @@ so a collection that failed still reports as completed and leaves the previous
 - Object keys in `--json` are sorted, arrays keep the order the command chose:
   fixed provider order for `limits`, date ascending for `daily`, cost descending
   for `models` and `projects`, and the file's own order for `sources`.
-- Nothing here reaches the network. `--refresh` and `refresh` post a
-  notification and wait; the polling and collecting happen inside the app, which
-  is also why the numbers `ed` prints can only ever be as fresh as the last
-  thing the app wrote.
-- A refresh that the app never answers leaves both commands exiting 0 with the
-  file's existing contents, so a script that must have current data should check
-  `generatedAt` or `observedAt` rather than trusting the exit code.
+- The read verbs never reach the network and only ever show the last thing that
+  was written. `ed usage limits --refresh` posts a request and waits for the app
+  to do the polling, while `ed usage refresh` runs the collector in this
+  process, which makes it the one invocation here that goes out and fetches
+  anything itself.
+- Both refreshing invocations fail rather than reporting stale numbers, so exit
+  0 from either does mean the work happened. `observedAt` can still repeat after
+  `ed usage limits --refresh`, because the app appends a history row only when
+  the values changed.
 - `ed config set tabUsageEnabled false` turns off the Agent Usage extension, and
-  with it the collection and the limit polling; `claudeLimitsEnabled` and
-  `codexLimitsEnabled` do the same for a single provider's polling. The read
+  with it the app's own collection and the limit polling; `claudeLimitsEnabled`
+  and `codexLimitsEnabled` do the same for a single provider's polling.
+  `ed usage refresh` runs the pipeline itself and collects either way. The read
   verbs keep working against whatever was collected before that, so
   `ed usage limits` goes on printing a silenced provider's last row until it
   scrolls out of the 8 KB tail.
