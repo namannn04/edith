@@ -709,6 +709,20 @@ ed machines files put <machine> <local> <remote> [--json]
 `get` defaults the local name to the remote file's name. Transfers stream over
 the shared connection.
 
+`put` takes a destination directory as well as a file path: a path ending in `/`,
+or one that is a directory on the far side, keeps the local filename. An upload
+is checked rather than assumed, so a transfer that is cut short reports what the
+machine said and removes the partial file instead of leaving something that looks
+complete:
+
+```
+$ ed machines files put tuf ./clip.mov /home/pulkit/uploads/
+/home/pulkit/uploads/clip.mov  38.1 MB
+
+$ ed machines files put tuf ./clip.mov /tmp/no-such-dir/clip.mov
+error: upload failed: bash: line 1: /tmp/no-such-dir/clip.mov: No such file or directory
+```
+
 The Finder window's own operations are here too, running the same commands it
 runs:
 

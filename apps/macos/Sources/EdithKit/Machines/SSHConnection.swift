@@ -259,9 +259,13 @@ public actor SSHConnection {
         localURL: URL, toRemotePath remotePath: String,
         progress: (@Sendable (Int64) -> Void)? = nil
     ) async throws {
+        signal(SIGPIPE, SIG_IGN)
         guard let input = try? FileHandle(forReadingFrom: localURL) else {
             throw SSHConnectionError.transferFailed("Could not read the local file.")
         }
+        let expected =
+            (try? FileManager.default.attributesOfItem(atPath: localURL.path)[.size]) as? Int64
+            ?? -1
         let command = "cat > \(ShellQuote.quote(remotePath))"
         let process = execProcess(command: command)
         let stdinPipe = Pipe()
@@ -276,15 +280,23 @@ public actor SSHConnection {
         try process.run()
         let writer = stdinPipe.fileHandleForWriting
         var sent: Int64 = 0
+        var writeFailure: Error?
         while true {
             let chunk = input.readData(ofLength: 128 * 1024)
             if chunk.isEmpty { break }
             if Task.isCancelled {
                 process.terminate()
                 try? input.close()
+                try? writer.close()
+                await discard(remotePath)
                 throw CancellationError()
             }
-            writer.write(chunk)
+            do {
+                try writer.write(contentsOf: chunk)
+            } catch {
+                writeFailure = error
+                break
+            }
             sent += Int64(chunk.count)
             progress?(sent)
         }
@@ -292,11 +304,43 @@ public actor SSHConnection {
         try? input.close()
         process.waitUntilExit()
         stderrPipe.fileHandleForReading.readabilityHandler = nil
-        guard process.terminationStatus == 0 else {
-            let message = String(decoding: stderrBuffer.snapshot(), as: UTF8.self)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SSHConnectionError.transferFailed(message.isEmpty ? "Upload failed." : message)
+        let reported = String(decoding: stderrBuffer.snapshot(), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard writeFailure == nil else {
+            await discard(remotePath)
+            throw SSHConnectionError.transferFailed(
+                reported.isEmpty
+                    ? "The machine stopped accepting the file after \(sent) bytes."
+                    : reported)
         }
+        guard process.terminationStatus == 0 else {
+            await discard(remotePath)
+            throw SSHConnectionError.transferFailed(reported.isEmpty ? "Upload failed." : reported)
+        }
+        guard expected < 0 || sent == expected else {
+            await discard(remotePath)
+            throw SSHConnectionError.transferFailed(
+                "Only \(sent) of \(expected) bytes were sent.")
+        }
+        guard let landed = await remoteSize(remotePath), landed == sent else {
+            await discard(remotePath)
+            throw SSHConnectionError.transferFailed(
+                "The machine kept a different file than the one that was sent.")
+        }
+    }
+
+    private func remoteSize(_ path: String) async -> Int64? {
+        let quoted = ShellQuote.quote(path)
+        let command = "stat -c%s \(quoted) 2>/dev/null || stat -f%z \(quoted) 2>/dev/null"
+        guard let result = try? await run(command, timeout: 30), result.succeeded else {
+            return nil
+        }
+        return Int64(result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private func discard(_ path: String) async {
+        _ = try? await run("rm -f \(ShellQuote.quote(path))", timeout: 30)
     }
 
     public func addForward(_ forward: PortForward) async throws {

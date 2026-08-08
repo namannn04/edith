@@ -140,8 +140,10 @@ struct MachineFilesPutCommand: AsyncParsableCommand {
                 throw CLIFailure.notFound("no file at \(source.path)")
             }
             let runner = try await MachineResolver.runner(machine)
+            let destination = try await RemoteDestination.resolve(
+                remote, named: source.lastPathComponent, on: runner)
             do {
-                try await runner.ssh.upload(localURL: source, toRemotePath: remote)
+                try await runner.ssh.upload(localURL: source, toRemotePath: destination)
             } catch {
                 throw CLIFailure("upload failed: \(error.localizedDescription)")
             }
@@ -152,12 +154,12 @@ struct MachineFilesPutCommand: AsyncParsableCommand {
                 CLIOut.json(
                     .object([
                         "local": .string(source.path),
-                        "remote": .string(remote),
+                        "remote": .string(destination),
                         "sizeBytes": .int(size),
                     ]))
                 return
             }
-            CLIOut.out("\(remote)  \(ByteFormatter.string(Int64(size)))")
+            CLIOut.out("\(destination)  \(ByteFormatter.string(Int64(size)))")
         }
     }
 }
@@ -165,5 +167,24 @@ struct MachineFilesPutCommand: AsyncParsableCommand {
 extension String {
     func expandingTilde() -> String {
         (self as NSString).expandingTildeInPath
+    }
+}
+
+enum RemoteDestination {
+    static func resolve(_ remote: String, named filename: String, on runner: RemoteRunner)
+        async throws -> String
+    {
+        let trimmed = remote.hasSuffix("/") ? String(remote.dropLast()) : remote
+        guard !trimmed.isEmpty else { return "/" + filename }
+        if remote.hasSuffix("/") { return joined(trimmed, filename) }
+        let probe = "test -d \(ShellQuote.quote(trimmed)) && echo dir || echo file"
+        let answer = try? await runner.text(probe, timeout: 20)
+        let isDirectory =
+            (answer ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == "dir"
+        return isDirectory ? joined(trimmed, filename) : remote
+    }
+
+    static func joined(_ directory: String, _ filename: String) -> String {
+        directory + "/" + filename
     }
 }
