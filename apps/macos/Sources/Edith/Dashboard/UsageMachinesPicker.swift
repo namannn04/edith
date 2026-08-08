@@ -12,7 +12,7 @@ struct UsageMachinesPicker: View {
     @State private var asked = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIScale.pt(8)) {
+        VStack(alignment: .leading, spacing: UIScale.pt(10)) {
             Text("Machines")
                 .font(.system(size: UIScale.pt(11.5), weight: .semibold))
                 .foregroundStyle(DashSkin.ink(dark))
@@ -94,7 +94,7 @@ struct UsageMachinesPicker: View {
                 model.showMachine(group, !shown)
             }
         } label: {
-            HStack(spacing: UIScale.pt(6)) {
+            HStack(spacing: UIScale.pt(8)) {
                 Image(systemName: mark)
                     .font(.system(size: UIScale.pt(10)))
                     .foregroundStyle(
@@ -109,12 +109,13 @@ struct UsageMachinesPicker: View {
                     .font(DashSkin.mono(9.5))
                     .foregroundStyle(DashSkin.inkFaint(dark))
             }
-            .padding(.horizontal, UIScale.pt(6))
-            .padding(.vertical, UIScale.pt(4))
+            .padding(.horizontal, UIScale.pt(9))
+            .padding(.vertical, UIScale.pt(7))
             .contentShape(Rectangle())
         }
         .buttonStyle(MachineRowStyle(dark: dark))
         .pointerCursor()
+        .padding(.horizontal, UIScale.pt(2))
     }
 
     private func agentCount(_ group: MachineGroup) -> String {
@@ -124,15 +125,15 @@ struct UsageMachinesPicker: View {
     private func collectRow(_ machine: Machine) -> some View {
         let on = counted.contains(machine.id)
         let summary = summaries[machine.id]
-        return HStack(spacing: UIScale.pt(6)) {
+        return HStack(spacing: UIScale.pt(2)) {
             Button {
                 toggle(machine)
             } label: {
-                HStack(spacing: UIScale.pt(6)) {
+                HStack(spacing: UIScale.pt(8)) {
                     Image(systemName: on ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: UIScale.pt(10)))
                         .foregroundStyle(on ? DashSkin.accent(dark) : DashSkin.inkFaint(dark))
-                    VStack(alignment: .leading, spacing: UIScale.pt(1)) {
+                    VStack(alignment: .leading, spacing: UIScale.pt(3)) {
                         Text(machine.name)
                             .font(
                                 .system(
@@ -146,6 +147,8 @@ struct UsageMachinesPicker: View {
                     }
                     Spacer(minLength: 0)
                 }
+                .padding(.horizontal, UIScale.pt(9))
+                .padding(.vertical, UIScale.pt(7))
                 .contentShape(Rectangle())
             }
             .buttonStyle(MachineRowStyle(dark: dark))
@@ -157,13 +160,16 @@ struct UsageMachinesPicker: View {
                     Image(systemName: "trash")
                         .font(.system(size: UIScale.pt(10)))
                         .foregroundStyle(DashSkin.inkFaint(dark))
+                        .frame(width: UIScale.pt(24), height: UIScale.pt(24))
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).pointerCursor()
+                .buttonStyle(MachineRowStyle(dark: dark))
+                .pointerCursor()
                 .help("Drop what \(machine.name) gave and stop counting it")
             }
         }
-        .padding(.horizontal, UIScale.pt(6))
-        .padding(.vertical, UIScale.pt(4))
+        .padding(.horizontal, UIScale.pt(2))
+        .padding(.vertical, UIScale.pt(1))
     }
 
     private func detail(_ machine: Machine, _ summary: MachineUsageSummary?) -> String {

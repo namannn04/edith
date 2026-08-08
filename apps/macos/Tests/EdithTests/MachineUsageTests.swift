@@ -162,6 +162,44 @@ import Testing
         #expect(MachineUsageStore.storedIDs(in: dir) == [kept.id])
     }
 
+    @Test func renamingAMachineRestampsWhatItAlreadyGave() throws {
+        let dir = directory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let machine = Machine(id: UUID(), name: "tuf", host: "h")
+        try MachineUsageStore.save(
+            document: document, machine: machine, slug: "tuf", host: "h", collectedAt: Date(),
+            in: dir)
+
+        var renamed = machine
+        renamed.name = "workshop box"
+        #expect(MachineUsageStore.restamp([renamed], in: dir) == [machine.id])
+
+        let summary = try #require(MachineUsageStore.summary(machineID: machine.id, in: dir))
+        #expect(summary.name == "workshop box")
+        #expect(summary.slug == "workshop-box")
+    }
+
+    @Test func restampingIsANoOpWhenTheNameIsUnchanged() throws {
+        let dir = directory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let machine = Machine(id: UUID(), name: "tuf", host: "h")
+        try MachineUsageStore.save(
+            document: document, machine: machine, slug: "tuf", host: "h", collectedAt: Date(),
+            in: dir)
+        #expect(MachineUsageStore.restamp([machine], in: dir).isEmpty)
+    }
+
+    @Test func restampingLeavesMachinesItWasNotToldAboutAlone() throws {
+        let dir = directory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let machine = Machine(id: UUID(), name: "tuf", host: "h")
+        try MachineUsageStore.save(
+            document: document, machine: machine, slug: "tuf", host: "h", collectedAt: Date(),
+            in: dir)
+        #expect(MachineUsageStore.restamp([Machine(name: "other", host: "x")], in: dir).isEmpty)
+        #expect(MachineUsageStore.summary(machineID: machine.id, in: dir)?.name == "tuf")
+    }
+
     @Test func forgettingRemovesOnlyThatMachine() throws {
         let dir = directory()
         defer { try? FileManager.default.removeItem(at: dir) }
