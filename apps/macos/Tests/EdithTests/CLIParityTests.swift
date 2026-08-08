@@ -76,6 +76,12 @@ enum UIParity {
         UICapability("Notch shelf", "empty the shelf", ["shelf", "clear"]),
 
         UICapability("Cleaner card", "reclaim the scanned caches", ["cleaner", "clean"]),
+        UICapability(
+            "Cleaner drive picker", "sweep a folder for project junk",
+            ["cleaner", "scan", "--root", "~/code"]),
+        UICapability(
+            "Cleaner card", "clean one category",
+            ["cleaner", "clean", "--category", "npm", "--yes"]),
 
         UICapability("Machines", "add a machine", ["machines", "add", "box", "--host", "h"]),
         UICapability("Machines", "edit a machine", ["machines", "edit", "box"]),
@@ -143,6 +149,23 @@ enum UIParity {
             "Machine finder", "undo the last move or rename",
             ["machines", "files", "undo", "box"]),
         UICapability("Workspace view", "list saved layouts", ["machines", "workspace", "ls"]),
+        UICapability(
+            "Workspace pane menu", "split a pane",
+            ["machines", "workspace", "split", "1", "box"]),
+        UICapability(
+            "Workspace pane menu", "close a pane", ["machines", "workspace", "close", "1"]),
+        UICapability(
+            "Workspace tab strip", "point a pane at another machine",
+            ["machines", "workspace", "point", "1", "box"]),
+        UICapability(
+            "Workspace toolbar", "even out the panes", ["machines", "workspace", "equalize"]),
+        UICapability(
+            "Download sheet", "cancel running downloads", ["download", "cancel"]),
+        UICapability("Music page", "rescan the library", ["music", "rescan"]),
+        UICapability(
+            "Permissions pane", "relaunch after granting", ["app", "relaunch"]),
+        UICapability(
+            "Update schedule sheet", "clear the check history", ["app", "clear-updates"]),
         UICapability(
             "Workspace toolbar", "apply a layout preset",
             ["machines", "workspace", "new", "box", "--screen", "terminal"]),

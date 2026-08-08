@@ -32,6 +32,9 @@ enum JSONContract {
         JSONCase("ed app quit", ["app", "quit", "--json"]),
         JSONCase("ed app check-updates", ["app", "check-updates", "--json"]),
         JSONCase("ed app updates", ["app", "updates", "--json"]),
+        JSONCase("ed app relaunch", ["app", "relaunch", "--json"], mutatesTheMachine: true),
+        JSONCase(
+            "ed app clear-updates", ["app", "clear-updates", "--json"], mutatesTheMachine: true),
         JSONCase("ed clipboard ls", ["clipboard", "ls", "--json"]),
         JSONCase("ed clipboard stats", ["clipboard", "stats", "--json"]),
         JSONCase("ed clipboard get", ["clipboard", "get", "1", "--json"]),
@@ -41,6 +44,7 @@ enum JSONContract {
         JSONCase("ed clipboard rm", ["clipboard", "rm", "1", "--json"]),
         JSONCase("ed clipboard clear", ["clipboard", "clear", "--json"]),
         JSONCase("ed music ls", ["music", "ls", "--json"]),
+        JSONCase("ed music rescan", ["music", "rescan", "--json"]),
         JSONCase("ed music start", ["music", "start", "nothing-at-all", "--json"]),
         JSONCase("ed music seek", ["music", "seek", "0.5", "--json"]),
         JSONCase("ed music shuffle", ["music", "shuffle", "--json"]),
@@ -65,6 +69,7 @@ enum JSONContract {
         JSONCase(
             "ed download clear", ["download", "clear", "--json"], mutatesTheMachine: true),
         JSONCase("ed download tool", ["download", "tool", "--json"]),
+        JSONCase("ed download cancel", ["download", "cancel", "--json"], mutatesTheMachine: true),
         JSONCase("ed color ls", ["color", "ls", "--json"]),
         JSONCase("ed color clear", ["color", "clear", "--json"]),
         JSONCase("ed shelf ls", ["shelf", "ls", "--json"]),
@@ -196,6 +201,17 @@ enum JSONContract {
             "ed machines docker unpause",
             ["machines", "docker", "unpause", "nowhere-at-all", "api", "--json"]),
         JSONCase("ed machines workspace ls", ["machines", "workspace", "ls", "--json"]),
+        JSONCase("ed machines workspace panes", ["machines", "workspace", "panes", "--json"]),
+        JSONCase(
+            "ed machines workspace split",
+            ["machines", "workspace", "split", "1", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines workspace close", ["machines", "workspace", "close", "1", "--json"]),
+        JSONCase(
+            "ed machines workspace point",
+            ["machines", "workspace", "point", "1", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines workspace equalize", ["machines", "workspace", "equalize", "--json"]),
         JSONCase(
             "ed machines workspace use", ["machines", "workspace", "use", "nope", "--json"]),
         JSONCase(

@@ -470,3 +470,28 @@ enum BooleanWord {
         }
     }
 }
+
+struct MusicRescanCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "rescan",
+        abstract: "Read the music folder again after changing it outside Edith.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            try LibraryBridge.requireFolder()
+            let before = TrackMeta.scanMusicFolder().count
+            TrackMeta.invalidateCaches()
+            let after = TrackMeta.scanMusicFolder().count
+            AppBridge.post(IPC.Name.requestMusicRescan)
+            LibraryBridge.announce()
+            guard !json else {
+                CLIOut.json(.object(["tracks": .int(after), "wasTracks": .int(before)]))
+                return
+            }
+            CLIOut.out("\(after) track(s) in the library")
+        }
+    }
+}

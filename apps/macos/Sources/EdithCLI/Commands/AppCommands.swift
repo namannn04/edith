@@ -14,7 +14,8 @@ struct AppCommand: AsyncParsableCommand {
         subcommands: [
             AppActionsCommand.self, AppCleanKeysCommand.self, AppTestNotificationCommand.self,
             AppOpenCommand.self, AppQuitCommand.self, AppCheckUpdatesCommand.self,
-            AppUpdatesCommand.self,
+            AppUpdatesCommand.self, AppRelaunchCommand.self,
+            AppClearUpdateHistoryCommand.self,
         ],
         defaultSubcommand: AppActionsCommand.self)
 }
@@ -257,6 +258,56 @@ struct AppUpdatesCommand: AsyncParsableCommand {
             }
             CLIOut.out(
                 TextTable.render(headers: ["WHEN", "KIND", "OUTCOME", "WHAT"], rows: rows))
+        }
+    }
+}
+
+struct AppRelaunchCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "relaunch",
+        abstract: "Quit Edith and start it again, which is what a new permission needs.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            guard let bundle = CLIEnvironment.installedAppURL() else {
+                throw CLIFailure.unavailable(
+                    "Edith is not installed where ed can find it",
+                    hint: "it looks in /Applications and alongside this binary")
+            }
+            AppBridge.post(IPC.Name.quitMainApp)
+            AppBridge.post(IPC.Name.requestQuitApps, userInfo: ["edith": true])
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = ["-n", "-a", bundle.path]
+            try? process.run()
+            guard !json else {
+                CLIOut.json(.object(["relaunched": .bool(true), "path": .string(bundle.path)]))
+                return
+            }
+            CLIOut.out("relaunching Edith")
+        }
+    }
+}
+
+struct AppClearUpdateHistoryCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "clear-updates", abstract: "Forget the record of past update checks.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            let before = UpdateCheckLog.load().count
+            UpdateCheckLog.clear()
+            guard !json else {
+                CLIOut.json(.object(["removed": .int(before)]))
+                return
+            }
+            CLIOut.out("cleared \(before) check(s)")
         }
     }
 }
