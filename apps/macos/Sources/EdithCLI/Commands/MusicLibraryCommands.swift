@@ -346,10 +346,9 @@ struct MusicPlayTrackCommand: AsyncParsableCommand {
                 let found = try LibraryBridge.folder(target)
                 AppBridge.post(
                     IPC.Name.musicCommand,
-                    userInfo: [
-                        "action": "playSource", "kind": "folder",
-                        "path": found.relativePath,
-                    ])
+                    userInfo: ["action": "playSource"].merging(
+                        MusicSourceRequest.folder(found.relativePath).payload
+                    ) { _, new in new })
                 guard !json else {
                     CLIOut.json(
                         .object([
@@ -482,16 +481,14 @@ struct MusicRescanCommand: AsyncParsableCommand {
     func run() async throws {
         try await execute {
             try LibraryBridge.requireFolder()
-            let before = TrackMeta.scanMusicFolder().count
             TrackMeta.invalidateCaches()
-            let after = TrackMeta.scanMusicFolder().count
-            AppBridge.post(IPC.Name.requestMusicRescan)
+            let tracks = TrackMeta.scanMusicFolder().count
             LibraryBridge.announce()
             guard !json else {
-                CLIOut.json(.object(["tracks": .int(after), "wasTracks": .int(before)]))
+                CLIOut.json(.object(["tracks": .int(tracks)]))
                 return
             }
-            CLIOut.out("\(after) track(s) in the library")
+            CLIOut.out("\(tracks) track(s) in the library")
         }
     }
 }

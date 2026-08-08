@@ -35,17 +35,14 @@ public enum IPC {
         public static let requestTestNotification = Notification.Name(
             "com.pulkit.edith.requestTestNotification")
         public static let clipboardChanged = Notification.Name("com.pulkit.edith.clipboardChanged")
+        public static let shelfChanged = Notification.Name("com.pulkit.edith.shelfChanged")
         public static let machinesChanged = Notification.Name("com.pulkit.edith.machinesChanged")
         public static let downloadQueueChanged = Notification.Name(
             "com.pulkit.edith.downloadQueueChanged")
         public static let requestQuitApps = Notification.Name(
             "com.pulkit.edith.requestQuitApps")
-        public static let requestToolInstall = Notification.Name(
-            "com.pulkit.edith.requestToolInstall")
         public static let requestFinderUndo = Notification.Name(
             "com.pulkit.edith.requestFinderUndo")
-        public static let requestMusicRescan = Notification.Name(
-            "com.pulkit.edith.requestMusicRescan")
         public static let requestDownloadCancel = Notification.Name(
             "com.pulkit.edith.requestDownloadCancel")
         public static let finderUndoResult = Notification.Name(

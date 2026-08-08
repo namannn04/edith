@@ -187,8 +187,11 @@ struct MachineGroup: Identifiable, Equatable {
     let id: String
     let name: String
     let sourceIDs: [String]
+    var agentNames: [String] = []
 
     var isLocal: Bool { id == Self.localID }
+
+    var agentSummary: String { agentNames.joined(separator: ", ") }
 }
 
 struct ProjectAgg: Identifiable {
@@ -558,15 +561,23 @@ final class DashboardModel: ObservableObject {
         return names
     }
 
+    static func agentName(_ entry: DashUsage.Meta?, id: String, local: Bool) -> String {
+        guard let entry else { return id }
+        if local { return entry.label ?? entry.tool ?? id }
+        return entry.tool ?? entry.label ?? id
+    }
+
     static func groupByMachine(
         _ ids: [String], meta: [String: DashUsage.Meta], naming: [String: String]
     ) -> [MachineGroup] {
         var order: [String] = []
         var sources: [String: [String]] = [:]
         var names: [String: String] = [:]
+        var agents: [String: [String]] = [:]
         for id in ids {
             let entry = meta[id]
             let key = entry?.machineID?.lowercased() ?? entry?.machine ?? MachineGroup.localID
+            let local = key == MachineGroup.localID
             if sources[key] == nil {
                 order.append(key)
                 names[key] =
@@ -574,9 +585,12 @@ final class DashboardModel: ObservableObject {
                     ? "This Mac" : (naming[key] ?? entry?.machine ?? key)
             }
             sources[key, default: []].append(id)
+            agents[key, default: []].append(Self.agentName(entry, id: id, local: local))
         }
         let groups = order.map {
-            MachineGroup(id: $0, name: names[$0] ?? $0, sourceIDs: sources[$0] ?? [])
+            MachineGroup(
+                id: $0, name: names[$0] ?? $0, sourceIDs: sources[$0] ?? [],
+                agentNames: agents[$0] ?? [])
         }
         guard groups.count > 1 else { return [] }
         return groups

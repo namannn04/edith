@@ -263,8 +263,15 @@ ed usage machines collect [<machine>] [--once] [--verbose] [--timeout <s>] [--js
 ed usage machines enable <machine> [--json]
 ed usage machines disable <machine> [--json]
 ed usage machines forget <machine> [--json]
-ed usage refresh [--no-wait] [--json]
+ed usage refresh [--follow] [--json]
 ```
+
+`ed usage refresh` runs the collection pipeline itself, so it does not need the
+Edith app to be open. It prints each phase as it completes. When a refresh is
+already running, in the app or in another terminal, it attaches to that one and
+reports its progress rather than starting a second; `--follow` requires a
+running refresh and never starts one. Progress goes to stderr and is skipped
+when stderr is not a terminal, so `ed usage refresh --json` stays pipeable.
 
 `--range` is `today`, `week` (last 7 days), `month` (last 30) or `all`, and
 defaults to `all`. `--source` filters to one agent and repeats;
@@ -475,9 +482,11 @@ claude  installed  2.1.226 (Claude Code)       Includes Claude Code cloud sessio
 codex   installed  codex-cli 0.146.0-alpha.9.2 Reads Codex session and weekly limits when that provider is enabled.
 ```
 
-`ls` checks PATH and needs nothing. `install` asks the app to fetch it the same
-way the extension sheet does, so it exits 4 when Edith is closed, and reports
-rather than reinstalling when the tool is already there.
+`ls` checks PATH and needs nothing. `install` fetches the tool itself, the same
+way the extension sheet does, and needs no app running. It streams what it is
+doing, verifies the tool is on PATH afterwards, and exits 4 with the manual
+instruction when it could not. A tool that is already there is reported rather
+than reinstalled.
 
 ## `ed apps`
 
@@ -917,7 +926,7 @@ still needs `ed machines exec usage -- ...`.
 | `usage limits`, `summary`, `daily`, `models`, `projects`, `sources` | no, they read the collected files |
 | `usage machines ls`, `enable`, `disable` | no |
 | `usage machines collect`, `forget` | no, but the numbers only reach the dashboard once the app folds them in |
-| `usage refresh` | yes |
+| `usage refresh` | no, it runs the collection pipeline itself |
 | `system stats`, `system disks` | no |
 | `machines` and `ed <machine> ...` | no |
 | `music`, `calendar` | yes |

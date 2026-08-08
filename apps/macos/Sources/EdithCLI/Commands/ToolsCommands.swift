@@ -32,13 +32,20 @@ enum ToolsBridge {
 
     static func found(_ spec: CLIToolSpec) -> URL? {
         guard case let .executable(name, _) = spec.presenceStrategy else { return nil }
-        return CLIToolEnvironment.executable(named: name)
+        return CLIEnvironment.executableNamed(name)
     }
 
     static func version(_ spec: CLIToolSpec) -> String? {
         guard case let .executable(_, arguments) = spec.presenceStrategy,
             let executable = found(spec)
         else { return nil }
+        if let remembered = ToolVersionCache.cached(for: executable) { return remembered }
+        guard let probed = probeVersion(executable, arguments: arguments) else { return nil }
+        ToolVersionCache.remember(probed, for: executable)
+        return probed
+    }
+
+    private static func probeVersion(_ executable: URL, arguments: [String]) -> String? {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
@@ -66,10 +73,20 @@ struct ToolsListCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            let rows = ToolsBridge.all.map { spec -> (CLIToolSpec, URL?, String?) in
-                let path = ToolsBridge.found(spec)
-                return (spec, path, path == nil ? nil : ToolsBridge.version(spec))
+            let progress = CLIProgress.forCommand(json: json)
+            progress.begin("probing \(ToolsBridge.all.count) tools")
+            let rows = await withTaskGroup(of: (Int, CLIToolSpec, URL?, String?).self) { group in
+                for (index, spec) in ToolsBridge.all.enumerated() {
+                    group.addTask {
+                        let path = ToolsBridge.found(spec)
+                        return (index, spec, path, path == nil ? nil : ToolsBridge.version(spec))
+                    }
+                }
+                var probed: [(Int, CLIToolSpec, URL?, String?)] = []
+                for await probe in group { probed.append(probe) }
+                return probed.sorted { $0.0 < $1.0 }.map { ($0.1, $0.2, $0.3) }
             }
+            progress.end()
             guard !json else {
                 CLIOut.json(
                     .array(
@@ -123,19 +140,32 @@ struct ToolsInstallCommand: AsyncParsableCommand {
                 CLIOut.note("\(spec.id) is already at \(existing.path)")
                 return
             }
-            try AppBridge.requireHelper("installing \(spec.id)")
-            AppBridge.post(
-                IPC.Name.requestToolInstall, userInfo: ["toolID": spec.id])
-            guard !json else {
-                CLIOut.json(
-                    .object([
-                        "id": .string(spec.id), "requested": .bool(true),
-                        "installed": .bool(false),
-                    ]))
-                return
+            let progress = CLIProgress.forCommand(json: json)
+            progress.header("EDITH · install " + spec.displayName)
+            progress.begin("installing " + spec.id)
+            do {
+                let version = try await CLIEnvironment.installTool(spec) { line in
+                    progress.note(line)
+                }
+                progress.end()
+                progress.done("\(spec.id) is ready")
+                guard !json else {
+                    CLIOut.json(
+                        .object([
+                            "id": .string(spec.id), "installed": .bool(true),
+                            "version": .string(version), "changed": .bool(true),
+                        ]))
+                    return
+                }
+                CLIOut.out("installed \(spec.id) (\(version))")
+            } catch {
+                progress.end()
+                let reason =
+                    (error as? ToolInstallFailure)?.description
+                    ?? error.localizedDescription
+                progress.failure(reason)
+                throw CLIFailure.unavailable(reason, hint: spec.installStrategy.instruction)
             }
-            CLIOut.out("asked Edith to install \(spec.id)")
-            CLIOut.note("run `ed tools ls` to see when it lands")
         }
     }
 }

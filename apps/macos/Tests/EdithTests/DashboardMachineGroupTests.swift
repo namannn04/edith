@@ -33,6 +33,38 @@ import Testing
         #expect(groups[1].sourceIDs == ["tuf:cli"])
     }
 
+    @Test func theAgentsNamedInARowAreExactlyTheOnesItCounts() {
+        let groups = DashboardModel.groupByMachine(
+            ["cli", "codex", "cowork", "tuf:cli"],
+            meta: meta([
+                ("cli", nil, nil), ("codex", nil, nil), ("cowork", nil, nil),
+                ("tuf:cli", "tuf", tufID),
+            ]),
+            naming: [:])
+        for group in groups {
+            #expect(
+                group.agentNames.count == group.sourceIDs.count,
+                "\(group.name) counts \(group.sourceIDs.count) and names \(group.agentNames)")
+        }
+        #expect(groups[0].agentSummary == "cli, codex, cowork")
+        #expect(groups[1].agentSummary == "tuf:cli")
+    }
+
+    @Test func aLocalAgentIsNamedByItsOwnLabelNotTheToolItRuns() {
+        let cowork = try! JSONDecoder().decode(
+            DashUsage.Meta.self,
+            from: Data(#"{"label": "Cowork", "tool": "Claude Code"}"#.utf8))
+        #expect(DashboardModel.agentName(cowork, id: "cowork", local: true) == "Cowork")
+    }
+
+    @Test func aCollectedAgentDropsTheMachineSuffixItsLabelCarries() {
+        let remote = try! JSONDecoder().decode(
+            DashUsage.Meta.self,
+            from: Data(
+                #"{"label": "Claude Code · Asus TUF 7", "tool": "Claude Code"}"#.utf8))
+        #expect(DashboardModel.agentName(remote, id: "tuf:cli", local: false) == "Claude Code")
+    }
+
     @Test func aRenamedMachineShowsItsCurrentNameNotTheCollectedOne() {
         let groups = DashboardModel.groupByMachine(
             ["cli", "tuf:cli"],

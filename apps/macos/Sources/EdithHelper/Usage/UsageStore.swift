@@ -45,11 +45,13 @@ final class UsageStore: ObservableObject, FeatureModule {
     private var sleepObserver: NSObjectProtocol?
     private var locked = false
     private var lockObservers: [NSObjectProtocol] = []
-    private var process: Process?
-    private var lastLogFlush: Date?
+    private var refreshTask: Task<Void, Never>?
+    private var refreshEvents: [UsageRefreshEvent] = []
+    private var refreshStartedAt: Date?
     private var wakeTask: Task<Void, Never>?
     private var launchObserver: NSObjectProtocol?
     private var refreshRequestObserver: NSObjectProtocol?
+    private var refreshStartedObserver: NSObjectProtocol?
     private var limitsRefreshObserver: NSObjectProtocol?
     private var machineCollectObserver: NSObjectProtocol?
     private var hasLiveLimits = false
@@ -158,6 +160,10 @@ final class UsageStore: ObservableObject, FeatureModule {
             Task { @MainActor in await self?.refreshLimits(force: true) }
         }
 
+        refreshStartedObserver = IPC.observe(IPC.Name.usageRefreshStarted) { [weak self] in
+            Task { @MainActor in self?.adoptExternalRefresh() }
+        }
+
         machineCollectObserver = IPC.observe(IPC.Name.requestUsageMachineCollect) { [weak self] in
             self?.runUpdate(forceMachines: true)
         }
@@ -224,8 +230,9 @@ final class UsageStore: ObservableObject, FeatureModule {
             NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver)
             self.sleepObserver = nil
         }
-        process?.terminate()
-        process = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshEvents = []
         daily = []
         stats = []
         calendarDays = []
@@ -245,6 +252,10 @@ final class UsageStore: ObservableObject, FeatureModule {
         if let refreshRequestObserver {
             IPC.stopObserving(refreshRequestObserver)
             self.refreshRequestObserver = nil
+        }
+        if let refreshStartedObserver {
+            IPC.stopObserving(refreshStartedObserver)
+            self.refreshStartedObserver = nil
         }
         if let limitsRefreshObserver {
             IPC.stopObserving(limitsRefreshObserver)
@@ -855,64 +866,70 @@ final class UsageStore: ObservableObject, FeatureModule {
 
     func runUpdate(collectMachines: Bool = true, forceMachines: Bool = false) {
         if collectMachines { collectFromMachines(force: forceMachines) }
-        guard !updating, let script = UsageCollector.scriptURL() else {
-            log = "✖ refresh-usage script not found in app bundle"
-            return
-        }
-        updating = true
-        log = ""
-        IPC.post(IPC.Name.usageRefreshStarted)
-        let dataDir = Repo.dataDir
-        try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+        guard !updating else { return }
         MachineUsageStore.prune(keeping: MachineRegistry.machines().map(\.id))
-        lastLogFlush = nil
-        flushLog(force: true)
+        beginTranscript()
+        refreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                if UsageRefreshRunner.isRunning {
+                    _ = try await UsageRefreshFollower.follow { event in
+                        Task { @MainActor in self.append(event) }
+                    }
+                } else {
+                    _ = try await UsageRefreshRunner.run { event in
+                        Task { @MainActor in self.append(event) }
+                    }
+                }
+            } catch let failure as UsageRefreshFailure {
+                self.append(.failure(failure.description))
+            } catch {
+                self.append(.failure(error.localizedDescription))
+            }
+            await self.finishRefresh()
+        }
+    }
 
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/bash")
-        p.arguments = [script.path, dataDir.path]
-        p.currentDirectoryURL = AppData.supportDir
-        p.qualityOfService = .utility
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = pipe
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            Task { @MainActor in
-                guard let self else { return }
-                self.log += text
-                if self.log.count > 20_000 { self.log = String(self.log.suffix(16_000)) }
-                self.flushLog()
-            }
+    private func beginTranscript() {
+        updating = true
+        refreshStartedAt = Date()
+        refreshEvents = []
+        log = UsageRefreshTranscript.render([], startedAt: refreshStartedAt ?? Date())
+    }
+
+    private func append(_ event: UsageRefreshEvent) {
+        refreshEvents.append(event)
+        log = UsageRefreshTranscript.render(
+            refreshEvents, startedAt: refreshStartedAt ?? Date())
+    }
+
+    private func finishRefresh() async {
+        updating = false
+        refreshTask = nil
+        SettingsBackup.shared.syncUsage()
+        await loadStats()
+        NotificationCenter.default.post(name: .usageDataChanged, object: nil)
+        if pendingMachineMerge {
+            pendingMachineMerge = false
+            runUpdate(collectMachines: false)
         }
-        p.terminationHandler = { [weak self] proc in
-            pipe.fileHandleForReading.readabilityHandler = nil
-            Task { @MainActor in
-                guard let self else { return }
-                self.updating = false
-                self.process = nil
-                if proc.terminationStatus != 0 {
-                    self.log += "\n✖ refresh exited with status \(proc.terminationStatus)"
+    }
+
+    private func adoptExternalRefresh() {
+        guard !updating else { return }
+        beginTranscript()
+        refreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await UsageRefreshFollower.follow { event in
+                    Task { @MainActor in self.append(event) }
                 }
-                SettingsBackup.shared.syncUsage()
-                await self.loadStats()
-                self.flushLog(force: true)
-                NotificationCenter.default.post(name: .usageDataChanged, object: nil)
-                IPC.post(IPC.Name.usageRefreshFinished)
-                if self.pendingMachineMerge {
-                    self.pendingMachineMerge = false
-                    self.runUpdate(collectMachines: false)
-                }
+            } catch let failure as UsageRefreshFailure {
+                self.append(.failure(failure.description))
+            } catch {
+                self.append(.failure(error.localizedDescription))
             }
-        }
-        do {
-            try p.run()
-            process = p
-        } catch {
-            updating = false
-            log = "✖ could not launch refresh-usage: \(error.localizedDescription)"
-            flushLog(force: true)
+            await self.finishRefresh()
         }
     }
 
@@ -973,15 +990,6 @@ final class UsageStore: ObservableObject, FeatureModule {
             return
         }
         runUpdate(collectMachines: false)
-    }
-
-    private func flushLog(force: Bool = false) {
-        let now = Date()
-        if !force, let last = lastLogFlush, now.timeIntervalSince(last) < 0.3 { return }
-        lastLogFlush = now
-        try? log.write(
-            to: Repo.dataDir.appendingPathComponent("refresh.log"),
-            atomically: true, encoding: .utf8)
     }
 }
 
