@@ -48,14 +48,7 @@ struct ClipboardPanelView: View {
     private nonisolated static func arrange(
         _ entries: [ClipboardEntry], query: String, pinToTop: Bool
     ) -> [ClipboardEntry] {
-        let matched = entries.filter { entry in
-            query.isEmpty
-                || (entry.preview?.lowercased().contains(query) ?? false)
-                || (entry.sourceApp?.lowercased().contains(query) ?? false)
-        }
-        let pinned = matched.filter(\.pinned).sorted { $0.lastCopiedAt > $1.lastCopiedAt }
-        let unpinned = matched.filter { !$0.pinned }.sorted { $0.lastCopiedAt > $1.lastCopiedAt }
-        return pinToTop ? pinned + unpinned : unpinned + pinned
+        ClipboardActions.arrange(entries, query: query, pinToTop: pinToTop)
     }
 
     private nonisolated static func search(

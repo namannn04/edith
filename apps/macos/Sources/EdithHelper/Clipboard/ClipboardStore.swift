@@ -7,7 +7,6 @@ final class ClipboardStore: ObservableObject, FeatureModule {
     @Published private(set) var entries: [ClipboardEntry] = []
     @Published private(set) var skippedOversizeAt: Date?
 
-    private var sorter: EntrySorter = EntrySorter()
     private var timer: DispatchSourceTimer?
     private var lastChangeCount = NSPasteboard.general.changeCount
     private var locked = false
@@ -149,7 +148,7 @@ final class ClipboardStore: ObservableObject, FeatureModule {
             lastCopiedAt: Date(),
             size: captured.data.count, preview: captured.preview,
             pinned: existing?.pinned ?? false)
-        entries = sorter.sort(entries + [entry])
+        entries = ClipboardActions.arrange(entries + [entry])
         persistAndTrim(appending: existing == nil ? entry : nil)
         SettingsBackup.shared.scheduleClipboardBackup()
     }
@@ -159,6 +158,10 @@ final class ClipboardStore: ObservableObject, FeatureModule {
 
     private func postChanged() {
         IPC.post(IPC.Name.clipboardChanged, userInfo: ["sender": Self.senderID])
+    }
+
+    private func adopt(_ updated: [ClipboardEntry]) {
+        entries = ClipboardActions.arrange(updated)
     }
 
     private func persistAndTrim(appending appended: ClipboardEntry? = nil) {
@@ -180,38 +183,39 @@ final class ClipboardStore: ObservableObject, FeatureModule {
     }
 
     func togglePin(_ id: String) {
-        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
-        entries[index].pinned.toggle()
-        try? ClipboardRepository.saveEntries(entries)
+        guard let outcome = try? ClipboardActions.togglePin(ids: [id]), outcome.changed > 0 else {
+            return
+        }
+        adopt(outcome.entries)
         SettingsBackup.shared.scheduleClipboardBackup()
         postChanged()
     }
 
     func clear(includingPinned: Bool = false) {
-        entries = includingPinned ? [] : entries.filter(\.pinned)
-        try? ClipboardRepository.saveEntries(entries)
-        ClipboardRepository.pruneOrphanBlobs(keeping: entries)
+        guard let outcome = try? ClipboardActions.clear(keepingPinned: !includingPinned) else {
+            return
+        }
+        adopt(outcome.entries)
         SettingsBackup.shared.scheduleClipboardBackup()
         postChanged()
     }
 
     func delete(_ id: String) {
-        entries.removeAll { $0.id == id }
-        try? ClipboardRepository.saveEntries(entries)
-        ClipboardRepository.pruneOrphanBlobs(keeping: entries)
+        guard let outcome = try? ClipboardActions.delete(ids: [id]), outcome.changed > 0 else {
+            return
+        }
+        adopt(outcome.entries)
         postChanged()
     }
 
     func activate(_ entry: ClipboardEntry, forcePlainText: Bool = false) {
         let plain = forcePlainText || SharedDefaults.store.bool(forKey: "clipboardPastePlainText")
-        guard ClipboardRepository.copyToPasteboard(entry, asPlainText: plain) else { return }
+        guard let outcome = try? ClipboardActions.copy(entry, asPlainText: plain) else { return }
         lastChangeCount = NSPasteboard.general.changeCount
-
-        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
-            entries[index].lastCopiedAt = Date()
-            entries = sorter.sort(entries)
-            try? ClipboardRepository.saveEntries(entries)
+        if outcome.changed > 0 {
+            adopt(outcome.entries)
             SettingsBackup.shared.scheduleClipboardBackup()
+            postChanged()
         }
 
         let autoPaste =
@@ -224,13 +228,3 @@ final class ClipboardStore: ObservableObject, FeatureModule {
     }
 }
 
-private struct EntrySorter {
-    func sort(_ items: [ClipboardEntry], pinToTop: Bool = true) -> [ClipboardEntry] {
-        items.sorted { lhs, rhs in
-            if lhs.pinned != rhs.pinned {
-                return pinToTop ? lhs.pinned : rhs.pinned
-            }
-            return lhs.lastCopiedAt > rhs.lastCopiedAt
-        }
-    }
-}
