@@ -97,6 +97,23 @@ public enum ConfigCatalog {
 
     private static let panel: [SettingDefinition] = [
         SettingDefinition(
+            "extensionsExpand", .string, group: "panel",
+            summary: "Extension card the Extensions page scrolls to and opens next."),
+        SettingDefinition(
+            "settingsSection", .string, group: "panel",
+            summary: "Settings section a deep link opens on."),
+        SettingDefinition(
+            "mainWindowZoom", .number, group: "panel",
+            summary: "Main window zoom factor.", fallback: .double(1)),
+        SettingDefinition(
+            "onboardingCompleted", .bool, group: "panel",
+            summary: "Whether the welcome tour has been finished or skipped.",
+            fallback: .bool(false)),
+        SettingDefinition(
+            "EdithMainWindowFullScreen", .bool, group: "panel",
+            summary: "Whether the main window opens in full screen.", fallback: .bool(false),
+            scope: .standard),
+        SettingDefinition(
             "hotKeyCode", .int, group: "panel",
             summary: "Virtual key code of the global panel shortcut.", fallback: .int(14)),
         SettingDefinition(
@@ -188,6 +205,22 @@ public enum ConfigCatalog {
 
     private static let alerts: [SettingDefinition] = [
         SettingDefinition(
+            "notifSessionLevel", .int, group: "alerts",
+            summary: "Session threshold the last alert fired at.", fallback: .int(0),
+            scope: .standard, readOnly: true),
+        SettingDefinition(
+            "notifWeeklyLevel", .int, group: "alerts",
+            summary: "Weekly threshold the last alert fired at.", fallback: .int(0),
+            scope: .standard, readOnly: true),
+        SettingDefinition(
+            "notifSessionPacing", .string, group: "alerts",
+            summary: "Session pacing zone the last alert fired for.", scope: .standard,
+            readOnly: true),
+        SettingDefinition(
+            "notifWeeklyPacing", .string, group: "alerts",
+            summary: "Weekly pacing zone the last alert fired for.", scope: .standard,
+            readOnly: true),
+        SettingDefinition(
             "notifyMaster", .bool, group: "alerts",
             summary: "Master switch for every usage notification.", fallback: .bool(false)),
         SettingDefinition(
@@ -242,6 +275,9 @@ public enum ConfigCatalog {
 
     private static let dashboard: [SettingDefinition] = [
         SettingDefinition(
+            "dashPaths", .string, group: "dashboard",
+            summary: "Folder scope for the dashboard charts."),
+        SettingDefinition(
             "dashRange", .string, group: "dashboard",
             summary: "Dashboard date range.", fallback: .string("all")),
         SettingDefinition(
@@ -279,6 +315,27 @@ public enum ConfigCatalog {
 
     private static let machines: [SettingDefinition] = [
         SettingDefinition(
+            "machinesTab", .string, group: "machines",
+            summary: "Machine detail tab shown on open.",
+            allowed: ["overview", "processes", "docker", "terminal", "tools"],
+            fallback: .string("overview")),
+        SettingDefinition(
+            "machinesSelection", .string, group: "machines",
+            summary: "Identifier of the machine the detail view opens on."),
+        SettingDefinition(
+            "machinesMode", .string, group: "machines",
+            summary: "Machines page view shown on open.",
+            allowed: ["fleet", "workspace", "machine"], fallback: .string("fleet")),
+        SettingDefinition(
+            "dockerLogWrap", .bool, group: "machines",
+            summary: "Wrap long lines in the Docker log viewer.", fallback: .bool(true)),
+        SettingDefinition(
+            "dockerLogTimestamps", .bool, group: "machines",
+            summary: "Show timestamps in the Docker log viewer.", fallback: .bool(false)),
+        SettingDefinition(
+            "dockerLogFontSize", .number, group: "machines",
+            summary: "Text size in the Docker log viewer.", fallback: .double(11)),
+        SettingDefinition(
             "tabMachinesEnabled", .bool, group: "machines",
             summary: "Machines extension: other computers over SSH.", fallback: .bool(false)),
         SettingDefinition(
@@ -315,6 +372,17 @@ public enum ConfigCatalog {
 
     private static let system: [SettingDefinition] = [
         SettingDefinition(
+            "SUEnableAutomaticChecks", .bool, group: "system",
+            summary: "Check for updates on a schedule.", fallback: .bool(true), scope: .standard),
+        SettingDefinition(
+            "SUScheduledCheckInterval", .number, group: "system",
+            summary: "Seconds between scheduled update checks.", fallback: .double(86_400),
+            scope: .standard),
+        SettingDefinition(
+            "SUAutomaticallyUpdate", .bool, group: "system",
+            summary: "Download and install updates automatically.", fallback: .bool(true),
+            scope: .standard),
+        SettingDefinition(
             "tabSystemEnabled", .bool, group: "system",
             summary: "System extension: running apps, prevent sleep and the cleaning lock.",
             fallback: .bool(true)),
@@ -345,6 +413,28 @@ public enum ConfigCatalog {
     ]
 
     private static let music: [SettingDefinition] = [
+        SettingDefinition(
+            "musicFolderStale", .bool, group: "music",
+            summary: "Whether the stored music folder has gone missing.", fallback: .bool(false),
+            readOnly: true),
+        SettingDefinition(
+            "musicCrossfadeEnabled", .bool, group: "music",
+            summary: "Fade between tracks when one ends.", fallback: .bool(true)),
+        SettingDefinition(
+            "musicCrossfadeSeconds", .number, group: "music",
+            summary: "Seconds the crossfade between tracks lasts.", fallback: .double(2)),
+        SettingDefinition(
+            "musicLastTrack", .string, group: "music",
+            summary: "Relative path of the track playback resumes from.", scope: .standard,
+            readOnly: true),
+        SettingDefinition(
+            "musicLastPosition", .number, group: "music",
+            summary: "Seconds into the track playback resumes from.", fallback: .double(0),
+            scope: .standard, readOnly: true),
+        SettingDefinition(
+            "musicWasPlaying", .bool, group: "music",
+            summary: "Whether playback was running when the app last quit.",
+            fallback: .bool(false), scope: .standard, readOnly: true),
         SettingDefinition(
             "tabMusicEnabled", .bool, group: "music",
             summary: "Music extension: local library playback with media keys.",
@@ -492,6 +582,9 @@ public enum ConfigCatalog {
 
     private static let focusDim: [SettingDefinition] = [
         SettingDefinition(
+            "focusDimActive", .bool, group: "focusdim",
+            summary: "Focus dim on right now.", fallback: .bool(false)),
+        SettingDefinition(
             "focusDimEnabled", .bool, group: "focusdim",
             summary: "Focus Dim extension: dim everything behind the active app.",
             fallback: .bool(false)),
@@ -518,6 +611,17 @@ public enum ConfigCatalog {
     ]
 
     private static let presenter: [SettingDefinition] = [
+        SettingDefinition(
+            "presenterAutoActive", .bool, group: "presenter",
+            summary: "A share is being detected right now.", fallback: .bool(false),
+            readOnly: true),
+        SettingDefinition(
+            "presenterAutoPaused", .bool, group: "presenter",
+            summary: "Auto presenter mode is paused until the current share ends.",
+            fallback: .bool(false), readOnly: true),
+        SettingDefinition(
+            "presenterAutoReason", .string, group: "presenter",
+            summary: "Why auto presenter mode turned on.", readOnly: true),
         SettingDefinition(
             "presenterEnabled", .bool, group: "presenter",
             summary: "Presenter extension: blur sensitive numbers while sharing.",
@@ -587,6 +691,9 @@ public enum ConfigCatalog {
 
     private static let micMute: [SettingDefinition] = [
         SettingDefinition(
+            "micMuted", .bool, group: "micmute", summary: "Microphone muted right now.",
+            fallback: .bool(false), readOnly: true),
+        SettingDefinition(
             "micMuteEnabled", .bool, group: "micmute",
             summary: "Mic Mute extension: system-wide microphone kill switch.",
             fallback: .bool(false)),
@@ -640,4 +747,9 @@ public enum ConfigCatalog {
                 summary: "\(permission.displayName) permission, as last observed by Edith.",
                 fallback: .bool(false), readOnly: true)
         }
+        + [
+            SettingDefinition(
+                "permissionsFilter", .string, group: "permissions",
+                summary: "Filter the Permissions page opens with.")
+        ]
 }
