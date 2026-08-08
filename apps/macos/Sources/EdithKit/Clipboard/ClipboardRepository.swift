@@ -3,6 +3,28 @@ import CryptoKit
 import Foundation
 
 public enum ClipboardRepository {
+    public static func withIndexLock<T>(_ body: () throws -> T) rethrows -> T {
+        try? FileManager.default.createDirectory(
+            at: ClipboardPaths.dir, withIntermediateDirectories: true)
+        let descriptor = open(ClipboardPaths.lockFile.path, O_RDONLY | O_CREAT, 0o644)
+        guard descriptor >= 0 else { return try body() }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else { return try body() }
+        defer { _ = flock(descriptor, LOCK_UN) }
+        return try body()
+    }
+
+    public static func blobBytesOnDisk() -> Int {
+        let fm = FileManager.default
+        guard
+            let files = try? fm.contentsOfDirectory(
+                at: ClipboardPaths.blobsDir, includingPropertiesForKeys: [.fileSizeKey])
+        else { return 0 }
+        return files.reduce(0) { total, file in
+            total + ((try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        }
+    }
+
     public static func loadEntries() -> [ClipboardEntry] {
         guard let data = try? Data(contentsOf: ClipboardPaths.indexFile),
             let text = String(data: data, encoding: .utf8)
