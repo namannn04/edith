@@ -65,4 +65,35 @@ import Testing
         #expect(CLIFailure.notFound("x").kind.rawValue == 3)
         #expect(CLIFailure.unavailable("x").kind.rawValue == 4)
     }
+
+    @Test func oneLineTextKeepsItsLabelAndNothingElse() {
+        #expect(CLIOut.labelled("error: ", "nope") == "error: nope")
+        #expect(CLIOut.labelled("hint: ", "") == "hint:")
+    }
+
+    @Test func continuationLinesLineUpUnderTheLabelWithoutBlanks() {
+        #expect(
+            CLIOut.labelled("error: ", "first\n\n   second   \n")
+                == """
+                error: first
+                       second
+                """)
+    }
+
+    @Test func aFailureCarryingRemoteOutputLabelsEveryLineItPrints() async {
+        let run = await CLIProbe.isolate {
+            throw CLIFailure(
+                "Asus TUF 7 did not reboot: sudo: a password is required\n"
+                    + "Call to Reboot failed: Interactive authentication required.",
+                hint: "give this account passwordless sudo for systemctl on Asus TUF 7")
+        }
+        #expect(
+            run.stderr == """
+                error: Asus TUF 7 did not reboot: sudo: a password is required
+                       Call to Reboot failed: Interactive authentication required.
+                hint: give this account passwordless sudo for systemctl on Asus TUF 7
+
+                """)
+        #expect(run.code == 1)
+    }
 }
