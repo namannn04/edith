@@ -403,3 +403,34 @@ import Testing
                 .isRecoverable == false)
     }
 }
+
+@Suite struct MachineReconnectTests {
+    @Test func waitsLongerAfterEachFailureThenSettlesOnAFixedGap() {
+        #expect(MachineReconnect.delay(afterFailures: 0) == 0)
+        let delays = (1...8).map { MachineReconnect.delay(afterFailures: $0) }
+        #expect(delays == delays.sorted())
+        #expect(delays.first == 1)
+        #expect(delays.last == MachineReconnect.longestDelay)
+        #expect(delays.allSatisfy { $0 <= MachineReconnect.longestDelay })
+    }
+
+    @Test func staysQuietThroughABlipAndTurnsRedOnAnOutage() {
+        for failures in 1...MachineReconnect.quietFailures {
+            #expect(
+                MachineReconnect.state(afterFailures: failures, reason: "nope") == .reconnecting)
+        }
+        #expect(
+            MachineReconnect.state(
+                afterFailures: MachineReconnect.quietFailures + 1, reason: "Connection refused.")
+                == .failed(message: "Connection refused."))
+    }
+
+    @Test func aQuietReconnectIsBusyAndRetryableButNotConnected() {
+        let state = MachineConnectionState.reconnecting
+        #expect(state.isBusy)
+        #expect(state.isRetryable)
+        #expect(state.isConnected == false)
+        #expect(MachineConnectionState.connecting.isRetryable == false)
+        #expect(MachineConnectionState.disconnected.isRetryable == false)
+    }
+}

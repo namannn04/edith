@@ -133,7 +133,7 @@ struct ConnectionPill: View {
                 .foregroundStyle(DashSkin.inkFaint(dark))
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if case .failed = session.state {
+            if session.state.isRetryable {
                 Button("Retry") { session.retry() }
                     .buttonStyle(.plain)
                     .font(.system(size: UIScale.pt(11), weight: .semibold))

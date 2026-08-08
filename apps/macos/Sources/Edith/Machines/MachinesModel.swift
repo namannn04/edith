@@ -212,7 +212,7 @@ enum MachineStatusStyle {
             guard let latency else { return DashSkin.ok }
             if latency > 400 { return DashSkin.warn }
             return DashSkin.ok
-        case .connecting: return DashSkin.gold
+        case .connecting, .reconnecting: return DashSkin.gold
         case .disconnected: return DashSkin.inkFaint(dark)
         case .failed: return DashSkin.danger
         }
@@ -224,6 +224,7 @@ enum MachineStatusStyle {
             guard let latency else { return "Connected" }
             return String(format: "%.0f ms", latency)
         case .connecting: return "Connecting…"
+        case .reconnecting: return "Reconnecting…"
         case .disconnected: return "Not connected"
         case let .failed(message): return message
         }
