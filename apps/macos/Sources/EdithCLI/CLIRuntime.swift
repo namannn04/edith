@@ -96,8 +96,22 @@ public enum CLIOut {
     }
 
     public static func report(_ failure: CLIFailure) {
-        note("error: " + failure.message)
-        if let hint = failure.hint { note("hint: " + hint) }
+        note(labelled("error: ", failure.message))
+        if let hint = failure.hint { note(labelled("hint: ", hint)) }
+    }
+
+    public static func labelled(_ label: String, _ text: String) -> String {
+        let lines =
+            text
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard let first = lines.first else {
+            return label.trimmingCharacters(in: .whitespaces)
+        }
+        let indent = String(repeating: " ", count: label.count)
+        return ([label + first] + lines.dropFirst().map { indent + $0 })
+            .joined(separator: "\n")
     }
 }
 
