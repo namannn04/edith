@@ -5,12 +5,13 @@ import SwiftUI
 
 struct SettingsPane: View {
     enum Tab: String, CaseIterable {
-        case general, permissions, shortcuts, icloud, updates
+        case general, permissions, shortcuts, terminal, icloud, updates
         var label: String {
             switch self {
             case .general: return "General"
             case .permissions: return "Permissions"
             case .shortcuts: return "Shortcuts"
+            case .terminal: return "Terminal"
             case .icloud: return "iCloud"
             case .updates: return "Updates"
             }
@@ -45,6 +46,7 @@ struct SettingsPane: View {
                 case .general: GeneralPane()
                 case .permissions: PermissionsPane()
                 case .shortcuts: ShortcutsSettingsPane()
+                case .terminal: TerminalSettingsPane()
                 case .icloud: ICloudPane()
                 case .updates: UpdatesPane(updater: updater)
                 }

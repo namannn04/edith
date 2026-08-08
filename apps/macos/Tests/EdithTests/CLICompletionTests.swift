@@ -327,3 +327,31 @@ import Testing
         #expect(type(of: parsed).configuration.commandName == "install")
     }
 }
+
+@Suite struct RemoteDirectoryCompletionTests {
+    @Test func asksForDirectoriesAfterAChangeDirectory() {
+        #expect(RemoteCompletion.wantsDirectories(words: ["cd", ""], cursor: 1))
+        #expect(RemoteCompletion.wantsDirectories(words: ["pushd", "s"], cursor: 1))
+    }
+
+    @Test func leavesOtherCommandsToTheRemoteShell() {
+        #expect(!RemoteCompletion.wantsDirectories(words: ["ls", ""], cursor: 1))
+        #expect(!RemoteCompletion.wantsDirectories(words: ["docker", "ps"], cursor: 1))
+    }
+
+    @Test func neverTreatsTheCommandItselfAsADirectory() {
+        #expect(!RemoteCompletion.wantsDirectories(words: ["cd"], cursor: 0))
+        #expect(!RemoteCompletion.wantsDirectories(words: [], cursor: 0))
+    }
+
+    @Test func listsOnlyDirectoriesForThePrefix() {
+        let command = RemoteCompletion.directoriesCommand(prefix: "Desk")
+        #expect(command.contains("compgen -d --"))
+        #expect(command.contains("Desk"))
+    }
+
+    @Test func quotesAPrefixThatWouldOtherwiseRunSomething() {
+        let command = RemoteCompletion.directoriesCommand(prefix: "$(touch /tmp/pwned)")
+        #expect(command.contains("'$(touch /tmp/pwned)'"))
+    }
+}

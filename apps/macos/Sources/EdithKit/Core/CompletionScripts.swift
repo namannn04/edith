@@ -16,30 +16,64 @@ public enum CompletionScripts {
     }
 
     public static func script(for shell: Shell) -> String {
-        switch shell {
-        case .zsh: return zsh
-        case .bash: return bash
-        case .fish: return fish
+        script(for: shell, tool: toolPath())
+    }
+
+    public static func script(for shell: Shell, tool: String) -> String {
+        let body =
+            switch shell {
+            case .zsh: zsh
+            case .bash: bash
+            case .fish: fish
+            }
+        return body.replacingOccurrences(of: toolPlaceholder, with: ShellQuote.quote(tool))
+    }
+
+    public static let toolPlaceholder = "@ED@"
+
+    public static func toolPath(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) -> String {
+        let installed = CLIInstaller.preferredDirectory(home: home, fileManager: fileManager)
+            .appendingPathComponent(CLIInstaller.primaryTool)
+        if fileManager.isExecutableFile(atPath: installed.path) { return installed.path }
+        if let bundled = CLIInstaller.bundledToolsDirectory(fileManager: fileManager)?
+            .appendingPathComponent(CLIInstaller.primaryTool),
+            fileManager.isExecutableFile(atPath: bundled.path)
+        {
+            return bundled.path
         }
+        return CLIInstaller.primaryTool
     }
 
     public static let zsh = """
         #compdef ed edh edith
 
-        local -a lines matches
-        local line
-        local -i wants_files=0
-        lines=("${(@f)$(command ed __complete --index $((CURRENT-1)) -- "${words[@]}" 2>/dev/null)}")
-        for line in "${lines[@]}"; do
-          [[ -z "$line" ]] && continue
-          if [[ "$line" == '#files' ]]; then
-            wants_files=1
-            continue
-          fi
-          matches+=("$line")
-        done
-        (( wants_files )) && _files
-        (( ${#matches} )) && compadd -- "${matches[@]}"
+        _ed_complete() {
+          local -a lines matches
+          local line
+          local -i wants_files=0
+          local __ed=@ED@
+          [[ -x $__ed ]] || __ed=ed
+          lines=("${(@f)$($__ed __complete --index $((CURRENT-1)) -- "${words[@]}" 2>/dev/null)}")
+          for line in "${lines[@]}"; do
+            [[ -z "$line" ]] && continue
+            if [[ "$line" == '#files' ]]; then
+              wants_files=1
+              continue
+            fi
+            matches+=("$line")
+          done
+          (( wants_files )) && _files
+          (( ${#matches} )) && compadd -- "${matches[@]}"
+        }
+
+        if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
+          _ed_complete "$@"
+        else
+          compdef _ed_complete ed edh edith
+        fi
         """
 
     public static let bash = """
@@ -48,7 +82,9 @@ public enum CompletionScripts {
           local line
           local -a out
           COMPREPLY=()
-          out=($(command ed __complete --index "$COMP_CWORD" -- "${COMP_WORDS[@]}" 2>/dev/null))
+          local __ed=@ED@
+          [ -x "$__ed" ] || __ed=ed
+          out=($("$__ed" __complete --index "$COMP_CWORD" -- "${COMP_WORDS[@]}" 2>/dev/null))
           for line in "${out[@]}"; do
             [ -z "$line" ] && continue
             if [ "$line" = '#files' ]; then
@@ -66,7 +102,9 @@ public enum CompletionScripts {
         function __ed_complete
             set -l tokens (commandline -opc)
             set -l current (commandline -ct)
-            set -l out (command ed __complete --index (count $tokens) -- $tokens $current 2>/dev/null)
+            set -l __ed @ED@
+            test -x $__ed; or set __ed ed
+            set -l out ($__ed __complete --index (count $tokens) -- $tokens $current 2>/dev/null)
             for line in $out
                 if test "$line" = '#files'
                     __fish_complete_path $current
@@ -127,6 +165,23 @@ public enum CompletionScripts {
         return nil
     }
 
+    public static func sourceLine(forScript script: URL, home: URL) -> String {
+        "source " + script.path.replacingOccurrences(of: home.path, with: "$HOME")
+    }
+
+    @discardableResult
+    public static func linkFromProfile(
+        _ shell: Shell, script: URL,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard let profile = ShellProfile.file(for: shell, home: home) else { return false }
+        let line = sourceLine(forScript: script, home: home)
+        return
+            (try? ShellProfile.install(
+                line: line, into: profile, script: script.path, fileManager: fileManager)) ?? false
+    }
+
     public static func rcHint(for shell: Shell, directory: URL) -> String? {
         switch shell {
         case .zsh:
@@ -142,6 +197,17 @@ public enum CompletionScripts {
         }
     }
 
+    public static func sourceLine(
+        for shell: Shell, home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        store: UserDefaults = SharedDefaults.store, fileManager: FileManager = .default
+    ) -> String {
+        let file =
+            existingFile(for: shell, home: home, store: store, fileManager: fileManager)
+            ?? installDirectory(for: shell, home: home)
+            .appendingPathComponent(shell.scriptName)
+        return sourceLine(forScript: file, home: home)
+    }
+
     @discardableResult
     public static func install(
         _ shell: Shell, home: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -152,17 +218,19 @@ public enum CompletionScripts {
         let file = directory.appendingPathComponent(shell.scriptName)
         try Data(contents(for: shell).utf8).write(to: file, options: .atomic)
         record(file, for: shell, store: store)
+        linkFromProfile(shell, script: file, home: home, fileManager: fileManager)
         return file
     }
 
     public static let recordKey = "completionScriptPaths"
+    public static let autoRefreshKey = "completionsAutoRefresh"
 
     public static func contents(for shell: Shell) -> String {
         script(for: shell) + "\n"
     }
 
     public static func isOurs(_ text: String) -> Bool {
-        text.contains("ed __complete")
+        text.contains("__complete")
     }
 
     public static func isCurrent(
@@ -199,6 +267,7 @@ public enum CompletionScripts {
             if let recorded = recordedPath(for: shell, store: store),
                 isCurrent(recorded, for: shell, fileManager: fileManager)
             {
+                linkFromProfile(shell, script: recorded, home: home, fileManager: fileManager)
                 continue
             }
             for target in refreshTargets(for: shell, home: home, fileManager: fileManager) {
@@ -211,6 +280,7 @@ public enum CompletionScripts {
                 else { continue }
                 written.append(target)
                 record(target, for: shell, store: store)
+                linkFromProfile(shell, script: target, home: home, fileManager: fileManager)
             }
         }
         return written

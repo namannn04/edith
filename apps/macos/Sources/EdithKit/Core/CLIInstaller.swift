@@ -130,6 +130,7 @@ public enum CLIInstaller {
         if Set(current) != Set(wanted) {
             install(toolsDirectory: tools, into: target, fileManager: fileManager)
         }
+        guard SharedDefaults.store.bool(forKey: CompletionScripts.autoRefreshKey) else { return }
         CompletionScripts.refreshInstalled(fileManager: fileManager)
     }
 

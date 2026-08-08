@@ -17,11 +17,33 @@ import Testing
         return store
     }
 
-    @Test func zshScriptCompletesWhenTheFileItselfIsAutoloaded() {
+    @Test func callsTheToolByAbsolutePathSoPathCannotShadowIt() {
+        let script = CompletionScripts.script(for: .zsh, tool: "/opt/edith/ed")
+        #expect(script.contains("local __ed=/opt/edith/ed"))
+        #expect(script.contains("[[ -x $__ed ]] || __ed=ed"))
+        #expect(!script.contains("command ed __complete"))
+    }
+
+    @Test func quotesAToolPathWithASpaceInIt() {
+        let script = CompletionScripts.script(for: .zsh, tool: "/Users/a b/ed")
+        #expect(script.contains("local __ed='/Users/a b/ed'"))
+    }
+
+    @Test func embedsTheToolPathInEveryShell() {
+        for shell in CompletionScripts.Shell.allCases {
+            let script = CompletionScripts.script(for: shell, tool: "/opt/edith/ed")
+            #expect(script.contains("/opt/edith/ed"))
+            #expect(CompletionScripts.isOurs(script))
+        }
+    }
+
+    @Test func zshScriptWorksAutoloadedAndSourced() {
         let script = CompletionScripts.zsh
         #expect(script.hasPrefix("#compdef ed edh edith"))
-        #expect(!script.contains("_ed_complete"))
-        #expect(!script.contains("compdef _ed"))
+        #expect(script.contains("_ed_complete() {"))
+        #expect(script.contains("if [[ $zsh_eval_context[-1] == loadautofunc ]]; then"))
+        #expect(script.contains("_ed_complete \"$@\""))
+        #expect(script.contains("compdef _ed_complete ed edh edith"))
         #expect(script.contains("compadd -- \"${matches[@]}\""))
     }
 
