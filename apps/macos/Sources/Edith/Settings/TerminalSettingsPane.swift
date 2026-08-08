@@ -66,14 +66,29 @@ struct TerminalSettingsPane: View {
                 .font(.system(size: UIScale.pt(10)))
             }
 
-            if let hint = completions.compactMap(\.hint).first {
-                Section {
-                    Text(hint)
-                        .font(.system(size: UIScale.pt(11), design: .monospaced))
-                        .textSelection(.enabled)
-                } header: {
-                    Text("One line to add yourself")
+            Section {
+                Text(sourceLine)
+                    .font(.system(size: UIScale.pt(11), design: .monospaced))
+                    .textSelection(.enabled)
+                Button("Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(sourceLine, forType: .string)
+                    note = "Copied. Paste it at the end of ~/.zshrc."
                 }
+                .pointerCursor()
+                if let hint = completions.compactMap(\.hint).first {
+                    Text(hint)
+                        .font(.system(size: UIScale.pt(10)))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            } header: {
+                Text("If a shell still does not complete")
+            } footer: {
+                Text(
+                    "Adding this to ~/.zshrc loads the completion directly, the way the ac CLI does, instead of waiting for compinit to find it."
+                )
+                .font(.system(size: UIScale.pt(10)))
             }
 
             Section {
@@ -138,6 +153,8 @@ struct TerminalSettingsPane: View {
         case .foreign: return .yellow
         }
     }
+
+    private var sourceLine: String { CompletionScripts.sourceLine(for: .zsh) }
 
     private var toolSummary: String {
         guard tools.bundled else { return "not in this build" }
