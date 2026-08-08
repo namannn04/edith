@@ -17,6 +17,26 @@ import Testing
         return store
     }
 
+    @Test func callsTheToolByAbsolutePathSoPathCannotShadowIt() {
+        let script = CompletionScripts.script(for: .zsh, tool: "/opt/edith/ed")
+        #expect(script.contains("local __ed=/opt/edith/ed"))
+        #expect(script.contains("[[ -x $__ed ]] || __ed=ed"))
+        #expect(!script.contains("command ed __complete"))
+    }
+
+    @Test func quotesAToolPathWithASpaceInIt() {
+        let script = CompletionScripts.script(for: .zsh, tool: "/Users/a b/ed")
+        #expect(script.contains("local __ed='/Users/a b/ed'"))
+    }
+
+    @Test func embedsTheToolPathInEveryShell() {
+        for shell in CompletionScripts.Shell.allCases {
+            let script = CompletionScripts.script(for: shell, tool: "/opt/edith/ed")
+            #expect(script.contains("/opt/edith/ed"))
+            #expect(CompletionScripts.isOurs(script))
+        }
+    }
+
     @Test func zshScriptCompletesWhenTheFileItselfIsAutoloaded() {
         let script = CompletionScripts.zsh
         #expect(script.hasPrefix("#compdef ed edh edith"))

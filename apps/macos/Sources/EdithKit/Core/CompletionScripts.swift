@@ -16,11 +16,35 @@ public enum CompletionScripts {
     }
 
     public static func script(for shell: Shell) -> String {
-        switch shell {
-        case .zsh: return zsh
-        case .bash: return bash
-        case .fish: return fish
+        script(for: shell, tool: toolPath())
+    }
+
+    public static func script(for shell: Shell, tool: String) -> String {
+        let body =
+            switch shell {
+            case .zsh: zsh
+            case .bash: bash
+            case .fish: fish
+            }
+        return body.replacingOccurrences(of: toolPlaceholder, with: ShellQuote.quote(tool))
+    }
+
+    public static let toolPlaceholder = "@ED@"
+
+    public static func toolPath(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) -> String {
+        let installed = CLIInstaller.preferredDirectory(home: home, fileManager: fileManager)
+            .appendingPathComponent(CLIInstaller.primaryTool)
+        if fileManager.isExecutableFile(atPath: installed.path) { return installed.path }
+        if let bundled = CLIInstaller.bundledToolsDirectory(fileManager: fileManager)?
+            .appendingPathComponent(CLIInstaller.primaryTool),
+            fileManager.isExecutableFile(atPath: bundled.path)
+        {
+            return bundled.path
         }
+        return CLIInstaller.primaryTool
     }
 
     public static let zsh = """
@@ -29,7 +53,9 @@ public enum CompletionScripts {
         local -a lines matches
         local line
         local -i wants_files=0
-        lines=("${(@f)$(command ed __complete --index $((CURRENT-1)) -- "${words[@]}" 2>/dev/null)}")
+        local __ed=@ED@
+        [[ -x $__ed ]] || __ed=ed
+        lines=("${(@f)$($__ed __complete --index $((CURRENT-1)) -- "${words[@]}" 2>/dev/null)}")
         for line in "${lines[@]}"; do
           [[ -z "$line" ]] && continue
           if [[ "$line" == '#files' ]]; then
@@ -48,7 +74,9 @@ public enum CompletionScripts {
           local line
           local -a out
           COMPREPLY=()
-          out=($(command ed __complete --index "$COMP_CWORD" -- "${COMP_WORDS[@]}" 2>/dev/null))
+          local __ed=@ED@
+          [ -x "$__ed" ] || __ed=ed
+          out=($("$__ed" __complete --index "$COMP_CWORD" -- "${COMP_WORDS[@]}" 2>/dev/null))
           for line in "${out[@]}"; do
             [ -z "$line" ] && continue
             if [ "$line" = '#files' ]; then
@@ -66,7 +94,9 @@ public enum CompletionScripts {
         function __ed_complete
             set -l tokens (commandline -opc)
             set -l current (commandline -ct)
-            set -l out (command ed __complete --index (count $tokens) -- $tokens $current 2>/dev/null)
+            set -l __ed @ED@
+            test -x $__ed; or set __ed ed
+            set -l out ($__ed __complete --index (count $tokens) -- $tokens $current 2>/dev/null)
             for line in $out
                 if test "$line" = '#files'
                     __fish_complete_path $current
@@ -163,7 +193,7 @@ public enum CompletionScripts {
     }
 
     public static func isOurs(_ text: String) -> Bool {
-        text.contains("ed __complete")
+        text.contains("__complete")
     }
 
     public static func isCurrent(
