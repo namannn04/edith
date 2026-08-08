@@ -362,3 +362,80 @@ struct MachinesKillCommand: AsyncParsableCommand {
         }
     }
 }
+
+struct MachinesBroadcastCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "broadcast",
+        abstract: "Run one command on every machine.",
+        discussion: """
+            The terminal's broadcast bar sends a line to every pane at once; this sends it
+            to every configured machine instead. Each machine's output is labelled, a
+            machine that cannot be reached is reported and the rest still run, and the exit
+            code is 1 if any of them failed.
+
+            Everything after the machine list is the command, verbatim, so flags belong
+            before it: `ed machines broadcast --only tuf,box -- uptime`.
+            """)
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(help: "Only these machines, comma separated.")
+    var only: String?
+
+    @Argument(parsing: .remaining, help: "The command to run everywhere.")
+    var command: [String]
+
+    func run() async throws {
+        try await execute {
+            var words = command
+            if words.first == "--" { words.removeFirst() }
+            let line = words.joined(separator: " ")
+            guard !line.trimmingCharacters(in: .whitespaces).isEmpty else {
+                throw CLIFailure("give a command to run")
+            }
+            let all = MachineRegistry.machines()
+            guard !all.isEmpty else {
+                throw CLIFailure.notFound(
+                    "no machines are configured", hint: "add one with `ed machines add`")
+            }
+            var targets = all
+            if let only {
+                let wanted = only.split(separator: ",").map {
+                    $0.trimmingCharacters(in: .whitespaces)
+                }
+                targets = try wanted.map { try MachineResolver.machine($0) }
+            }
+            var rows: [JSONValue] = []
+            var failed = false
+            for machine in targets {
+                let runner = RemoteRunner(machine: machine)
+                var status: Int32 = 0
+                var text = ""
+                do {
+                    try await runner.connect()
+                    let result = try await runner.run(line, timeout: 120)
+                    status = result.status
+                    text = result.combinedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                } catch {
+                    status = -1
+                    text = error.localizedDescription
+                }
+                if status != 0 { failed = true }
+                rows.append(
+                    .object([
+                        "machine": .string(machine.name),
+                        "status": .int(Int(status)),
+                        "output": .string(text),
+                    ]))
+                guard !json else { continue }
+                CLIOut.out("== \(machine.name) ==")
+                if !text.isEmpty { CLIOut.out(text) }
+                if status != 0 { CLIOut.note("\(machine.name) exited \(status)") }
+            }
+            if json { CLIOut.json(.array(rows)) }
+            guard failed else { return }
+            throw ExitCode(ExitCodes.failure)
+        }
+    }
+}

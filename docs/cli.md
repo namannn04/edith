@@ -25,6 +25,7 @@ and is the shortest path to being useful. This page is the complete reference.
 - [`ed music`](#ed-music)
 - [`ed calendar`](#ed-calendar)
 - [`ed clipboard`](#ed-clipboard)
+- [`ed tools`](#ed-tools)
 - [`ed apps`](#ed-apps)
 - [`ed download`](#ed-download)
 - [`ed color`](#ed-color)
@@ -240,7 +241,7 @@ Numbers come from the same `usage.json` the dashboard reads and the same
 CLI and the UI cannot disagree.
 
 ```
-ed usage limits [--json]
+ed usage limits [--refresh] [--json]
 ed usage summary [--range <r>] [--source <s>]... [--json]
 ed usage daily   [--range <r>] [--source <s>]... [--json]
 ed usage models  [--range <r>] [--source <s>]... [--json]
@@ -259,6 +260,11 @@ PROVIDER  SESSION  WEEKLY  SESSION RESETS  OBSERVED
 Codex     -        100.0%  -               2026-08-06T22:57:22Z
 Claude    46.0%    34.0%   3h 27m          2026-08-06T23:02:21Z
 ```
+
+`limits --refresh` asks the running app to poll the providers again and waits
+for the answer before reporting, which is the refresh button on the rate limit
+cards. It needs the app running; without `--refresh` the command reads the
+collected file and does not.
 
 `limits --json` gives each provider a `session` and `weekly` object with
 `percent`, `resetsAt` and `resetsInSeconds`, or `null` where the provider has
@@ -389,6 +395,28 @@ bumps it to the top of the history. `--plain` strips styling from a rich entry.
 `clipboardMaxAgeDays` drive; pinning something already pinned reports that on
 stderr and still exits 0.
 
+## `ed tools`
+
+The command line tools an extension needs before it can work: yt-dlp for
+downloads, and the agent CLIs whose limits the dashboard reads.
+
+```
+ed tools ls [--json]
+ed tools install <yt-dlp|claude|codex> [--json]
+```
+
+```
+$ ed tools ls
+ID      STATE      VERSION                     WHY
+yt-dlp  installed  2026.07.04                  Downloads YouTube audio into your Music library.
+claude  installed  2.1.226 (Claude Code)       Includes Claude Code cloud sessions in Agent Usage.
+codex   installed  codex-cli 0.146.0-alpha.9.2 Reads Codex session and weekly limits when that provider is enabled.
+```
+
+`ls` checks PATH and needs nothing. `install` asks the app to fetch it the same
+way the extension sheet does, so it exits 4 when Edith is closed, and reports
+rather than reinstalling when the tool is already there.
+
 ## `ed apps`
 
 ```
@@ -492,6 +520,7 @@ ed machines show <machine> [--json]
 ed machines metrics <machine> [--follow] [--interval <s>] [--processes <n>] [--json]
 ed machines exec <machine> [--] <command...>
 ed machines services <machine> [--failed] [--json]
+ed machines broadcast [--only <a,b>] [--] <command...> [--json]
 ed machines connect <machine> [--json]
 ed machines disconnect <machine> [--json]
 ```
@@ -556,6 +585,11 @@ and exits; with it, a sample every `--interval` seconds. `--json` gives cpu
 (total, steal, per core), memory (including swap and buff/cache), load, tasks,
 uptime, per-device disk throughput, per-interface network throughput, and
 optionally the top processes.
+
+`broadcast` is the terminal's broadcast bar as a command: it runs one line on
+every configured machine, labels each machine's output, keeps going when one is
+unreachable, and exits 1 if any of them failed. `--only` narrows it to a
+comma-separated list.
 
 `services` parses `systemctl list-units`; `--failed` narrows to failed units.
 On a machine without systemd it reports nothing rather than failing.

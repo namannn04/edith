@@ -181,6 +181,14 @@ enum UIParity {
         UICapability("Download sheet", "remove one item", ["download", "rm", "1"]),
         UICapability("Download sheet", "update yt-dlp", ["download", "tool", "--update"]),
 
+        UICapability(
+            "Extension sheet", "install a required CLI tool", ["tools", "install", "yt-dlp"]),
+        UICapability(
+            "Terminal broadcast bar", "send one line to every pane",
+            ["machines", "broadcast", "--", "uptime"]),
+        UICapability(
+            "Rate limit cards", "refresh the limits now", ["usage", "limits", "--refresh"]),
+
         UICapability("System page", "quit one app", ["apps", "quit", "Safari"]),
         UICapability("System page", "quit all apps", ["apps", "quit", "--all", "--yes"]),
 
