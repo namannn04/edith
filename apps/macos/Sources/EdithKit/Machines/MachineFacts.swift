@@ -15,8 +15,21 @@ public struct MachineSessionSummary: Equatable, Sendable {
 public enum MachineFacts {
     public static let whoCommand = "who 2>/dev/null | head -20"
 
-    public static let macAddressCommand =
-        "cat /sys/class/net/*/address 2>/dev/null | grep -v '00:00:00:00:00:00' | head -1"
+    public static let macAddressCommand = """
+        wireless=
+        for iface in /sys/class/net/*; do
+          [ -e "$iface/device" ] || continue
+          address=$(cat "$iface/address" 2>/dev/null)
+          case "$address" in ""|00:00:00:00:00:00) continue ;; esac
+          if [ -d "$iface/wireless" ] || [ -e "$iface/phy80211" ]; then
+            [ -n "$wireless" ] || wireless=$address
+          else
+            echo "$address"
+            exit 0
+          fi
+        done
+        if [ -n "$wireless" ]; then echo "$wireless"; fi
+        """
 
     public static let updatesCommand = """
         if command -v apt-get >/dev/null 2>&1; then \

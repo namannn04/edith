@@ -351,6 +351,14 @@ import Testing
         #expect(MachineFacts.parseMACAddress("not-a-mac") == nil)
     }
 
+    @Test func theWakeAddressComesFromARealNICRatherThanABridgeOrAVeth() {
+        let command = MachineFacts.macAddressCommand
+        #expect(command.contains("[ -e \"$iface/device\" ] || continue"))
+        #expect(command.contains("00:00:00:00:00:00"))
+        #expect(command.contains("phy80211"))
+        #expect(!command.contains("head -1"))
+    }
+
     @Test func buildsWakeOnLANMagicPacket() {
         let packet = WakeOnLAN.magicPacket(macAddress: "aa:bb:cc:dd:ee:ff")
         #expect(packet?.count == 102)
