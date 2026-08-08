@@ -616,3 +616,50 @@ import Testing
                 == ["machines", "docker", "compose", "up", "tuf", "web"])
     }
 }
+
+@Suite struct CLIFinderUndoTests {
+    @Test func undoSaysToOpenTheAppWhenItIsClosed() async throws {
+        try await CLIProbe.inWorld { _ in
+            MachineRegistry.add(Machine(name: "Builder", host: "10.0.0.9"))
+            CLIEnvironment.isMainAppRunning = { false }
+            let result = await CLIProbe.capture(["machines", "files", "undo", "builder"])
+            #expect(result.code == ExitCodes.unavailable)
+            #expect(result.stdout.isEmpty)
+            #expect(result.stderr.contains("Edith is not running"))
+            #expect(result.stderr.contains("open Edith"))
+        }
+    }
+
+    @Test func undoReportsWhenNoWindowHasAnythingToUndo() async throws {
+        try await CLIProbe.inWorld { world in
+            MachineRegistry.add(Machine(name: "Builder", host: "10.0.0.9"))
+            CLIEnvironment.isMainAppRunning = { true }
+            world.answers { _ in ["undone": false, "reason": "nothing to undo"] }
+            let result = await CLIProbe.capture(["machines", "files", "undo", "builder"])
+            #expect(result.code == ExitCodes.unavailable)
+            #expect(result.stderr.contains("anything to undo"))
+        }
+    }
+
+    @Test func undoReportsWhatItUndid() async throws {
+        try await CLIProbe.inWorld { world in
+            MachineRegistry.add(Machine(name: "Builder", host: "10.0.0.9"))
+            CLIEnvironment.isMainAppRunning = { true }
+            world.answers { _ in ["undone": true, "label": "Undo Move"] }
+            let result = await CLIProbe.capture([
+                "machines", "files", "undo", "builder", "--json",
+            ])
+            #expect(result.code == 0)
+            #expect(result.object?["undone"] as? Bool == true)
+            #expect(result.object?["what"] as? String == "Undo Move")
+        }
+    }
+
+    @Test func aMachineThatDoesNotExistIsNotFoundBeforeTheAppIsAsked() async throws {
+        try await CLIProbe.inWorld { _ in
+            CLIEnvironment.isMainAppRunning = { false }
+            let result = await CLIProbe.capture(["machines", "files", "undo", "nope"])
+            #expect(result.code == ExitCodes.notFound)
+        }
+    }
+}

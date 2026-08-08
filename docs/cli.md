@@ -688,6 +688,7 @@ ed machines files rm     <machine> <path>... [--delete] [--yes] [--json]
 ed machines files search <machine> <directory> <text> [--limit <n>] [--json]
 ed machines files info   <machine> <path> [--json]
 ed machines files duplicate <machine> <path> [--json]
+ed machines files undo   <machine> [--json]
 ```
 
 `cp` and `mv` take the destination directory last, like the shell tools they
@@ -696,6 +697,19 @@ renaming onto a name that already exists is refused rather than overwriting.
 
 `rm` moves to the machine's own trash so it can be put back. `--delete` removes
 for good and does nothing without `--yes`.
+
+`undo` reverses the last move or rename a Finder window made. That history
+belongs to an open window and lives in memory rather than on disk, so `ed` asks
+the window to do it and tells you to open one when there is none:
+
+```
+$ ed machines files undo tuf
+error: the undo history lives in an open Finder window, and Edith is not running
+hint: open Edith and its Files window for Asus TUF 7, then retry
+```
+
+A move or rename made by `ed` is not on that history; reverse it with
+`ed machines files mv` or `rename`, which runs what the window would have run.
 
 `search` is the window's search field: a name match under a directory, capped at
 300 hits unless `--limit` says otherwise. `info` measures a path with `du`, so

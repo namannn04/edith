@@ -61,9 +61,16 @@ the same function.
   and CLI commands call them; neither reads-modifies-writes a store file itself.
 - Adding a UI action means adding a row to `UIParity.capabilities` in
   `Tests/EdithTests/CLIParityTests.swift` naming the `ed` verb that does the same
-  thing. `everyMutatingCommandIsClaimedByAUIAction` fails when a mutating verb has
-  no row, and `everyUIActionParsesWithTheArgumentsItClaims` fails when the verb it
-  names does not exist or does not take those arguments.
+  thing. There is no "no CLI for this" option: an action whose state lives only in
+  the running app still gets a verb that asks the app and says to open it when it
+  is closed, the way `ed machines files undo` does.
+- `UIParity.notReachableFromTheUI` is the only escape hatch, it is for commands with
+  no UI counterpart rather than the reverse, and every entry must say in a sentence
+  why. `everyExemptionSaysWhyItIsOneAndIsStillNeeded` fails on a placeholder reason
+  and on an entry nothing would have flagged.
+- `everyMutatingCommandIsClaimedByAUIAction` fails when a mutating verb has no row,
+  and `everyUIActionParsesWithTheArgumentsItClaims` fails when the verb it names
+  does not exist or does not take those arguments.
 - A new command also needs a `CommandNode` in `CommandTree.swift` (completion), a
   `JSONCase` in `CLIContractTests.swift` if it takes `--json`, and an entry in
   `docs/cli.md` and `Guide.swift`.

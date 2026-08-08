@@ -318,3 +318,60 @@ struct MachinesFilesDuplicateCommand: AsyncParsableCommand {
         }
     }
 }
+
+struct MachinesFilesUndoCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "undo",
+        abstract: "Undo the last move or rename a Finder window made.",
+        discussion: """
+            The undo history belongs to an open Finder window and lives in memory, so it
+            cannot be reached from a file on disk. `ed` asks the window to undo, and says
+            to open one when there is none: without a window there is nothing to undo.
+
+            A move or rename made by `ed` itself is not on that history. Reverse it with
+            `ed machines files mv` or `rename`, which is the same thing the window would
+            have run.
+            """)
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    func run() async throws {
+        try await execute {
+            let target = try MachineResolver.machine(machine)
+            guard AppBridge.mainAppIsRunning else {
+                throw CLIFailure.unavailable(
+                    "the undo history lives in an open Finder window, and Edith is not running",
+                    hint: "open Edith and its Files window for \(target.name), then retry")
+            }
+            let reply = await AppBridge.awaitReply(IPC.Name.finderUndoResult, timeout: 20) {
+                AppBridge.post(
+                    IPC.Name.requestFinderUndo,
+                    userInfo: ["machine": target.id.uuidString])
+            }
+            guard let reply else {
+                throw AppBridge.silence("undoing a file change")
+            }
+            let undone = reply["undone"] as? Bool ?? false
+            guard undone else {
+                throw CLIFailure.unavailable(
+                    "no Finder window for \(target.name) has anything to undo",
+                    hint: "open one with the Files tab, or reverse it with "
+                        + "`ed machines files mv`")
+            }
+            let label = reply["label"] as? String ?? "the last change"
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(target.name), "undone": .bool(true),
+                        "what": .string(label),
+                    ]))
+                return
+            }
+            CLIOut.out("undid \(label) on \(target.name)")
+        }
+    }
+}

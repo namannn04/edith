@@ -12,7 +12,7 @@ struct MachinesFilesCommand: AsyncParsableCommand {
             MachinesFilesMoveCommand.self, MachinesFilesRenameCommand.self,
             MachinesFilesMakeDirectoryCommand.self, MachinesFilesRemoveCommand.self,
             MachinesFilesSearchCommand.self, MachinesFilesInfoCommand.self,
-            MachinesFilesDuplicateCommand.self,
+            MachinesFilesDuplicateCommand.self, MachinesFilesUndoCommand.self,
         ],
         defaultSubcommand: MachineFilesListCommand.self)
 }
