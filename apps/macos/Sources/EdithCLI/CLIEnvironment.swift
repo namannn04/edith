@@ -38,6 +38,20 @@ public enum CLIEnvironment {
             try AppleScriptHost.execute($0, timeout: $1)
         }
 
+    nonisolated(unsafe) public static var installedAppURL: @Sendable () -> URL? = {
+        let bundled = Bundle.main.bundleURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        if bundled.pathExtension == "app",
+            FileManager.default.fileExists(atPath: bundled.path)
+        {
+            return bundled
+        }
+        let standard = URL(fileURLWithPath: "/Applications/Edith.app")
+        return FileManager.default.fileExists(atPath: standard.path) ? standard : nil
+    }
+
     public static func reset() {
         sharedDefaults = SharedDefaults.store
         standardDefaults = .standard

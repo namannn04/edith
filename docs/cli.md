@@ -128,6 +128,8 @@ ed guide            the built-in manual
 ed guide claude     a CLAUDE.md snippet that makes another repo ed-aware
 ed schema           JSON Schema for the configuration document
 ed version [--json] the CLI version, and whether the app is running
+ed app relaunch     quit Edith and start it again, which a new grant needs
+ed app clear-updates  forget the record of past update checks
 ```
 
 `ed guide claude` prints a section you can paste into any repository's
@@ -298,6 +300,7 @@ ed music start <track> | --folder <folder>
 ed music seek <0..1>
 ed music shuffle [on|off]
 ed music repeat  [on|off]
+ed music rescan
 ```
 
 `start` plays something specific out of Edith's own library, so it needs the app
@@ -463,6 +466,7 @@ ed download add <url>... [--kind audio|video] [--prefix <text>] [--json]
 ed download retry <n> | --all [--json]
 ed download rm <n> [--json]
 ed download clear [--everything] [--json]
+ed download cancel [--json]
 ed download tool [--update] [--json]
 ```
 
@@ -506,8 +510,25 @@ what to pipe into another tool.
 ```
 ed cleaner categories [--json]
 ed cleaner drives [--json]
-ed cleaner scan [--category <c>] [--json]
-ed cleaner clean [--category <c>] [--yes] [--json]
+ed cleaner scan  [--category <c>] [--root <dir>]... [--json]
+ed cleaner clean [--category <c>] [--root <dir>]... [--yes] [--json]
+```
+
+Without `--root` these measure the fixed caches `ed cleaner categories` lists.
+`--root` also sweeps a folder for project junk, which is what the drive picker
+does, and is the only way the sweep-only categories exist at all:
+`nodeModules`, `pycache`, `pyvenv`, `rustTarget`, `gradle`, `pods`, `nextBuild`
+and `turbo`. Naming one without a root says so rather than pretending it is
+unknown:
+
+```
+$ ed cleaner scan --category nodeModules
+error: nodeModules only turns up when a folder is swept for project junk
+hint: pass --root, for example `ed cleaner scan --root ~/code --category nodeModules`
+
+$ ed cleaner scan --root ~/code --category nodeModules
+ID           SIZE     ITEMS  NAME
+nodeModules  86.6 MB  1      node_modules
 ```
 
 `clean` without `--yes` reports what it would move and touches nothing. With
@@ -610,7 +631,19 @@ ed machines workspace use <workspace> [--json]
 ed machines workspace new <machine>... [--screen <s>] [--name <n>] [--json]
 ed machines workspace rename <workspace> <name> [--json]
 ed machines workspace rm <workspace> [--json]
+
+ed machines workspace panes [--workspace <w>] [--json]
+ed machines workspace split <pane> <machine> [--side <s>] [--screen <s>] [--json]
+ed machines workspace close <pane> [--json]
+ed machines workspace point <pane> [<machine>] [--screen <s>] [--json]
+ed machines workspace equalize [--json]
 ```
+
+Panes are numbered from 1 in the order they are laid out; `panes` prints them
+with what each one shows and which is focused. `split` puts the new pane on
+`--side` left, right, top or bottom. `point` retargets a pane without splitting
+it. Every one of these defaults to the current workspace unless `--workspace`
+names another. Closing the last pane is refused, because a workspace needs one.
 
 `new` is the Layout menu's presets as a command: one machine gives a single
 pane, several give them tiled side by side. `--screen` is `overview`,

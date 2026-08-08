@@ -42,6 +42,10 @@ public enum IPC {
             "com.pulkit.edith.requestToolInstall")
         public static let requestFinderUndo = Notification.Name(
             "com.pulkit.edith.requestFinderUndo")
+        public static let requestMusicRescan = Notification.Name(
+            "com.pulkit.edith.requestMusicRescan")
+        public static let requestDownloadCancel = Notification.Name(
+            "com.pulkit.edith.requestDownloadCancel")
         public static let finderUndoResult = Notification.Name(
             "com.pulkit.edith.finderUndoResult")
         public static let presenterAutoActiveChanged = Notification.Name(

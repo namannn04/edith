@@ -114,6 +114,10 @@ public enum CommandTree {
                     CommandNode(
                         "updates", "The update checks already made.",
                         options: ["--json", "--help", "--limit"]),
+                    CommandNode("relaunch", "Quit Edith and start it again.", options: common),
+                    CommandNode(
+                        "clear-updates", "Forget the record of past update checks.",
+                        options: common),
                 ]),
             CommandNode(
                 "extensions", "Turn Edith's extensions on and off.",
@@ -199,6 +203,7 @@ public enum CommandTree {
                     CommandNode(
                         "start", "Play one track, or a whole folder.",
                         options: ["--json", "--help", "--folder"], arguments: [.free]),
+                    CommandNode("rescan", "Read the music folder again.", options: common),
                     CommandNode(
                         "seek", "Jump to a point in the track.", options: common,
                         arguments: [.free]),
@@ -273,6 +278,8 @@ public enum CommandTree {
                         "clear", "Forget what has finished.",
                         options: ["--json", "--help", "--everything"]),
                     CommandNode(
+                        "cancel", "Stop downloading and empty the queue.", options: common),
+                    CommandNode(
                         "tool", "Report or update yt-dlp.",
                         options: ["--json", "--help", "--update"]),
                 ]),
@@ -334,7 +341,7 @@ public enum CommandTree {
                 children: [
                     CommandNode(
                         "scan", "Measure what could be reclaimed.",
-                        options: ["--json", "--help", "--category"],
+                        options: ["--json", "--help", "--category", "--root"],
                         arguments: [.cleanerCategory]),
                     CommandNode(
                         "categories", "The caches the cleaner knows.", aliases: ["ls"],
@@ -443,6 +450,24 @@ public enum CommandTree {
                             CommandNode(
                                 "rm", "Forget a workspace.", aliases: ["remove"],
                                 options: common, arguments: [.free]),
+                            CommandNode(
+                                "panes", "The panes and what they show.",
+                                options: ["--json", "--help", "--workspace"]),
+                            CommandNode(
+                                "split", "Split a pane.",
+                                options: ["--json", "--help", "--workspace", "--side", "--screen"],
+                                arguments: [.historyIndex, .machine]),
+                            CommandNode(
+                                "close", "Close a pane.",
+                                options: ["--json", "--help", "--workspace"],
+                                arguments: [.historyIndex]),
+                            CommandNode(
+                                "point", "Point a pane somewhere else.",
+                                options: ["--json", "--help", "--workspace", "--screen"],
+                                arguments: [.historyIndex, .machine]),
+                            CommandNode(
+                                "equalize", "Even out every split.", aliases: ["even"],
+                                options: ["--json", "--help", "--workspace"]),
                         ]),
                     CommandNode(
                         "broadcast", "Run one command on every machine.",

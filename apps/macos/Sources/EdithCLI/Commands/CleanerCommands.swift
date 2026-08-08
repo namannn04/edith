@@ -22,19 +22,55 @@ struct CleanerCommand: AsyncParsableCommand {
 enum CleanerBridge {
     static var home: URL { CLIEnvironment.homeDirectory }
 
+    static var projectCategoryIDs: [String] {
+        var seen: [String] = []
+        for target in JunkScanner.projectTargets where !seen.contains(target.categoryID) {
+            seen.append(target.categoryID)
+        }
+        return seen
+    }
+
+    static func knownCategoryIDs() -> [String] {
+        JunkCatalog.entries.map(\.id) + projectCategoryIDs
+    }
+
     static func categories(only: String?) throws -> [JunkCatalog.Entry] {
         guard let only else { return JunkCatalog.entries }
         guard let found = JunkCatalog.entries.first(where: { $0.id == only }) else {
-            throw CLIFailure.notFound(
-                "no cleaner category named \(only)",
-                hint: "categories: "
-                    + JunkCatalog.entries.map(\.id).joined(separator: ", "))
+            guard projectCategoryIDs.contains(only) else {
+                throw CLIFailure.notFound(
+                    "no cleaner category named \(only)",
+                    hint: "categories: " + knownCategoryIDs().joined(separator: ", "))
+            }
+            throw CLIFailure(
+                "\(only) only turns up when a folder is swept for project junk",
+                hint: "pass --root, for example `ed cleaner scan --root ~/code --category \(only)`")
         }
         return [found]
     }
 
-    static func scan(_ entries: [JunkCatalog.Entry]) -> [JunkCategory] {
-        entries.compactMap { JunkScanner.scanCategory($0, home: home) }
+    static func roots(_ raw: [String]) throws -> [URL] {
+        try raw.map { path in
+            let expanded = (path as NSString).expandingTildeInPath
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDirectory),
+                isDirectory.boolValue
+            else {
+                throw CLIFailure.notFound("there is no folder at \(path)")
+            }
+            return URL(fileURLWithPath: expanded)
+        }
+    }
+
+    static func scan(_ entries: [JunkCatalog.Entry], roots: [URL], only: String?)
+        -> [JunkCategory]
+    {
+        var found = entries.compactMap { JunkScanner.scanCategory($0, home: home) }
+        guard !roots.isEmpty else { return found }
+        var swept = JunkScanner.scanProjectJunk(roots: roots, progress: { _ in })
+        if let only { swept = swept.filter { $0.id == only } }
+        found.append(contentsOf: swept)
+        return found
     }
 
     static func json(_ category: JunkCategory) -> JSONValue {
@@ -98,9 +134,19 @@ struct CleanerScanCommand: AsyncParsableCommand {
     @Option(help: "Only this category.")
     var category: String?
 
+    @Option(
+        name: .customLong("root"),
+        help: "Also sweep this folder for project junk. Repeat for more than one.")
+    var roots: [String] = []
+
     func run() async throws {
         try await execute {
-            let found = CleanerBridge.scan(try CleanerBridge.categories(only: category))
+            let sweep = try CleanerBridge.roots(roots)
+            let entries =
+                sweep.isEmpty || category == nil
+                ? try CleanerBridge.categories(only: category)
+                : ((try? CleanerBridge.categories(only: category)) ?? [])
+            let found = CleanerBridge.scan(entries, roots: sweep, only: category)
             let total = found.reduce(Int64(0)) { $0 + $1.sizeBytes }
             guard !json else {
                 CLIOut.json(
@@ -137,12 +183,22 @@ struct CleanerCleanCommand: AsyncParsableCommand {
     @Option(help: "Only this category.")
     var category: String?
 
+    @Option(
+        name: .customLong("root"),
+        help: "Also sweep this folder for project junk. Repeat for more than one.")
+    var roots: [String] = []
+
     @Flag(help: "Actually move the files. Without it nothing is touched.")
     var yes = false
 
     func run() async throws {
         try await execute {
-            let found = CleanerBridge.scan(try CleanerBridge.categories(only: category))
+            let sweep = try CleanerBridge.roots(roots)
+            let entries =
+                sweep.isEmpty || category == nil
+                ? try CleanerBridge.categories(only: category)
+                : ((try? CleanerBridge.categories(only: category)) ?? [])
+            let found = CleanerBridge.scan(entries, roots: sweep, only: category)
             let items = found.flatMap(\.items)
             let total = items.reduce(Int64(0)) { $0 + $1.sizeBytes }
             guard yes else {

@@ -14,6 +14,7 @@ struct DownloadCommand: AsyncParsableCommand {
         subcommands: [
             DownloadListCommand.self, DownloadAddCommand.self, DownloadRetryCommand.self,
             DownloadRemoveCommand.self, DownloadClearCommand.self, DownloadToolCommand.self,
+            DownloadCancelCommand.self,
         ],
         defaultSubcommand: DownloadListCommand.self,
         aliases: ["downloads", "dl"])
@@ -322,5 +323,36 @@ enum DownloadTool {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return String(decoding: data, as: UTF8.self)
+    }
+}
+
+struct DownloadCancelCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "cancel",
+        abstract: "Stop what is downloading and empty the rest of the queue.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            let running = DownloadQueue.load().filter { !$0.isFinished }
+            guard !running.isEmpty else {
+                CLIOut.note("nothing is downloading")
+                guard !json else {
+                    CLIOut.json(.object(["cancelled": .int(0)]))
+                    return
+                }
+                return
+            }
+            AppBridge.post(IPC.Name.requestDownloadCancel)
+            let stopped = try DownloadQueue.remove { !$0.isFinished }
+            DownloadBridge.announce()
+            guard !json else {
+                CLIOut.json(.object(["cancelled": .int(stopped)]))
+                return
+            }
+            CLIOut.out("cancelled \(stopped)")
+        }
     }
 }
