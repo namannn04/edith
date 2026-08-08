@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import EdithHelper
 @testable import EdithKit
 
 @Suite struct MachineUsageSlugTests {
@@ -186,5 +187,40 @@ import Testing
 
     @Test func theCollectorScriptShipsWithThisBuild() {
         #expect(UsageCollector.script() != nil)
+    }
+}
+
+@Suite struct MachineUsageScheduleTests {
+    private let now = Date(timeIntervalSince1970: 1_780_000_000)
+    private let machine = Machine(id: UUID(), name: "tuf", host: "h")
+
+    @Test func aMachineNobodyHasCollectedFromIsDue() {
+        let due = UsageStore.machinesDue(
+            [machine], force: false, now: now, collectedAt: { _ in nil })
+        #expect(due.map(\.name) == ["tuf"])
+    }
+
+    @Test func aMachineCollectedJustNowWaits() {
+        let due = UsageStore.machinesDue(
+            [machine], force: false, now: now, collectedAt: { _ in now.addingTimeInterval(-60) })
+        #expect(due.isEmpty)
+    }
+
+    @Test func aMachineGoesStaleAfterTheInterval() {
+        let stale = now.addingTimeInterval(-UsageStore.machineInterval)
+        let due = UsageStore.machinesDue(
+            [machine], force: false, now: now, collectedAt: { _ in stale })
+        #expect(due.map(\.name) == ["tuf"])
+    }
+
+    @Test func askingForItCollectsEvenFromAFreshMachine() {
+        let due = UsageStore.machinesDue(
+            [machine], force: true, now: now, collectedAt: { _ in now })
+        #expect(due.map(\.name) == ["tuf"])
+    }
+
+    @Test func nothingIsDueWhenNoMachineTakesPart() {
+        let due = UsageStore.machinesDue([], force: true, now: now, collectedAt: { _ in nil })
+        #expect(due.isEmpty)
     }
 }
