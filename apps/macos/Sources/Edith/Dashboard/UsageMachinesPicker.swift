@@ -2,6 +2,7 @@ import EdithKit
 import SwiftUI
 
 struct UsageMachinesPicker: View {
+    @ObservedObject var model: DashboardModel
     let dark: Bool
     let dismiss: () -> Void
 
@@ -12,19 +13,31 @@ struct UsageMachinesPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIScale.pt(8)) {
-            Text("Count agent usage from these machines too")
+            Text("Machines")
                 .font(.system(size: UIScale.pt(11.5), weight: .semibold))
                 .foregroundStyle(DashSkin.ink(dark))
                 .padding(.horizontal, UIScale.pt(6))
-            Text(
-                "Edith runs its collector on the machine over SSH and installs what it "
-                    + "is missing there. Each agent arrives as its own source."
-            )
-            .font(.system(size: UIScale.pt(11)))
-            .foregroundStyle(DashSkin.inkSoft(dark))
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, UIScale.pt(6))
+            Text("Tick a machine to count it in the charts. Option-click to show it alone.")
+                .font(.system(size: UIScale.pt(11)))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, UIScale.pt(6))
+            if !model.machineGroups.isEmpty {
+                Divider().opacity(0.4)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: UIScale.pt(1)) {
+                        ForEach(model.machineGroups) { group in
+                            shownRow(group)
+                        }
+                    }
+                }
+                .frame(maxHeight: UIScale.pt(160))
+            }
             Divider().opacity(0.4)
+            Text("COLLECTED OVER SSH")
+                .font(DashSkin.mono(9.5)).tracking(UIScale.pt(1.2))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .padding(.horizontal, UIScale.pt(6))
             if machines.isEmpty {
                 Text("No machines are configured yet.")
                     .font(.system(size: UIScale.pt(11)))
@@ -34,11 +47,11 @@ struct UsageMachinesPicker: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: UIScale.pt(1)) {
                         ForEach(machines) { machine in
-                            row(machine)
+                            collectRow(machine)
                         }
                     }
                 }
-                .frame(maxHeight: UIScale.pt(240))
+                .frame(maxHeight: UIScale.pt(190))
             }
             Divider().opacity(0.4)
             HStack(spacing: UIScale.pt(10)) {
@@ -66,10 +79,49 @@ struct UsageMachinesPicker: View {
     private var footnote: String {
         guard !machines.isEmpty else { return "Add a machine under Machines" }
         let n = counted.count
-        return n == 0 ? "No machines counted" : (n == 1 ? "1 machine counted" : "\(n) machines")
+        if n == 0 { return "No machines collected" }
+        return n == 1 ? "1 machine collected" : "\(n) collected"
     }
 
-    private func row(_ machine: Machine) -> some View {
+    private func shownRow(_ group: MachineGroup) -> some View {
+        let shown = model.machineIsShown(group)
+        let partial = model.machineIsPartlyShown(group)
+        let mark = shown ? "checkmark.circle.fill" : (partial ? "circle.lefthalf.filled" : "circle")
+        return Button {
+            if NSEvent.modifierFlags.contains(.option) {
+                model.showOnlyMachine(group)
+            } else {
+                model.showMachine(group, !shown)
+            }
+        } label: {
+            HStack(spacing: UIScale.pt(6)) {
+                Image(systemName: mark)
+                    .font(.system(size: UIScale.pt(10)))
+                    .foregroundStyle(
+                        shown || partial ? DashSkin.accent(dark) : DashSkin.inkFaint(dark))
+                Text(group.name)
+                    .font(
+                        .system(size: UIScale.pt(11.5), weight: shown ? .semibold : .regular)
+                    )
+                    .foregroundStyle(DashSkin.ink(dark))
+                Spacer(minLength: 0)
+                Text(agentCount(group))
+                    .font(DashSkin.mono(9.5))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+            }
+            .padding(.horizontal, UIScale.pt(6))
+            .padding(.vertical, UIScale.pt(4))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(MachineRowStyle(dark: dark))
+        .pointerCursor()
+    }
+
+    private func agentCount(_ group: MachineGroup) -> String {
+        group.sourceIDs.count == 1 ? "1 agent" : "\(group.sourceIDs.count) agents"
+    }
+
+    private func collectRow(_ machine: Machine) -> some View {
         let on = counted.contains(machine.id)
         let summary = summaries[machine.id]
         return HStack(spacing: UIScale.pt(6)) {
