@@ -75,6 +75,23 @@ public enum ServiceCommands {
     public static func shutdown() -> String {
         "sudo -n systemctl poweroff 2>&1 || systemctl poweroff 2>&1"
     }
+
+    public static let actions = ["start", "stop", "restart"]
+}
+
+public enum ProcessCommands {
+    public static let signals = ["TERM", "KILL", "HUP", "INT", "QUIT", "USR1", "USR2"]
+
+    public static func kill(pid: Int, signal: String) -> String {
+        "kill -\(signal) \(pid) 2>&1"
+    }
+
+    public static func normalizedSignal(_ raw: String) -> String? {
+        let name =
+            raw.uppercased().hasPrefix("SIG")
+            ? String(raw.uppercased().dropFirst(3)) : raw.uppercased()
+        return signals.contains(name) ? name : nil
+    }
 }
 
 public enum PowerOutcome {
