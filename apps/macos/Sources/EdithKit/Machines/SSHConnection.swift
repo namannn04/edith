@@ -16,15 +16,25 @@ public struct SSHOutputChunk: Sendable {
     public let text: String
 }
 
+public struct SSHConnectFailure: Equatable, Sendable {
+    public let message: String
+    public let isRecoverable: Bool
+
+    public init(message: String, isRecoverable: Bool) {
+        self.message = message
+        self.isRecoverable = isRecoverable
+    }
+}
+
 public enum SSHConnectionError: LocalizedError {
-    case connectFailed(String)
+    case connectFailed(SSHConnectFailure)
     case commandFailed(command: String, status: Int32, stderr: String)
     case transferFailed(String)
 
     public var errorDescription: String? {
         switch self {
-        case let .connectFailed(message):
-            return message.isEmpty ? "Connection failed." : message
+        case let .connectFailed(failure):
+            return failure.message.isEmpty ? "Connection failed." : failure.message
         case let .commandFailed(command, status, stderr):
             let detail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             return detail.isEmpty ? "\(command) exited with status \(status)" : detail
@@ -104,7 +114,8 @@ public actor SSHConnection {
         do {
             try process.run()
         } catch {
-            throw SSHConnectionError.connectFailed(error.localizedDescription)
+            throw SSHConnectionError.connectFailed(
+                SSHConnectFailure(message: error.localizedDescription, isRecoverable: true))
         }
         masterProcess = process
 
@@ -128,7 +139,8 @@ public actor SSHConnection {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         throw SSHConnectionError.connectFailed(
             pending.isEmpty
-                ? "Timed out while connecting." : Self.friendlyConnectError(pending))
+                ? SSHConnectFailure(message: "Timed out while connecting.", isRecoverable: true)
+                : Self.friendlyConnectError(pending))
     }
 
     public func disconnect() async {
@@ -479,26 +491,37 @@ public actor SSHConnection {
         }
     }
 
-    static func friendlyConnectError(_ stderr: String) -> String {
+    static func friendlyConnectError(_ stderr: String) -> SSHConnectFailure {
         let text = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowered = text.lowercased()
-        if lowered.contains("remote host identification has changed") {
-            return "The machine's host key changed. If this is expected, forget the pinned key "
-                + "in the machine settings and reconnect."
+        if lowered.contains("remote host identification has changed")
+            || lowered.contains("host key verification failed")
+        {
+            return SSHConnectFailure(
+                message: "The machine's host key changed. If this is expected, forget the pinned "
+                    + "key in the machine settings and reconnect.", isRecoverable: false)
         }
-        if lowered.contains("permission denied") {
-            return "Authentication failed. Check the user name, key, or password."
+        if lowered.contains("permission denied") || lowered.contains("too many authentication") {
+            return SSHConnectFailure(
+                message: "Authentication failed. Check the user name, key, or password.",
+                isRecoverable: false)
         }
         if lowered.contains("connection refused") {
-            return "Connection refused. Is the SSH server running on that port?"
+            return SSHConnectFailure(
+                message: "Connection refused. Is the SSH server running on that port?",
+                isRecoverable: true)
         }
         if lowered.contains("timed out") || lowered.contains("timeout") {
-            return "Connection timed out. Is the machine reachable on this network?"
+            return SSHConnectFailure(
+                message: "Connection timed out. Is the machine reachable on this network?",
+                isRecoverable: true)
         }
         if lowered.contains("could not resolve hostname") {
-            return "Could not resolve the host name."
+            return SSHConnectFailure(
+                message: "Could not resolve the host name.", isRecoverable: true)
         }
         let lastLine = text.split(separator: "\n").last.map(String.init) ?? text
-        return lastLine.isEmpty ? "Connection failed." : lastLine
+        return SSHConnectFailure(
+            message: lastLine.isEmpty ? "Connection failed." : lastLine, isRecoverable: true)
     }
 }
