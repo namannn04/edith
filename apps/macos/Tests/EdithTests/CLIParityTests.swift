@@ -82,6 +82,27 @@ enum UIParity {
             ["machines", "snippets", "add", "box", "logs", "journalctl"]),
         UICapability(
             "Machine tools", "delete a snippet", ["machines", "snippets", "rm", "box", "1"]),
+        UICapability(
+            "Machine tools", "restart the machine",
+            ["machines", "power", "reboot", "box", "--yes"]),
+        UICapability(
+            "Machine tools", "shut the machine down",
+            ["machines", "power", "shutdown", "box", "--yes"]),
+        UICapability("Machine tools", "wake the machine", ["machines", "power", "wake", "box"]),
+        UICapability(
+            "Machine tools", "start a systemd unit",
+            ["machines", "services", "start", "box", "nginx.service"]),
+        UICapability(
+            "Machine tools", "stop a systemd unit",
+            ["machines", "services", "stop", "box", "nginx.service"]),
+        UICapability(
+            "Machine tools", "restart a systemd unit",
+            ["machines", "services", "restart", "box", "nginx.service"]),
+        UICapability(
+            "Machine processes", "end a process with SIGTERM", ["machines", "kill", "box", "42"]),
+        UICapability(
+            "Machine processes", "force kill a process",
+            ["machines", "kill", "box", "42", "--signal", "KILL"]),
         UICapability("Machines", "open the shared connection", ["machines", "connect", "box"]),
         UICapability("Machines", "close the shared connection", ["machines", "disconnect", "box"]),
 

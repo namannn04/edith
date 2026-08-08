@@ -19,15 +19,17 @@ public enum MachineWorkingDirectory {
         return key.isEmpty ? sharedSessionKey : key
     }
 
-    public static func file(for machineID: UUID, session: String) -> URL {
+    public static func file(for machineID: UUID, session: String, in root: URL = root) -> URL {
         let hash = machineID.uuidString.replacingOccurrences(of: "-", with: "").prefix(10)
         return root.appendingPathComponent(String(hash)).appendingPathComponent(session)
     }
 
     public static let previousMarker = "-"
 
-    static func lines(machineID: UUID, session: String, fileManager: FileManager) -> [String] {
-        let path = file(for: machineID, session: session)
+    static func lines(
+        machineID: UUID, session: String, fileManager: FileManager, root: URL = root
+    ) -> [String] {
+        let path = file(for: machineID, session: session, in: root)
         guard let data = fileManager.contents(atPath: path.path) else { return [] }
         return String(decoding: data, as: UTF8.self)
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -36,15 +38,18 @@ public enum MachineWorkingDirectory {
     }
 
     public static func load(
-        machineID: UUID, session: String = sessionKey(), fileManager: FileManager = .default
+        machineID: UUID, session: String = sessionKey(), fileManager: FileManager = .default,
+        root: URL = root
     ) -> String? {
-        lines(machineID: machineID, session: session, fileManager: fileManager).first
+        lines(machineID: machineID, session: session, fileManager: fileManager, root: root).first
     }
 
     public static func loadPrevious(
-        machineID: UUID, session: String = sessionKey(), fileManager: FileManager = .default
+        machineID: UUID, session: String = sessionKey(), fileManager: FileManager = .default,
+        root: URL = root
     ) -> String? {
-        let found = lines(machineID: machineID, session: session, fileManager: fileManager)
+        let found = lines(
+            machineID: machineID, session: session, fileManager: fileManager, root: root)
         return found.count > 1 ? found[1] : nil
     }
 
@@ -56,11 +61,14 @@ public enum MachineWorkingDirectory {
 
     public static func save(
         _ directory: String, previous: String? = nil, machineID: UUID,
-        session: String = sessionKey(), fileManager: FileManager = .default
+        session: String = sessionKey(), fileManager: FileManager = .default, root: URL = root
     ) {
         let trimmed = directory.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return clear(machineID: machineID, session: session) }
-        let path = file(for: machineID, session: session)
+        guard !trimmed.isEmpty else {
+            return clear(
+                machineID: machineID, session: session, fileManager: fileManager, root: root)
+        }
+        let path = file(for: machineID, session: session, in: root)
         try? fileManager.createDirectory(
             at: path.deletingLastPathComponent(), withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700])
@@ -72,9 +80,10 @@ public enum MachineWorkingDirectory {
     }
 
     public static func clear(
-        machineID: UUID, session: String = sessionKey(), fileManager: FileManager = .default
+        machineID: UUID, session: String = sessionKey(), fileManager: FileManager = .default,
+        root: URL = root
     ) {
-        try? fileManager.removeItem(at: file(for: machineID, session: session))
+        try? fileManager.removeItem(at: file(for: machineID, session: session, in: root))
     }
 
     public static func prefixed(_ command: String, directory: String?) -> String {

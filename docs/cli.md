@@ -465,6 +465,44 @@ optionally the top processes.
 `services` parses `systemctl list-units`; `--failed` narrows to failed units.
 On a machine without systemd it reports nothing rather than failing.
 
+### Power, units and processes
+
+```
+ed machines power status   <machine> [--json]
+ed machines power reboot   <machine> [--yes] [--json]
+ed machines power shutdown <machine> [--yes] [--json]
+ed machines power wake     <machine> [--json]
+
+ed machines services start | stop | restart <machine> <unit> [--json]
+ed machines kill <machine> <pid> [--signal <name>] [--json]
+```
+
+`reboot` and `shutdown` do nothing without `--yes`. Both go through systemd and
+need privilege on the far side: `ed` tries `sudo -n` first and falls back to
+plain `systemctl`. A machine that answers *a password is required* or
+*Interactive authentication required* is reported as having refused, and exits
+1, rather than being called done:
+
+```
+$ ed machines power reboot tuf --yes
+error: Asus TUF 7 did not reboot: sudo: a password is required
+Call to Reboot failed: Interactive authentication required.
+hint: give this account passwordless sudo for systemctl on Asus TUF 7
+```
+
+A reboot that works takes the connection down with it; that is treated as
+success rather than as an error.
+
+`wake` sends a wake-on-LAN packet to the stored MAC address, so it is the one
+that works while the machine is off. Edith learns the address the first time it
+sees the machine up; `ed machines edit <machine> --mac <address>` sets it by
+hand. `power status` says which of these are possible right now.
+
+`kill` sends SIGTERM unless `--signal` names another of TERM, KILL, HUP, INT,
+QUIT, USR1 or USR2, with or without the `SIG` prefix. A name that is not one of
+those exits 3 rather than being passed to the remote shell.
+`ed machines metrics <machine> --processes 20` lists the pids.
+
 ### Files
 
 ```

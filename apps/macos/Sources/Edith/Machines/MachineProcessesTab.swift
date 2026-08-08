@@ -129,7 +129,8 @@ struct MachineProcessesTab: View {
         guard let process = pendingKill else { return }
         pendingKill = nil
         Task {
-            let result = await session.runCommand("kill -\(signal) \(process.pid)")
+            let result = await session.runCommand(
+                ProcessCommands.kill(pid: process.pid, signal: signal))
             if case let .failure(error) = result {
                 message = "Could not end \(process.name): \(error.localizedDescription)"
             } else {

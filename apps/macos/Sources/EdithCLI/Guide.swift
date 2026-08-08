@@ -111,6 +111,17 @@ public enum Guide {
         ed machines snippets add box logs journalctl -xe
         ```
 
+        Power, units and processes. Restart and shut down need --yes, and report
+        the machine's own refusal rather than claiming success.
+
+        ```
+        ed machines power status box            up? wakeable? rebootable?
+        ed machines power reboot box --yes
+        ed machines power wake box              works while it is off
+        ed machines services restart box nginx.service
+        ed machines kill box 4213 --signal KILL
+        ```
+
         The machine name comes first, subject then verb. The older order with the
         machine last still parses, so `ed machines docker ps tuf` keeps working. A
         subcommand name always wins, so a machine literally called `ls` or `docker`

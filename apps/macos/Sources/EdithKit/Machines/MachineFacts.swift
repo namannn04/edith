@@ -75,6 +75,23 @@ public enum ServiceCommands {
     public static func shutdown() -> String {
         "sudo -n systemctl poweroff 2>&1 || systemctl poweroff 2>&1"
     }
+
+    public static let actions = ["start", "stop", "restart"]
+}
+
+public enum ProcessCommands {
+    public static let signals = ["TERM", "KILL", "HUP", "INT", "QUIT", "USR1", "USR2"]
+
+    public static func kill(pid: Int, signal: String) -> String {
+        "kill -\(signal) \(pid) 2>&1"
+    }
+
+    public static func normalizedSignal(_ raw: String) -> String? {
+        let name =
+            raw.uppercased().hasPrefix("SIG")
+            ? String(raw.uppercased().dropFirst(3)) : raw.uppercased()
+        return signals.contains(name) ? name : nil
+    }
 }
 
 public enum PowerOutcome {
@@ -159,5 +176,30 @@ public enum WakeOnLAN {
         var packet = Data(repeating: 0xFF, count: 6)
         for _ in 0..<16 { packet.append(contentsOf: hex) }
         return packet
+    }
+}
+
+public enum MagicPacket {
+    public static func send(_ packet: Data) -> String? {
+        let handle = socket(AF_INET, SOCK_DGRAM, 0)
+        guard handle >= 0 else { return "Could not open a socket." }
+        defer { close(handle) }
+        var broadcast: Int32 = 1
+        setsockopt(
+            handle, SOL_SOCKET, SO_BROADCAST, &broadcast, socklen_t(MemoryLayout<Int32>.size))
+        var address = sockaddr_in()
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = UInt16(9).bigEndian
+        address.sin_addr.s_addr = INADDR_BROADCAST
+        let sent = packet.withUnsafeBytes { buffer -> Int in
+            withUnsafePointer(to: &address) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                    sendto(
+                        handle, buffer.baseAddress, buffer.count, 0, sockaddrPointer,
+                        socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
+        return sent > 0 ? nil : "The wake packet could not be sent."
     }
 }
