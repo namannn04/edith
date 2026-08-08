@@ -40,6 +40,10 @@ public enum IPC {
             "com.pulkit.edith.requestQuitApps")
         public static let requestToolInstall = Notification.Name(
             "com.pulkit.edith.requestToolInstall")
+        public static let requestFinderUndo = Notification.Name(
+            "com.pulkit.edith.requestFinderUndo")
+        public static let finderUndoResult = Notification.Name(
+            "com.pulkit.edith.finderUndoResult")
         public static let presenterAutoActiveChanged = Notification.Name(
             "com.pulkit.edith.presenterAutoActiveChanged")
         public static let musicCommand = Notification.Name("com.pulkit.edith.musicCommand")

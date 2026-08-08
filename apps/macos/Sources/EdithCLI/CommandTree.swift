@@ -491,6 +491,9 @@ public enum CommandTree {
                                 "info", "How big something is, directories included.",
                                 options: common, arguments: [.machine, .remotePath]),
                             CommandNode(
+                                "undo", "Undo the last change a Finder window made.",
+                                options: common, arguments: [.machine]),
+                            CommandNode(
                                 "duplicate", "Copy a file beside itself.", options: common,
                                 arguments: [.machine, .remotePath]),
                             CommandNode(

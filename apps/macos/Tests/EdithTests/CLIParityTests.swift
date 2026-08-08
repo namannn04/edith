@@ -29,10 +29,19 @@ enum UIParity {
         "check-updates",
     ]
 
-    static let notReachableFromTheUI: Set<String> = [
-        "ed install", "ed uninstall", "ed completions install", "ed config import",
-        "ed machines docker compose up", "ed machines docker compose down",
-        "ed machines docker compose restart", "ed machines docker compose pull",
+    static let notReachableFromTheUI: [String: String] = [
+        "ed install": "the app links the CLI itself on launch; there is no button for it",
+        "ed uninstall": "the app links the CLI on launch; unlinking has no button either",
+        "ed completions install": "shell completion has no UI at all",
+        "ed config import": "the app restores from iCloud rather than from a JSON file",
+        "ed machines docker compose up":
+            "the Docker window groups by project but never runs compose",
+        "ed machines docker compose down":
+            "the Docker window groups containers by compose project but never runs compose",
+        "ed machines docker compose restart":
+            "the Docker window restarts containers one at a time, never a whole project",
+        "ed machines docker compose pull":
+            "the Docker window never pulls images, for a project or otherwise",
     ]
 
     static let capabilities: [UICapability] = [
@@ -130,6 +139,9 @@ enum UIParity {
         UICapability(
             "Machine finder", "duplicate a file",
             ["machines", "files", "duplicate", "box", "/a"]),
+        UICapability(
+            "Machine finder", "undo the last move or rename",
+            ["machines", "files", "undo", "box"]),
         UICapability("Workspace view", "list saved layouts", ["machines", "workspace", "ls"]),
         UICapability(
             "Workspace toolbar", "apply a layout preset",
@@ -299,7 +311,7 @@ enum UIParity {
         for walk in Self.leaves {
             let verb = walk.path.last ?? ""
             guard UIParity.mutatingVerbs.contains(verb) else { continue }
-            guard !UIParity.notReachableFromTheUI.contains(walk.label) else { continue }
+            guard UIParity.notReachableFromTheUI[walk.label] == nil else { continue }
             guard !claimed.contains(walk.label) else { continue }
             orphans.append(walk.label)
         }
@@ -310,8 +322,35 @@ enum UIParity {
     }
 
     @Test func nothingIsExemptedThatNoLongerExists() {
-        for label in UIParity.notReachableFromTheUI {
+        for label in UIParity.notReachableFromTheUI.keys {
             #expect(Self.labels.contains(label), "\(label) is exempted but no longer exists")
+        }
+    }
+
+    @Test func everyExemptionSaysWhyItIsOneAndIsStillNeeded() {
+        for (label, reason) in UIParity.notReachableFromTheUI {
+            #expect(
+                reason.count > 15,
+                "\(label) is exempted without saying why it has no UI counterpart")
+        }
+        let flagged = Set(
+            Self.leaves
+                .filter { UIParity.mutatingVerbs.contains($0.path.last ?? "") }
+                .map(\.label))
+        for label in UIParity.notReachableFromTheUI.keys {
+            #expect(
+                flagged.contains(label),
+                "\(label) is exempted but nothing would have flagged it, so the row is dead")
+        }
+    }
+
+    @Test func everyUIActionRowNamesARealSurfaceAndAction() {
+        for capability in UIParity.capabilities {
+            #expect(!capability.surface.isEmpty, "a capability row has no surface")
+            #expect(
+                capability.action.count > 3,
+                "\(capability.label) does not say what the user does")
+            #expect(!capability.cli.isEmpty, "\(capability.surface) claims no command")
         }
     }
 }

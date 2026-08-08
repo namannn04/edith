@@ -8,6 +8,8 @@ struct FinderPane: View {
 
     var body: some View {
         FinderBody(model: model)
+            .onAppear { FinderUndoBridge.register(model) }
+            .onDisappear { FinderUndoBridge.forget(model) }
     }
 }
 
