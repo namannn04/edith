@@ -23,6 +23,7 @@ MACHINES_DIR="$OUT_DIR/machines"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+trap 'printf "  ✖ collector stopped at line %s\n" "$LINENO" >&2' ERR
 
 _now() { /usr/bin/perl -MTime::HiRes=time -e 'printf "%.3f", time' 2>/dev/null || date +%s; }
 _t0=$(_now)
@@ -357,7 +358,7 @@ CLAUDE_CONFIG_DIR="$CLI_CFG" ccu claude daily --json 2>/dev/null >"$TMP/cli.dail
 CLAUDE_CONFIG_DIR="$CLI_CFG" ccu claude session --json 2>/dev/null >"$TMP/cli.session.json" || echo '{"sessions":[]}' >"$TMP/cli.session.json"
 add_source cli "$TMP/cli.daily.json" "$TMP/cli.session.json" || true
 
-COWORK_CFG="$(find "$HOME/Library/Application Support/Claude/local-agent-mode-sessions" -maxdepth 2 -name .claude -type d 2>/dev/null | paste -sd, -)"
+COWORK_CFG="$(find "$HOME/Library/Application Support/Claude/local-agent-mode-sessions" -maxdepth 2 -name .claude -type d 2>/dev/null | paste -sd, - || true)"
 if [ -n "$COWORK_CFG" ]; then
   CLAUDE_CONFIG_DIR="$COWORK_CFG" ccu claude daily --json 2>/dev/null >"$TMP/cowork.daily.json" || echo '{"daily":[]}' >"$TMP/cowork.daily.json"
   CLAUDE_CONFIG_DIR="$COWORK_CFG" ccu claude session --json 2>/dev/null >"$TMP/cowork.session.json" || echo '{"sessions":[]}' >"$TMP/cowork.session.json"
@@ -606,7 +607,7 @@ if [ -s "$TMP/manifest.jsonl" ]; then
       | jq -c '{t: "title", sid: .sid, title: .title}' >>"$TMP/walk.jsonl" 2>/dev/null || true
   }
 
-  NFILES=$(find "$PROJECTS_DIR" -name '*.jsonl' 2>/dev/null | wc -l | tr -d ' ')
+  NFILES=$(find "$PROJECTS_DIR" -name '*.jsonl' 2>/dev/null | wc -l | tr -d ' ' || true)
   printf '  · walking %s transcript files…\n' "$NFILES"
   walk_dir "$PROJECTS_DIR" cli
   if [ -n "${COWORK_CFG:-}" ]; then

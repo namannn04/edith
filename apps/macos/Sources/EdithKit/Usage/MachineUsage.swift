@@ -211,6 +211,15 @@ public enum MachineUsageStore {
         return summary
     }
 
+    public static func prune(
+        keeping machineIDs: [UUID], in directory: URL = UsageCollector.machinesDirectory
+    ) {
+        let known = Set(machineIDs)
+        for summary in summaries(in: directory) where !known.contains(summary.machineID) {
+            forget(machineID: summary.machineID, in: directory)
+        }
+    }
+
     @discardableResult
     public static func forget(
         machineID: UUID, in directory: URL = UsageCollector.machinesDirectory
