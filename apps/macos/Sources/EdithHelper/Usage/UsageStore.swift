@@ -58,6 +58,7 @@ final class UsageStore: ObservableObject, FeatureModule {
     private var quickRetries = 0
     private var quickRetryTask: Task<Void, Never>?
     private var machineTask: Task<Void, Never>?
+    private var pendingMachineMerge = false
     let notifier = LimitNotifier()
     private var history = LimitsHistory()
     @Published private(set) var limitPoints: [LimitPoint] = []
@@ -899,6 +900,10 @@ final class UsageStore: ObservableObject, FeatureModule {
                 self.flushLog(force: true)
                 NotificationCenter.default.post(name: .usageDataChanged, object: nil)
                 IPC.post(IPC.Name.usageRefreshFinished)
+                if self.pendingMachineMerge {
+                    self.pendingMachineMerge = false
+                    self.runUpdate(collectMachines: false)
+                }
             }
         }
         do {
@@ -963,6 +968,10 @@ final class UsageStore: ObservableObject, FeatureModule {
     private func finishedCollecting(changed: Bool) {
         machineTask = nil
         guard changed else { return }
+        guard !updating else {
+            pendingMachineMerge = true
+            return
+        }
         runUpdate(collectMachines: false)
     }
 

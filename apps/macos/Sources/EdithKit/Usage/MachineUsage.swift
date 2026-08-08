@@ -215,9 +215,16 @@ public enum MachineUsageStore {
         keeping machineIDs: [UUID], in directory: URL = UsageCollector.machinesDirectory
     ) {
         let known = Set(machineIDs)
-        for summary in summaries(in: directory) where !known.contains(summary.machineID) {
-            forget(machineID: summary.machineID, in: directory)
+        for id in storedIDs(in: directory) where !known.contains(id) {
+            forget(machineID: id, in: directory)
         }
+    }
+
+    public static func storedIDs(in directory: URL = UsageCollector.machinesDirectory) -> [UUID] {
+        let contents = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil)
+        let names = (contents ?? []).filter { $0.pathExtension == "json" }
+        return names.compactMap { UUID(uuidString: $0.deletingPathExtension().lastPathComponent) }
     }
 
     @discardableResult
