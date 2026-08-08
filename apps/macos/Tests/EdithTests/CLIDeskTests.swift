@@ -663,3 +663,109 @@ import Testing
         }
     }
 }
+
+@Suite struct CLIClipboardIndexTruthTests {
+    private func seed(_ count: Int) throws {
+        var entries: [ClipboardEntry] = []
+        for index in 0..<count {
+            let text = index % 2 == 0 ? "alpha \(index)" : "beta \(index)"
+            let data = Data(text.utf8)
+            let sha = ClipboardRepository.sha256Hex(data)
+            try ClipboardRepository.writeBlob(data, sha256: sha, ext: "txt")
+            entries.append(
+                ClipboardEntry(
+                    sha256: sha, types: ["public.utf8-plain-text"], ext: "txt",
+                    sourceApp: index % 2 == 0 ? "Alpha" : "Beta", sourceBundleID: "test",
+                    createdAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)),
+                    size: data.count, preview: text))
+        }
+        try ClipboardRepository.saveEntries(entries)
+    }
+
+    @Test func theNumberAFilteredListPrintsIsTheNumberGetTakes() async throws {
+        try await CLIProbe.inWorld { _ in
+            try seed(6)
+            let listed = await CLIProbe.capture([
+                "clipboard", "ls", "--search", "alpha", "--json",
+            ])
+            let rows = listed.array as? [[String: Any]] ?? []
+            #expect(!rows.isEmpty)
+            for row in rows {
+                guard let index = row["index"] as? Int,
+                    let preview = row["preview"] as? String
+                else { continue }
+                let fetched = await CLIProbe.capture(["clipboard", "get", String(index)])
+                #expect(
+                    fetched.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == preview,
+                    "index \(index) printed \(preview) but get returned \(fetched.stdout)")
+            }
+        }
+    }
+
+    @Test func theNumberAPinnedListPrintsIsTheNumberUnpinTakes() async throws {
+        try await CLIProbe.inWorld { _ in
+            try seed(6)
+            let all = ClipboardActions.arrange(ClipboardRepository.loadEntries())
+            try ClipboardActions.setPinned(true, ids: [all[3].id])
+            let listed = await CLIProbe.capture(["clipboard", "ls", "--pinned", "--json"])
+            let rows = listed.array as? [[String: Any]] ?? []
+            #expect(rows.count == 1)
+            guard let index = rows.first?["index"] as? Int else { return }
+            let unpinned = await CLIProbe.capture([
+                "clipboard", "unpin", String(index), "--json",
+            ])
+            #expect(unpinned.object?["changed"] as? Bool == true)
+            #expect(ClipboardRepository.loadEntries().allSatisfy { !$0.pinned })
+        }
+    }
+
+    @Test func filteringNeverRenumbersWhatIsLeft() async throws {
+        try await CLIProbe.inWorld { _ in
+            try seed(6)
+            let everything = await CLIProbe.capture(["clipboard", "ls", "--limit", "0", "--json"])
+            let byID = Dictionary(
+                uniqueKeysWithValues: (everything.array as? [[String: Any]] ?? []).compactMap {
+                    row -> (String, Int)? in
+                    guard let id = row["id"] as? String, let index = row["index"] as? Int
+                    else { return nil }
+                    return (id, index)
+                })
+            let filtered = await CLIProbe.capture([
+                "clipboard", "ls", "--search", "beta", "--json",
+            ])
+            for row in filtered.array as? [[String: Any]] ?? [] {
+                guard let id = row["id"] as? String, let index = row["index"] as? Int else {
+                    continue
+                }
+                #expect(
+                    byID[id] == index, "\(id) is \(byID[id] ?? -1) unfiltered but \(index) filtered"
+                )
+            }
+        }
+    }
+
+    @Test func aValueOutsideWhatAnOptionAcceptsIsAUsageError() async {
+        for arguments in [
+            ["clipboard", "ls", "--limit=-1"], ["color", "ls", "--limit=-1"],
+            ["music", "seek", "1.5"], ["music", "volume", "9"],
+        ] {
+            let result = await CLIProbe.run(arguments)
+            #expect(result.code == ExitCodes.usage, "\(arguments) exited \(result.code)")
+            #expect(result.stdout.isEmpty)
+        }
+    }
+
+    @Test func zeroMeansEverythingForColoursJustAsItDoesForTheClipboard() async {
+        let result = await CLIProbe.run(["color", "ls", "--limit", "0", "--json"])
+        #expect(result.code == 0)
+        #expect(result.array != nil)
+    }
+
+    @Test func aMistypedConfigSubcommandIsNotAnEmptyListing() async {
+        for typo in ["lst", "exprot", "describ"] {
+            let result = await CLIProbe.run(["config", typo])
+            #expect(result.code == ExitCodes.notFound, "\(typo) exited \(result.code)")
+            #expect(result.stdout.isEmpty)
+        }
+    }
+}

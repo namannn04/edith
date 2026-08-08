@@ -120,28 +120,32 @@ struct ClipboardListCommand: AsyncParsableCommand {
     func run() async throws {
         try await execute {
             let limit = try ArgumentChecks.nonNegative(self.limit, "--limit")
-            var entries = ClipboardBridge.entries(query: search ?? "")
-            if pinned { entries = entries.filter(\.pinned) }
-            let shown = limit == 0 ? entries : Array(entries.prefix(limit))
+            let all = ClipboardBridge.entries()
+            var numbered = Array(all.enumerated().map { (index: $0 + 1, entry: $1) })
+            if let search, !ClipboardActions.normalized(search).isEmpty {
+                let needle = ClipboardActions.normalized(search)
+                numbered = numbered.filter { ClipboardActions.matches($0.entry, query: needle) }
+            }
+            if pinned { numbered = numbered.filter { $0.entry.pinned } }
+            let shown = limit == 0 ? numbered : Array(numbered.prefix(limit))
             guard !json else {
                 CLIOut.json(
-                    .array(
-                        shown.enumerated().map { ClipboardBridge.json($1, index: $0 + 1) }))
+                    .array(shown.map { ClipboardBridge.json($0.entry, index: $0.index) }))
                 return
             }
-            let rows = shown.enumerated().map { offset, entry in
+            let rows = shown.map { row in
                 [
-                    String(offset + 1), entry.ext, entry.pinned ? "pinned" : "",
-                    ClipboardBridge.bytes(entry.size), entry.sourceApp ?? "",
-                    entry.preview ?? "",
+                    String(row.index), row.entry.ext, row.entry.pinned ? "pinned" : "",
+                    ClipboardBridge.bytes(row.entry.size), row.entry.sourceApp ?? "",
+                    row.entry.preview ?? "",
                 ]
             }
             CLIOut.out(
                 TextTable.render(
                     headers: ["#", "KIND", "", "SIZE", "FROM", "PREVIEW"], rows: rows))
-            guard shown.count < entries.count else { return }
+            guard shown.count < numbered.count else { return }
             CLIOut.note(
-                "showing \(shown.count) of \(entries.count); pass --limit 0 for all of them")
+                "showing \(shown.count) of \(numbered.count); pass --limit 0 for all of them")
         }
     }
 }
@@ -371,7 +375,7 @@ struct ColorListCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            let limit = try ArgumentChecks.nonNegative(self.limit, "--limit")
             var chosen: ColorCopyFormat?
             if let format {
                 guard let value = ColorCopyFormat(rawValue: format) else {
@@ -382,8 +386,8 @@ struct ColorListCommand: AsyncParsableCommand {
                 }
                 chosen = value
             }
-            let swatches = Array(
-                ColorHistoryStore.load(from: CLIEnvironment.sharedDefaults).prefix(limit))
+            let stored = ColorHistoryStore.load(from: CLIEnvironment.sharedDefaults)
+            let swatches = limit == 0 ? stored : Array(stored.prefix(limit))
             guard !json else {
                 CLIOut.json(
                     .array(

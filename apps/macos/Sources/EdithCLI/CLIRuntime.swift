@@ -3,6 +3,7 @@ import Foundation
 public struct CLIFailure: Error, CustomStringConvertible, Equatable {
     public enum Kind: Int32, Equatable, Sendable {
         case failure = 1
+        case usage = 2
         case notFound = 3
         case unavailable = 4
     }
@@ -23,6 +24,10 @@ public struct CLIFailure: Error, CustomStringConvertible, Equatable {
 
     public var description: String { message }
 
+    public static func usage(_ message: String, hint: String? = nil) -> CLIFailure {
+        CLIFailure(.usage, message, hint: hint)
+    }
+
     public static func notFound(_ message: String, hint: String? = nil) -> CLIFailure {
         CLIFailure(.notFound, message, hint: hint)
     }
@@ -35,28 +40,28 @@ public struct CLIFailure: Error, CustomStringConvertible, Equatable {
 public enum ArgumentChecks {
     public static func nonNegative(_ value: Int, _ name: String) throws -> Int {
         guard value >= 0 else {
-            throw CLIFailure("\(name) cannot be negative", hint: "pass 0 or more")
+            throw CLIFailure.usage("\(name) cannot be negative", hint: "pass 0 or more")
         }
         return value
     }
 
     public static func positive(_ value: Int, _ name: String) throws -> Int {
         guard value > 0 else {
-            throw CLIFailure("\(name) must be greater than zero")
+            throw CLIFailure.usage("\(name) must be greater than zero")
         }
         return value
     }
 
     public static func positive(_ value: Double, _ name: String) throws -> Double {
         guard value > 0, value.isFinite else {
-            throw CLIFailure("\(name) must be greater than zero")
+            throw CLIFailure.usage("\(name) must be greater than zero")
         }
         return value
     }
 
     public static func fraction(_ value: Double, _ name: String) throws -> Double {
         guard (0...1).contains(value) else {
-            throw CLIFailure("\(name) must be between 0 and 1")
+            throw CLIFailure.usage("\(name) must be between 0 and 1")
         }
         return value
     }

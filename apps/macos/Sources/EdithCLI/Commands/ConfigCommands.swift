@@ -55,6 +55,20 @@ struct ConfigListCommand: AsyncParsableCommand {
         try await execute {
             let store = ConfigStore()
             var settings = ConfigCatalog.matching(prefix: prefix ?? "")
+            if let prefix, !prefix.isEmpty, settings.isEmpty {
+                let siblings = ConfigCommand.configuration.subcommands
+                    .compactMap { $0.configuration.commandName }
+                guard !siblings.contains(prefix) else {
+                    throw CLIFailure.usage("\(prefix) is a subcommand, not a setting prefix")
+                }
+                let near = siblings.filter { $0.hasPrefix(String(prefix.prefix(2))) }
+                throw CLIFailure.notFound(
+                    "no setting starts with \(prefix)",
+                    hint: near.isEmpty
+                        ? "run `ed config ls` to see every key"
+                        : "did you mean `ed config " + near.joined(separator: "` or `ed config ")
+                            + "`?")
+            }
             if let group {
                 guard ConfigCatalog.groups.contains(group) else {
                     throw CLIFailure.notFound(
