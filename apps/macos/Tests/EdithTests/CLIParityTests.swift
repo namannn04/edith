@@ -138,6 +138,26 @@ enum UIParity {
             ["machines", "files", "put", "box", "./x", "/tmp/x"]),
 
         UICapability(
+            "Machine finder", "copy files", ["machines", "files", "cp", "box", "/a", "/b"]),
+        UICapability(
+            "Machine finder", "cut and paste files",
+            ["machines", "files", "mv", "box", "/a", "/b"]),
+        UICapability(
+            "Machine finder", "rename a file",
+            ["machines", "files", "rename", "box", "/a", "b"]),
+        UICapability(
+            "Machine finder", "make a folder", ["machines", "files", "mkdir", "box", "/a"]),
+        UICapability(
+            "Machine finder", "move files to the trash",
+            ["machines", "files", "rm", "box", "/a"]),
+        UICapability(
+            "Add machine sheet", "store a login password",
+            ["machines", "add", "box", "--host", "h", "--password-stdin"]),
+        UICapability(
+            "Add machine sheet", "store a key passphrase",
+            ["machines", "edit", "box", "--key-passphrase-stdin"]),
+
+        UICapability(
             "Docker window", "start a container", ["machines", "docker", "start", "box", "api"]),
         UICapability(
             "Docker window", "stop a container", ["machines", "docker", "stop", "box", "api"]),

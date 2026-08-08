@@ -8,7 +8,9 @@ struct MachinesFilesCommand: AsyncParsableCommand {
         abstract: "Browse and transfer files on a machine.",
         subcommands: [
             MachineFilesListCommand.self, MachineFilesGetCommand.self,
-            MachineFilesPutCommand.self,
+            MachineFilesPutCommand.self, MachinesFilesCopyCommand.self,
+            MachinesFilesMoveCommand.self, MachinesFilesRenameCommand.self,
+            MachinesFilesMakeDirectoryCommand.self, MachinesFilesRemoveCommand.self,
         ],
         defaultSubcommand: MachineFilesListCommand.self)
 }

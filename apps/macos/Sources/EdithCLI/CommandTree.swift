@@ -420,6 +420,22 @@ public enum CommandTree {
                             CommandNode(
                                 "put", "Upload a file.", options: ["--json"],
                                 arguments: [.machine, .localPath, .remotePath]),
+                            CommandNode(
+                                "cp", "Copy files into a directory there.", options: common,
+                                arguments: [.machine, .remotePath]),
+                            CommandNode(
+                                "mv", "Move files into a directory there.", options: common,
+                                arguments: [.machine, .remotePath]),
+                            CommandNode(
+                                "rename", "Rename one file there.", options: common,
+                                arguments: [.machine, .remotePath]),
+                            CommandNode(
+                                "mkdir", "Make a directory there.", options: common,
+                                arguments: [.machine, .remotePath]),
+                            CommandNode(
+                                "rm", "Trash or delete files there.",
+                                options: ["--json", "--help", "--delete", "--yes"],
+                                arguments: [.machine, .remotePath]),
                         ]),
                     CommandNode(
                         "docker", "Containers on a machine.",
