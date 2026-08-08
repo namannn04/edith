@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @MainActor
@@ -32,16 +33,25 @@ public final class MachineSession: ObservableObject {
     private let connection: SSHConnection?
     private let localSampler: LocalMachineSampler?
     private var metricsStream: SSHLineStream?
-    private var metricsTask: Task<Void, Never>?
+    private var supervisor: Task<Void, Never>?
     private var dockerTask: Task<Void, Never>?
     private var latencyTask: Task<Void, Never>?
     private var localTask: Task<Void, Never>?
+    private var wakeObserver: NSObjectProtocol?
+    private var reconnects = true
 
     public init(machine: Machine, local: Bool = false) {
         self.machine = machine
         isLocal = local
         connection = local ? nil : SSHConnection(machine: machine)
         localSampler = local ? LocalMachineSampler() : nil
+        observeWake()
+    }
+
+    deinit {
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
     }
 
     public var connectionRef: SSHConnection? { connection }
@@ -57,26 +67,35 @@ public final class MachineSession: ObservableObject {
             return
         }
         state = .connecting
-        metricsTask = Task { [weak self] in
-            guard let self, let connection else { return }
-            do {
-                try await connection.connect()
-                guard !Task.isCancelled else { return }
-                state = .connected(latencyMillis: nil)
-                startMetricsStream()
-                startDockerPolling()
-                startLatencyProbe()
-                await loadFacts()
-            } catch {
-                guard !Task.isCancelled else { return }
-                state = .failed(message: error.localizedDescription)
-            }
-        }
+        connect(afterFailures: 0, closingFirst: false)
     }
 
     public func stop() {
-        metricsTask?.cancel()
-        metricsTask = nil
+        reconnects = false
+        cancelWork()
+        let connection = connection
+        Task { await connection?.disconnect() }
+        state = .disconnected
+    }
+
+    public func retry() {
+        guard !isLocal else {
+            stop()
+            start()
+            return
+        }
+        guard !machine.isMissing else {
+            state = .failed(message: "This machine is no longer configured.")
+            return
+        }
+        cancelWork()
+        state = .connecting
+        connect(afterFailures: 0, closingFirst: true)
+    }
+
+    private func cancelWork() {
+        supervisor?.cancel()
+        supervisor = nil
         dockerTask?.cancel()
         dockerTask = nil
         latencyTask?.cancel()
@@ -85,14 +104,85 @@ public final class MachineSession: ObservableObject {
         localTask = nil
         metricsStream?.cancel()
         metricsStream = nil
-        let connection = connection
-        Task { await connection?.disconnect() }
-        state = .disconnected
     }
 
-    public func retry() {
-        stop()
-        start()
+    private func connect(afterFailures failures: Int, closingFirst: Bool) {
+        reconnects = true
+        supervisor?.cancel()
+        supervisor = Task { [weak self] in
+            if closingFirst {
+                await self?.connection?.disconnect()
+            }
+            var failures = failures
+            while !Task.isCancelled {
+                if failures > 0 {
+                    try? await Task.sleep(
+                        for: .seconds(MachineReconnect.delay(afterFailures: failures)))
+                }
+                guard !Task.isCancelled, let self, let connection else { return }
+                do {
+                    try await connection.connect()
+                    guard !Task.isCancelled else { return }
+                    state = .connected(latencyMillis: nil)
+                    startMetricsStream()
+                    startDockerPolling()
+                    startLatencyProbe()
+                    await loadFacts()
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    let failure = Self.failure(from: error)
+                    guard failure.isRecoverable else {
+                        state = .failed(message: failure.message)
+                        return
+                    }
+                    failures += 1
+                    state = MachineReconnect.state(
+                        afterFailures: failures, reason: failure.message)
+                }
+            }
+        }
+    }
+
+    private static func failure(from error: Error) -> SSHConnectFailure {
+        if case let SSHConnectionError.connectFailed(failure) = error { return failure }
+        return SSHConnectFailure(message: error.localizedDescription, isRecoverable: true)
+    }
+
+    private func handleDrop() {
+        guard state.isConnected else { return }
+        cancelWork()
+        state = .reconnecting
+        connect(afterFailures: 0, closingFirst: false)
+    }
+
+    private func observeWake() {
+        guard !isLocal else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.reconnectAfterWake() }
+        }
+    }
+
+    private func reconnectAfterWake() {
+        guard reconnects, !machine.isMissing else { return }
+        switch state {
+        case .connected: probeConnection()
+        case .reconnecting, .failed:
+            state = .reconnecting
+            connect(afterFailures: 0, closingFirst: false)
+        case .connecting, .disconnected: break
+        }
+    }
+
+    private func probeConnection() {
+        Task { [weak self] in
+            guard let self, let connection, state.isConnected else { return }
+            let alive = await connection.masterIsAlive()
+            guard !alive else { return }
+            handleDrop()
+        }
     }
 
     private func startLocal() {
@@ -136,8 +226,13 @@ public final class MachineSession: ObservableObject {
         guard state.isConnected else { return }
         metricsStream = nil
         Task { [weak self] in
+            guard let self, let connection else { return }
+            guard await connection.masterIsAlive() else {
+                handleDrop()
+                return
+            }
             try? await Task.sleep(for: .seconds(3))
-            guard let self, state.isConnected, metricsStream == nil else { return }
+            guard state.isConnected, metricsStream == nil else { return }
             startMetricsStream()
         }
     }
@@ -185,9 +280,8 @@ public final class MachineSession: ObservableObject {
                         state = .connected(latencyMillis: latency)
                     }
                 } else if state.isConnected {
-                    state = .failed(message: "The connection dropped.")
-                    metricsStream?.cancel()
-                    metricsStream = nil
+                    handleDrop()
+                    return
                 }
                 try? await Task.sleep(for: .seconds(10))
             }

@@ -78,6 +78,7 @@ public struct Machine: Codable, Identifiable, Equatable, Hashable, Sendable {
 public enum MachineConnectionState: Equatable, Sendable {
     case disconnected
     case connecting
+    case reconnecting
     case connected(latencyMillis: Double?)
     case failed(message: String)
 
@@ -87,7 +88,17 @@ public enum MachineConnectionState: Equatable, Sendable {
     }
 
     public var isBusy: Bool {
-        self == .connecting
+        switch self {
+        case .connecting, .reconnecting: return true
+        default: return false
+        }
+    }
+
+    public var isRetryable: Bool {
+        switch self {
+        case .reconnecting, .failed: return true
+        default: return false
+        }
     }
 }
 

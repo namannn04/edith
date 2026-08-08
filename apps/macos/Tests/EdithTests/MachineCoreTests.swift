@@ -366,17 +366,71 @@ import Testing
     @Test func mapsCommonFailuresToFriendlyMessages() {
         #expect(
             SSHConnection.friendlyConnectError("pulkit@host: Permission denied (publickey).")
-                .contains("Authentication failed"))
+                .message.contains("Authentication failed"))
         #expect(
             SSHConnection.friendlyConnectError(
                 "@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@"
-            ).contains("host key changed"))
+            ).message.contains("host key changed"))
         #expect(
             SSHConnection.friendlyConnectError("ssh: connect to host x port 22: Connection refused")
-                .contains("refused"))
+                .message.contains("refused"))
         #expect(
             SSHConnection.friendlyConnectError("ssh: Could not resolve hostname zzz")
-                .contains("resolve"))
-        #expect(SSHConnection.friendlyConnectError("") == "Connection failed.")
+                .message.contains("resolve"))
+        #expect(SSHConnection.friendlyConnectError("").message == "Connection failed.")
+    }
+
+    @Test func onlyRetriesFailuresAnotherAttemptCouldFix() {
+        #expect(
+            SSHConnection.friendlyConnectError("ssh: connect to host x port 22: Connection refused")
+                .isRecoverable)
+        #expect(
+            SSHConnection.friendlyConnectError(
+                "ssh: connect to host x port 22: Operation timed out"
+            )
+            .isRecoverable)
+        #expect(
+            SSHConnection.friendlyConnectError("ssh: Could not resolve hostname zzz")
+                .isRecoverable)
+        #expect(
+            SSHConnection.friendlyConnectError("something nobody has seen before")
+                .isRecoverable)
+        #expect(
+            SSHConnection.friendlyConnectError("pulkit@host: Permission denied (publickey).")
+                .isRecoverable == false)
+        #expect(
+            SSHConnection.friendlyConnectError("Host key verification failed.")
+                .isRecoverable == false)
+    }
+}
+
+@Suite struct MachineReconnectTests {
+    @Test func waitsLongerAfterEachFailureThenSettlesOnAFixedGap() {
+        #expect(MachineReconnect.delay(afterFailures: 0) == 0)
+        let delays = (1...8).map { MachineReconnect.delay(afterFailures: $0) }
+        #expect(delays == delays.sorted())
+        #expect(delays.first == 1)
+        #expect(delays.last == MachineReconnect.longestDelay)
+        #expect(delays.allSatisfy { $0 <= MachineReconnect.longestDelay })
+    }
+
+    @Test func staysQuietThroughABlipAndTurnsRedOnAnOutage() {
+        for failures in 1...MachineReconnect.quietFailures {
+            #expect(
+                MachineReconnect.state(afterFailures: failures, reason: "nope") == .reconnecting)
+        }
+        #expect(
+            MachineReconnect.state(
+                afterFailures: MachineReconnect.quietFailures + 1, reason: "Connection refused.")
+                == .failed(message: "Connection refused."))
+    }
+
+    @Test func aQuietReconnectIsBusyAndRetryableButNotConnected() {
+        let state = MachineConnectionState.reconnecting
+        #expect(state.isBusy)
+        #expect(state.isRetryable)
+        #expect(state.isConnected == false)
+        #expect(MachineConnectionState.connecting.isRetryable == false)
+        #expect(MachineConnectionState.disconnected.isRetryable == false)
     }
 }

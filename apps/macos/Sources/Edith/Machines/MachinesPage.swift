@@ -235,8 +235,8 @@ private struct MachineChip: View {
             if !isLocal {
                 Divider()
                 Button("Edit…", action: onEdit)
-                Button(session.state.isConnected ? "Disconnect" : "Connect") {
-                    session.state.isConnected ? session.stop() : session.start()
+                Button(session.state == .disconnected ? "Connect" : "Disconnect") {
+                    session.state == .disconnected ? session.start() : session.stop()
                 }
                 Divider()
                 Button("Remove", role: .destructive, action: onRemove)

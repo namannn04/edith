@@ -217,8 +217,10 @@ struct MachineOverviewTab: View {
                 .foregroundStyle(DashSkin.inkSoft(dark))
             Spacer(minLength: 0)
             if !session.state.isBusy {
-                Button("Connect") { session.start() }
-                    .pointerCursor()
+                Button(session.state.isRetryable ? "Retry" : "Connect") {
+                    session.state.isRetryable ? session.retry() : session.start()
+                }
+                .pointerCursor()
             }
         }
         .padding(UIScale.pt(14))
