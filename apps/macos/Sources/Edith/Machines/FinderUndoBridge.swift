@@ -9,7 +9,7 @@ enum FinderUndoBridge {
 
     static func register(_ model: FinderModel) {
         models[model.session.machine.id, default: [:]][ObjectIdentifier(model)] = model
-        startObserving()
+        start()
     }
 
     static func forget(_ model: FinderModel) {
@@ -23,7 +23,7 @@ enum FinderUndoBridge {
         models[machineID]?.values.first { $0.canUndo }
     }
 
-    private static func startObserving() {
+    static func start() {
         guard observer == nil else { return }
         observer = IPC.observe(
             IPC.Name.requestFinderUndo,
