@@ -58,6 +58,7 @@ final class CLIWorld: @unchecked Sendable {
         try? FileManager.default.createDirectory(
             at: sandbox, withIntermediateDirectories: true)
         ClipboardPaths.root = sandbox
+        MachinePaths.root = sandbox
         ShelfIndex.root = sandbox.appendingPathComponent("Shelf")
         CLIEnvironment.homeDirectory = sandbox
         shared = UserDefaults(suiteName: suite)!

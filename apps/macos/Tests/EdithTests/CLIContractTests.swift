@@ -85,6 +85,32 @@ enum JSONContract {
         JSONCase("ed calendar ls", ["calendar", "ls", "--json"]),
         JSONCase("ed machines ls", ["machines", "ls", "--json"]),
         JSONCase("ed machines show", ["machines", "show", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines add",
+            ["machines", "add", "nowhere-at-all", "--host", "127.0.0.1", "--json"],
+            mutatesTheMachine: true),
+        JSONCase(
+            "ed machines edit", ["machines", "edit", "nowhere-at-all", "--port", "22", "--json"]),
+        JSONCase("ed machines rm", ["machines", "rm", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines forwards ls", ["machines", "forwards", "ls", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines forwards add",
+            [
+                "machines", "forwards", "add", "nowhere-at-all", "--local", "8080",
+                "--remote", "80", "--json",
+            ]),
+        JSONCase(
+            "ed machines forwards rm",
+            ["machines", "forwards", "rm", "nowhere-at-all", "1", "--json"]),
+        JSONCase(
+            "ed machines snippets ls", ["machines", "snippets", "ls", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines snippets add",
+            ["machines", "snippets", "add", "nowhere-at-all", "logs", "uptime", "--json"]),
+        JSONCase(
+            "ed machines snippets rm",
+            ["machines", "snippets", "rm", "nowhere-at-all", "1", "--json"]),
         JSONCase("ed machines metrics", ["machines", "metrics", "nowhere-at-all", "--json"]),
         JSONCase("ed machines connect", ["machines", "connect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines disconnect", ["machines", "disconnect", "nowhere-at-all", "--json"]),

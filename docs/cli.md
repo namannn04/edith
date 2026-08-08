@@ -412,6 +412,49 @@ ed machines connect <machine> [--json]
 ed machines disconnect <machine> [--json]
 ```
 
+### Keeping the list
+
+Adding, renaming and removing machines works from here as well as from the app,
+and a change reaches a running Edith immediately.
+
+```
+ed machines add <name> --host <h> [--port <n>] [--user <u>] [--key <path>]
+                                 [--alias <sshAlias>] [--mac <address>]
+ed machines edit <machine> [--name <n>] [--host <h>] [--port <n>] [--user <u>]
+                           [--key <path>] [--agent] [--mac <address>]
+ed machines rm <machine> [--yes] [--json]
+```
+
+`add` uses the SSH agent unless `--key` names a private key. `--alias` records
+the machine as an entry from your `ssh config`, which is what the app's picker
+writes when you choose a host from there. Password authentication is not offered
+here: the password belongs in the login keychain under the app's own identity,
+so add those in Edith under Machines.
+
+`rm` without `--yes` reports what it would take with it and touches nothing.
+With `--yes` it removes the machine, its saved forwards, its snippets and its
+keychain entries. Duplicate names are refused rather than silently allowed,
+because every other command resolves machines by name.
+
+### Forwards and snippets
+
+```
+ed machines forwards ls  <machine> [--json]
+ed machines forwards add <machine> --local <n> --remote <n>
+                                   [--remote-host <h>] [--title <t>] [--json]
+ed machines forwards rm  <machine> <n> [--json]
+
+ed machines snippets ls  <machine> [--json]
+ed machines snippets add [--shared] [--json] <machine> <title> <command...>
+ed machines snippets rm  <machine> <n> [--json]
+```
+
+These are the same lists the machine's Tools tab shows. Forwards are numbered by
+local port, snippets in the order they were saved, and both are numbered from 1.
+Two forwards cannot claim the same local port. `--shared` saves a snippet
+against every machine rather than just this one, which is what leaving the
+machine unset does in the UI.
+
 `metrics` streams the same collector the app's Machines view uses, over stdin,
 so nothing is installed on the machine. Without `--follow` it prints one sample
 and exits; with it, a sample every `--interval` seconds. `--json` gives cpu

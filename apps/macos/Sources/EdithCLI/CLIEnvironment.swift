@@ -54,6 +54,7 @@ public enum CLIEnvironment {
         deliver = { IPC.post($0, userInfo: $1) }
         homeDirectory = FileManager.default.homeDirectoryForCurrentUser
         ClipboardPaths.root = AppData.supportDir
+        MachinePaths.root = AppData.supportDir
         ShelfIndex.root = AppData.supportDir.appendingPathComponent("Shelf")
         answer = nil
         permissionUsages = { PermissionsStatus.usages }
