@@ -351,6 +351,14 @@ import Testing
         #expect(MachineFacts.parseMACAddress("not-a-mac") == nil)
     }
 
+    @Test func theWakeAddressComesFromARealNICRatherThanABridgeOrAVeth() {
+        let command = MachineFacts.macAddressCommand
+        #expect(command.contains("[ -e \"$iface/device\" ] || continue"))
+        #expect(command.contains("00:00:00:00:00:00"))
+        #expect(command.contains("phy80211"))
+        #expect(!command.contains("head -1"))
+    }
+
     @Test func buildsWakeOnLANMagicPacket() {
         let packet = WakeOnLAN.magicPacket(macAddress: "aa:bb:cc:dd:ee:ff")
         #expect(packet?.count == 102)
@@ -378,6 +386,31 @@ import Testing
         let command = ServiceCommands.action("restart", unit: "docker.service")
         #expect(command.contains("systemctl restart docker.service"))
         #expect(command.contains("sudo -n systemctl restart docker.service"))
+    }
+
+    @Test func aStoredSudoPasswordReplacesTheGuessworkWithOneAttempt() {
+        let unit = ServiceCommands.action(
+            "restart", unit: "docker.service", withSudoPassword: true)
+        #expect(unit == "sudo -S -p '' systemctl restart docker.service 2>&1")
+        #expect(!unit.contains("sudo -n"))
+        #expect(
+            ServiceCommands.reboot(withSudoPassword: true)
+                == "sudo -S -p '' systemctl reboot 2>&1")
+        #expect(
+            ServiceCommands.shutdown(withSudoPassword: true)
+                == "sudo -S -p '' systemctl poweroff 2>&1")
+    }
+
+    @Test func theSudoPasswordIsNeverPutOnTheCommandLine() {
+        let commands = [
+            ServiceCommands.action("start", unit: "a.service", withSudoPassword: true),
+            ServiceCommands.reboot(withSudoPassword: true),
+            ServiceCommands.shutdown(withSudoPassword: true),
+        ]
+        for command in commands {
+            #expect(command.contains("-S"))
+            #expect(command.contains("-p ''"))
+        }
     }
 
     @Test func journalCommandSupportsFollow() {
@@ -602,7 +635,19 @@ import Testing
         #expect(ProcessCommands.normalizedSignal("9") == nil)
     }
 
-    @Test func theKillLineIsWhatTheProcessesTabAlwaysSent() {
-        #expect(ProcessCommands.kill(pid: 42, signal: "TERM") == "kill -TERM 42 2>&1")
+    @Test func theKillLineChecksTheProcessIsStillThereBeforeSignallingIt() {
+        let command = ProcessCommands.kill(pid: 42, signal: "TERM")
+        #expect(command.contains("kill -0 42 2>/dev/null"))
+        #expect(command.contains("[ -d /proc/42 ]"))
+        #expect(command.contains("kill -TERM 42 2>&1"))
+        #expect(command.contains("echo \(ProcessCommands.goneMarker)"))
+    }
+
+    @Test func aProcessThatExitedBeforeTheSignalLandedIsToldApartFromAFailure() {
+        #expect(ProcessCommands.hadAlreadyExited(ProcessCommands.goneMarker))
+        #expect(!ProcessCommands.hadAlreadyExited(""))
+        #expect(
+            !ProcessCommands.hadAlreadyExited(
+                "bash: line 1: kill: (1) - Operation not permitted"))
     }
 }

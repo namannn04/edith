@@ -4,6 +4,7 @@ import Security
 public enum MachineSecretKind: String, Sendable {
     case password
     case passphrase
+    case sudoPassword
 }
 
 public enum MachineSecrets {
@@ -62,5 +63,37 @@ public enum MachineSecrets {
     public static func deleteAll(machineID: UUID) {
         delete(machineID: machineID, kind: .password)
         delete(machineID: machineID, kind: .passphrase)
+        delete(machineID: machineID, kind: .sudoPassword)
+    }
+}
+
+public enum SudoPassword {
+    public static let hint =
+        "store this account's sudo password with `ed machines edit <machine> "
+        + "--sudo-password-stdin`, or give it passwordless sudo for systemctl"
+
+    public static let refusedHint =
+        "the stored sudo password was refused; replace it with `ed machines edit <machine> "
+        + "--sudo-password-stdin`"
+
+    public static func hint(forRefusal detail: String) -> String? {
+        if PowerOutcome.sudoPasswordRefused(detail) { return refusedHint }
+        return PowerOutcome.needsPrivilege(detail) ? hint : nil
+    }
+
+    public static func stored(machineID: UUID) -> String? {
+        guard let secret = MachineSecrets.get(machineID: machineID, kind: .sudoPassword),
+            !secret.isEmpty
+        else { return nil }
+        return secret
+    }
+
+    public static func isStored(machineID: UUID) -> Bool {
+        stored(machineID: machineID) != nil
+    }
+
+    public static func stdin(machineID: UUID) -> Data? {
+        guard let secret = stored(machineID: machineID) else { return nil }
+        return Data((secret + "\n").utf8)
     }
 }

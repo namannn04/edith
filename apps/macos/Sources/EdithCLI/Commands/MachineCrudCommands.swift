@@ -183,15 +183,31 @@ struct MachinesEditCommand: AsyncParsableCommand {
     @Flag(help: "Read the key file's passphrase from stdin.")
     var keyPassphraseStdin = false
 
+    @Flag(help: "Read this account's sudo password from stdin and store it in the keychain.")
+    var sudoPasswordStdin = false
+
+    @Flag(help: "Forget the stored sudo password.")
+    var forgetSudoPassword = false
+
     func run() async throws {
         try await execute {
             guard !(passwordStdin && keyPassphraseStdin) else {
                 throw CLIFailure("a machine has either a password or a key passphrase, not both")
             }
+            guard !(sudoPasswordStdin && forgetSudoPassword) else {
+                throw CLIFailure("a sudo password is either stored or forgotten, not both")
+            }
+            guard !(sudoPasswordStdin && (passwordStdin || keyPassphraseStdin)) else {
+                throw CLIFailure(
+                    "only one secret can be read from stdin at a time",
+                    hint: "store the sudo password in its own `ed machines edit` call")
+            }
             let secret =
                 passwordStdin
                 ? try SecretInput.readFromStdin("password")
                 : (keyPassphraseStdin ? try SecretInput.readFromStdin("passphrase") : nil)
+            let sudoSecret =
+                sudoPasswordStdin ? try SecretInput.readFromStdin("sudo password") : nil
             var target = try MachineResolver.machine(machine)
             let all = MachineRegistry.machines()
             if let name {
@@ -213,6 +229,12 @@ struct MachinesEditCommand: AsyncParsableCommand {
                 MachineSecrets.set(
                     secret, machineID: target.id,
                     kind: passwordStdin ? .password : .passphrase)
+            }
+            if let sudoSecret {
+                MachineSecrets.set(sudoSecret, machineID: target.id, kind: .sudoPassword)
+            }
+            if forgetSudoPassword {
+                MachineSecrets.delete(machineID: target.id, kind: .sudoPassword)
             }
             AppBridge.post(IPC.Name.machinesChanged)
             guard !json else {

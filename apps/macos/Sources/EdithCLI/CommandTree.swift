@@ -392,7 +392,8 @@ public enum CommandTree {
                         "edit", "Change a machine already on the list.",
                         options: [
                             "--json", "--help", "--name", "--host", "--port", "--user",
-                            "--key", "--agent", "--mac",
+                            "--key", "--agent", "--mac", "--sudo-password-stdin",
+                            "--forget-sudo-password",
                         ],
                         arguments: [.machine]),
                     CommandNode(

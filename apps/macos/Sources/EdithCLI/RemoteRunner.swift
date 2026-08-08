@@ -27,9 +27,11 @@ public struct RemoteRunner {
     }
 
     @discardableResult
-    public func run(_ command: String, timeout: TimeInterval = 60) async throws -> SSHExecResult {
+    public func run(_ command: String, stdin: Data? = nil, timeout: TimeInterval = 60) async throws
+        -> SSHExecResult
+    {
         do {
-            return try await connection.run(command, timeout: timeout)
+            return try await connection.run(command, stdin: stdin, timeout: timeout)
         } catch {
             throw CLIFailure.unavailable(
                 "\(machine.name): \(error.localizedDescription)")

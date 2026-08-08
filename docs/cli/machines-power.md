@@ -229,6 +229,14 @@ machine whose polkit rules already allow it. Stderr is folded into stdout on the
 far side, which is why a refusal comes back as readable prose rather than as an
 empty failure.
 
+When the machine has a sudo password stored, the line is
+`sudo -S -p '' systemctl reboot 2>&1` instead, with the password written to the
+command's standard input rather than put on the command line, and there is no
+fallback: one attempt, and a wrong password is reported as one. Store it with
+`ed machines edit <machine> --sudo-password-stdin`. This is the way that works on
+a stock desktop Linux, where polkit treats an SSH session as inactive and refuses
+`systemctl poweroff` without interactive authentication.
+
 A machine that answers *a password is required* or *Interactive authentication
 required* is reported as having refused, and exits 1, rather than being called
 done. The hint appears only when the output matches one of the phrases that mean
@@ -735,6 +743,7 @@ sent SIGTERM to 4213 on Asus TUF 7
 
 ```json
 {
+  "alreadyExited": false,
   "machine": "Asus TUF 7",
   "pid": 4213,
   "sent": true,
@@ -744,7 +753,8 @@ sent SIGTERM to 4213 on Asus TUF 7
 
 `signal` is the normalised name without the `SIG` prefix, whatever you typed.
 `sent: true` means the remote `kill` exited 0; it is not a claim that the
-process is gone, which for `TERM` is up to the process.
+process is gone, which for `TERM` is up to the process. `alreadyExited: true`
+means the pid was not there to signal, and then `sent` is `false`.
 
 #### Examples
 
@@ -772,18 +782,29 @@ error: there is no signal called BOOM
 hint: signals: TERM, KILL, HUP, INT, QUIT, USR1, USR2
 ```
 
-The remote line is `kill -<SIGNAL> <pid> 2>&1`, run through the login shell with
-a 30 second timeout, so it runs as the SSH user and is subject to that user's
-permissions. There is no sudo fallback here, unlike the unit verbs: signalling
-another user's process comes back as `Operation not permitted` and exits 1.
+The remote line checks the pid is still there with `kill -0` and `/proc` before
+it sends anything, then runs `kill -<SIGNAL> <pid> 2>&1`, through the login shell
+with a 30 second timeout, so it runs as the SSH user and is subject to that
+user's permissions. There is no sudo fallback here, unlike the unit verbs:
+signalling another user's process comes back as `Operation not permitted` and
+exits 1.
 
 ```
 $ ed machines kill tuf 1
 error: could not signal 1 on Asus TUF 7: bash: line 1: kill: (1) - Operation not permitted
 ```
 
-A pid that no longer exists is also a remote failure and exits 1, with the
-shell's `No such process` in the message. Zero and negative ids are rejected
+A pid that is already gone is not a failure, because the process list a pid comes
+from is a two second old snapshot and short lived processes routinely leave
+between the sample and the signal. It exits 0 and says so, rather than passing
+the shell's `No such process` on:
+
+```
+$ ed machines kill tuf 205886
+205886 had already exited on Asus TUF 7
+```
+
+Zero and negative ids are rejected
 locally with `a process id is greater than zero` and exit 1, though a negative
 one needs `--` to get past the parser at all: a bare `ed machines kill tuf -1`
 reads `-1` as an unknown option and exits 2, while `ed machines kill tuf -- -1`
@@ -948,6 +969,11 @@ talks to the app.
   the presence of that phrase alone is enough for `ed` to call it a failure. The
   unit changes state on the machine and `ed` exits 1 saying it could not. If you
   see that, check with `ed machines services ls <machine>` before retrying.
+- A stored sudo password removes both of those. Every privileged verb becomes a
+  single `sudo -S -p '' systemctl ...` with the password on standard input, so
+  there is no second attempt to leave stale text in the buffer and no order to
+  get wrong. A password the machine rejects is reported as rejected, with a hint
+  naming the flag that replaces it, rather than as a missing privilege.
 - The phrases that count as a privilege problem are `password is required`,
   `interactive authentication required`, `access denied`, `not authorized` and
   `permission denied`, matched case-insensitively anywhere in the output. A unit

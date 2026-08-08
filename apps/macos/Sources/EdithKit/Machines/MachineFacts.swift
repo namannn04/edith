@@ -15,8 +15,21 @@ public struct MachineSessionSummary: Equatable, Sendable {
 public enum MachineFacts {
     public static let whoCommand = "who 2>/dev/null | head -20"
 
-    public static let macAddressCommand =
-        "cat /sys/class/net/*/address 2>/dev/null | grep -v '00:00:00:00:00:00' | head -1"
+    public static let macAddressCommand = """
+        wireless=
+        for iface in /sys/class/net/*; do
+          [ -e "$iface/device" ] || continue
+          address=$(cat "$iface/address" 2>/dev/null)
+          case "$address" in ""|00:00:00:00:00:00) continue ;; esac
+          if [ -d "$iface/wireless" ] || [ -e "$iface/phy80211" ]; then
+            [ -n "$wireless" ] || wireless=$address
+          else
+            echo "$address"
+            exit 0
+          fi
+        done
+        if [ -n "$wireless" ]; then echo "$wireless"; fi
+        """
 
     public static let updatesCommand = """
         if command -v apt-get >/dev/null 2>&1; then \
@@ -57,9 +70,14 @@ public enum ServiceCommands {
             + " | head -200"
     }
 
-    public static func action(_ action: String, unit: String) -> String {
-        "systemctl \(action) \(ShellQuote.quote(unit)) 2>&1 || "
-            + "sudo -n systemctl \(action) \(ShellQuote.quote(unit)) 2>&1"
+    public static func action(_ action: String, unit: String, withSudoPassword: Bool = false)
+        -> String
+    {
+        guard withSudoPassword else {
+            return "systemctl \(action) \(ShellQuote.quote(unit)) 2>&1 || "
+                + "sudo -n systemctl \(action) \(ShellQuote.quote(unit)) 2>&1"
+        }
+        return "sudo -S -p '' systemctl \(action) \(ShellQuote.quote(unit)) 2>&1"
     }
 
     public static func journal(unit: String, lines: Int, follow: Bool) -> String {
@@ -68,12 +86,16 @@ public enum ServiceCommands {
         return command + " 2>&1"
     }
 
-    public static func reboot() -> String {
-        "sudo -n systemctl reboot 2>&1 || systemctl reboot 2>&1"
+    public static func reboot(withSudoPassword: Bool = false) -> String {
+        withSudoPassword
+            ? "sudo -S -p '' systemctl reboot 2>&1"
+            : "sudo -n systemctl reboot 2>&1 || systemctl reboot 2>&1"
     }
 
-    public static func shutdown() -> String {
-        "sudo -n systemctl poweroff 2>&1 || systemctl poweroff 2>&1"
+    public static func shutdown(withSudoPassword: Bool = false) -> String {
+        withSudoPassword
+            ? "sudo -S -p '' systemctl poweroff 2>&1"
+            : "sudo -n systemctl poweroff 2>&1 || systemctl poweroff 2>&1"
     }
 
     public static let actions = ["start", "stop", "restart"]
@@ -82,8 +104,15 @@ public enum ServiceCommands {
 public enum ProcessCommands {
     public static let signals = ["TERM", "KILL", "HUP", "INT", "QUIT", "USR1", "USR2"]
 
+    public static let goneMarker = "@EDITH-PROCESS-GONE@"
+
     public static func kill(pid: Int, signal: String) -> String {
-        "kill -\(signal) \(pid) 2>&1"
+        "if kill -0 \(pid) 2>/dev/null || [ -d /proc/\(pid) ]; then "
+            + "kill -\(signal) \(pid) 2>&1; else echo \(goneMarker); fi"
+    }
+
+    public static func hadAlreadyExited(_ output: String) -> Bool {
+        output.contains(goneMarker)
     }
 
     public static func normalizedSignal(_ raw: String) -> String? {
@@ -114,17 +143,28 @@ public enum PowerOutcome {
             || lowered.contains("permission denied")
     }
 
+    public static func sudoPasswordRefused(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        return lowered.contains("incorrect password attempt")
+            || lowered.contains("sorry, try again")
+    }
+
     public static func explain(_ error: Error) -> String {
+        let text = error.localizedDescription
         let detail =
-            error.localizedDescription
+            text
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .last ?? ""
         guard !detail.isEmpty else { return "The machine refused the request." }
+        guard !sudoPasswordRefused(text) else {
+            return "The sudo password saved for this machine was refused."
+        }
         guard needsPrivilege(detail) else { return detail }
         return detail
-            + " Give this account passwordless sudo for systemctl, or run it over ssh yourself."
+            + " Save this account's sudo password in the machine's settings, or give it"
+            + " passwordless sudo for systemctl."
     }
 }
 

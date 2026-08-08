@@ -23,15 +23,15 @@ struct MachinesPage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DashSkin.paper(dark))
         .sheet(isPresented: $addSheetPresented) {
-            AddMachineSheet { machine, secret in
+            AddMachineSheet { machine, secrets in
                 model.add(machine)
-                if let secret { store(secret, for: machine) }
+                store(secrets, for: machine)
             }
         }
         .sheet(item: $editingMachine) { machine in
-            AddMachineSheet(editing: machine) { updated, secret in
+            AddMachineSheet(editing: machine) { updated, secrets in
                 model.update(updated)
-                if let secret { store(secret, for: updated) }
+                store(secrets, for: updated)
             }
         }
         .confirmationDialog(
@@ -168,9 +168,17 @@ struct MachinesPage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func store(_ secret: String, for machine: Machine) {
-        let kind: MachineSecretKind = machine.auth == .password ? .password : .passphrase
-        MachineSecrets.set(secret, machineID: machine.id, kind: kind)
+    private func store(_ secrets: AddMachineSheet.Secrets, for machine: Machine) {
+        if let login = secrets.login {
+            let kind: MachineSecretKind = machine.auth == .password ? .password : .passphrase
+            MachineSecrets.set(login, machineID: machine.id, kind: kind)
+        }
+        if let sudo = secrets.sudo {
+            MachineSecrets.set(sudo, machineID: machine.id, kind: .sudoPassword)
+        }
+        if secrets.forgetSudo {
+            MachineSecrets.delete(machineID: machine.id, kind: .sudoPassword)
+        }
     }
 }
 
