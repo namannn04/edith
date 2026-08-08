@@ -286,7 +286,8 @@ struct MachinesForwardsCommand: AsyncParsableCommand {
         abstract: "The port forwards saved for a machine.",
         subcommands: [
             MachinesForwardsListCommand.self, MachinesForwardsAddCommand.self,
-            MachinesForwardsRemoveCommand.self,
+            MachinesForwardsRemoveCommand.self, MachinesForwardsToggleCommand.self,
+            MachinesForwardsOffCommand.self,
         ],
         defaultSubcommand: MachinesForwardsListCommand.self,
         aliases: ["forward"])
@@ -581,6 +582,81 @@ struct MachinesSnippetsRemoveCommand: AsyncParsableCommand {
                 return
             }
             CLIOut.out("removed \(snippet.title)")
+        }
+    }
+}
+
+struct MachinesForwardsToggleCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "on",
+        abstract: "Open a saved port forward on the shared connection.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "The forward number, counting from 1.")
+    var index: Int
+
+    func run() async throws {
+        try await ForwardBridge.set(true, machine: machine, index: index, json: json)
+    }
+}
+
+struct MachinesForwardsOffCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "off", abstract: "Close a saved port forward.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "The forward number, counting from 1.")
+    var index: Int
+
+    func run() async throws {
+        try await ForwardBridge.set(false, machine: machine, index: index, json: json)
+    }
+}
+
+extension ForwardBridge {
+    static func set(_ active: Bool, machine: String, index: Int, json: Bool) async throws {
+        try await execute {
+            let found = try ForwardBridge.forwards(machine)
+            guard index >= 1, index <= found.all.count else {
+                throw CLIFailure.notFound(
+                    "there is no forward \(index) on \(found.machine.name)",
+                    hint: "it has \(found.all.count), numbered from 1")
+            }
+            let forward = found.all[index - 1]
+            let runner = try await MachineResolver.runner(machine)
+            if active {
+                do {
+                    try await runner.ssh.addForward(forward)
+                } catch {
+                    throw CLIFailure(
+                        "could not open \(forward.forwardSpec) on \(found.machine.name)",
+                        hint: error.localizedDescription)
+                }
+            } else {
+                await runner.ssh.cancelForward(forward)
+            }
+            guard !json else {
+                guard case var .object(fields) = ForwardBridge.json(forward, index: index)
+                else { return }
+                fields["open"] = .bool(active)
+                CLIOut.json(.object(fields))
+                return
+            }
+            CLIOut.out(
+                active
+                    ? "localhost:\(forward.localPort) now reaches "
+                        + "\(forward.remoteHost):\(forward.remotePort)"
+                    : "closed \(forward.forwardSpec)")
         }
     }
 }

@@ -16,6 +16,7 @@ struct MachinesDockerCommand: AsyncParsableCommand {
             DockerNetworksCommand.self, DockerDiskUsageCommand.self, DockerLogsCommand.self,
             DockerInspectCommand.self, DockerStartCommand.self, DockerStopCommand.self,
             DockerRestartCommand.self, DockerRemoveCommand.self,
+            DockerPauseCommand.self, DockerUnpauseCommand.self,
             DockerRemoveImageCommand.self, DockerRemoveVolumeCommand.self,
             DockerPruneCommand.self,
             DockerComposeCommand.self,
@@ -347,6 +348,40 @@ struct DockerRemoveCommand: DockerLifecycleCommand {
     static let configuration = CommandConfiguration(
         commandName: "rm", abstract: "Remove a container, forcing it down first.")
     static let action = "rm"
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Container name or id.")
+    var container: String
+
+    func run() async throws { try await apply() }
+}
+
+struct DockerPauseCommand: DockerLifecycleCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "pause", abstract: "Freeze a container's processes.")
+    static let action = "pause"
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Container name or id.")
+    var container: String
+
+    func run() async throws { try await apply() }
+}
+
+struct DockerUnpauseCommand: DockerLifecycleCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "unpause", abstract: "Let a frozen container run again.")
+    static let action = "unpause"
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
     var json = false

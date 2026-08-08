@@ -237,6 +237,11 @@ struct MachinesExecCommand: AsyncParsableCommand {
         abstract: "Run a command on a machine, passing through both streams.",
         aliases: ["run"])
 
+    @Flag(
+        name: [.customLong("tty"), .customShort("t")],
+        help: "Run it on a terminal, so vim, top, sudo prompts and docker exec -it work.")
+    var tty = false
+
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
@@ -252,6 +257,12 @@ struct MachinesExecCommand: AsyncParsableCommand {
                 throw CLIFailure("name a command to run, for example `ed \(machine) uptime`")
             }
             let runner = try await MachineResolver.runner(machine)
+            if tty {
+                let stored = MachineWorkingDirectory.load(machineID: runner.machine.id)
+                let line = words.joined(separator: " ")
+                let prefixed = MachineWorkingDirectory.prefixed(line, directory: stored)
+                throw ExitCode(runner.interactive(words.isEmpty ? nil : prefixed))
+            }
             let stored = MachineWorkingDirectory.load(machineID: runner.machine.id)
             guard !MachineWorkingDirectory.isChangeDirectory(words) else {
                 try await changeDirectory(

@@ -47,6 +47,27 @@ public struct RemoteRunner {
         return result.stdoutText
     }
 
+    public func interactive(_ command: String?) -> Int32 {
+        let process = Process()
+        process.executableURL = SSHConnection.executable
+        process.arguments = connection.terminalArguments(remoteCommand: command)
+        process.environment = connection.terminalEnvironment().reduce(into: [String: String]()) {
+            partial, entry in
+            guard let index = entry.firstIndex(of: "=") else { return }
+            partial[String(entry[entry.startIndex..<index])] =
+                String(entry[entry.index(after: index)...])
+        }
+        process.standardInput = FileHandle.standardInput
+        process.standardOutput = FileHandle.standardOutput
+        process.standardError = FileHandle.standardError
+        guard (try? process.run()) != nil else {
+            CLIOut.note("error: could not start ssh")
+            return 1
+        }
+        process.waitUntilExit()
+        return process.terminationStatus
+    }
+
     public func passthrough(_ command: String) async -> Int32 {
         let process = connection.streamProcess(command: command)
         process.standardInput = FileHandle.standardInput

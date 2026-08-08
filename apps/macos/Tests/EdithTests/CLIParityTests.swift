@@ -103,6 +103,33 @@ enum UIParity {
         UICapability(
             "Machine processes", "force kill a process",
             ["machines", "kill", "box", "42", "--signal", "KILL"]),
+        UICapability(
+            "Machine tools", "switch a port forward on",
+            ["machines", "forwards", "on", "box", "1"]),
+        UICapability(
+            "Machine tools", "switch a port forward off",
+            ["machines", "forwards", "off", "box", "1"]),
+        UICapability(
+            "Machine terminal", "type into an interactive shell",
+            ["machines", "exec", "--tty", "box", "top"]),
+        UICapability(
+            "Docker window", "open a shell in a container",
+            ["machines", "exec", "--tty", "box", "docker exec -it api sh"]),
+        UICapability(
+            "Docker window", "pause a container",
+            ["machines", "docker", "pause", "box", "api"]),
+        UICapability(
+            "Docker window", "unpause a container",
+            ["machines", "docker", "unpause", "box", "api"]),
+        UICapability(
+            "Machine finder", "search the folder",
+            ["machines", "files", "search", "box", "/a", "x"]),
+        UICapability(
+            "Machine finder", "get info on a directory",
+            ["machines", "files", "info", "box", "/a"]),
+        UICapability(
+            "Machine finder", "duplicate a file",
+            ["machines", "files", "duplicate", "box", "/a"]),
         UICapability("Machines", "open the shared connection", ["machines", "connect", "box"]),
         UICapability("Machines", "close the shared connection", ["machines", "disconnect", "box"]),
 
