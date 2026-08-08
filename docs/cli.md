@@ -183,7 +183,16 @@ timestamps. Writing one exits 1.
 `export` emits only the settings you have actually changed, which is exactly
 what `import` accepts, so moving your setup to another Mac is a two-command
 operation. `--defaults` includes everything at its current effective value.
-`--dry-run` reports what would change without writing.
+`--dry-run` reports what would change without writing. A setting whose value
+already matches is counted as unchanged rather than applied, so re-importing a
+document you just exported reports that nothing would change:
+
+```
+$ ed config export > edith.json
+$ ed config import edith.json --dry-run
+would apply 0 settings
+83 already matched
+```
 
 Useful ones:
 

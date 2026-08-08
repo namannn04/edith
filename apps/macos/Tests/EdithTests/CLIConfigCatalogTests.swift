@@ -343,7 +343,8 @@ enum CatalogSamples {
             try? Data(exported.stdout.utf8).write(to: url)
             let imported = await CLIProbe.capture(["config", "import", url.path, "--json"])
             #expect(imported.code == 0)
-            #expect((imported.object?["applied"] as? [Any])?.count == 2)
+            #expect((imported.object?["applied"] as? [Any])?.isEmpty == true)
+            #expect((imported.object?["unchanged"] as? [Any])?.count == 2)
             #expect((imported.object?["skipped"] as? [Any])?.isEmpty == true)
         }
         try? FileManager.default.removeItem(at: url)

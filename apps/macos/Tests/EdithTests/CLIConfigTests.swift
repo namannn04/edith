@@ -168,3 +168,68 @@ import Testing
         #expect(fields["default"] == .int(60))
     }
 }
+
+@Suite struct CLIConfigImportComparisonTests {
+    @Test func reimportingAFreshExportChangesNothing() async throws {
+        try await CLIProbe.inWorld { world in
+            world.shared.set(71, forKey: "warnPercent")
+            let exported = await CLIProbe.capture(["config", "export"])
+            let file = world.sandbox.appendingPathComponent("export.json")
+            try Data(exported.stdout.utf8).write(to: file)
+            let dry = await CLIProbe.capture([
+                "config", "import", file.path, "--dry-run", "--json",
+            ])
+            #expect(dry.code == 0)
+            #expect((dry.object?["applied"] as? [Any])?.isEmpty == true)
+            #expect((dry.object?["unchanged"] as? [Any])?.isEmpty == false)
+        }
+    }
+
+    @Test func aSettingThatReallyDiffersIsStillReported() async throws {
+        try await CLIProbe.inWorld { world in
+            world.shared.set(60, forKey: "warnPercent")
+            let file = world.sandbox.appendingPathComponent("one.json")
+            try Data("{\"warnPercent\": 80}".utf8).write(to: file)
+            let dry = await CLIProbe.capture([
+                "config", "import", file.path, "--dry-run", "--json",
+            ])
+            #expect((dry.object?["applied"] as? [String]) == ["warnPercent"])
+            #expect(world.shared.integer(forKey: "warnPercent") == 60)
+        }
+    }
+}
+
+@Suite struct ClipboardTextClassificationTests {
+    private func entry(ext: String, types: [String]) -> ClipboardEntry {
+        ClipboardEntry(
+            sha256: "abc", types: types, ext: ext, sourceApp: nil, sourceBundleID: nil,
+            size: 3, preview: "hi")
+    }
+
+    @Test func aTextExtensionIsTextWhateverUTIWasStoredWithIt() {
+        for uti in ["public.url", "org.chromium.source-url", "dyn.ah62d4rv4gu81y3", "public.text"] {
+            let row = entry(ext: "txt", types: [uti])
+            #expect(row.isTextual, "txt with \(uti) reported as \(row.kind)")
+        }
+    }
+
+    @Test func theFlagAgreesWithWhetherTheTextCanBeRead() {
+        let data = Data("hello".utf8)
+        for ext in ["txt", "json", "xml", "sql", "csv", "yaml"] {
+            let row = entry(ext: ext, types: ["public.data"])
+            #expect(row.isTextual)
+            #expect(ClipboardRepository.plainText(for: row, data: data) != nil)
+        }
+        for ext in ["png", "url", "files", "zip"] {
+            let row = entry(ext: ext, types: ["public.data"])
+            #expect(!row.isTextual)
+            #expect(ClipboardRepository.plainText(for: row, data: data) == nil)
+        }
+    }
+
+    @Test func anUnknownExtensionIsNotDecodedAsTextByAccident() {
+        let row = entry(ext: "sqlite3", types: ["public.data"])
+        #expect(!row.isTextual)
+        #expect(ClipboardRepository.plainText(for: row, data: Data("hi".utf8)) == nil)
+    }
+}
