@@ -40,6 +40,20 @@ public enum RemoteCompletion {
         "compgen -c -- " + ShellQuote.quote(prefix) + " 2>/dev/null | sort -u | head -2000"
     }
 
+    public static let directoryCommands: Set<String> = ["cd", "pushd", "rmdir"]
+
+    public static func directoriesCommand(prefix: String) -> String {
+        ShellQuote.command([
+            "bash", "-c",
+            "compgen -d -- \"$1\" 2>/dev/null | sort -u | head -2000", "ed-complete", prefix,
+        ]) + " 2>/dev/null"
+    }
+
+    public static func wantsDirectories(words: [String], cursor: Int) -> Bool {
+        guard cursor >= 1, let first = words.first else { return false }
+        return directoryCommands.contains(first)
+    }
+
     public static func harnessCommand(words: [String], cursor: Int) -> String {
         var argv = ["bash", "-c", harness, "ed-complete", String(cursor)]
         argv += words
@@ -52,11 +66,16 @@ public enum RemoteCompletion {
         guard cursor >= 0 else { return [] }
         guard MachineDirectory.hasLiveControlSocket(machine) else { return [] }
         let connection = SSHConnection(machine: machine)
+        let remote: String
+        if cursor == 0 {
+            remote = commandNamesCommand(prefix: request.current)
+        } else if wantsDirectories(words: words, cursor: cursor) {
+            remote = directoriesCommand(prefix: request.current)
+        } else {
+            remote = harnessCommand(words: words, cursor: cursor)
+        }
         let command = MachineWorkingDirectory.prefixed(
-            cursor == 0
-                ? commandNamesCommand(prefix: request.current)
-                : harnessCommand(words: words, cursor: cursor),
-            directory: MachineWorkingDirectory.load(machineID: machine.id))
+            remote, directory: MachineWorkingDirectory.load(machineID: machine.id))
         guard let result = try? await connection.run(command, timeout: 6), result.succeeded else {
             return []
         }
