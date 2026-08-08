@@ -144,6 +144,16 @@ public enum CompletionScripts {
     }
 
     static func searchedZshDirectory(home: URL) -> URL? {
+        fpathProbeCache.directory(forHome: home.path) { probeZshDirectory(home: home) }
+    }
+
+    public static func forgetProbedShellDirectories() {
+        fpathProbeCache.forgetEverything()
+    }
+
+    static let fpathProbeCache = FpathProbeCache()
+
+    private static func probeZshDirectory(home: URL) -> URL? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-ic", "print -l -- $fpath"]
@@ -219,6 +229,7 @@ public enum CompletionScripts {
         try Data(contents(for: shell).utf8).write(to: file, options: .atomic)
         record(file, for: shell, store: store)
         linkFromProfile(shell, script: file, home: home, fileManager: fileManager)
+        forgetProbedShellDirectories()
         return file
     }
 
@@ -318,5 +329,34 @@ public enum CompletionScripts {
             found.append(.fish)
         }
         return found
+    }
+}
+
+final class FpathProbeCache: @unchecked Sendable {
+    static let lifetime: Duration = .seconds(30)
+
+    private struct Probed {
+        var directory: URL?
+        var goesStaleAt: ContinuousClock.Instant
+    }
+
+    private let lock = NSLock()
+    private var probed: [String: Probed] = [:]
+
+    func directory(forHome home: String, whenStale probe: () -> URL?) -> URL? {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = ContinuousClock.now
+        if let entry = probed[home], entry.goesStaleAt > now { return entry.directory }
+        let found = probe()
+        probed[home] = Probed(
+            directory: found, goesStaleAt: now.advanced(by: Self.lifetime))
+        return found
+    }
+
+    func forgetEverything() {
+        lock.lock()
+        defer { lock.unlock() }
+        probed.removeAll()
     }
 }
