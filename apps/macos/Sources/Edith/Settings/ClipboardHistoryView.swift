@@ -11,22 +11,29 @@ struct ClipboardHistoryView: View {
     @State private var copiedID: String?
 
     private var filtered: [ClipboardEntry] {
-        let query = filterText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matched = entries.filter { entry in
-            query.isEmpty
-                || (entry.preview?.lowercased().contains(query) ?? false)
-                || (entry.sourceApp?.lowercased().contains(query) ?? false)
-        }
-        return matched.sorted { lhs, rhs in
-            if lhs.pinned != rhs.pinned { return lhs.pinned }
-            return lhs.lastCopiedAt > rhs.lastCopiedAt
-        }
+        ClipboardActions.arrange(entries, query: filterText)
+    }
+
+    private var summary: String {
+        let stats = ClipboardActions.stats(entries)
+        var parts = [stats.count == 1 ? "1 item" : "\(stats.count) items"]
+        parts.append(Self.byteCountFormatter.string(fromByteCount: Int64(stats.bytes)))
+        if stats.pinned > 0 { parts.append("\(stats.pinned) pinned") }
+        let shown = filtered.count
+        if shown != stats.count { parts.append("\(shown) shown") }
+        return parts.joined(separator: " · ")
     }
 
     var body: some View {
         VStack(spacing: UIScale.pt(0)) {
-            HStack {
-                Text("Clipboard History").font(.system(size: UIScale.pt(13), weight: .semibold))
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                    Text("Clipboard History")
+                        .font(.system(size: UIScale.pt(13), weight: .semibold))
+                    Text(summary)
+                        .font(.system(size: UIScale.pt(10)))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Done") { dismiss() }
                     .pointerCursor()
@@ -52,7 +59,7 @@ struct ClipboardHistoryView: View {
     }
 
     private func reload() {
-        entries = ClipboardRepository.loadEntries()
+        entries = ClipboardActions.arrange(ClipboardRepository.loadEntries())
     }
 
     private func row(_ entry: ClipboardEntry) -> some View {
@@ -117,7 +124,7 @@ struct ClipboardHistoryView: View {
 
     private func copy(_ entry: ClipboardEntry) {
         let plain = SharedDefaults.store.bool(forKey: "clipboardPastePlainText")
-        ClipboardRepository.copyToPasteboard(entry, asPlainText: plain)
+        apply { try ClipboardActions.copy(entry, asPlainText: plain) }
         copiedID = entry.id
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             if copiedID == entry.id { copiedID = nil }
@@ -125,19 +132,16 @@ struct ClipboardHistoryView: View {
     }
 
     private func togglePin(_ entry: ClipboardEntry) {
-        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
-        entries[index].pinned.toggle()
-        persist()
+        apply { try ClipboardActions.togglePin(ids: [entry.id]) }
     }
 
     private func delete(_ entry: ClipboardEntry) {
-        entries.removeAll { $0.id == entry.id }
-        persist(pruneBlobs: true)
+        apply { try ClipboardActions.delete(ids: [entry.id]) }
     }
 
-    private func persist(pruneBlobs: Bool = false) {
-        try? ClipboardRepository.saveEntries(entries)
-        if pruneBlobs { ClipboardRepository.pruneOrphanBlobs(keeping: entries) }
+    private func apply(_ action: () throws -> ClipboardActions.Outcome) {
+        guard let outcome = try? action(), outcome.changed > 0 else { return }
+        entries = ClipboardActions.arrange(outcome.entries)
         IPC.post(IPC.Name.clipboardChanged)
     }
 

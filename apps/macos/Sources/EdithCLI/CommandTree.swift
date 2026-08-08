@@ -209,13 +209,22 @@ public enum CommandTree {
                 children: [
                     CommandNode(
                         "ls", "List the clipboard history.", aliases: ["list"],
-                        options: ["--json", "--help", "--pinned", "--limit"]),
+                        options: ["--json", "--help", "--pinned", "--search", "--limit"]),
+                    CommandNode(
+                        "stats", "How many entries there are and what they weigh.",
+                        aliases: ["size"], options: common),
                     CommandNode(
                         "get", "Print one entry as text.", options: common,
                         arguments: [.historyIndex]),
                     CommandNode(
                         "copy", "Put one entry back on the pasteboard.",
                         options: ["--json", "--help", "--plain"], arguments: [.historyIndex]),
+                    CommandNode(
+                        "pin", "Keep one entry at the top.", options: common,
+                        arguments: [.historyIndex]),
+                    CommandNode(
+                        "unpin", "Let one entry age out again.", options: common,
+                        arguments: [.historyIndex]),
                     CommandNode(
                         "rm", "Forget one entry.", options: ["--json"],
                         arguments: [.historyIndex]),
@@ -272,6 +281,55 @@ public enum CommandTree {
                     CommandNode(
                         "show", "One machine, with live facts.", options: common,
                         arguments: [.machine]),
+                    CommandNode(
+                        "add", "Add a machine to Edith's list.",
+                        options: [
+                            "--json", "--help", "--host", "--port", "--user", "--key",
+                            "--alias", "--mac",
+                        ],
+                        arguments: [.free]),
+                    CommandNode(
+                        "edit", "Change a machine already on the list.",
+                        options: [
+                            "--json", "--help", "--name", "--host", "--port", "--user",
+                            "--key", "--agent", "--mac",
+                        ],
+                        arguments: [.machine]),
+                    CommandNode(
+                        "rm", "Forget a machine and everything saved against it.",
+                        aliases: ["remove"], options: ["--json", "--help", "--yes"],
+                        arguments: [.machine]),
+                    CommandNode(
+                        "forwards", "Saved port forwards.", aliases: ["forward"],
+                        children: [
+                            CommandNode(
+                                "ls", "List a machine's port forwards.", aliases: ["list"],
+                                options: common, arguments: [.machine]),
+                            CommandNode(
+                                "add", "Save a port forward.",
+                                options: [
+                                    "--json", "--help", "--local", "--remote",
+                                    "--remote-host", "--title",
+                                ],
+                                arguments: [.machine]),
+                            CommandNode(
+                                "rm", "Forget one port forward.", aliases: ["remove"],
+                                options: common, arguments: [.machine, .historyIndex]),
+                        ]),
+                    CommandNode(
+                        "snippets", "Saved commands.", aliases: ["snippet"],
+                        children: [
+                            CommandNode(
+                                "ls", "List a machine's snippets.", aliases: ["list"],
+                                options: common, arguments: [.machine]),
+                            CommandNode(
+                                "add", "Save a command against a machine.",
+                                options: ["--json", "--help", "--shared"],
+                                arguments: [.machine, .free]),
+                            CommandNode(
+                                "rm", "Forget one snippet.", aliases: ["remove"],
+                                options: common, arguments: [.machine, .historyIndex]),
+                        ]),
                     CommandNode(
                         "metrics", "Sample a machine.",
                         options: ["--json", "--follow", "--interval", "--processes"],
@@ -330,6 +388,14 @@ public enum CommandTree {
                             CommandNode(
                                 "rm", "Remove a container.", options: ["--json"],
                                 arguments: [.machine, .container]),
+                            CommandNode(
+                                "rmi", "Remove an image.", aliases: ["remove-image"],
+                                options: ["--json", "--help", "--force"],
+                                arguments: [.machine, .free]),
+                            CommandNode(
+                                "volume-rm", "Remove a volume and the data in it.",
+                                options: ["--json", "--help", "--yes"],
+                                arguments: [.machine, .free]),
                             CommandNode(
                                 "prune", "Reclaim space from unused objects.",
                                 options: ["--json", "--help", "--yes"],

@@ -20,7 +20,10 @@ struct MachinesCommand: AsyncParsableCommand {
             `ed <machine> <command...>` is shorthand for `ed machines <machine> <command...>`.
             """,
         subcommands: [
-            MachinesListCommand.self, MachinesShowCommand.self, MachinesMetricsCommand.self,
+            MachinesListCommand.self, MachinesShowCommand.self, MachinesAddCommand.self,
+            MachinesEditCommand.self, MachinesRemoveCommand.self,
+            MachinesForwardsCommand.self, MachinesSnippetsCommand.self,
+            MachinesMetricsCommand.self,
             MachinesExecCommand.self, MachinesFilesCommand.self, MachinesDockerCommand.self,
             MachinesServicesCommand.self, MachinesConnectCommand.self,
             MachinesDisconnectCommand.self,

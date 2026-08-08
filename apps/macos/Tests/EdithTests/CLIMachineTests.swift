@@ -121,3 +121,183 @@ import Testing
         #expect(fields["compose"] == .bool(true))
     }
 }
+
+@Suite struct CLIMachineCrudTests {
+    static func seed() {
+        MachineRegistry.add(
+            Machine(name: "Builder", host: "10.0.0.9", port: 2222, username: "root"))
+    }
+
+    @Test func addingAMachinePutsItOnTheListTheAppReads() async throws {
+        try await CLIProbe.inWorld { world in
+            let result = await CLIProbe.capture([
+                "machines", "add", "shed", "--host", "10.0.0.4", "--user", "pi", "--json",
+            ])
+            #expect(result.code == 0)
+            #expect(result.object?["name"] as? String == "shed")
+            let stored = MachineRegistry.machines()
+            #expect(stored.map(\.name) == ["shed"])
+            #expect(stored.first?.username == "pi")
+            #expect(world.postedNames().contains(IPC.Name.machinesChanged.rawValue))
+        }
+    }
+
+    @Test func aDuplicateNameIsRefusedRatherThanMakingTheNameAmbiguous() async throws {
+        try await CLIProbe.inWorld { _ in
+            Self.seed()
+            let result = await CLIProbe.capture([
+                "machines", "add", "builder", "--host", "10.0.0.1",
+            ])
+            #expect(result.code == ExitCodes.failure)
+            #expect(result.stdout.isEmpty)
+            #expect(MachineRegistry.machines().count == 1)
+        }
+    }
+
+    @Test func aPortOutsideTheLegalRangeIsRejectedBeforeAnythingIsWritten() async throws {
+        try await CLIProbe.inWorld { _ in
+            let result = await CLIProbe.capture([
+                "machines", "add", "shed", "--host", "10.0.0.4", "--port", "70000",
+            ])
+            #expect(result.code == ExitCodes.failure)
+            #expect(MachineRegistry.machines().isEmpty)
+        }
+    }
+
+    @Test func aKeyFileThatIsNotThereIsNotFoundRatherThanStoredBlindly() async throws {
+        try await CLIProbe.inWorld { _ in
+            let result = await CLIProbe.capture([
+                "machines", "add", "shed", "--host", "10.0.0.4", "--key", "/nowhere/id_ed25519",
+            ])
+            #expect(result.code == ExitCodes.notFound)
+            #expect(MachineRegistry.machines().isEmpty)
+        }
+    }
+
+    @Test func editingChangesOnlyWhatIsNamed() async throws {
+        try await CLIProbe.inWorld { _ in
+            Self.seed()
+            let before = MachineRegistry.machines()[0]
+            let result = await CLIProbe.capture([
+                "machines", "edit", "builder", "--name", "shed", "--json",
+            ])
+            #expect(result.code == 0)
+            let after = MachineRegistry.machines()[0]
+            #expect(after.name == "shed")
+            #expect(after.id == before.id)
+            #expect(after.host == before.host)
+            #expect(after.port == before.port)
+            #expect(after.username == before.username)
+        }
+    }
+
+    @Test func removingWithoutSayingYesTouchesNothing() async throws {
+        try await CLIProbe.inWorld { world in
+            Self.seed()
+            let result = await CLIProbe.capture(["machines", "rm", "builder", "--json"])
+            #expect(result.code == 0)
+            #expect(result.object?["removed"] as? Bool == false)
+            #expect(MachineRegistry.machines().count == 1)
+            #expect(!world.postedNames().contains(IPC.Name.machinesChanged.rawValue))
+        }
+    }
+
+    @Test func removingTakesTheForwardsAndSnippetsWithIt() async throws {
+        try await CLIProbe.inWorld { _ in
+            Self.seed()
+            let target = MachineRegistry.machines()[0]
+            let other = Machine(name: "Other", host: "10.0.0.5")
+            MachineRegistry.add(other)
+            MachineRegistry.addForward(
+                PortForward(machineID: target.id, localPort: 8080, remotePort: 80))
+            MachineRegistry.addForward(
+                PortForward(machineID: other.id, localPort: 9090, remotePort: 90))
+            MachineRegistry.addSnippet(
+                CommandSnippet(machineID: target.id, title: "logs", command: "journalctl"))
+
+            let result = await CLIProbe.capture(["machines", "rm", "builder", "--yes", "--json"])
+            #expect(result.code == 0)
+            #expect(result.object?["forwards"] as? Int == 1)
+            #expect(result.object?["snippets"] as? Int == 1)
+            #expect(MachineRegistry.machines().map(\.name) == ["Other"])
+            #expect(MachineRegistry.forwards().map(\.localPort) == [9090])
+            #expect(MachineRegistry.snippets().isEmpty)
+        }
+    }
+
+    @Test func forwardsAreNumberedByLocalPortAndCannotCollide() async throws {
+        try await CLIProbe.inWorld { _ in
+            Self.seed()
+            for port in ["9090", "8080"] {
+                let added = await CLIProbe.capture([
+                    "machines", "forwards", "add", "builder", "--local", port,
+                    "--remote", "80", "--json",
+                ])
+                #expect(added.code == 0)
+            }
+            let listed = await CLIProbe.capture([
+                "machines", "forwards", "ls", "builder", "--json",
+            ])
+            let rows = listed.array as? [[String: Any]] ?? []
+            #expect(rows.map { $0["localPort"] as? Int } == [8080, 9090])
+
+            let clash = await CLIProbe.capture([
+                "machines", "forwards", "add", "builder", "--local", "8080",
+                "--remote", "81", "--json",
+            ])
+            #expect(clash.code == ExitCodes.failure)
+            #expect(MachineRegistry.forwards().count == 2)
+
+            let removed = await CLIProbe.capture([
+                "machines", "forwards", "rm", "builder", "1", "--json",
+            ])
+            #expect(removed.code == 0)
+            #expect(MachineRegistry.forwards().map(\.localPort) == [9090])
+        }
+    }
+
+    @Test func aForwardNumberOutsideTheListIsNotFound() async throws {
+        try await CLIProbe.inWorld { _ in
+            Self.seed()
+            let result = await CLIProbe.capture(["machines", "forwards", "rm", "builder", "4"])
+            #expect(result.code == ExitCodes.notFound)
+            #expect(result.stderr.contains("numbered from 1"))
+        }
+    }
+
+    @Test func aSharedSnippetShowsUpOnEveryMachine() async throws {
+        try await CLIProbe.inWorld { _ in
+            Self.seed()
+            MachineRegistry.add(Machine(name: "Other", host: "10.0.0.5"))
+            _ = await CLIProbe.capture([
+                "machines", "snippets", "add", "--shared", "builder", "disk", "df", "-h",
+            ])
+            _ = await CLIProbe.capture([
+                "machines", "snippets", "add", "builder", "logs", "journalctl", "-xe",
+            ])
+            let mine = await CLIProbe.capture(["machines", "snippets", "ls", "builder", "--json"])
+            let theirs = await CLIProbe.capture(["machines", "snippets", "ls", "other", "--json"])
+            #expect(
+                (mine.array as? [[String: Any]] ?? []).map { $0["title"] as? String }
+                    == ["disk", "logs"])
+            #expect(
+                (theirs.array as? [[String: Any]] ?? []).map { $0["title"] as? String }
+                    == ["disk"])
+            #expect(MachineRegistry.snippets().first?.command == "df -h")
+            #expect(MachineRegistry.snippets().first?.machineID == nil)
+        }
+    }
+
+    @Test func theStoreAndTheCLIReadTheSameList() async throws {
+        try await CLIProbe.inWorld { _ in
+            _ = await CLIProbe.capture([
+                "machines", "add", "shed", "--host", "10.0.0.4", "--json",
+            ])
+            let store = await MachineStore()
+            let listed = await CLIProbe.capture(["machines", "ls", "--json"])
+            let rows = listed.array as? [[String: Any]] ?? []
+            let names = await store.machines.map(\.name)
+            #expect(rows.compactMap { $0["name"] as? String } == names)
+        }
+    }
+}

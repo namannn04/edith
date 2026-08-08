@@ -16,8 +16,17 @@ final class MachinesModel: ObservableObject {
         id: MachinesModel.localMachineID, name: "This Mac", host: "localhost",
         source: .manual, createdAt: Date(timeIntervalSince1970: 0))
 
+    private var machinesObserver: NSObjectProtocol?
+
     private init() {
         MachinePaths.prepare()
+        machinesObserver = IPC.observe(IPC.Name.machinesChanged) { [weak self] in
+            Task { @MainActor in
+                self?.store.reload()
+                self?.ensureSelection()
+                self?.objectWillChange.send()
+            }
+        }
     }
 
     var allMachines: [Machine] {

@@ -77,6 +77,40 @@ public enum ServiceCommands {
     }
 }
 
+public enum PowerOutcome {
+    public static func hostWentAway(_ error: Error) -> Bool {
+        guard case let SSHConnectionError.commandFailed(_, status, stderr) = error else {
+            return false
+        }
+        guard status != 255 else { return true }
+        let text = stderr.lowercased()
+        return text.contains("connection closed") || text.contains("closed by remote host")
+            || text.contains("connection reset")
+    }
+
+    public static func needsPrivilege(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        return lowered.contains("password is required")
+            || lowered.contains("interactive authentication required")
+            || lowered.contains("access denied")
+            || lowered.contains("not authorized")
+            || lowered.contains("permission denied")
+    }
+
+    public static func explain(_ error: Error) -> String {
+        let detail =
+            error.localizedDescription
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .last ?? ""
+        guard !detail.isEmpty else { return "The machine refused the request." }
+        guard needsPrivilege(detail) else { return detail }
+        return detail
+            + " Give this account passwordless sudo for systemctl, or run it over ssh yourself."
+    }
+}
+
 public struct SystemdService: Identifiable, Equatable, Sendable {
     public var unit: String
     public var load: String

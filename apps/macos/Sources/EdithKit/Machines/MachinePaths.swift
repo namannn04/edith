@@ -1,8 +1,10 @@
 import Foundation
 
 public enum MachinePaths {
+    nonisolated(unsafe) public static var root: URL = AppData.supportDir
+
     public static var dir: URL {
-        AppData.supportDir.appendingPathComponent("machines")
+        root.appendingPathComponent("machines")
     }
 
     public static var machinesFile: URL { dir.appendingPathComponent("machines.json") }

@@ -111,6 +111,7 @@ public actor SSHConnection {
         while Date() < deadline {
             if await masterIsAlive() { return }
             if !process.isRunning {
+                if await masterIsAlive() { return }
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
                 buffer.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
                 masterProcess = nil
@@ -311,8 +312,11 @@ public actor SSHConnection {
 
     public nonisolated var controlSocketPath: String { socketPath }
 
+    public nonisolated static let controlPersist = "10m"
+
     public nonisolated func masterArguments() -> [String] {
-        ["-N", "-M", "-S", socketPath] + baseOptions() + targetArguments()
+        ["-N", "-M", "-S", socketPath, "-o", "ControlPersist=\(Self.controlPersist)"]
+            + baseOptions() + targetArguments()
     }
 
     public nonisolated func execArguments(command: String) -> [String] {

@@ -317,6 +317,11 @@ import Testing
         #expect(arguments.last == "tuf")
     }
 
+    @Test func theMasterOutlivesTheProcessThatOpenedIt() async {
+        let arguments = SSHConnection(machine: aliasMachine).masterArguments()
+        #expect(arguments.contains("ControlPersist=\(SSHConnection.controlPersist)"))
+    }
+
     @Test func execAndTerminalReuseTheSameSocket() async {
         let connection = SSHConnection(machine: aliasMachine)
         let socket = connection.controlSocketPath

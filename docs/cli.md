@@ -24,6 +24,10 @@ and is the shortest path to being useful. This page is the complete reference.
 - [`ed system`](#ed-system)
 - [`ed music`](#ed-music)
 - [`ed calendar`](#ed-calendar)
+- [`ed clipboard`](#ed-clipboard)
+- [`ed color`](#ed-color)
+- [`ed shelf`](#ed-shelf)
+- [`ed cleaner`](#ed-cleaner)
 - [`ed machines`](#ed-machines)
 - [Running a command on a machine](#running-a-command-on-a-machine)
 - [What needs the app running](#what-needs-the-app-running)
@@ -304,6 +308,91 @@ This exits 4 with a specific reason when it cannot answer: the app is not
 running, the Calendar extension is off, or macOS has not granted Edith calendar
 access.
 
+## `ed clipboard`
+
+The history is a file on disk, so the read commands work whether or not the app
+is running. Entries are numbered from 1 in the same order the panel shows them:
+pinned first, then most recently copied, honouring `clipboardPinTo`. That number
+is what every other verb takes, and it is the same entry the UI would act on.
+
+```
+ed clipboard ls [--pinned] [--search <text>] [--limit <n>] [--json]
+ed clipboard stats [--json]
+ed clipboard get <n> [--json]
+ed clipboard copy <n> [--plain] [--json]
+ed clipboard pin <n> [--json]
+ed clipboard unpin <n> [--json]
+ed clipboard rm <n> [--json]
+ed clipboard clear [--keep-pinned] [--json]
+```
+
+`ls` shows 25 entries; `--limit 0` shows all of them, and a truncated list says
+so on stderr. `--search` matches the preview text and the source application,
+case-insensitively, which is the same match the panel's search field makes.
+
+`stats` is how to see how much the history is holding:
+
+```
+$ ed clipboard stats
+ITEMS  PINNED  SIZE   ON DISK  LARGEST  OLDEST
+1217   3       46 MB  46.7 MB  9.2 MB   2026-07-27T09:43:29Z
+
+KIND      COUNT  SIZE
+text      517    337 KB
+richText  40     28 KB
+html      229    2.4 MB
+image     35     43.2 MB
+file      87     72 KB
+data      309    39 KB
+```
+
+`sizeBytes` totals what the entries claim; `diskBytes` is what the blob
+directory actually occupies. They differ when a blob is shared or orphaned.
+
+`copy` puts an entry back on the pasteboard and, like clicking it in the panel,
+bumps it to the top of the history. `--plain` strips styling from a rich entry.
+`pin` keeps an entry out of the retention sweep that `clipboardMaxItems` and
+`clipboardMaxAgeDays` drive; pinning something already pinned reports that on
+stderr and still exits 0.
+
+## `ed color`
+
+```
+ed color ls [--format <f>] [--limit <n>] [--json]
+ed color clear [--json]
+```
+
+`--format` prints one representation per line and nothing else, so
+`ed color ls --format hex --limit 1` is the last colour you picked. Formats are
+`hex`, `rgb`, `hsl`, `swiftUI` and `nsColor`. `colour` is an accepted spelling.
+
+## `ed shelf`
+
+```
+ed shelf ls [--json]
+ed shelf path <n> [--json]
+ed shelf add <file> [--json]
+ed shelf rm <n> [--json]
+ed shelf clear [--json]
+```
+
+`add` copies the file onto the shelf rather than moving it, and renames it if
+the shelf already holds that name. `path` prints the copy's location, which is
+what to pipe into another tool.
+
+## `ed cleaner`
+
+```
+ed cleaner categories [--json]
+ed cleaner drives [--json]
+ed cleaner scan [--category <c>] [--json]
+ed cleaner clean [--category <c>] [--yes] [--json]
+```
+
+`clean` without `--yes` reports what it would move and touches nothing. With
+`--yes` it moves the files to the Trash; it never deletes, so a mistake is
+recoverable from Finder.
+
 ## `ed machines`
 
 Machines come from Edith's own machine list, so `ed` never asks you to re-enter
@@ -322,6 +411,49 @@ ed machines services <machine> [--failed] [--json]
 ed machines connect <machine> [--json]
 ed machines disconnect <machine> [--json]
 ```
+
+### Keeping the list
+
+Adding, renaming and removing machines works from here as well as from the app,
+and a change reaches a running Edith immediately.
+
+```
+ed machines add <name> --host <h> [--port <n>] [--user <u>] [--key <path>]
+                                 [--alias <sshAlias>] [--mac <address>]
+ed machines edit <machine> [--name <n>] [--host <h>] [--port <n>] [--user <u>]
+                           [--key <path>] [--agent] [--mac <address>]
+ed machines rm <machine> [--yes] [--json]
+```
+
+`add` uses the SSH agent unless `--key` names a private key. `--alias` records
+the machine as an entry from your `ssh config`, which is what the app's picker
+writes when you choose a host from there. Password authentication is not offered
+here: the password belongs in the login keychain under the app's own identity,
+so add those in Edith under Machines.
+
+`rm` without `--yes` reports what it would take with it and touches nothing.
+With `--yes` it removes the machine, its saved forwards, its snippets and its
+keychain entries. Duplicate names are refused rather than silently allowed,
+because every other command resolves machines by name.
+
+### Forwards and snippets
+
+```
+ed machines forwards ls  <machine> [--json]
+ed machines forwards add <machine> --local <n> --remote <n>
+                                   [--remote-host <h>] [--title <t>] [--json]
+ed machines forwards rm  <machine> <n> [--json]
+
+ed machines snippets ls  <machine> [--json]
+ed machines snippets add [--shared] [--json] <machine> <title> <command...>
+ed machines snippets rm  <machine> <n> [--json]
+```
+
+These are the same lists the machine's Tools tab shows. Forwards are numbered by
+local port, snippets in the order they were saved, and both are numbered from 1.
+Two forwards cannot claim the same local port. `--shared` saves a snippet
+against every machine rather than just this one, which is what leaving the
+machine unset does in the UI.
 
 `metrics` streams the same collector the app's Machines view uses, over stdin,
 so nothing is installed on the machine. Without `--follow` it prints one sample
@@ -356,7 +488,12 @@ ed machines docker df      <machine> [--json]
 ed machines docker logs    <machine> <container> [--tail <n>] [--follow]
 ed machines docker inspect <machine> <container>
 ed machines docker start | stop | restart | rm <machine> <container> [--json]
+ed machines docker rmi       <machine> <image> [--force] [--json]
+ed machines docker volume-rm <machine> <volume> [--yes] [--json]
 ```
+
+`volume-rm` is where containers keep the data meant to outlive them, so it does
+nothing without `--yes`.
 
 `ps` merges `docker ps` with `docker stats`, so a container row carries live CPU
 and memory alongside its state and ports. `--all` includes stopped containers.

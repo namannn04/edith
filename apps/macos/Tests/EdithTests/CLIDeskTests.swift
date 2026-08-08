@@ -136,7 +136,7 @@ import Testing
         #expect(result.stderr.contains("empty"))
     }
 
-    @Test func listingIsNewestFirstAndNumberedFromOne() async throws {
+    @Test func listingIsPinnedThenNewestFirstAndNumberedFromOne() async throws {
         try await CLIProbe.inWorld { world in
             try Self.seed(world, count: 3)
             let result = await CLIProbe.capture(["clipboard", "ls", "--json"])
@@ -144,8 +144,20 @@ import Testing
             let rows = result.array as? [[String: Any]] ?? []
             #expect(rows.count == 3)
             #expect(rows.first?["index"] as? Int == 1)
-            #expect(rows.first?["preview"] as? String == "entry number 2")
-            #expect(rows.last?["preview"] as? String == "entry number 0")
+            #expect(
+                rows.map { $0["preview"] as? String } == [
+                    "entry number 0", "entry number 2", "entry number 1",
+                ])
+        }
+    }
+
+    @Test func theCLIAndThePanelNumberTheSameEntries() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 3)
+            let result = await CLIProbe.capture(["clipboard", "ls", "--json"])
+            let rows = result.array as? [[String: Any]] ?? []
+            let panel = ClipboardActions.arrange(ClipboardRepository.loadEntries())
+            #expect(rows.map { $0["id"] as? String } == panel.map(\.id))
         }
     }
 
@@ -154,7 +166,119 @@ import Testing
             try Self.seed(world, count: 2)
             let result = await CLIProbe.capture(["clipboard", "get", "2"])
             #expect(result.code == 0)
-            #expect(result.stdout == "entry number 0\n")
+            #expect(result.stdout == "entry number 1\n")
+        }
+    }
+
+    @Test func statsCountEveryEntryAndWhatItWeighs() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 3)
+            let result = await CLIProbe.capture(["clipboard", "stats", "--json"])
+            #expect(result.code == 0)
+            #expect(result.object?["count"] as? Int == 3)
+            #expect(result.object?["pinned"] as? Int == 1)
+            let entries = ClipboardRepository.loadEntries()
+            #expect(result.object?["sizeBytes"] as? Int == entries.reduce(0) { $0 + $1.size })
+            #expect(result.object?["largestBytes"] as? Int == entries.map(\.size).max())
+            let kinds = result.object?["byKind"] as? [[String: Any]] ?? []
+            #expect(kinds.map { $0["kind"] as? String } == ["text"])
+            #expect(kinds.first?["count"] as? Int == 3)
+        }
+    }
+
+    @Test func statsOnAnEmptyHistoryReportZeroRatherThanFailing() async {
+        let result = await CLIProbe.run(["clipboard", "stats", "--json"])
+        #expect(result.code == 0)
+        #expect(result.object?["count"] as? Int == 0)
+        #expect(result.object?["sizeBytes"] as? Int == 0)
+        #expect(result.object?["oldest"] as? String == nil)
+    }
+
+    @Test func pinningKeepsAnEntryAndMovesItToTheTop() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 3)
+            let pinned = await CLIProbe.capture(["clipboard", "pin", "3", "--json"])
+            #expect(pinned.code == 0)
+            #expect(pinned.object?["pinned"] as? Bool == true)
+            #expect(pinned.object?["changed"] as? Bool == true)
+            let after = await CLIProbe.capture(["clipboard", "ls", "--json"])
+            let rows = after.array as? [[String: Any]] ?? []
+            #expect(rows.first?["preview"] as? String == "entry number 1")
+            #expect(world.postedNames().contains(IPC.Name.clipboardChanged.rawValue))
+        }
+    }
+
+    @Test func pinningSomethingAlreadyPinnedSaysSoAndStillSucceeds() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 3)
+            let result = await CLIProbe.capture(["clipboard", "pin", "1"])
+            #expect(result.code == 0)
+            #expect(result.stdout.isEmpty)
+            #expect(result.stderr.contains("already pinned"))
+        }
+    }
+
+    @Test func unpinningLetsAnEntryAgeOutAgain() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 3)
+            let result = await CLIProbe.capture(["clipboard", "unpin", "1", "--json"])
+            #expect(result.object?["pinned"] as? Bool == false)
+            #expect(ClipboardRepository.loadEntries().allSatisfy { !$0.pinned })
+        }
+    }
+
+    @Test func searchingMatchesThePreviewAndTheSourceApp() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 3)
+            let hit = await CLIProbe.capture(["clipboard", "ls", "--search", "number 2", "--json"])
+            let rows = hit.array as? [[String: Any]] ?? []
+            #expect(rows.count == 1)
+            #expect(rows.first?["preview"] as? String == "entry number 2")
+
+            let byApp = await CLIProbe.capture(["clipboard", "ls", "--search", "tester", "--json"])
+            #expect((byApp.array as? [Any])?.count == 3)
+
+            let miss = await CLIProbe.capture(["clipboard", "ls", "--search", "nope", "--json"])
+            #expect((miss.array as? [Any])?.isEmpty == true)
+        }
+    }
+
+    @Test func copyingAnEntryBumpsItToTheTopTheWayClickingItDoes() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 3)
+            _ = await CLIProbe.capture(["clipboard", "unpin", "1", "--json"])
+            let before = ClipboardRepository.loadEntries()
+                .first { $0.preview == "entry number 0" }
+            _ = await CLIProbe.capture(["clipboard", "copy", "3", "--json"])
+            let after = ClipboardRepository.loadEntries()
+                .first { $0.preview == "entry number 0" }
+            #expect(before != nil)
+            #expect(after != nil)
+            #expect((after?.lastCopiedAt ?? .distantPast) > (before?.lastCopiedAt ?? .distantPast))
+            #expect(
+                ClipboardActions.arrange(ClipboardRepository.loadEntries()).first?.preview
+                    == "entry number 0")
+        }
+    }
+
+    @Test func aStaleSnapshotCannotClobberAnEntryWrittenAfterIt() async throws {
+        try await CLIProbe.inWorld { world in
+            try Self.seed(world, count: 2)
+            let stale = ClipboardRepository.loadEntries()
+            let data = Data("arrived later".utf8)
+            let sha = ClipboardRepository.sha256Hex(data)
+            try ClipboardRepository.writeBlob(data, sha256: sha, ext: "txt")
+            try ClipboardRepository.saveEntries(
+                stale + [
+                    ClipboardEntry(
+                        sha256: sha, types: ["public.utf8-plain-text"], ext: "txt",
+                        sourceApp: "Tester", sourceBundleID: "test.app",
+                        size: data.count, preview: "arrived later")
+                ])
+            try ClipboardActions.delete(ids: [stale[1].id])
+            let previews = ClipboardRepository.loadEntries().compactMap(\.preview)
+            #expect(previews.contains("arrived later"))
+            #expect(!previews.contains("entry number 1"))
         }
     }
 

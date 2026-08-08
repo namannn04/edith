@@ -319,9 +319,19 @@ struct MachineToolsTab: View {
     private func runPower(_ action: String) {
         Task {
             let command = action == "reboot" ? ServiceCommands.reboot() : ServiceCommands.shutdown()
-            _ = await session.runCommand(command, timeout: 20)
-            message = action == "reboot" ? "Restarting…" : "Shutting down…"
-            session.stop()
+            let underway = action == "reboot" ? "Restarting…" : "Shutting down…"
+            switch await session.runCommand(command, timeout: 20) {
+            case .success:
+                message = underway
+                session.stop()
+            case let .failure(error):
+                guard PowerOutcome.hostWentAway(error) else {
+                    message = PowerOutcome.explain(error)
+                    return
+                }
+                message = underway
+                session.stop()
+            }
         }
     }
 }

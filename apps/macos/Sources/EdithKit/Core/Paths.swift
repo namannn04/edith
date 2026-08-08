@@ -142,6 +142,9 @@ public enum ClipboardPaths {
     public static var blobsDir: URL {
         dir.appendingPathComponent("blobs")
     }
+    public static var lockFile: URL {
+        dir.appendingPathComponent(".lock")
+    }
     public static func blobFile(sha256: String, ext: String) -> URL {
         blobsDir.appendingPathComponent("\(sha256).\(ext)")
     }
