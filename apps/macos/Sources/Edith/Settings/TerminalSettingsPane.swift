@@ -9,6 +9,7 @@ struct TerminalSettingsPane: View {
     @State private var completions: [CompletionStatus] = []
     @State private var working = false
     @State private var note: String?
+    @State private var flashed: Set<String> = []
 
     var body: some View {
         Form {
@@ -22,10 +23,14 @@ struct TerminalSettingsPane: View {
                         .textSelection(.enabled)
                 }
                 HStack(spacing: UIScale.pt(10)) {
-                    Button(tools.isComplete ? "Reinstall" : "Install") { installTools() }
-                        .pointerCursor()
-                        .disabled(working || !tools.bundled)
-                    Button("Remove") { removeTools() }
+                    Button(
+                        label(
+                            "tools", idle: tools.isComplete ? "Reinstall" : "Install",
+                            done: "Installed")
+                    ) { installTools() }
+                    .pointerCursor()
+                    .disabled(working || !tools.bundled)
+                    Button(label("remove", idle: "Remove", done: "Removed")) { removeTools() }
                         .pointerCursor()
                         .disabled(working || tools.linked.isEmpty)
                 }
@@ -54,9 +59,11 @@ struct TerminalSettingsPane: View {
                         completionRow(status)
                     }
                 }
-                Button("Install completions") { installCompletions() }
-                    .pointerCursor()
-                    .disabled(working)
+                Button(label("completions", idle: "Install completions", done: "Installed")) {
+                    installCompletions()
+                }
+                .pointerCursor()
+                .disabled(working)
             } header: {
                 Text("Shell completion")
             } footer: {
@@ -70,10 +77,10 @@ struct TerminalSettingsPane: View {
                 Text(sourceLine)
                     .font(.system(size: UIScale.pt(11), design: .monospaced))
                     .textSelection(.enabled)
-                Button("Copy") {
+                Button(label("copy", idle: "Copy", done: "Copied")) {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(sourceLine, forType: .string)
-                    note = "Copied. Paste it at the end of ~/.zshrc."
+                    flash("copy")
                 }
                 .pointerCursor()
                 if let hint = completions.compactMap(\.hint).first {
@@ -156,6 +163,26 @@ struct TerminalSettingsPane: View {
 
     private var sourceLine: String { CompletionScripts.sourceLine(for: .zsh) }
 
+    private func label(_ id: String, idle: String, done: String) -> String {
+        flashed.contains(id) ? done : idle
+    }
+
+    private func flash(_ id: String) {
+        flashed.insert(id)
+        Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            flashed.remove(id)
+        }
+    }
+
+    private func setNote(_ text: String) {
+        note = text
+        Task {
+            try? await Task.sleep(for: .seconds(6))
+            if note == text { note = nil }
+        }
+    }
+
     private var toolSummary: String {
         guard tools.bundled else { return "not in this build" }
         guard !tools.linked.isEmpty else { return "not installed" }
@@ -183,10 +210,12 @@ struct TerminalSettingsPane: View {
             let result = await Task.detached(priority: .userInitiated) {
                 CLIInstaller.install()
             }.value
-            note =
+            setNote(
                 result.linked.isEmpty
-                ? "Nothing to link in \(abbreviate(result.directory))."
-                : "Linked \(result.linked.joined(separator: ", ")) in \(abbreviate(result.directory))."
+                    ? "Nothing to link in \(abbreviate(result.directory))."
+                    : "Linked \(result.linked.joined(separator: ", ")) in \(abbreviate(result.directory))."
+            )
+            flash("tools")
             await refresh()
             working = false
         }
@@ -198,9 +227,11 @@ struct TerminalSettingsPane: View {
             let result = await Task.detached(priority: .userInitiated) {
                 CLIInstaller.uninstall()
             }.value
-            note =
+            setNote(
                 result.linked.isEmpty
-                ? "Nothing to remove." : "Removed \(result.linked.joined(separator: ", "))."
+                    ? "Nothing to remove." : "Removed \(result.linked.joined(separator: ", "))."
+            )
+            flash("remove")
             await refresh()
             working = false
         }
@@ -214,10 +245,12 @@ struct TerminalSettingsPane: View {
                     try? CompletionScripts.install($0)
                 }
             }.value
-            note =
+            setNote(
                 written.isEmpty
-                ? "Could not write the completion scripts."
-                : "Wrote \(written.count == 1 ? "1 script" : "\(written.count) scripts"). Run  exec zsh  in any open terminal."
+                    ? "Could not write the completion scripts."
+                    : "Wrote \(written.count == 1 ? "1 script" : "\(written.count) scripts") and the ~/.zshrc line. Run  exec zsh  in any open terminal."
+            )
+            flash("completions")
             await refresh()
             working = false
         }

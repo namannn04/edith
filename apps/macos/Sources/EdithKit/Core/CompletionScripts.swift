@@ -165,6 +165,23 @@ public enum CompletionScripts {
         return nil
     }
 
+    public static func sourceLine(forScript script: URL, home: URL) -> String {
+        "source " + script.path.replacingOccurrences(of: home.path, with: "$HOME")
+    }
+
+    @discardableResult
+    public static func linkFromProfile(
+        _ shell: Shell, script: URL,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard let profile = ShellProfile.file(for: shell, home: home) else { return false }
+        let line = sourceLine(forScript: script, home: home)
+        return
+            (try? ShellProfile.install(
+                line: line, into: profile, script: script.path, fileManager: fileManager)) ?? false
+    }
+
     public static func rcHint(for shell: Shell, directory: URL) -> String? {
         switch shell {
         case .zsh:
@@ -188,8 +205,7 @@ public enum CompletionScripts {
             existingFile(for: shell, home: home, store: store, fileManager: fileManager)
             ?? installDirectory(for: shell, home: home)
             .appendingPathComponent(shell.scriptName)
-        let path = file.path.replacingOccurrences(of: home.path, with: "$HOME")
-        return "source \(path)"
+        return sourceLine(forScript: file, home: home)
     }
 
     @discardableResult
@@ -202,6 +218,7 @@ public enum CompletionScripts {
         let file = directory.appendingPathComponent(shell.scriptName)
         try Data(contents(for: shell).utf8).write(to: file, options: .atomic)
         record(file, for: shell, store: store)
+        linkFromProfile(shell, script: file, home: home, fileManager: fileManager)
         return file
     }
 
@@ -250,6 +267,7 @@ public enum CompletionScripts {
             if let recorded = recordedPath(for: shell, store: store),
                 isCurrent(recorded, for: shell, fileManager: fileManager)
             {
+                linkFromProfile(shell, script: recorded, home: home, fileManager: fileManager)
                 continue
             }
             for target in refreshTargets(for: shell, home: home, fileManager: fileManager) {
@@ -262,6 +280,7 @@ public enum CompletionScripts {
                 else { continue }
                 written.append(target)
                 record(target, for: shell, store: store)
+                linkFromProfile(shell, script: target, home: home, fileManager: fileManager)
             }
         }
         return written
