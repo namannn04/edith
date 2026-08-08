@@ -588,3 +588,21 @@ import Testing
         #expect(!PowerOutcome.explain(failure("")).isEmpty)
     }
 }
+
+@Suite struct ProcessCommandsTests {
+    @Test func signalNamesAreAcceptedWithOrWithoutTheSIGPrefix() {
+        #expect(ProcessCommands.normalizedSignal("term") == "TERM")
+        #expect(ProcessCommands.normalizedSignal("SIGKILL") == "KILL")
+        #expect(ProcessCommands.normalizedSignal("Hup") == "HUP")
+    }
+
+    @Test func anInventedSignalIsRefusedRatherThanSentBlindly() {
+        #expect(ProcessCommands.normalizedSignal("NOPE") == nil)
+        #expect(ProcessCommands.normalizedSignal("") == nil)
+        #expect(ProcessCommands.normalizedSignal("9") == nil)
+    }
+
+    @Test func theKillLineIsWhatTheProcessesTabAlwaysSent() {
+        #expect(ProcessCommands.kill(pid: 42, signal: "TERM") == "kill -TERM 42 2>&1")
+    }
+}

@@ -331,6 +331,26 @@ public enum CommandTree {
                                 options: common, arguments: [.machine, .historyIndex]),
                         ]),
                     CommandNode(
+                        "power", "Restart, shut down or wake a machine.",
+                        children: [
+                            CommandNode(
+                                "status", "Whether a machine is up and what it can be told.",
+                                options: common, arguments: [.machine]),
+                            CommandNode(
+                                "reboot", "Restart a machine.", aliases: ["restart"],
+                                options: ["--json", "--help", "--yes"], arguments: [.machine]),
+                            CommandNode(
+                                "shutdown", "Shut a machine down.", aliases: ["poweroff"],
+                                options: ["--json", "--help", "--yes"], arguments: [.machine]),
+                            CommandNode(
+                                "wake", "Send a wake-on-LAN packet.", options: common,
+                                arguments: [.machine]),
+                        ]),
+                    CommandNode(
+                        "kill", "End a process on a machine.",
+                        options: ["--json", "--help", "--signal"],
+                        arguments: [.machine, .historyIndex]),
+                    CommandNode(
                         "metrics", "Sample a machine.",
                         options: ["--json", "--follow", "--interval", "--processes"],
                         arguments: [.machine]),
@@ -426,8 +446,21 @@ public enum CommandTree {
                                 ]),
                         ]),
                     CommandNode(
-                        "services", "systemd units on a machine.", options: ["--json", "--failed"],
-                        arguments: [.machine]),
+                        "services", "systemd units on a machine.",
+                        children: [
+                            CommandNode(
+                                "ls", "List systemd units.", aliases: ["list"],
+                                options: ["--json", "--failed"], arguments: [.machine]),
+                            CommandNode(
+                                "start", "Start a unit.", options: common,
+                                arguments: [.machine, .free]),
+                            CommandNode(
+                                "stop", "Stop a unit.", options: common,
+                                arguments: [.machine, .free]),
+                            CommandNode(
+                                "restart", "Restart a unit.", options: common,
+                                arguments: [.machine, .free]),
+                        ]),
                     CommandNode(
                         "connect", "Open the shared SSH connection.", options: ["--json"],
                         arguments: [.machine]),

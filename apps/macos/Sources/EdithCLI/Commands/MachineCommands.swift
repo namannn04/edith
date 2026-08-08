@@ -25,7 +25,8 @@ struct MachinesCommand: AsyncParsableCommand {
             MachinesForwardsCommand.self, MachinesSnippetsCommand.self,
             MachinesMetricsCommand.self,
             MachinesExecCommand.self, MachinesFilesCommand.self, MachinesDockerCommand.self,
-            MachinesServicesCommand.self, MachinesConnectCommand.self,
+            MachinesServicesCommand.self, MachinesPowerCommand.self,
+            MachinesKillCommand.self, MachinesConnectCommand.self,
             MachinesDisconnectCommand.self,
         ],
         defaultSubcommand: MachinesListCommand.self)
@@ -297,9 +298,9 @@ struct MachinesExecCommand: AsyncParsableCommand {
     }
 }
 
-struct MachinesServicesCommand: AsyncParsableCommand {
+struct MachinesServicesListCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "services", abstract: "systemd units on a machine.")
+        commandName: "ls", abstract: "List systemd units on a machine.", aliases: ["list"])
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
     var json = false

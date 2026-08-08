@@ -112,6 +112,29 @@ enum JSONContract {
             "ed machines snippets rm",
             ["machines", "snippets", "rm", "nowhere-at-all", "1", "--json"]),
         JSONCase("ed machines metrics", ["machines", "metrics", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines power status",
+            ["machines", "power", "status", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines power reboot",
+            ["machines", "power", "reboot", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines power shutdown",
+            ["machines", "power", "shutdown", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines power wake", ["machines", "power", "wake", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines kill", ["machines", "kill", "nowhere-at-all", "42", "--json"]),
+        JSONCase(
+            "ed machines services ls", ["machines", "services", "ls", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines services start",
+            ["machines", "services", "start", "nowhere-at-all", "nginx.service", "--json"]),
+        JSONCase(
+            "ed machines services stop",
+            ["machines", "services", "stop", "nowhere-at-all", "nginx.service", "--json"]),
+        JSONCase(
+            "ed machines services restart",
+            ["machines", "services", "restart", "nowhere-at-all", "nginx.service", "--json"]),
         JSONCase("ed machines connect", ["machines", "connect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines disconnect", ["machines", "disconnect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines services", ["machines", "services", "nowhere-at-all", "--json"]),
