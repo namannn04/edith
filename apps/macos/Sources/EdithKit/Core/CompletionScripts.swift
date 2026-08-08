@@ -50,22 +50,30 @@ public enum CompletionScripts {
     public static let zsh = """
         #compdef ed edh edith
 
-        local -a lines matches
-        local line
-        local -i wants_files=0
-        local __ed=@ED@
-        [[ -x $__ed ]] || __ed=ed
-        lines=("${(@f)$($__ed __complete --index $((CURRENT-1)) -- "${words[@]}" 2>/dev/null)}")
-        for line in "${lines[@]}"; do
-          [[ -z "$line" ]] && continue
-          if [[ "$line" == '#files' ]]; then
-            wants_files=1
-            continue
-          fi
-          matches+=("$line")
-        done
-        (( wants_files )) && _files
-        (( ${#matches} )) && compadd -- "${matches[@]}"
+        _ed_complete() {
+          local -a lines matches
+          local line
+          local -i wants_files=0
+          local __ed=@ED@
+          [[ -x $__ed ]] || __ed=ed
+          lines=("${(@f)$($__ed __complete --index $((CURRENT-1)) -- "${words[@]}" 2>/dev/null)}")
+          for line in "${lines[@]}"; do
+            [[ -z "$line" ]] && continue
+            if [[ "$line" == '#files' ]]; then
+              wants_files=1
+              continue
+            fi
+            matches+=("$line")
+          done
+          (( wants_files )) && _files
+          (( ${#matches} )) && compadd -- "${matches[@]}"
+        }
+
+        if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
+          _ed_complete "$@"
+        else
+          compdef _ed_complete ed edh edith
+        fi
         """
 
     public static let bash = """
@@ -170,6 +178,18 @@ public enum CompletionScripts {
         case .fish:
             return nil
         }
+    }
+
+    public static func sourceLine(
+        for shell: Shell, home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        store: UserDefaults = SharedDefaults.store, fileManager: FileManager = .default
+    ) -> String {
+        let file =
+            existingFile(for: shell, home: home, store: store, fileManager: fileManager)
+            ?? installDirectory(for: shell, home: home)
+            .appendingPathComponent(shell.scriptName)
+        let path = file.path.replacingOccurrences(of: home.path, with: "$HOME")
+        return "source \(path)"
     }
 
     @discardableResult
