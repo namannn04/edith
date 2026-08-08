@@ -405,3 +405,20 @@ extension LayoutNode {
         self = .split(split)
     }
 }
+
+extension WorkspaceStore {
+    public static func load(from file: URL = MachinePaths.workspacesFile) -> WorkspaceStore {
+        guard let data = try? Data(contentsOf: file),
+            let store = try? JSONDecoder().decode(WorkspaceStore.self, from: data)
+        else { return WorkspaceStore() }
+        return store
+    }
+
+    public static func save(_ store: WorkspaceStore, to file: URL = MachinePaths.workspacesFile)
+        throws
+    {
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(store).write(to: file, options: .atomic)
+    }
+}

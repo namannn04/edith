@@ -425,6 +425,26 @@ public enum CommandTree {
                                 arguments: [.machine]),
                         ]),
                     CommandNode(
+                        "workspace", "Saved multi-pane layouts.", aliases: ["workspaces"],
+                        children: [
+                            CommandNode(
+                                "ls", "List saved workspaces.", aliases: ["list"],
+                                options: common),
+                            CommandNode(
+                                "use", "Make one the current workspace.", options: common,
+                                arguments: [.free]),
+                            CommandNode(
+                                "new", "Build one with a pane per machine.",
+                                options: ["--json", "--help", "--screen", "--name"],
+                                arguments: [.machine]),
+                            CommandNode(
+                                "rename", "Rename a workspace.", options: common,
+                                arguments: [.free]),
+                            CommandNode(
+                                "rm", "Forget a workspace.", aliases: ["remove"],
+                                options: common, arguments: [.free]),
+                        ]),
+                    CommandNode(
                         "broadcast", "Run one command on every machine.",
                         options: ["--json", "--help", "--only"], arguments: [.free]),
                     CommandNode(
