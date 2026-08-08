@@ -66,7 +66,9 @@ struct CLIDocsTests {
         let unlisted = pages.keys
             .filter { $0 != "README.md" }
             .filter { !index.contains("(./\($0))") && !index.contains("(\($0))") }
-        #expect(unlisted.isEmpty, "these pages are not linked from docs/cli/README.md: \(unlisted.sorted())")
+        #expect(
+            unlisted.isEmpty,
+            "these pages are not linked from docs/cli/README.md: \(unlisted.sorted())")
     }
 
     @Test func everyRelativeLinkResolves() throws {
