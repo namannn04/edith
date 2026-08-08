@@ -429,37 +429,19 @@ final class MusicRemote: ObservableObject {
     func toggleShuffle() { send("shuffle", ["value": !shuffling]) }
 
     func delete(_ track: Track) {
-        try? FileManager.default.trashItem(at: track.url, resultingItemURL: nil)
+        guard (try? MusicLibrary.trash(track)) != nil else { return }
         rescan()
         broadcastFolderChanged()
     }
 
     func rename(_ track: Track, to name: String) {
-        let base = sanitizedName(name)
-        guard !base.isEmpty else { return }
-        let ext = track.url.pathExtension
-        let destination = track.url.deletingLastPathComponent()
-            .appendingPathComponent(ext.isEmpty ? base : "\(base).\(ext)")
-        if moveFile(from: track.url, to: destination) { refreshAfterFileChange() }
+        guard let move = try? MusicLibrary.rename(track, to: name) else { return }
+        send("renamed", ["from": move.from, "to": move.to])
+        refreshAfterFileChange()
     }
 
     private func sanitizedName(_ name: String) -> String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ":", with: "-")
-    }
-
-    @discardableResult
-    private func moveFile(from source: URL, to destination: URL) -> Bool {
-        guard destination != source,
-            !FileManager.default.fileExists(atPath: destination.path),
-            (try? FileManager.default.moveItem(at: source, to: destination)) != nil
-        else { return false }
-        let from = TrackMeta.relativePath(of: source)
-        let to = TrackMeta.relativePath(of: destination)
-        Favourites.repoint(from: from, to: to)
-        send("renamed", ["from": from, "to": to])
-        return true
+        MusicLibrary.sanitized(name)
     }
 
     private func refreshAfterFileChange() {
@@ -468,15 +450,9 @@ final class MusicRemote: ObservableObject {
     }
 
     func createFolder(named name: String) {
-        let base = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ":", with: "-")
-        guard !base.isEmpty else { return }
-        let dir = TrackMeta.url(for: folderPath).appendingPathComponent(base)
-        guard !FileManager.default.fileExists(atPath: dir.path),
-            (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true))
-                != nil
-        else { return }
+        guard (try? MusicLibrary.createFolder(named: name, under: folderPath)) != nil else {
+            return
+        }
         refreshEntries()
         broadcastFolderChanged()
     }
@@ -495,21 +471,18 @@ final class MusicRemote: ObservableObject {
     }
 
     private func moveTrack(_ track: Track, toFolderPath folderRelativePath: String) -> Bool {
-        let destination = TrackMeta.url(for: folderRelativePath)
-            .appendingPathComponent(track.url.lastPathComponent)
-        return moveFile(from: track.url, to: destination)
+        guard let move = try? MusicLibrary.move(track, toFolder: folderRelativePath) else {
+            return false
+        }
+        send("renamed", ["from": move.from, "to": move.to])
+        return true
     }
 
     func renameFolder(_ folder: MusicFolder, to name: String) {
-        let base = sanitizedName(name)
-        guard !base.isEmpty, base != folder.name else { return }
-        let destination = folder.url.deletingLastPathComponent().appendingPathComponent(base)
-        guard destination != folder.url,
-            !FileManager.default.fileExists(atPath: destination.path),
-            (try? FileManager.default.moveItem(at: folder.url, to: destination)) != nil
+        guard sanitizedName(name) != folder.name,
+            let renamed = try? MusicLibrary.renameFolder(folder, to: name)
         else { return }
-        let newPath = TrackMeta.relativePath(of: destination)
-        Favourites.repoint(from: folder.relativePath, to: newPath)
+        let newPath = renamed.to
         if let playing = currentFile,
             playing == folder.relativePath || playing.hasPrefix(folder.relativePath + "/")
         {
@@ -523,8 +496,7 @@ final class MusicRemote: ObservableObject {
     }
 
     func deleteFolder(_ folder: MusicFolder) {
-        guard (try? FileManager.default.trashItem(at: folder.url, resultingItemURL: nil)) != nil
-        else { return }
+        guard (try? MusicLibrary.trashFolder(folder)) != nil else { return }
         repointFolderPath(from: folder.relativePath, to: nil)
         rescan()
         broadcastFolderChanged()

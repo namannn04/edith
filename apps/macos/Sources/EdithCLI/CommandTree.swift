@@ -196,6 +196,22 @@ public enum CommandTree {
                         options: playback),
                     CommandNode(
                         "volume", "Set the player volume from 0 to 1.", options: playback),
+                    CommandNode(
+                        "ls", "List the library a folder at a time.", aliases: ["list"],
+                        options: ["--json", "--help", "--folders", "--recursive", "--search"],
+                        arguments: [.free]),
+                    CommandNode(
+                        "mkdir", "Make a folder in the library.", aliases: ["newfolder"],
+                        options: ["--json", "--help", "--under"], arguments: [.free]),
+                    CommandNode(
+                        "mv", "Move a track into a folder.", aliases: ["move"], options: common,
+                        arguments: [.free]),
+                    CommandNode(
+                        "rename", "Rename a track or folder.",
+                        options: ["--json", "--help", "--folder"], arguments: [.free]),
+                    CommandNode(
+                        "rm", "Move a track or folder to the Trash.",
+                        options: ["--json", "--help", "--folder", "--yes"], arguments: [.free]),
                 ]),
             CommandNode(
                 "calendar", "Your schedule.",

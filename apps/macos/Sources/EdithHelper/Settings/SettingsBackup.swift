@@ -129,7 +129,8 @@ final class SettingsBackup: ObservableObject {
         "colorPickerHistorySize", "colorPickerHotKeyCode", "colorPickerHotKeyMods",
         "colorPickerHotKeyLabel",
         "creditHidden", "homeClockZones", "presenterBlurCalendar", "showDockIcon",
-        "tabCalendarEnabled", "musicLooping", "musicGridView", "musicFavourites",
+        "tabCalendarEnabled", "musicLooping", "musicShuffling", "musicGridView",
+        "musicFavourites",
         "mainWindowSection", "settingsTab", "mainSidebarOpen", "mainSidebarWidth",
     ]
 

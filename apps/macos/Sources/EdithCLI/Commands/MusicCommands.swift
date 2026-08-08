@@ -19,6 +19,8 @@ struct MusicCommand: AsyncParsableCommand {
             MusicStatusCommand.self, MusicPlayCommand.self, MusicPauseCommand.self,
             MusicStopCommand.self, MusicToggleCommand.self, MusicNextCommand.self,
             MusicPreviousCommand.self, MusicVolumeCommand.self, MusicPlayersCommand.self,
+            MusicListCommand.self, MusicNewFolderCommand.self, MusicMoveCommand.self,
+            MusicRenameCommand.self, MusicRemoveCommand.self,
         ],
         defaultSubcommand: MusicStatusCommand.self,
         aliases: ["nowplaying", "np"])

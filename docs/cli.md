@@ -288,6 +288,38 @@ ed music play | pause | toggle | next | previous
 ed music volume <0..1>
 ```
 
+### The library
+
+Edith's own library is a folder of files, so these work on disk and do not need
+the app running. `ed config set musicFolderPath <dir>` chooses the folder;
+`ed config set musicShuffling`/`musicLooping` are the footer toggles.
+
+```
+ed music ls [folder] [--folders] [--recursive] [--search <text>] [--json]
+ed music mkdir <name> [--under <folder>] [--json]
+ed music mv <track> <folder> [--json]
+ed music rename [--folder] <target> <name> [--json]
+ed music rm [--folder] <target> [--yes] [--json]
+```
+
+Paths are relative to the library root. A track can be named by its path or by
+enough of its title to be unambiguous; a prefix matching more than one exits 3
+and lists what it matched, rather than guessing:
+
+```
+$ ed music mv e Chill
+error: e matches 2 tracks
+hint: beta-tune.mp3, Focus/delta-loop.mp3
+```
+
+`rename` keeps the extension, so `ed music rename alpha-song.mp3 "Night Drive"`
+gives `Night Drive.mp3`. `--folder` renames a folder instead. Moving onto a name
+that already exists is refused rather than overwriting.
+
+`rm` moves to the Trash rather than deleting, the same as the UI, and does
+nothing without `--yes`. Favourites follow a track that is renamed or moved, and
+a rename reaches the running player so playback does not break.
+
 Playback lives in the menu bar app, so these talk to it over the app's own
 notification bus. `status --json` reports the track's relative path, title,
 play state, elapsed and total seconds, volume, and the loop and shuffle flags.
