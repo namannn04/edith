@@ -841,9 +841,7 @@ final class UsageStore: ObservableObject, FeatureModule {
     }
 
     func runUpdate() {
-        guard !updating,
-            let script = Bundle.main.url(forResource: "refresh-usage", withExtension: nil)
-        else {
+        guard !updating, let script = UsageCollector.scriptURL() else {
             log = "✖ refresh-usage script not found in app bundle"
             return
         }
