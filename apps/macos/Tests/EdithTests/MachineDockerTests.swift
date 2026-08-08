@@ -552,3 +552,39 @@ import Testing
         #expect(denied.isInstalled)
     }
 }
+
+@Suite struct PowerOutcomeTests {
+    private func failure(_ text: String, status: Int32 = 1) -> Error {
+        SSHConnectionError.commandFailed(command: "reboot", status: status, stderr: text)
+    }
+
+    @Test func aMachineThatRefusesTheRequestIsNotReportedAsRestarting() {
+        let denied = failure(
+            "Failed to reboot: Interactive authentication required.")
+        #expect(!PowerOutcome.hostWentAway(denied))
+        #expect(PowerOutcome.explain(denied).contains("Interactive authentication required"))
+        #expect(PowerOutcome.explain(denied).contains("passwordless sudo"))
+    }
+
+    @Test func theSudoPasswordPromptIsRecognisedAsAPrivilegeProblem() {
+        #expect(PowerOutcome.needsPrivilege("sudo: a password is required"))
+        #expect(PowerOutcome.needsPrivilege("Failed to reboot: Access denied"))
+        #expect(!PowerOutcome.needsPrivilege("no such unit"))
+    }
+
+    @Test func aDroppedConnectionMeansTheRebootTookTheHostDown() {
+        #expect(PowerOutcome.hostWentAway(failure("", status: 255)))
+        #expect(PowerOutcome.hostWentAway(failure("Connection closed by remote host")))
+        #expect(!PowerOutcome.hostWentAway(failure("Interactive authentication required.")))
+    }
+
+    @Test func theLastMeaningfulLineIsWhatTheUserSees() {
+        let noisy = failure(
+            "sudo: a password is required\nFailed to reboot: Interactive authentication required.")
+        #expect(PowerOutcome.explain(noisy).hasPrefix("Failed to reboot:"))
+    }
+
+    @Test func anEmptyRefusalStillSaysSomething() {
+        #expect(!PowerOutcome.explain(failure("")).isEmpty)
+    }
+}
