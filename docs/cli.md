@@ -509,11 +509,22 @@ ed machines edit <machine> [--name <n>] [--host <h>] [--port <n>] [--user <u>]
 ed machines rm <machine> [--yes] [--json]
 ```
 
+Passwords and key passphrases are read from stdin, never taken as an argument,
+so they cannot end up in a process listing or your shell history:
+
+```
+printf '%s' "$PASS" | ed machines add box --host 10.0.0.4 --user pi --password-stdin
+printf '%s' "$PHRASE" | ed machines edit box --key ~/.ssh/id_ed25519 --key-passphrase-stdin
+```
+
+They go into the same login keychain item under the same service name the app
+uses, so either surface can read what the other wrote, and `ed machines rm`
+takes them with it.
+
 `add` uses the SSH agent unless `--key` names a private key. `--alias` records
 the machine as an entry from your `ssh config`, which is what the app's picker
 writes when you choose a host from there. Password authentication is not offered
-here: the password belongs in the login keychain under the app's own identity,
-so add those in Edith under Machines.
+here as an argument, for the reason above.
 
 `rm` without `--yes` reports what it would take with it and touches nothing.
 With `--yes` it removes the machine, its saved forwards, its snippets and its
@@ -598,6 +609,24 @@ ed machines files put <machine> <local> <remote> [--json]
 `ls` defaults to the remote home directory and hides dotfiles unless `--all`.
 `get` defaults the local name to the remote file's name. Transfers stream over
 the shared connection.
+
+The Finder window's own operations are here too, running the same commands it
+runs:
+
+```
+ed machines files cp     <machine> <path>... <directory> [--json]
+ed machines files mv     <machine> <path>... <directory> [--json]
+ed machines files rename <machine> <path> <name> [--json]
+ed machines files mkdir  <machine> <path> [--json]
+ed machines files rm     <machine> <path>... [--delete] [--yes] [--json]
+```
+
+`cp` and `mv` take the destination directory last, like the shell tools they
+mirror. `rename` takes a bare name, not a path, and keeps the file where it is;
+renaming onto a name that already exists is refused rather than overwriting.
+
+`rm` moves to the machine's own trash so it can be put back. `--delete` removes
+for good and does nothing without `--yes`.
 
 ### Docker
 

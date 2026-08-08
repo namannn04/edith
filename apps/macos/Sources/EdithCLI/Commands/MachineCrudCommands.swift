@@ -2,6 +2,17 @@ import ArgumentParser
 import EdithKit
 import Foundation
 
+enum SecretInput {
+    static func readFromStdin(_ what: String) throws -> String {
+        guard let line = readLine(strippingNewline: true), !line.isEmpty else {
+            throw CLIFailure(
+                "no \(what) arrived on stdin",
+                hint: "pipe it, for example: printf '%s' \"$PASS\" | ed machines add ...")
+        }
+        return line
+    }
+}
+
 enum MachineEditing {
     static func port(_ value: Int) throws -> Int {
         guard (1...65535).contains(value) else {
@@ -10,7 +21,9 @@ enum MachineEditing {
         return value
     }
 
-    static func auth(keyFile: String?, agent: Bool) throws -> MachineAuth? {
+    static func auth(keyFile: String?, agent: Bool, hasPassphrase: Bool = false) throws
+        -> MachineAuth?
+    {
         if agent, keyFile != nil {
             throw CLIFailure("--agent and --key are different answers to the same question")
         }
@@ -22,7 +35,7 @@ enum MachineEditing {
                 "there is no key file at \(path)",
                 hint: "point --key at a private key, or pass --agent to use the SSH agent")
         }
-        return .keyFile(path: path, hasPassphrase: false)
+        return .keyFile(path: path, hasPassphrase: hasPassphrase)
     }
 
     static func rejectDuplicate(name: String, excluding id: UUID?, in machines: [Machine]) throws {
@@ -48,9 +61,10 @@ struct MachinesAddCommand: AsyncParsableCommand {
         commandName: "add",
         abstract: "Add a machine to Edith's list.",
         discussion: """
-            The machine appears in the app straight away. Password authentication is not
-            offered here because the password belongs in the login keychain under the app's
-            own identity; add those in Edith under Machines.
+            The machine appears in the app straight away. A login password or a key
+            passphrase is read from stdin with --password-stdin or --key-passphrase-stdin,
+            never taken as an argument, and goes into the same login keychain item the app
+            uses.
             """)
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
@@ -77,16 +91,50 @@ struct MachinesAddCommand: AsyncParsableCommand {
     @Option(help: "MAC address to send a wake-on-LAN packet to.")
     var mac: String?
 
+    @Flag(
+        help:
+            "Read a login password from stdin and store it in the keychain, the way the app does."
+    )
+    var passwordStdin = false
+
+    @Flag(help: "Read the key file's passphrase from stdin instead of a password.")
+    var keyPassphraseStdin = false
+
     func run() async throws {
         try await execute {
+            guard !(passwordStdin && keyPassphraseStdin) else {
+                throw CLIFailure("a machine has either a password or a key passphrase, not both")
+            }
+            if keyPassphraseStdin, key == nil {
+                throw CLIFailure("--key-passphrase-stdin only means something with --key")
+            }
+            let secret =
+                passwordStdin
+                ? try SecretInput.readFromStdin("password")
+                : (keyPassphraseStdin ? try SecretInput.readFromStdin("passphrase") : nil)
             let existing = MachineRegistry.machines()
             try MachineEditing.rejectDuplicate(name: name, excluding: nil, in: existing)
+            let resolved: MachineAuth
+            if passwordStdin {
+                resolved = .password
+            } else if let keyFile = key {
+                resolved =
+                    try MachineEditing.auth(
+                        keyFile: keyFile, agent: false, hasPassphrase: keyPassphraseStdin) ?? .agent
+            } else {
+                resolved = .agent
+            }
             let machine = Machine(
                 name: name, host: host, port: try MachineEditing.port(port), username: user,
-                auth: try MachineEditing.auth(keyFile: key, agent: key == nil) ?? .agent,
+                auth: resolved,
                 source: alias.map { MachineSource.sshConfigAlias($0) } ?? .manual,
                 wakeMACAddress: mac)
             MachineRegistry.add(machine)
+            if let secret {
+                MachineSecrets.set(
+                    secret, machineID: machine.id,
+                    kind: passwordStdin ? .password : .passphrase)
+            }
             AppBridge.post(IPC.Name.machinesChanged)
             guard !json else {
                 CLIOut.json(MachineDirectory.summary(machine))
@@ -129,8 +177,21 @@ struct MachinesEditCommand: AsyncParsableCommand {
     @Option(help: "MAC address to send a wake-on-LAN packet to. Pass an empty value to clear.")
     var mac: String?
 
+    @Flag(help: "Read a new login password from stdin and store it in the keychain.")
+    var passwordStdin = false
+
+    @Flag(help: "Read the key file's passphrase from stdin.")
+    var keyPassphraseStdin = false
+
     func run() async throws {
         try await execute {
+            guard !(passwordStdin && keyPassphraseStdin) else {
+                throw CLIFailure("a machine has either a password or a key passphrase, not both")
+            }
+            let secret =
+                passwordStdin
+                ? try SecretInput.readFromStdin("password")
+                : (keyPassphraseStdin ? try SecretInput.readFromStdin("passphrase") : nil)
             var target = try MachineResolver.machine(machine)
             let all = MachineRegistry.machines()
             if let name {
@@ -140,9 +201,19 @@ struct MachinesEditCommand: AsyncParsableCommand {
             if let host { target.host = host }
             if let port { target.port = try MachineEditing.port(port) }
             if let user { target.username = user }
-            if let auth = try MachineEditing.auth(keyFile: key, agent: agent) { target.auth = auth }
+            if let auth = try MachineEditing.auth(
+                keyFile: key, agent: agent, hasPassphrase: keyPassphraseStdin)
+            {
+                target.auth = auth
+            }
+            if passwordStdin { target.auth = .password }
             if let mac { target.wakeMACAddress = mac.isEmpty ? nil : mac }
             MachineRegistry.update(target)
+            if let secret {
+                MachineSecrets.set(
+                    secret, machineID: target.id,
+                    kind: passwordStdin ? .password : .passphrase)
+            }
             AppBridge.post(IPC.Name.machinesChanged)
             guard !json else {
                 CLIOut.json(MachineDirectory.summary(target))

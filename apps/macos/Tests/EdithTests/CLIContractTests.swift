@@ -151,6 +151,20 @@ enum JSONContract {
         JSONCase(
             "ed machines services restart",
             ["machines", "services", "restart", "nowhere-at-all", "nginx.service", "--json"]),
+        JSONCase(
+            "ed machines files cp",
+            ["machines", "files", "cp", "nowhere-at-all", "/a", "/b", "--json"]),
+        JSONCase(
+            "ed machines files mv",
+            ["machines", "files", "mv", "nowhere-at-all", "/a", "/b", "--json"]),
+        JSONCase(
+            "ed machines files rename",
+            ["machines", "files", "rename", "nowhere-at-all", "/a", "b", "--json"]),
+        JSONCase(
+            "ed machines files mkdir",
+            ["machines", "files", "mkdir", "nowhere-at-all", "/a", "--json"]),
+        JSONCase(
+            "ed machines files rm", ["machines", "files", "rm", "nowhere-at-all", "/a", "--json"]),
         JSONCase("ed machines connect", ["machines", "connect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines disconnect", ["machines", "disconnect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines services", ["machines", "services", "nowhere-at-all", "--json"]),
