@@ -312,6 +312,60 @@ import Testing
             CompletionScripts.defaultDirectory(for: .fish, home: home).path
                 == "/Users/someone/.config/fish/completions")
     }
+
+    @Test func asksTheShellOnceHoweverOftenTheAnswerIsRead() {
+        let cache = FpathProbeCache()
+        let found = home.appendingPathComponent(".zsh/completions")
+        var probes = 0
+        for _ in 0..<4 {
+            let answer = cache.directory(forHome: home.path) {
+                probes += 1
+                return found
+            }
+            #expect(answer == found)
+        }
+        #expect(probes == 1)
+    }
+
+    @Test func remembersThatTheShellSearchesNowhereWritable() {
+        let cache = FpathProbeCache()
+        var probes = 0
+        for _ in 0..<3 {
+            #expect(
+                cache.directory(forHome: home.path) {
+                    probes += 1
+                    return nil
+                } == nil)
+        }
+        #expect(probes == 1)
+    }
+
+    @Test func asksAgainAfterAnInstallCouldHaveChangedTheAnswer() {
+        let cache = FpathProbeCache()
+        var probes = 0
+        _ = cache.directory(forHome: home.path) {
+            probes += 1
+            return nil
+        }
+        cache.forgetEverything()
+        _ = cache.directory(forHome: home.path) {
+            probes += 1
+            return nil
+        }
+        #expect(probes == 2)
+    }
+
+    @Test func answersEachHomeSeparately() {
+        let cache = FpathProbeCache()
+        var probes = 0
+        for path in [home.path, "/Users/other", home.path] {
+            _ = cache.directory(forHome: path) {
+                probes += 1
+                return nil
+            }
+        }
+        #expect(probes == 2)
+    }
 }
 
 @Suite struct CompletionsCommandShapeTests {
