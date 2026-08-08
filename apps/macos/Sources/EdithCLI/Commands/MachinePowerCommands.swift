@@ -348,17 +348,22 @@ struct MachinesKillCommand: AsyncParsableCommand {
                     "could not signal \(pid) on \(runner.machine.name)"
                         + (detail.isEmpty ? "" : ": \(detail)"))
             }
+            let gone = ProcessCommands.hadAlreadyExited(detail)
             guard !json else {
                 CLIOut.json(
                     .object([
                         "machine": .string(runner.machine.name),
                         "pid": .int(pid),
                         "signal": .string(named),
-                        "sent": .bool(true),
+                        "sent": .bool(!gone),
+                        "alreadyExited": .bool(gone),
                     ]))
                 return
             }
-            CLIOut.out("sent SIG\(named) to \(pid) on \(runner.machine.name)")
+            CLIOut.out(
+                gone
+                    ? "\(pid) had already exited on \(runner.machine.name)"
+                    : "sent SIG\(named) to \(pid) on \(runner.machine.name)")
         }
     }
 }

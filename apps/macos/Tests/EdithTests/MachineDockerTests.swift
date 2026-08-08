@@ -602,7 +602,19 @@ import Testing
         #expect(ProcessCommands.normalizedSignal("9") == nil)
     }
 
-    @Test func theKillLineIsWhatTheProcessesTabAlwaysSent() {
-        #expect(ProcessCommands.kill(pid: 42, signal: "TERM") == "kill -TERM 42 2>&1")
+    @Test func theKillLineChecksTheProcessIsStillThereBeforeSignallingIt() {
+        let command = ProcessCommands.kill(pid: 42, signal: "TERM")
+        #expect(command.contains("kill -0 42 2>/dev/null"))
+        #expect(command.contains("[ -d /proc/42 ]"))
+        #expect(command.contains("kill -TERM 42 2>&1"))
+        #expect(command.contains("echo \(ProcessCommands.goneMarker)"))
+    }
+
+    @Test func aProcessThatExitedBeforeTheSignalLandedIsToldApartFromAFailure() {
+        #expect(ProcessCommands.hadAlreadyExited(ProcessCommands.goneMarker))
+        #expect(!ProcessCommands.hadAlreadyExited(""))
+        #expect(
+            !ProcessCommands.hadAlreadyExited(
+                "bash: line 1: kill: (1) - Operation not permitted"))
     }
 }

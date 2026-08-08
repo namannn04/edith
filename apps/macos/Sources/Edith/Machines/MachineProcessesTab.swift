@@ -131,10 +131,13 @@ struct MachineProcessesTab: View {
         Task {
             let result = await session.runCommand(
                 ProcessCommands.kill(pid: process.pid, signal: signal))
-            if case let .failure(error) = result {
+            switch result {
+            case let .success(output):
+                message =
+                    ProcessCommands.hadAlreadyExited(output)
+                    ? "\(process.name) had already exited." : nil
+            case let .failure(error):
                 message = "Could not end \(process.name): \(error.localizedDescription)"
-            } else {
-                message = nil
             }
         }
     }

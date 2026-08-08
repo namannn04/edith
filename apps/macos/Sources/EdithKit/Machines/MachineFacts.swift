@@ -82,8 +82,15 @@ public enum ServiceCommands {
 public enum ProcessCommands {
     public static let signals = ["TERM", "KILL", "HUP", "INT", "QUIT", "USR1", "USR2"]
 
+    public static let goneMarker = "@EDITH-PROCESS-GONE@"
+
     public static func kill(pid: Int, signal: String) -> String {
-        "kill -\(signal) \(pid) 2>&1"
+        "if kill -0 \(pid) 2>/dev/null || [ -d /proc/\(pid) ]; then "
+            + "kill -\(signal) \(pid) 2>&1; else echo \(goneMarker); fi"
+    }
+
+    public static func hadAlreadyExited(_ output: String) -> Bool {
+        output.contains(goneMarker)
     }
 
     public static func normalizedSignal(_ raw: String) -> String? {
