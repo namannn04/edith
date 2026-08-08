@@ -190,8 +190,8 @@ public enum CommandTree {
                                 options: ["--json"], arguments: [.machine]),
                         ]),
                     CommandNode(
-                        "refresh", "Re-collect usage data from every agent.",
-                        options: ["--json", "--follow"]),
+                        "refresh", "Re-collect usage here and on the machines.",
+                        options: ["--json", "--follow", "--machines", "--no-machines"]),
                 ]),
             CommandNode(
                 "system", "Metrics for this Mac.",
