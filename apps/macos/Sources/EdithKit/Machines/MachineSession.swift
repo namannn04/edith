@@ -381,14 +381,14 @@ public final class MachineSession: ObservableObject {
         }
     }
 
-    public func runCommand(_ command: String, timeout: TimeInterval = 60) async
-        -> Result<String, Error>
-    {
+    public func runCommand(
+        _ command: String, stdin: Data? = nil, timeout: TimeInterval = 60
+    ) async -> Result<String, Error> {
         guard let connection else {
             return await runLocalCommand(command)
         }
         do {
-            let result = try await connection.run(command, timeout: timeout)
+            let result = try await connection.run(command, stdin: stdin, timeout: timeout)
             let output = result.stdoutText + result.stderrText
             guard result.succeeded else {
                 return .failure(

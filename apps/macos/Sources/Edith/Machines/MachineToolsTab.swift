@@ -305,8 +305,11 @@ struct MachineToolsTab: View {
 
     private func runService(_ action: String, unit: String) {
         Task {
+            let machineID = session.machine.id
+            let stdin = SudoPassword.stdin(machineID: machineID)
             let result = await session.runCommand(
-                ServiceCommands.action(action, unit: unit), timeout: 60)
+                ServiceCommands.action(action, unit: unit, withSudoPassword: stdin != nil),
+                stdin: stdin, timeout: 60)
             if case let .failure(error) = result {
                 message = PowerOutcome.explain(error)
             } else {
@@ -318,9 +321,13 @@ struct MachineToolsTab: View {
 
     private func runPower(_ action: String) {
         Task {
-            let command = action == "reboot" ? ServiceCommands.reboot() : ServiceCommands.shutdown()
+            let stdin = SudoPassword.stdin(machineID: session.machine.id)
+            let command =
+                action == "reboot"
+                ? ServiceCommands.reboot(withSudoPassword: stdin != nil)
+                : ServiceCommands.shutdown(withSudoPassword: stdin != nil)
             let underway = action == "reboot" ? "Restarting…" : "Shutting down…"
-            switch await session.runCommand(command, timeout: 20) {
+            switch await session.runCommand(command, stdin: stdin, timeout: 20) {
             case .success:
                 message = underway
                 session.stop()

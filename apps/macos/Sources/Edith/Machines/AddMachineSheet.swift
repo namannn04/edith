@@ -24,8 +24,14 @@ struct AddMachineSheet: View {
         case failure(String)
     }
 
+    struct Secrets {
+        var login: String?
+        var sudo: String?
+        var forgetSudo = false
+    }
+
     var editing: Machine?
-    let onSave: (Machine, String?) -> Void
+    let onSave: (Machine, Secrets) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -39,6 +45,9 @@ struct AddMachineSheet: View {
     @State private var authKind = AuthKind.agent
     @State private var keyPath = ""
     @State private var secret = ""
+    @State private var sudoPassword = ""
+    @State private var sudoPasswordStored = false
+    @State private var forgetSudoPassword = false
     @State private var testState = TestState.idle
     @State private var testTask: Task<Void, Never>?
 
@@ -79,6 +88,7 @@ struct AddMachineSheet: View {
                         manualSection
                     }
                     authSection
+                    sudoSection
                     testSection
                 }
                 .padding(UIScale.pt(20))
@@ -195,6 +205,29 @@ struct AddMachineSheet: View {
         }
     }
 
+    private var sudoSection: some View {
+        VStack(alignment: .leading, spacing: UIScale.pt(10)) {
+            eyebrow("PRIVILEGED ACTIONS")
+            if sudoPasswordStored, sudoPassword.isEmpty, !forgetSudoPassword {
+                HStack(spacing: UIScale.pt(10)) {
+                    Text("A sudo password is saved for this machine.")
+                        .font(.system(size: UIScale.pt(11)))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                    Button("Forget") { forgetSudoPassword = true }
+                        .pointerCursor()
+                }
+            }
+            secureField("Sudo password (optional)", text: $sudoPassword)
+            Text(
+                "Shut down, restart and unit actions need root. Without this, Edith can only try "
+                    + "passwordless sudo. Stored in your Mac's Keychain and sent on the command's "
+                    + "standard input, never on a command line."
+            )
+            .font(.system(size: UIScale.pt(11)))
+            .foregroundStyle(DashSkin.inkFaint(dark))
+        }
+    }
+
     private var testSection: some View {
         VStack(alignment: .leading, spacing: UIScale.pt(8)) {
             HStack(spacing: UIScale.pt(10)) {
@@ -287,6 +320,7 @@ struct AddMachineSheet: View {
             return
         }
         mode = .manual
+        sudoPasswordStored = SudoPassword.isStored(machineID: editing.id)
         name = editing.name
         host = editing.host
         port = String(editing.port)
@@ -386,7 +420,12 @@ struct AddMachineSheet: View {
 
     private func save() {
         let machine = makeMachine()
-        onSave(machine, secret.isEmpty ? nil : secret)
+        onSave(
+            machine,
+            Secrets(
+                login: secret.isEmpty ? nil : secret,
+                sudo: sudoPassword.isEmpty ? nil : sudoPassword,
+                forgetSudo: forgetSudoPassword && sudoPassword.isEmpty))
         dismiss()
     }
 }

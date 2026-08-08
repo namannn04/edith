@@ -229,6 +229,14 @@ machine whose polkit rules already allow it. Stderr is folded into stdout on the
 far side, which is why a refusal comes back as readable prose rather than as an
 empty failure.
 
+When the machine has a sudo password stored, the line is
+`sudo -S -p '' systemctl reboot 2>&1` instead, with the password written to the
+command's standard input rather than put on the command line, and there is no
+fallback: one attempt, and a wrong password is reported as one. Store it with
+`ed machines edit <machine> --sudo-password-stdin`. This is the way that works on
+a stock desktop Linux, where polkit treats an SSH session as inactive and refuses
+`systemctl poweroff` without interactive authentication.
+
 A machine that answers *a password is required* or *Interactive authentication
 required* is reported as having refused, and exits 1, rather than being called
 done. The hint appears only when the output matches one of the phrases that mean
@@ -961,6 +969,11 @@ talks to the app.
   the presence of that phrase alone is enough for `ed` to call it a failure. The
   unit changes state on the machine and `ed` exits 1 saying it could not. If you
   see that, check with `ed machines services ls <machine>` before retrying.
+- A stored sudo password removes both of those. Every privileged verb becomes a
+  single `sudo -S -p '' systemctl ...` with the password on standard input, so
+  there is no second attempt to leave stale text in the buffer and no order to
+  get wrong. A password the machine rejects is reported as rejected, with a hint
+  naming the flag that replaces it, rather than as a missing privilege.
 - The phrases that count as a privilege problem are `password is required`,
   `interactive authentication required`, `access denied`, `not authorized` and
   `permission denied`, matched case-insensitively anywhere in the output. A unit

@@ -388,6 +388,31 @@ import Testing
         #expect(command.contains("sudo -n systemctl restart docker.service"))
     }
 
+    @Test func aStoredSudoPasswordReplacesTheGuessworkWithOneAttempt() {
+        let unit = ServiceCommands.action(
+            "restart", unit: "docker.service", withSudoPassword: true)
+        #expect(unit == "sudo -S -p '' systemctl restart docker.service 2>&1")
+        #expect(!unit.contains("sudo -n"))
+        #expect(
+            ServiceCommands.reboot(withSudoPassword: true)
+                == "sudo -S -p '' systemctl reboot 2>&1")
+        #expect(
+            ServiceCommands.shutdown(withSudoPassword: true)
+                == "sudo -S -p '' systemctl poweroff 2>&1")
+    }
+
+    @Test func theSudoPasswordIsNeverPutOnTheCommandLine() {
+        let commands = [
+            ServiceCommands.action("start", unit: "a.service", withSudoPassword: true),
+            ServiceCommands.reboot(withSudoPassword: true),
+            ServiceCommands.shutdown(withSudoPassword: true),
+        ]
+        for command in commands {
+            #expect(command.contains("-S"))
+            #expect(command.contains("-p ''"))
+        }
+    }
+
     @Test func journalCommandSupportsFollow() {
         #expect(
             ServiceCommands.journal(unit: "ssh.service", lines: 300, follow: true)

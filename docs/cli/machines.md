@@ -380,7 +380,8 @@ replaces one field and everything you leave out is untouched.
 ```
 ed machines edit <machine> [--name <n>] [--host <h>] [--port <n>] [--user <u>]
                            [--key <path>] [--agent] [--mac <address>]
-                           [--password-stdin | --key-passphrase-stdin] [--json]
+                           [--password-stdin | --key-passphrase-stdin]
+                           [--sudo-password-stdin | --forget-sudo-password] [--json]
 ```
 
 #### Arguments
@@ -402,12 +403,15 @@ ed machines edit <machine> [--name <n>] [--host <h>] [--port <n>] [--user <u>]
 | `--mac` | string | unchanged | MAC address for wake-on-LAN. Pass an empty value, `--mac ""`, to clear it. |
 | `--password-stdin` | flag | off | Read a new login password from stdin, store it in the keychain, and set `auth` to `Password`. |
 | `--key-passphrase-stdin` | flag | off | Read the key file's passphrase from stdin and store it. |
+| `--sudo-password-stdin` | flag | off | Read this account's sudo password from stdin and store it in the keychain. It is what `power reboot`, `power shutdown` and the unit verbs use to become root. Cannot be combined with `--forget-sudo-password`. |
+| `--forget-sudo-password` | flag | off | Delete the stored sudo password. The privileged verbs go back to trying `sudo -n` and plain `systemctl`. |
 | `--json` | flag | off | Emit JSON on stdout instead of the confirmation block. |
 | `--help`, `-h` | flag | off | Print the help for this command on stdout and exit 0. |
 
 #### `--json` shape
 
-The updated machine's record.
+The updated machine's record. Neither sudo flag appears in it: a stored secret
+lives in the keychain, never in `machines.json`.
 
 #### Examples
 
@@ -418,6 +422,8 @@ ed machines edit shed --key ~/.ssh/id_ed25519
 ed machines edit shed --agent
 ed machines edit shed --mac ""
 printf '%s' "$PHRASE" | ed machines edit shed --key ~/.ssh/id_ed25519 --key-passphrase-stdin
+printf '%s' "$SUDO" | ed machines edit shed --sudo-password-stdin
+ed machines edit shed --forget-sudo-password
 ```
 
 #### Behaviour notes

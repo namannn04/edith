@@ -231,6 +231,12 @@ enum UIParity {
         UICapability(
             "Add machine sheet", "store a key passphrase",
             ["machines", "edit", "box", "--key-passphrase-stdin"]),
+        UICapability(
+            "Add machine sheet", "store a sudo password",
+            ["machines", "edit", "box", "--sudo-password-stdin"]),
+        UICapability(
+            "Add machine sheet", "forget the stored sudo password",
+            ["machines", "edit", "box", "--forget-sudo-password"]),
 
         UICapability(
             "Docker window", "start a container", ["machines", "docker", "start", "box", "api"]),

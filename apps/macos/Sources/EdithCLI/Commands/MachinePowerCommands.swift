@@ -69,8 +69,11 @@ enum PowerBridge {
     ) async throws {
         try await execute {
             let target = try MachineResolver.machine(name)
+            let stdin = SudoPassword.stdin(machineID: target.id)
             let command =
-                action == "reboot" ? ServiceCommands.reboot() : ServiceCommands.shutdown()
+                action == "reboot"
+                ? ServiceCommands.reboot(withSudoPassword: stdin != nil)
+                : ServiceCommands.shutdown(withSudoPassword: stdin != nil)
             guard yes else {
                 guard !json else {
                     CLIOut.json(
@@ -91,7 +94,7 @@ enum PowerBridge {
             let runner = try await MachineResolver.runner(name)
             let outcome: Result<SSHExecResult, Error>
             do {
-                outcome = .success(try await runner.ssh.run(command, timeout: 20))
+                outcome = .success(try await runner.ssh.run(command, stdin: stdin, timeout: 20))
             } catch {
                 outcome = .failure(error)
             }
@@ -113,12 +116,9 @@ enum PowerBridge {
     static func refusal(_ action: String, machine: String, detail: String) -> CLIFailure {
         let trimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = trimmed.isEmpty ? "\(machine) refused to \(action)" : trimmed
-        guard PowerOutcome.needsPrivilege(trimmed) else {
-            return CLIFailure("\(machine) did not \(action): \(message)")
-        }
         return CLIFailure(
             "\(machine) did not \(action): \(message)",
-            hint: "give this account passwordless sudo for systemctl on \(machine)")
+            hint: SudoPassword.hint(forRefusal: trimmed))
     }
 
     static func report(_ action: String, machine: String, json: Bool) throws {
@@ -230,15 +230,16 @@ enum ServiceBridge {
     {
         try await execute {
             let runner = try await MachineResolver.runner(name)
+            let stdin = SudoPassword.stdin(machineID: runner.machine.id)
             let result = try await runner.run(
-                ServiceCommands.action(action, unit: unit), timeout: 60)
+                ServiceCommands.action(action, unit: unit, withSudoPassword: stdin != nil),
+                stdin: stdin, timeout: 60)
             let detail = result.combinedText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard result.succeeded, !PowerOutcome.needsPrivilege(detail) else {
                 throw CLIFailure(
                     "could not \(action) \(unit) on \(runner.machine.name)"
                         + (detail.isEmpty ? "" : ": \(detail)"),
-                    hint: PowerOutcome.needsPrivilege(detail)
-                        ? "give this account passwordless sudo for systemctl" : nil)
+                    hint: SudoPassword.hint(forRefusal: detail))
             }
             guard !json else {
                 CLIOut.json(
