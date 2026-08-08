@@ -79,6 +79,8 @@ public struct ClipboardEntry: Codable, Identifiable, Equatable, Sendable {
         case "zip", "gz", "bz2", "xz", "tar", "7z", "rar", "sqlite", "sqlite3", "db", "data",
             "color", "ttf", "otf", "woff", "woff2", "usd", "usdz":
             return .data
+        case let value where ClipboardTextKinds.isText(value):
+            return .text
         default:
             for identifier in types {
                 guard let type = UTType(identifier) else { continue }

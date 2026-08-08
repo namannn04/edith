@@ -271,6 +271,7 @@ struct ConfigImportCommand: AsyncParsableCommand {
             let store = ConfigStore()
             var applied: [String] = []
             var skipped: [String] = []
+            var unchanged: [String] = []
             for key in object.keys.sorted() {
                 guard let found = ConfigCatalog.definition(for: key), !found.readOnly else {
                     skipped.append(key)
@@ -278,6 +279,10 @@ struct ConfigImportCommand: AsyncParsableCommand {
                 }
                 guard let raw = object[key], let value = try? coerce(raw, to: found) else {
                     skipped.append(key)
+                    continue
+                }
+                guard value != store.value(for: found) else {
+                    unchanged.append(key)
                     continue
                 }
                 if !dryRun { try store.set(value, for: found) }
@@ -288,12 +293,17 @@ struct ConfigImportCommand: AsyncParsableCommand {
                 CLIOut.json(
                     .object([
                         "applied": .strings(applied),
+                        "unchanged": .strings(unchanged),
                         "skipped": .strings(skipped),
                         "dryRun": .bool(dryRun),
                     ]))
                 return
             }
-            CLIOut.out("\(dryRun ? "would apply" : "applied") \(applied.count) settings")
+            let noun = applied.count == 1 ? "setting" : "settings"
+            CLIOut.out("\(dryRun ? "would apply" : "applied") \(applied.count) \(noun)")
+            if !unchanged.isEmpty {
+                CLIOut.note("\(unchanged.count) already matched")
+            }
             if !skipped.isEmpty {
                 CLIOut.note("skipped: " + skipped.joined(separator: ", "))
             }

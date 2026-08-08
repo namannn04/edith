@@ -99,6 +99,7 @@ public enum ClipboardRepository {
             "gz", "bz2", "xz", "tar", "7z", "rar", "data", "color":
             return nil
         default:
+            guard ClipboardTextKinds.isText(entry.ext) else { return nil }
             return String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .utf16)
         }
