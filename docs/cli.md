@@ -24,6 +24,10 @@ and is the shortest path to being useful. This page is the complete reference.
 - [`ed system`](#ed-system)
 - [`ed music`](#ed-music)
 - [`ed calendar`](#ed-calendar)
+- [`ed clipboard`](#ed-clipboard)
+- [`ed color`](#ed-color)
+- [`ed shelf`](#ed-shelf)
+- [`ed cleaner`](#ed-cleaner)
 - [`ed machines`](#ed-machines)
 - [Running a command on a machine](#running-a-command-on-a-machine)
 - [What needs the app running](#what-needs-the-app-running)
@@ -303,6 +307,91 @@ detected meeting link.
 This exits 4 with a specific reason when it cannot answer: the app is not
 running, the Calendar extension is off, or macOS has not granted Edith calendar
 access.
+
+## `ed clipboard`
+
+The history is a file on disk, so the read commands work whether or not the app
+is running. Entries are numbered from 1 in the same order the panel shows them:
+pinned first, then most recently copied, honouring `clipboardPinTo`. That number
+is what every other verb takes, and it is the same entry the UI would act on.
+
+```
+ed clipboard ls [--pinned] [--search <text>] [--limit <n>] [--json]
+ed clipboard stats [--json]
+ed clipboard get <n> [--json]
+ed clipboard copy <n> [--plain] [--json]
+ed clipboard pin <n> [--json]
+ed clipboard unpin <n> [--json]
+ed clipboard rm <n> [--json]
+ed clipboard clear [--keep-pinned] [--json]
+```
+
+`ls` shows 25 entries; `--limit 0` shows all of them, and a truncated list says
+so on stderr. `--search` matches the preview text and the source application,
+case-insensitively, which is the same match the panel's search field makes.
+
+`stats` is how to see how much the history is holding:
+
+```
+$ ed clipboard stats
+ITEMS  PINNED  SIZE   ON DISK  LARGEST  OLDEST
+1217   3       46 MB  46.7 MB  9.2 MB   2026-07-27T09:43:29Z
+
+KIND      COUNT  SIZE
+text      517    337 KB
+richText  40     28 KB
+html      229    2.4 MB
+image     35     43.2 MB
+file      87     72 KB
+data      309    39 KB
+```
+
+`sizeBytes` totals what the entries claim; `diskBytes` is what the blob
+directory actually occupies. They differ when a blob is shared or orphaned.
+
+`copy` puts an entry back on the pasteboard and, like clicking it in the panel,
+bumps it to the top of the history. `--plain` strips styling from a rich entry.
+`pin` keeps an entry out of the retention sweep that `clipboardMaxItems` and
+`clipboardMaxAgeDays` drive; pinning something already pinned reports that on
+stderr and still exits 0.
+
+## `ed color`
+
+```
+ed color ls [--format <f>] [--limit <n>] [--json]
+ed color clear [--json]
+```
+
+`--format` prints one representation per line and nothing else, so
+`ed color ls --format hex --limit 1` is the last colour you picked. Formats are
+`hex`, `rgb`, `hsl`, `swiftUI` and `nsColor`. `colour` is an accepted spelling.
+
+## `ed shelf`
+
+```
+ed shelf ls [--json]
+ed shelf path <n> [--json]
+ed shelf add <file> [--json]
+ed shelf rm <n> [--json]
+ed shelf clear [--json]
+```
+
+`add` copies the file onto the shelf rather than moving it, and renames it if
+the shelf already holds that name. `path` prints the copy's location, which is
+what to pipe into another tool.
+
+## `ed cleaner`
+
+```
+ed cleaner categories [--json]
+ed cleaner drives [--json]
+ed cleaner scan [--category <c>] [--json]
+ed cleaner clean [--category <c>] [--yes] [--json]
+```
+
+`clean` without `--yes` reports what it would move and touches nothing. With
+`--yes` it moves the files to the Trash; it never deletes, so a mistake is
+recoverable from Finder.
 
 ## `ed machines`
 

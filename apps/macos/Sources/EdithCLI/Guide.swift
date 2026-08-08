@@ -185,9 +185,12 @@ public enum Guide {
         running, because it lives in files and preferences rather than in memory.
 
         ```
-        ed clipboard ls                 the clipboard history, newest first
+        ed clipboard ls                 the clipboard history, pinned first
+        ed clipboard ls --search token  only entries mentioning it
+        ed clipboard stats              how many entries, and what they weigh
         ed clipboard get 3              entry three, as text
         ed clipboard copy 3             put it back on the pasteboard
+        ed clipboard pin 3 | unpin 3
         ed clipboard rm 3 | clear
         ed color ls --format hex        the colours you picked
         ed shelf ls                     what is parked on the notch shelf

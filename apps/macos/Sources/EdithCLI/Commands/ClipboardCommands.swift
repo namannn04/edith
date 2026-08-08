@@ -13,15 +13,16 @@ struct ClipboardCommand: AsyncParsableCommand {
             number is what `get`, `copy` and `rm` take.
             """,
         subcommands: [
-            ClipboardListCommand.self, ClipboardGetCommand.self, ClipboardCopyCommand.self,
+            ClipboardListCommand.self, ClipboardStatsCommand.self, ClipboardGetCommand.self,
+            ClipboardCopyCommand.self, ClipboardPinCommand.self, ClipboardUnpinCommand.self,
             ClipboardRemoveCommand.self, ClipboardClearCommand.self,
         ],
         defaultSubcommand: ClipboardListCommand.self)
 }
 
 enum ClipboardBridge {
-    static func entries() -> [ClipboardEntry] {
-        ClipboardRepository.loadEntries().sorted { $0.lastCopiedAt > $1.lastCopiedAt }
+    static func entries(query: String = "") -> [ClipboardEntry] {
+        ClipboardActions.listed(query: query, defaults: CLIEnvironment.sharedDefaults)
     }
 
     static func entry(at index: Int) throws -> (entry: ClipboardEntry, all: [ClipboardEntry]) {
@@ -44,6 +45,7 @@ enum ClipboardBridge {
             "index": .int(index),
             "id": .string(entry.id),
             "kind": .string(entry.ext),
+            "family": .string(entry.kind.rawValue),
             "isText": .bool(entry.isTextual),
             "preview": .optional(entry.preview),
             "sourceApp": .optional(entry.sourceApp),
@@ -51,6 +53,36 @@ enum ClipboardBridge {
             "pinned": .bool(entry.pinned),
             "copiedAt": .date(entry.lastCopiedAt),
         ])
+    }
+
+    static func bytes(_ value: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file)
+    }
+
+    static func repin(
+        _ pinned: Bool, index: Int, json: Bool
+    ) async throws {
+        try await execute {
+            let found = try ClipboardBridge.entry(at: index)
+            let outcome = try ClipboardActions.setPinned(pinned, ids: [found.entry.id])
+            AppBridge.post(IPC.Name.clipboardChanged)
+            let verb = pinned ? "pinned" : "unpinned"
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "index": .int(index),
+                        "id": .string(found.entry.id),
+                        "pinned": .bool(pinned),
+                        "changed": .bool(outcome.changed > 0),
+                    ]))
+                return
+            }
+            guard outcome.changed > 0 else {
+                CLIOut.note("entry \(index) was already \(verb)")
+                return
+            }
+            CLIOut.out("\(verb) entry \(index)")
+        }
     }
 
     static func text(_ entry: ClipboardEntry) throws -> String {
@@ -79,15 +111,18 @@ struct ClipboardListCommand: AsyncParsableCommand {
     @Flag(help: "Only pinned entries.")
     var pinned = false
 
-    @Option(help: "Show at most this many entries.")
+    @Option(help: "Only entries whose preview or source app contains this text.")
+    var search: String?
+
+    @Option(help: "Show at most this many entries. Pass 0 for all of them.")
     var limit: Int = 25
 
     func run() async throws {
         try await execute {
-            let limit = try ArgumentChecks.positive(self.limit, "--limit")
-            var entries = ClipboardBridge.entries()
+            let limit = try ArgumentChecks.nonNegative(self.limit, "--limit")
+            var entries = ClipboardBridge.entries(query: search ?? "")
             if pinned { entries = entries.filter(\.pinned) }
-            let shown = Array(entries.prefix(limit))
+            let shown = limit == 0 ? entries : Array(entries.prefix(limit))
             guard !json else {
                 CLIOut.json(
                     .array(
@@ -97,12 +132,107 @@ struct ClipboardListCommand: AsyncParsableCommand {
             let rows = shown.enumerated().map { offset, entry in
                 [
                     String(offset + 1), entry.ext, entry.pinned ? "pinned" : "",
-                    entry.sourceApp ?? "", entry.preview ?? "",
+                    ClipboardBridge.bytes(entry.size), entry.sourceApp ?? "",
+                    entry.preview ?? "",
                 ]
             }
             CLIOut.out(
-                TextTable.render(headers: ["#", "KIND", "", "FROM", "PREVIEW"], rows: rows))
+                TextTable.render(
+                    headers: ["#", "KIND", "", "SIZE", "FROM", "PREVIEW"], rows: rows))
+            guard shown.count < entries.count else { return }
+            CLIOut.note(
+                "showing \(shown.count) of \(entries.count); pass --limit 0 for all of them")
         }
+    }
+}
+
+struct ClipboardStatsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "stats",
+        abstract: "How many entries the history holds and what they weigh.",
+        aliases: ["size"])
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    func run() async throws {
+        try await execute {
+            let stats = ClipboardActions.stats()
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "count": .int(stats.count),
+                        "pinned": .int(stats.pinned),
+                        "sizeBytes": .int(stats.bytes),
+                        "diskBytes": .int(stats.diskBytes),
+                        "largestBytes": .int(stats.largest),
+                        "oldest": .date(stats.oldest),
+                        "newest": .date(stats.newest),
+                        "byKind": .array(
+                            stats.byKind.map { total in
+                                .object([
+                                    "kind": .string(total.kind.rawValue),
+                                    "count": .int(total.count),
+                                    "sizeBytes": .int(total.bytes),
+                                ])
+                            }),
+                    ]))
+                return
+            }
+            guard stats.count > 0 else {
+                CLIOut.note("the clipboard history is empty")
+                return
+            }
+            CLIOut.out(
+                TextTable.render(
+                    headers: ["ITEMS", "PINNED", "SIZE", "ON DISK", "LARGEST", "OLDEST"],
+                    rows: [
+                        [
+                            String(stats.count), String(stats.pinned),
+                            ClipboardBridge.bytes(stats.bytes),
+                            ClipboardBridge.bytes(stats.diskBytes),
+                            ClipboardBridge.bytes(stats.largest),
+                            stats.oldest.map(JSONSerializer.iso.string(from:)) ?? "",
+                        ]
+                    ]))
+            CLIOut.out("")
+            CLIOut.out(
+                TextTable.render(
+                    headers: ["KIND", "COUNT", "SIZE"],
+                    rows: stats.byKind.map {
+                        [$0.kind.rawValue, String($0.count), ClipboardBridge.bytes($0.bytes)]
+                    }))
+        }
+    }
+}
+
+struct ClipboardPinCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "pin", abstract: "Keep one entry at the top and out of the retention sweep.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "The entry number, counting from 1.")
+    var index: Int
+
+    func run() async throws {
+        try await ClipboardBridge.repin(true, index: index, json: json)
+    }
+}
+
+struct ClipboardUnpinCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "unpin", abstract: "Let one entry age out again.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "The entry number, counting from 1.")
+    var index: Int
+
+    func run() async throws {
+        try await ClipboardBridge.repin(false, index: index, json: json)
     }
 }
 
@@ -148,11 +278,12 @@ struct ClipboardCopyCommand: AsyncParsableCommand {
     func run() async throws {
         try await execute {
             let found = try ClipboardBridge.entry(at: index)
-            guard
-                ClipboardRepository.copyToPasteboard(found.entry, asPlainText: plain)
-            else {
+            do {
+                try ClipboardActions.copy(found.entry, asPlainText: plain)
+            } catch ClipboardActionError.blobMissing {
                 throw CLIFailure.notFound("the stored copy of that entry is gone")
             }
+            AppBridge.post(IPC.Name.clipboardChanged)
             guard !json else {
                 CLIOut.json(ClipboardBridge.json(found.entry, index: index))
                 return
@@ -175,15 +306,16 @@ struct ClipboardRemoveCommand: AsyncParsableCommand {
     func run() async throws {
         try await execute {
             let found = try ClipboardBridge.entry(at: index)
-            let kept = found.all.filter { $0.id != found.entry.id }
-            try ClipboardRepository.saveEntries(kept)
-            ClipboardRepository.pruneOrphanBlobs(keeping: kept)
+            let outcome = try ClipboardActions.delete(ids: [found.entry.id])
             AppBridge.post(IPC.Name.clipboardChanged)
             guard !json else {
-                CLIOut.json(.object(["removed": .int(index), "remaining": .int(kept.count)]))
+                CLIOut.json(
+                    .object([
+                        "removed": .int(index), "remaining": .int(outcome.entries.count),
+                    ]))
                 return
             }
-            CLIOut.out("removed entry \(index), \(kept.count) left")
+            CLIOut.out("removed entry \(index), \(outcome.entries.count) left")
         }
     }
 }
@@ -200,19 +332,17 @@ struct ClipboardClearCommand: AsyncParsableCommand {
 
     func run() async throws {
         try await execute {
-            let all = ClipboardBridge.entries()
-            let kept = keepPinned ? all.filter(\.pinned) : []
-            try ClipboardRepository.saveEntries(kept)
-            ClipboardRepository.pruneOrphanBlobs(keeping: kept)
+            let outcome = try ClipboardActions.clear(keepingPinned: keepPinned)
             AppBridge.post(IPC.Name.clipboardChanged)
             guard !json else {
                 CLIOut.json(
                     .object([
-                        "removed": .int(all.count - kept.count), "remaining": .int(kept.count),
+                        "removed": .int(outcome.changed),
+                        "remaining": .int(outcome.entries.count),
                     ]))
                 return
             }
-            CLIOut.out("cleared \(all.count - kept.count) entries")
+            CLIOut.out("cleared \(outcome.changed) entries")
         }
     }
 }

@@ -209,13 +209,22 @@ public enum CommandTree {
                 children: [
                     CommandNode(
                         "ls", "List the clipboard history.", aliases: ["list"],
-                        options: ["--json", "--help", "--pinned", "--limit"]),
+                        options: ["--json", "--help", "--pinned", "--search", "--limit"]),
+                    CommandNode(
+                        "stats", "How many entries there are and what they weigh.",
+                        aliases: ["size"], options: common),
                     CommandNode(
                         "get", "Print one entry as text.", options: common,
                         arguments: [.historyIndex]),
                     CommandNode(
                         "copy", "Put one entry back on the pasteboard.",
                         options: ["--json", "--help", "--plain"], arguments: [.historyIndex]),
+                    CommandNode(
+                        "pin", "Keep one entry at the top.", options: common,
+                        arguments: [.historyIndex]),
+                    CommandNode(
+                        "unpin", "Let one entry age out again.", options: common,
+                        arguments: [.historyIndex]),
                     CommandNode(
                         "rm", "Forget one entry.", options: ["--json"],
                         arguments: [.historyIndex]),
