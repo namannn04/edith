@@ -118,6 +118,7 @@ struct CompanionChatScreen: View {
     @Environment(\.compactLayout) private var compact
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var caretDim = false
+    @FocusState private var composerFocused: Bool
 
     private var dark: Bool { scheme == .dark }
 
@@ -322,16 +323,24 @@ struct CompanionChatScreen: View {
     }
 
     private var composer: some View {
-        HStack(spacing: UIScale.pt(8)) {
-            EdithTextField(
-                placeholder: "Talk to your memory…", text: $model.draft,
-                icon: "bubble.left",
-                onSubmit: { Task { await model.send() } })
+        HStack(alignment: .bottom, spacing: UIScale.pt(10)) {
+            Image(systemName: "bubble.left")
+                .font(.system(size: UIScale.pt(13)))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .padding(.bottom, UIScale.pt(3))
+            TextField("Talk to your memory…", text: $model.draft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...6)
+                .font(.system(size: UIScale.pt(13.5)))
+                .foregroundStyle(DashSkin.ink(dark))
+                .focused($composerFocused)
+                .focusEffectDisabled()
+                .onSubmit { Task { await model.send() } }
             Button {
                 Task { await model.send() }
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: UIScale.pt(22)))
+                    .font(.system(size: UIScale.pt(24)))
                     .foregroundStyle(
                         model.draft.trimmingCharacters(in: .whitespaces).isEmpty || model.streaming
                             ? DashSkin.inkFaint(dark) : DashSkin.accent(dark))
@@ -341,6 +350,18 @@ struct CompanionChatScreen: View {
             .disabled(model.streaming)
             .help("Send")
         }
+        .padding(.horizontal, UIScale.pt(14))
+        .padding(.vertical, UIScale.pt(12))
+        .background(
+            DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(14))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: UIScale.pt(14))
+                .strokeBorder(
+                    composerFocused ? DashSkin.accent(dark) : DashSkin.lineStrong(dark),
+                    lineWidth: UIScale.pt(composerFocused ? 1.5 : 1))
+        }
+        .animation(.easeOut(duration: 0.12), value: composerFocused)
         .padding(.horizontal, PageMetrics.gutter(compact))
         .padding(.vertical, UIScale.pt(12))
     }
