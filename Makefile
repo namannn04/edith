@@ -1,18 +1,19 @@
 FLAGS := $(if $(PR),--pr $(PR)) $(if $(BRANCH),--branch $(BRANCH))
 
-.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check site-dev cli wiki wiki-push
+.PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check ci-xcode ci-xcode-check site-dev cli wiki wiki-push
 
 ci:
 	bun install --frozen-lockfile
-	$(MAKE) ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift
+	$(MAKE) ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-xcode
 
 site-dev:
 	cd apps/site && python3 -m http.server 8000
 
 cli:
-	cd apps/macos && swift build -c release --product ed --product edh
-	apps/macos/.build/release/ed install --directory $(HOME)/.local/bin
-	apps/macos/.build/release/ed completions install
+	xcodebuild -project edth.xcodeproj -scheme ed -configuration Release -derivedDataPath build build
+	xcodebuild -project edth.xcodeproj -scheme edh -configuration Release -derivedDataPath build build
+	build/Build/Products/Release/ed install --directory $(HOME)/.local/bin
+	build/Build/Products/Release/ed completions install
 
 wiki:
 	bun scripts/sync-wiki.mjs
@@ -79,17 +80,43 @@ ci-swift: ci-swift-check
 	codesign --verify apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app
 	codesign --verify apps/macos/dist/Edith.app
 
+# edth.xcodeproj is the target build system (see docs/apps/macos migration
+# notes in CONTRIBUTING.md); apps/macos above stays in place until release
+# signing, notarization and the test suite have moved over too.
+ci-xcode-check:
+	swift format lint --strict --parallel --recursive EdithMain EdithHelper EdithFiles ed edh \
+	  Packages/EdithKit Packages/EdithCLI
+	xcodebuild -project edth.xcodeproj -scheme EdithMain -configuration Debug -derivedDataPath build build
+	xcodebuild -project edth.xcodeproj -scheme EdithHelper -configuration Debug -derivedDataPath build build
+	xcodebuild -project edth.xcodeproj -scheme EdithFiles -configuration Debug -derivedDataPath build build
+	xcodebuild -project edth.xcodeproj -scheme ed -configuration Debug -derivedDataPath build build
+	xcodebuild -project edth.xcodeproj -scheme edh -configuration Debug -derivedDataPath build build
+
+ci-xcode: ci-xcode-check
+	APP=build/Build/Products/Debug/Edith.app; \
+	test -f "$$APP/Contents/MacOS/Edith"; \
+	test -x "$$APP/Contents/MacOS/ed"; \
+	test -x "$$APP/Contents/MacOS/edh"; \
+	test -f "$$APP/Contents/Resources/EdithKit_EdithKit.bundle/Contents/Resources/claude.svg"; \
+	test -f "$$APP/Contents/Resources/EdithKit_EdithKit.bundle/Contents/Resources/codex.svg"; \
+	test -f "$$APP/Contents/Library/LoginItems/Edith.app/Contents/MacOS/EdithHelper"; \
+	test -x "$$APP/Contents/Library/Applications/Edith Files.app/Contents/MacOS/EdithFiles"; \
+	/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$$APP/Contents/Library/Applications/Edith Files.app/Contents/Info.plist" | grep -qx com.pulkit.edith.files; \
+	codesign --verify "$$APP/Contents/Library/LoginItems/Edith.app"; \
+	codesign --verify "$$APP/Contents/Library/Applications/Edith Files.app"; \
+	codesign --verify --deep --strict "$$APP"
+
 build:
-	apps/macos/build.sh $(FLAGS)
+	./build.sh $(FLAGS)
 
 install:
-	apps/macos/build.sh --install $(FLAGS)
+	./build.sh --install $(FLAGS)
 
 reset:
-	apps/macos/reset.sh
+	./reset.sh
 
 reinstall: reset
-	apps/macos/build.sh --install $(FLAGS)
+	./build.sh --install $(FLAGS)
 
 release:
 	@set -eu; \

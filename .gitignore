@@ -1,6 +1,9 @@
 .DS_Store
 .build/
+.swiftpm/
+xcuserdata/
 dist/
+/build/
 # generated from Resources/appicon.png by build.sh
 apps/macos/Resources/AppIcon.icns
 local/

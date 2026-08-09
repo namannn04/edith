@@ -1,0 +1,1 @@
+EdithApp.main()
