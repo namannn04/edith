@@ -679,7 +679,7 @@ public enum CommandTree {
                         "index", "Embed pending companion episodes.",
                         options: common + ["--endpoint"]),
                     CommandNode(
-                        "ingest", "Ingest Markdown notes as episodes.",
+                        "ingest", "Ingest Markdown notes and voice recordings as episodes.",
                         options: ["--json", "--endpoint"], arguments: [.localPath]),
                     CommandNode(
                         "episodes", "List recent companion episodes.",

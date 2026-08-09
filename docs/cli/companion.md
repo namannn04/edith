@@ -261,7 +261,7 @@ and exits 4.
 
 ### `ed companion ingest`
 
-Scans Markdown and posts it to the companion in batches.
+Scans Markdown and audio recordings and posts them to the companion.
 
 Usage:
 
@@ -273,7 +273,7 @@ Arguments:
 
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
-| `<path>` | `.md` file or directory | required | Reads one note or recursively finds Markdown below a folder. |
+| `<path>` | `.md` or audio file, or a directory | required | Reads one file or recursively finds Markdown and audio (`.wav`, `.m4a`, `.mp3`, `.ogg`, `.flac`, `.aiff`) below a folder. |
 
 Options:
 
@@ -331,8 +331,12 @@ $ ed companion ingest ./notes --json
 
 Behaviour: a directory walk is recursive, skips hidden files, and sorts names
 before upload. The file modification time is sent as a fallback event time.
-Files larger than 2MB are skipped with a note on stderr. No matching file is a
-usage error. Accepted files are posted in batches of at most 200.
+Markdown larger than 2MB and audio larger than 48MB are skipped with a note on
+stderr. No matching file is a usage error. Markdown is posted in batches of at
+most 200; audio uploads one file at a time and waits while the companion
+transcribes it with whisper.cpp, so a long recording takes a while. The
+transcript becomes the episode body with kind `voice`, the detected language,
+the duration, and per-segment timings kept in the episode metadata.
 
 ### `ed companion episodes`
 

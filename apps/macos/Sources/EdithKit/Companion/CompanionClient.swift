@@ -209,15 +209,32 @@ public struct CompanionClient: Sendable {
         return try await self.request(request)
     }
 
+    public func ingestAudio(name: String, data: Data, mtime: String?) async throws
+        -> CompanionIngestOutcome
+    {
+        var request = URLRequest(url: url(for: "ingest/audio"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        do {
+            request.httpBody = try JSONEncoder().encode(
+                AudioIngestRequest(name: name, dataB64: data.base64EncodedString(), mtime: mtime))
+        } catch {
+            throw CompanionClientError.unreachable(error.localizedDescription)
+        }
+        return try await self.request(request, timeout: 600)
+    }
+
     private func get<T: Decodable>(_ path: String, allowing: Set<Int> = []) async throws -> T {
         try await request(URLRequest(url: url(for: path)), allowing: allowing)
     }
 
-    private func request<T: Decodable>(_ request: URLRequest, allowing: Set<Int> = []) async throws
+    private func request<T: Decodable>(
+        _ request: URLRequest, allowing: Set<Int> = [], timeout: TimeInterval = 5
+    ) async throws
         -> T
     {
         var request = request
-        request.timeoutInterval = 5
+        request.timeoutInterval = timeout
         let data: Data
         let response: URLResponse
         do {
@@ -249,4 +266,10 @@ public struct CompanionClient: Sendable {
 
 private struct IngestRequest: Encodable {
     let files: [CompanionIngestFile]
+}
+
+private struct AudioIngestRequest: Encodable {
+    let name: String
+    let dataB64: String
+    let mtime: String?
 }

@@ -10,7 +10,90 @@ public struct CompanionScanResult: Equatable, Sendable {
     }
 }
 
+public struct CompanionAudioFile: Equatable, Sendable {
+    public let name: String
+    public let data: Data
+    public let mtime: String?
+
+    public init(name: String, data: Data, mtime: String? = nil) {
+        self.name = name
+        self.data = data
+        self.mtime = mtime
+    }
+}
+
+public struct CompanionAudioScanResult: Equatable, Sendable {
+    public let files: [CompanionAudioFile]
+    public let skipped: [String]
+
+    public init(files: [CompanionAudioFile], skipped: [String]) {
+        self.files = files
+        self.skipped = skipped
+    }
+}
+
 public enum CompanionScan {
+    public static let audioExtensions: Set<String> = ["wav", "m4a", "mp3", "ogg", "flac", "aiff"]
+
+    public static func audioFiles(
+        at url: URL, limit maximumByteSize: Int = 48 * 1024 * 1024
+    ) throws -> CompanionAudioScanResult {
+        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
+        if values.isRegularFile == true {
+            guard audioExtensions.contains(url.pathExtension.lowercased()) else {
+                return CompanionAudioScanResult(files: [], skipped: [])
+            }
+            return try scanAudio(urls: [url], relativeTo: nil, maximumByteSize: maximumByteSize)
+        }
+        guard values.isDirectory == true else {
+            return CompanionAudioScanResult(files: [], skipped: [])
+        }
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: url, includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles])
+        else {
+            return CompanionAudioScanResult(files: [], skipped: [])
+        }
+        let audio = enumerator.compactMap { item -> URL? in
+            guard let item = item as? URL,
+                audioExtensions.contains(item.pathExtension.lowercased())
+            else { return nil }
+            let itemValues = try? item.resourceValues(forKeys: [.isRegularFileKey])
+            return itemValues?.isRegularFile == true ? item : nil
+        }
+        return try scanAudio(urls: audio, relativeTo: url, maximumByteSize: maximumByteSize)
+    }
+
+    private static func scanAudio(
+        urls: [URL], relativeTo root: URL?, maximumByteSize: Int
+    ) throws -> CompanionAudioScanResult {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        var files: [CompanionAudioFile] = []
+        var skipped: [String] = []
+        for url in urls {
+            let name = relativeName(for: url, root: root)
+            let values = try url.resourceValues(
+                forKeys: [.fileSizeKey, .contentModificationDateKey])
+            guard values.fileSize.map({ $0 <= maximumByteSize }) ?? true else {
+                skipped.append(name)
+                continue
+            }
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            guard data.count <= maximumByteSize else {
+                skipped.append(name)
+                continue
+            }
+            files.append(
+                CompanionAudioFile(
+                    name: name, data: data,
+                    mtime: values.contentModificationDate.map { formatter.string(from: $0) }))
+        }
+        return CompanionAudioScanResult(
+            files: files.sorted { $0.name < $1.name }, skipped: skipped.sorted())
+    }
+
     public static func markdownFiles(
         at url: URL, limit maximumByteSize: Int = 2 * 1024 * 1024
     ) throws -> CompanionScanResult {

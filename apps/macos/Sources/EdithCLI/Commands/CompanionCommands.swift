@@ -254,7 +254,7 @@ struct CompanionDoctorCommand: AsyncParsableCommand {
 
 struct CompanionIngestCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "ingest", abstract: "Ingest Markdown notes as episodes.")
+        commandName: "ingest", abstract: "Ingest Markdown notes and voice recordings as episodes.")
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
     var json = false
@@ -262,15 +262,17 @@ struct CompanionIngestCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Companion API base URL.")
     var endpoint: String?
 
-    @Argument(help: "Markdown file or folder to ingest.", completion: .file())
+    @Argument(help: "Markdown or audio file, or a folder of them.", completion: .file())
     var path: String
 
     func run() async throws {
         try await execute {
             let url = URL(fileURLWithPath: path.expandingTilde())
             let scan: CompanionScanResult
+            let audioScan: CompanionAudioScanResult
             do {
                 scan = try CompanionScan.markdownFiles(at: url)
+                audioScan = try CompanionScan.audioFiles(at: url)
             } catch {
                 throw CLIFailure.usage(
                     "could not scan \(url.path)", hint: error.localizedDescription)
@@ -278,10 +280,13 @@ struct CompanionIngestCommand: AsyncParsableCommand {
             for name in scan.skipped {
                 CLIOut.note("skipped \(name): larger than 2MB")
             }
-            guard !scan.files.isEmpty else {
+            for name in audioScan.skipped {
+                CLIOut.note("skipped \(name): larger than 48MB")
+            }
+            guard !scan.files.isEmpty || !audioScan.files.isEmpty else {
                 throw CLIFailure.usage(
-                    "no Markdown files found at \(url.path)",
-                    hint: "pass a .md file or a folder containing .md files")
+                    "no Markdown or audio files found at \(url.path)",
+                    hint: "pass a .md or audio file, or a folder containing them")
             }
             var outcomes: [CompanionIngestOutcome] = []
             for start in stride(from: 0, to: scan.files.count, by: 200) {
@@ -292,6 +297,14 @@ struct CompanionIngestCommand: AsyncParsableCommand {
                 }
                 outcomes.append(contentsOf: added)
             }
+            for file in audioScan.files {
+                let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                    try await client.ingestAudio(
+                        name: file.name, data: file.data, mtime: file.mtime)
+                }
+                outcomes.append(outcome)
+            }
+            let skippedCount = scan.skipped.count + audioScan.skipped.count
             let ingested = outcomes.filter { $0.status == "ingested" }.count
             let duplicates = outcomes.filter { $0.status == "duplicate" }.count
             guard !json else {
@@ -299,7 +312,7 @@ struct CompanionIngestCommand: AsyncParsableCommand {
                     .object([
                         "ingested": .int(ingested),
                         "duplicates": .int(duplicates),
-                        "skipped": .int(scan.skipped.count),
+                        "skipped": .int(skippedCount),
                         "results": .array(outcomes.map(CompanionBridge.outcomeJSON)),
                     ]))
                 return
@@ -308,7 +321,7 @@ struct CompanionIngestCommand: AsyncParsableCommand {
                 CLIOut.out("\(outcome.status)  \(outcome.name)")
             }
             CLIOut.out(
-                "\(ingested) ingested, \(duplicates) duplicates, \(scan.skipped.count) skipped")
+                "\(ingested) ingested, \(duplicates) duplicates, \(skippedCount) skipped")
         }
     }
 }
