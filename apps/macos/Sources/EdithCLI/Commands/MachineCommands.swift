@@ -161,10 +161,7 @@ struct MachinesMetricsCommand: AsyncParsableCommand {
                 sink.receive(line)
             }
             defer { stream.cancel() }
-            while stream.isRunning {
-                try await Task.sleep(for: .milliseconds(200))
-                if !follow, sink.sawSample { break }
-            }
+            _ = await stream.waitForExit()
             if !sink.sawSample {
                 throw CLIFailure.unavailable(
                     "\(runner.machine.name) did not report metrics",

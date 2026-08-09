@@ -26,6 +26,38 @@ private final class LineSplitter: @unchecked Sendable {
     }
 }
 
+private final class StreamCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var status: Int32?
+    private var continuations: [CheckedContinuation<Int32, Never>] = []
+
+    func wait() async -> Int32 {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if let status {
+                lock.unlock()
+                continuation.resume(returning: status)
+            } else {
+                continuations.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func finish(_ status: Int32) {
+        lock.lock()
+        guard self.status == nil else {
+            lock.unlock()
+            return
+        }
+        self.status = status
+        let waiting = continuations
+        continuations.removeAll(keepingCapacity: false)
+        lock.unlock()
+        for continuation in waiting { continuation.resume(returning: status) }
+    }
+}
+
 public final class SSHLineStream: @unchecked Sendable {
     private let process: Process
     private let stdinData: Data?
@@ -35,6 +67,7 @@ public final class SSHLineStream: @unchecked Sendable {
     private let stderrPipe = Pipe()
     private let stdoutSplitter = LineSplitter()
     private let stderrSplitter = LineSplitter()
+    private let completion = StreamCompletion()
 
     public init(
         process: Process, stdinData: Data? = nil,
@@ -47,8 +80,6 @@ public final class SSHLineStream: @unchecked Sendable {
         self.onExit = onExit
     }
 
-    public var isRunning: Bool { process.isRunning }
-
     public func start() throws {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
@@ -56,13 +87,18 @@ public final class SSHLineStream: @unchecked Sendable {
         let stderr = stderrSplitter
         let deliver = onLine
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-            for line in stdout.receive(handle.availableData) { deliver(line, false) }
+            PipeReading.consume(handle) { data in
+                for line in stdout.receive(data) { deliver(line, false) }
+            }
         }
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            for line in stderr.receive(handle.availableData) { deliver(line, true) }
+            PipeReading.consume(handle) { data in
+                for line in stderr.receive(data) { deliver(line, true) }
+            }
         }
         let finish = onExit
-        process.terminationHandler = { [stdoutPipe, stderrPipe] finished in
+        let completion = completion
+        process.terminationHandler = { [stdoutPipe, stderrPipe, completion] finished in
             stdoutPipe.fileHandleForReading.readabilityHandler = nil
             stderrPipe.fileHandleForReading.readabilityHandler = nil
             for line in stdout.receive(
@@ -77,6 +113,7 @@ public final class SSHLineStream: @unchecked Sendable {
                 deliver(line, true)
             }
             for line in stderr.flush() { deliver(line, true) }
+            completion.finish(finished.terminationStatus)
             finish(finished.terminationStatus)
         }
         if let stdinData {
@@ -93,13 +130,23 @@ public final class SSHLineStream: @unchecked Sendable {
         }
     }
 
+    public func waitForExit() async -> Int32 {
+        await withTaskCancellationHandler {
+            await completion.wait()
+        } onCancel: {
+            cancel()
+        }
+    }
+
     public func cancel() {
         process.terminationHandler = nil
         stdoutPipe.fileHandleForReading.readabilityHandler = nil
         stderrPipe.fileHandleForReading.readabilityHandler = nil
+        let status = process.isRunning ? 130 : process.terminationStatus
         if process.isRunning {
             process.terminate()
         }
+        completion.finish(status)
     }
 }
 

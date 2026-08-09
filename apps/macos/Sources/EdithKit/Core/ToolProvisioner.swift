@@ -76,7 +76,9 @@ public enum CLICommandRunner {
             process.standardOutput = pipe
             process.standardError = pipe
             pipe.fileHandleForReading.readabilityHandler = { handle in
-                for line in output.receive(handle.availableData) { onLine(line) }
+                PipeReading.consume(handle) { data in
+                    for line in output.receive(data) { onLine(line) }
+                }
             }
             process.terminationHandler = { completedProcess in
                 pipe.fileHandleForReading.readabilityHandler = nil

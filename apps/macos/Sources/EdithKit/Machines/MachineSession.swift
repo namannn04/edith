@@ -1,6 +1,16 @@
 import AppKit
 import Foundation
 
+private struct MachineLiveMetrics {
+    var sample: MachineSample?
+    var cpuHistory: [Double] = []
+    var memHistory: [Double] = []
+    var netRxHistory: [Double] = []
+    var netTxHistory: [Double] = []
+    var diskReadHistory: [Double] = []
+    var diskWriteHistory: [Double] = []
+}
+
 @MainActor
 public final class MachineSession: ObservableObject {
     public let machine: Machine
@@ -8,14 +18,8 @@ public final class MachineSession: ObservableObject {
 
     @Published public private(set) var state: MachineConnectionState = .disconnected
     @Published public private(set) var hello: MachineHello?
-    @Published public private(set) var sample: MachineSample?
     @Published public private(set) var slow: MachineSlow?
-    @Published public private(set) var cpuHistory: [Double] = []
-    @Published public private(set) var memHistory: [Double] = []
-    @Published public private(set) var netRxHistory: [Double] = []
-    @Published public private(set) var netTxHistory: [Double] = []
-    @Published public private(set) var diskReadHistory: [Double] = []
-    @Published public private(set) var diskWriteHistory: [Double] = []
+    @Published private var liveMetrics = MachineLiveMetrics()
     @Published public private(set) var docker = DockerAvailability(status: .unknown)
     @Published public private(set) var containersLoaded = false
     @Published public private(set) var containers: [DockerContainer] = []
@@ -30,6 +34,14 @@ public final class MachineSession: ObservableObject {
 
     public static let historyLength = 60
 
+    public var sample: MachineSample? { liveMetrics.sample }
+    public var cpuHistory: [Double] { liveMetrics.cpuHistory }
+    public var memHistory: [Double] { liveMetrics.memHistory }
+    public var netRxHistory: [Double] { liveMetrics.netRxHistory }
+    public var netTxHistory: [Double] { liveMetrics.netTxHistory }
+    public var diskReadHistory: [Double] { liveMetrics.diskReadHistory }
+    public var diskWriteHistory: [Double] { liveMetrics.diskWriteHistory }
+
     private let connection: SSHConnection?
     private let localSampler: LocalMachineSampler?
     private var metricsStream: SSHLineStream?
@@ -37,8 +49,13 @@ public final class MachineSession: ObservableObject {
     private var dockerTask: Task<Void, Never>?
     private var latencyTask: Task<Void, Never>?
     private var localTask: Task<Void, Never>?
+    private var metricsRestartTask: Task<Void, Never>?
+    private var probeTask: Task<Void, Never>?
     private var wakeObserver: NSObjectProtocol?
     private var reconnects = true
+    private var dockerObserverCount = 0
+    private var dockerRefreshRunning = false
+    private var dockerInventoryRefreshRunning = false
 
     public init(machine: Machine, local: Bool = false) {
         self.machine = machine
@@ -102,6 +119,10 @@ public final class MachineSession: ObservableObject {
         latencyTask = nil
         localTask?.cancel()
         localTask = nil
+        metricsRestartTask?.cancel()
+        metricsRestartTask = nil
+        probeTask?.cancel()
+        probeTask = nil
         metricsStream?.cancel()
         metricsStream = nil
     }
@@ -177,9 +198,11 @@ public final class MachineSession: ObservableObject {
     }
 
     private func probeConnection() {
-        Task { [weak self] in
+        probeTask?.cancel()
+        probeTask = Task { [weak self] in
             guard let self, let connection, state.isConnected else { return }
             let alive = await connection.masterIsAlive()
+            guard !Task.isCancelled else { return }
             guard !alive else { return }
             handleDrop()
         }
@@ -218,14 +241,19 @@ public final class MachineSession: ObservableObject {
             onExit: { [weak self] _ in
                 Task { @MainActor in self?.handleMetricsStreamEnded() }
             })
-        try? stream.start()
-        metricsStream = stream
+        do {
+            try stream.start()
+            metricsStream = stream
+        } catch {
+            handleMetricsStreamEnded()
+        }
     }
 
     private func handleMetricsStreamEnded() {
         guard state.isConnected else { return }
         metricsStream = nil
-        Task { [weak self] in
+        metricsRestartTask?.cancel()
+        metricsRestartTask = Task { [weak self] in
             guard let self, let connection else { return }
             guard await connection.masterIsAlive() else {
                 handleDrop()
@@ -245,14 +273,16 @@ public final class MachineSession: ObservableObject {
         }
     }
 
-    private func apply(sample value: MachineSample) {
-        sample = value
-        cpuHistory = Self.appending(value.cpu.total, to: cpuHistory)
-        memHistory = Self.appending(value.mem.usedPercent, to: memHistory)
-        netRxHistory = Self.appending(value.net.rxBps, to: netRxHistory)
-        netTxHistory = Self.appending(value.net.txBps, to: netTxHistory)
-        diskReadHistory = Self.appending(value.disk.readBps, to: diskReadHistory)
-        diskWriteHistory = Self.appending(value.disk.writeBps, to: diskWriteHistory)
+    func apply(sample value: MachineSample) {
+        var next = liveMetrics
+        next.sample = value
+        next.cpuHistory = Self.appending(value.cpu.total, to: next.cpuHistory)
+        next.memHistory = Self.appending(value.mem.usedPercent, to: next.memHistory)
+        next.netRxHistory = Self.appending(value.net.rxBps, to: next.netRxHistory)
+        next.netTxHistory = Self.appending(value.net.txBps, to: next.netTxHistory)
+        next.diskReadHistory = Self.appending(value.disk.readBps, to: next.diskReadHistory)
+        next.diskWriteHistory = Self.appending(value.disk.writeBps, to: next.diskWriteHistory)
+        liveMetrics = next
     }
 
     public static func appending(_ value: Double, to history: [Double]) -> [Double] {
@@ -271,25 +301,35 @@ public final class MachineSession: ObservableObject {
         latencyTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, let connection else { return }
-                let alive = await connection.masterIsAlive()
+                let latency = await connection.latencyMillis()
                 guard !Task.isCancelled else { return }
-                if alive {
-                    let latency = await connection.latencyMillis()
-                    guard !Task.isCancelled else { return }
-                    if state.isConnected {
-                        state = .connected(latencyMillis: latency)
-                    }
-                } else if state.isConnected {
+                if let latency, state.isConnected {
+                    state = .connected(latencyMillis: latency)
+                } else if state.isConnected, !(await connection.masterIsAlive()) {
                     handleDrop()
                     return
                 }
-                try? await Task.sleep(for: .seconds(10))
+                try? await Task.sleep(
+                    for: .seconds(MachineResourcePolicy.latencyProbeInterval))
             }
         }
     }
 
     public func refreshDockerNow() {
         Task { await refreshDocker() }
+    }
+
+    public func beginDockerObservation() {
+        dockerObserverCount += 1
+        refreshDockerNow()
+    }
+
+    public func endDockerObservation() {
+        dockerObserverCount = max(0, dockerObserverCount - 1)
+    }
+
+    var currentDockerPollInterval: TimeInterval {
+        MachineResourcePolicy.dockerPollInterval(observerCount: dockerObserverCount)
     }
 
     private func startDockerPolling() {
@@ -313,13 +353,18 @@ public final class MachineSession: ObservableObject {
             await refreshImagesAndVolumes()
             while !Task.isCancelled {
                 await refreshDocker()
-                try? await Task.sleep(for: .seconds(4))
+                try? await Task.sleep(
+                    for: .seconds(
+                        MachineResourcePolicy.dockerPollInterval(
+                            observerCount: dockerObserverCount)))
             }
         }
     }
 
     private func refreshDocker() async {
-        guard let connection, docker.isAvailable else { return }
+        guard let connection, docker.isAvailable, !dockerRefreshRunning else { return }
+        dockerRefreshRunning = true
+        defer { dockerRefreshRunning = false }
         guard
             let result = try? await connection.run(
                 DockerCommands.containersWithStats(), timeout: 30), result.succeeded
@@ -333,7 +378,9 @@ public final class MachineSession: ObservableObject {
     }
 
     public func refreshImagesAndVolumes() async {
-        guard let connection, docker.isAvailable else { return }
+        guard let connection, docker.isAvailable, !dockerInventoryRefreshRunning else { return }
+        dockerInventoryRefreshRunning = true
+        defer { dockerInventoryRefreshRunning = false }
         async let imagesResult = try? connection.run(DockerCommands.images(), timeout: 30)
         async let volumesResult = try? connection.run(DockerCommands.volumes(), timeout: 30)
         async let usageResult = try? connection.run(DockerCommands.diskUsage(), timeout: 30)
