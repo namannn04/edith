@@ -27,6 +27,7 @@ use crate::claims::{corroborate_claims, extract_claims};
 use crate::doctor::{DoctorDeps, run_doctor};
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
+use crate::notion::NotionConnector;
 use crate::grounding::GroundingClient;
 use crate::friend::FriendDeps;
 use crate::indexer::index_pending;
@@ -38,7 +39,9 @@ use crate::reflect::reflect_run;
 use crate::rerank::RerankClient;
 use crate::retrieve::{RetrievalPolicy, retrieve};
 use crate::settings::{self, ReasonHandle};
-use crate::stt::SttClient;
+use crate::lang::SttRouter;
+use crate::media::{VideoDeps, ingest_image, ingest_video, kind_for};
+use crate::vision::VisionClient;
 use crate::turns::{RetrievedChunk, latency_since, log_turn};
 use crate::{baseline, commitments, core_memory, entities, hypotheses, inquire, lenses};
 
@@ -48,8 +51,10 @@ pub struct AppState {
     pub redis: Client,
     pub vault_dir: PathBuf,
     pub embed: EmbedClient,
-    pub stt: SttClient,
+    pub stt: SttRouter,
+    pub vision: VisionClient,
     pub github: GithubConnector,
+    pub notion: NotionConnector,
     pub rerank: RerankClient,
     pub grounding: GroundingClient,
     pub reason: ReasonHandle,
@@ -107,6 +112,8 @@ async fn health(State(state): State<AppState>) -> Response {
         reason: &reason,
         rerank: &state.rerank,
         grounding: &state.grounding,
+        vision: &state.vision,
+        notion: &state.notion,
     })
     .await;
     let status = if result.ok {
@@ -243,10 +250,12 @@ async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> 
         return error_response(StatusCode::BAD_REQUEST, "Audio must be at most 48MB");
     }
 
+    let reason = state.reason.current().await;
     match ingest_audio(
         &state.pool,
         &state.vault_dir,
         &state.stt,
+        &reason,
         name.to_owned(),
         audio,
         mtime,
@@ -643,6 +652,111 @@ async fn baselines(State(state): State<AppState>) -> Response {
         }
         Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     }
+}
+
+fn decoded_upload(body: &Value, cap: usize) -> Result<(String, Vec<u8>, Option<String>), String> {
+    let Some(object) = body.as_object() else {
+        return Err("Body must be an object".to_owned());
+    };
+    let Some(name) = object
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err("name is required".to_owned());
+    };
+    let Some(data) = object.get("dataB64").and_then(Value::as_str) else {
+        return Err("dataB64 is required".to_owned());
+    };
+    let mtime = match object.get("mtime") {
+        None | Some(Value::Null) => None,
+        Some(value) => match value
+            .as_str()
+            .filter(|value| parse_file_date(value).is_some())
+        {
+            Some(value) => Some(value.to_owned()),
+            None => return Err("mtime must be a date".to_owned()),
+        },
+    };
+    let decoded = match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(decoded) if !decoded.is_empty() => decoded,
+        Ok(_) => return Err("dataB64 is empty".to_owned()),
+        Err(_) => return Err("dataB64 is not valid base64".to_owned()),
+    };
+    if decoded.len() > cap {
+        return Err(format!("Upload must be at most {}MB", cap / (1024 * 1024)));
+    }
+    Ok((name.to_owned(), decoded, mtime))
+}
+
+async fn ingest_image_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let (name, image, mtime) = match decoded_upload(&body, 48 * 1024 * 1024) {
+        Ok(parts) => parts,
+        Err(detail) => return error_response(StatusCode::BAD_REQUEST, detail),
+    };
+    match ingest_image(
+        &state.pool,
+        &state.vault_dir,
+        &state.vision,
+        name,
+        image,
+        mtime,
+    )
+    .await
+    {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn ingest_video_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 1024 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let (name, video, mtime) = match decoded_upload(&body, 768 * 1024 * 1024) {
+        Ok(parts) => parts,
+        Err(detail) => return error_response(StatusCode::BAD_REQUEST, detail),
+    };
+    let reason = state.reason.current().await;
+    let deps = VideoDeps {
+        pool: &state.pool,
+        vault_dir: &state.vault_dir,
+        stt: &state.stt,
+        vision: &state.vision,
+        reason: &reason,
+    };
+    match ingest_video(&deps, name, video, mtime).await {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn media_kind_route(Query(query): Query<HashMap<String, String>>) -> Response {
+    let name = query.get("name").map(String::as_str).unwrap_or_default();
+    Json(json!({ "name": name, "kind": kind_for(name) })).into_response()
 }
 
 async fn ingest_pdf_route(State(state): State<AppState>, request: Request) -> Response {
@@ -1318,6 +1432,33 @@ async fn github_sync(State(state): State<AppState>) -> Response {
     }
 }
 
+async fn notion_sync(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    if !state.notion.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "NOTION_TOKEN is not configured on the companion",
+        );
+    }
+    let full = query
+        .get("full")
+        .map(|value| value == "true" || value == "1")
+        .unwrap_or(false);
+    match state
+        .notion
+        .sync(&state.pool, &state.vault_dir, full)
+        .await
+    {
+        Ok(outcome) => {
+            spawn_index(&state);
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
 async fn observations(
     State(state): State<AppState>,
     Query(query): Query<HashMap<String, String>>,
@@ -1551,9 +1692,13 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/ingest", post(ingest))
         .route("/v1/ingest/audio", post(ingest_audio_route))
         .route("/v1/ingest/pdf", post(ingest_pdf_route))
+        .route("/v1/ingest/image", post(ingest_image_route))
+        .route("/v1/ingest/video", post(ingest_video_route))
+        .route("/v1/media/kind", get(media_kind_route))
         .route("/v1/index", post(index))
         .route("/v1/search", get(search))
         .route("/v1/connectors/github/sync", post(github_sync))
+        .route("/v1/connectors/notion/sync", post(notion_sync))
         .route("/v1/observations", get(observations))
         .route("/v1/reflect", post(reflect))
         .route("/v1/beliefs", get(beliefs))

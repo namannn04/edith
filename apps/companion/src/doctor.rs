@@ -9,11 +9,14 @@ use uuid::Uuid;
 
 use crate::embed::EmbedClient;
 use crate::migrate::migration_count;
+use crate::notion::NotionConnector;
 use crate::persona;
 use crate::reason::ReasonClient;
 use crate::rerank::RerankClient;
 use crate::grounding::GroundingClient;
-use crate::stt::SttClient;
+use crate::media::tooling_check;
+use crate::vision::VisionClient;
+use crate::lang::SttRouter;
 
 #[derive(Debug, Serialize)]
 pub struct Check {
@@ -125,8 +128,15 @@ async fn embeddings_check(embed: &EmbedClient) -> Result<String, String> {
         .map_err(|error| error.to_string())
 }
 
-async fn stt_check(stt: &SttClient) -> Result<String, String> {
-    stt.probe().await.map_err(|error| error.to_string())
+async fn stt_check(stt: &SttRouter) -> Result<String, String> {
+    stt.fast().probe().await.map_err(|error| error.to_string())?;
+    if stt.split() {
+        stt.quality()
+            .probe()
+            .await
+            .map_err(|error| format!("hindi path: {error}"))?;
+    }
+    Ok(stt.describe())
 }
 
 pub struct DoctorDeps<'a> {
@@ -134,10 +144,12 @@ pub struct DoctorDeps<'a> {
     pub redis: &'a Client,
     pub vault_dir: &'a Path,
     pub embed: &'a EmbedClient,
-    pub stt: &'a SttClient,
+    pub stt: &'a SttRouter,
     pub reason: &'a ReasonClient,
     pub rerank: &'a RerankClient,
     pub grounding: &'a GroundingClient,
+    pub vision: &'a VisionClient,
+    pub notion: &'a NotionConnector,
 }
 
 pub async fn run_doctor(deps: DoctorDeps<'_>) -> DoctorResult {
@@ -150,6 +162,8 @@ pub async fn run_doctor(deps: DoctorDeps<'_>) -> DoctorResult {
         reason,
         rerank,
         grounding,
+        vision,
+        notion,
     } = deps;
     let personas = persona::all();
     let checks = vec![
@@ -163,6 +177,12 @@ pub async fn run_doctor(deps: DoctorDeps<'_>) -> DoctorResult {
         check("reasoning", Ok(reason.describe())),
         check("reranker", Ok(rerank.describe())),
         check("grounding", Ok(grounding.describe())),
+        check(
+            "vision",
+            vision.probe().await.map_err(|error| error.to_string()),
+        ),
+        check("notion", Ok(notion.describe())),
+        check("media tooling", tooling_check().await),
         check(
             "personas",
             if personas.is_empty() {

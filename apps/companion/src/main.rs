@@ -17,9 +17,12 @@ mod hypotheses;
 mod indexer;
 mod ingest;
 mod inquire;
+mod lang;
 mod lenses;
+mod media;
 mod migrate;
 mod nightly;
+mod notion;
 mod persona;
 mod reason;
 mod reflect;
@@ -31,6 +34,7 @@ mod signals;
 mod stt;
 mod turns;
 mod vault;
+mod vision;
 
 use std::env;
 
@@ -38,12 +42,15 @@ use sqlx::postgres::PgPoolOptions;
 
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
+use crate::notion::NotionConnector;
 use crate::grounding::GroundingClient;
 use crate::nightly::{NightlyDeps, spawn_scheduler};
 use crate::reason::ReasonClient;
 use crate::rerank::RerankClient;
 use crate::server::AppState;
 use crate::settings::ReasonHandle;
+use crate::lang::SttRouter;
+use crate::vision::VisionClient;
 use crate::stt::SttClient;
 
 #[tokio::main]
@@ -63,8 +70,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         redis,
         vault_dir: vault_dir.into(),
         embed: EmbedClient::from_env(),
-        stt: SttClient::from_env(),
+        stt: SttRouter::from_env(SttClient::from_env()),
+        vision: VisionClient::from_env(),
         github: GithubConnector::from_env(),
+        notion: NotionConnector::from_env(),
         rerank: RerankClient::from_env(),
         grounding: GroundingClient::from_env(),
         reason: ReasonHandle::new(ReasonClient::from_config(reason_config)),

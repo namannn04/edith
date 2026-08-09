@@ -7,8 +7,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::frontmatter::parse_front_matter;
-use crate::signals::{signals_from_segments, store_signals};
-use crate::stt::SttClient;
+use crate::lang::{SttRouter, code_switch_points, store_english};
+use crate::reason::ReasonClient;
+use crate::signals::{Signal, signals_from_segments, store_signals};
 use crate::vault::write_vault_file;
 
 #[derive(Debug)]
@@ -227,7 +228,8 @@ pub async fn ingest_pdf(
 pub async fn ingest_audio(
     pool: &PgPool,
     vault_dir: &Path,
-    stt: &SttClient,
+    stt: &SttRouter,
+    reason: &ReasonClient,
     name: String,
     bytes: Vec<u8>,
     mtime: Option<String>,
@@ -248,7 +250,7 @@ pub async fn ingest_audio(
         }
     }
 
-    let transcript = stt.transcribe(&name, bytes.clone()).await?;
+    let (transcript, read, route) = stt.transcribe(&name, bytes.clone()).await?;
     let uri = write_vault_file(vault_dir, &sha256, &name, &bytes).await?;
     let duration = transcript.duration.or_else(|| {
         transcript
@@ -268,7 +270,7 @@ pub async fn ingest_audio(
             })
         })
         .collect::<Vec<_>>();
-    let langs = transcript.language.clone().into_iter().collect::<Vec<_>>();
+    let langs = read.langs.clone();
 
     let mut transaction = pool.begin().await?;
     let source_id = sqlx::query_scalar::<_, Uuid>(
@@ -300,7 +302,7 @@ pub async fn ingest_audio(
         .unwrap_or_else(Utc::now);
     let title = file_title(&name);
     let (episode_id, occurred_at) = sqlx::query_as::<_, (Uuid, DateTime<Utc>)>(
-        "INSERT INTO episodes (source_id, occurred_at, kind, title, body_original, langs, media_ref, duration_s, meta) VALUES ($1, $2, 'voice', $3, $4, $5, $6, $7, $8) RETURNING id, occurred_at",
+        "INSERT INTO episodes (source_id, occurred_at, kind, title, body_original, langs, media_ref, duration_s, meta, script) VALUES ($1, $2, 'voice', $3, $4, $5, $6, $7, $8, $9) RETURNING id, occurred_at",
     )
     .bind(source_id)
     .bind(occurred_at)
@@ -309,13 +311,40 @@ pub async fn ingest_audio(
     .bind(&langs)
     .bind(format!("vault:{sha256}"))
     .bind(duration)
-    .bind(serde_json::json!({ "segments": segments }))
+    .bind(serde_json::json!({
+        "segments": segments,
+        "sttRoute": route,
+        "sttReported": transcript.language,
+        "context": "voice",
+    }))
+    .bind(&read.script)
     .fetch_one(&mut *transaction)
     .await?;
 
     transaction.commit().await?;
-    let signals = signals_from_segments(&transcript.segments, duration);
+    let mut signals = signals_from_segments(&transcript.segments, duration);
+    let spans = transcript
+        .segments
+        .iter()
+        .map(|segment| (segment.start, segment.end, segment.text.clone()))
+        .collect::<Vec<_>>();
+    for (start, end) in code_switch_points(&spans) {
+        signals.push(Signal {
+            t_start_s: start,
+            t_end_s: end,
+            kind: "code_switch",
+            value: 1.0,
+        });
+    }
     store_signals(pool, episode_id, &signals).await?;
+    store_english(
+        pool,
+        reason,
+        episode_id,
+        transcript.text.trim(),
+        &read,
+    )
+    .await;
     Ok(IngestOutcome {
         name,
         status: "ingested",
