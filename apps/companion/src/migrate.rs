@@ -2,10 +2,13 @@ use std::collections::HashSet;
 
 use sqlx::PgPool;
 
-const MIGRATIONS: &[(&str, &str)] = &[(
-    "0001_foundation",
-    include_str!("../migrations/0001_foundation.sql"),
-)];
+const MIGRATIONS: &[(&str, &str)] = &[
+    (
+        "0001_foundation",
+        include_str!("../migrations/0001_foundation.sql"),
+    ),
+    ("0002_chunks", include_str!("../migrations/0002_chunks.sql")),
+];
 
 pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query(
