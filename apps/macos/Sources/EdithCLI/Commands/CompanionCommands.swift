@@ -17,11 +17,14 @@ struct CompanionCommand: AsyncParsableCommand {
             CompanionStatusCommand.self, CompanionDoctorCommand.self,
             CompanionSearchCommand.self, CompanionIndexCommand.self,
             CompanionIngestCommand.self, CompanionEpisodesCommand.self,
-            CompanionSyncCommand.self, CompanionObservationsCommand.self,
-            CompanionReflectCommand.self, CompanionBeliefsCommand.self,
-            CompanionAskCommand.self, CompanionExtractCommand.self,
+            CompanionEpisodeCommand.self, CompanionSyncCommand.self,
+            CompanionObservationsCommand.self, CompanionReflectCommand.self,
+            CompanionBeliefsCommand.self, CompanionAskCommand.self,
+            CompanionChatCommand.self, CompanionConversationsCommand.self,
+            CompanionForgetCommand.self, CompanionExtractCommand.self,
             CompanionClaimsCommand.self, CompanionCorroborateCommand.self,
-            CompanionRunsCommand.self,
+            CompanionRunsCommand.self, CompanionNightlyCommand.self,
+            CompanionReasonCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
 }

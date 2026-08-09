@@ -33,6 +33,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0009_signals",
         include_str!("../migrations/0009_signals.sql"),
     ),
+    (
+        "0010_chat_settings",
+        include_str!("../migrations/0010_chat_settings.sql"),
+    ),
 ];
 
 pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {

@@ -325,6 +325,11 @@ public enum ConfigCatalog {
             "companionEndpoint", .string, group: "companion",
             summary: "Companion API base URL the app and CLI talk to.",
             fallback: .string("http://127.0.0.1:4820")),
+        SettingDefinition(
+            "companionTab", .string, group: "companion",
+            summary: "Companion screen shown on open.",
+            allowed: ["chat", "capture", "library", "mind", "settings"],
+            fallback: .string("chat")),
     ]
 
     private static let machines: [SettingDefinition] = [

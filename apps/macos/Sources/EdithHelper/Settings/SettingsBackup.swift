@@ -209,7 +209,7 @@ final class SettingsBackup: ObservableObject {
         "musicFolderExternalConfirmation", "musicRevealPath", "repoPathExternalConfirmation",
         "cleanerConfirmedExternalPaths",
         "mainWindowZoom", "EdithMainWindowFullScreen", "machinesSelection", "machinesTab",
-        "machinesMode",
+        "machinesMode", "companionTab",
         "completionsAutoRefresh", "completionScriptPaths",
         "restorePending.usage", "restorePending.limits", "restorePending.music",
         "restorePending.clipboard", "restoreTimedOut.usage", "restoreTimedOut.limits",

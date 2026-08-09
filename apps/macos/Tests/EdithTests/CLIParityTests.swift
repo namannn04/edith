@@ -87,6 +87,41 @@ enum UIParity {
         UICapability("Companion", "ask about your life", ["companion", "ask", "how is warden"]),
         UICapability(
             "Companion", "ingest dropped files", ["companion", "ingest", "/tmp/notes"]),
+        UICapability(
+            "Companion chat", "send a chat message",
+            ["companion", "chat", "how was my week"]),
+        UICapability(
+            "Companion chat", "continue a conversation",
+            ["companion", "chat", "and then", "--conversation", "abc"]),
+        UICapability(
+            "Companion chat", "list past conversations", ["companion", "conversations"]),
+        UICapability(
+            "Companion chat", "delete a conversation", ["companion", "forget", "abc"]),
+        UICapability(
+            "Companion library", "search the memory", ["companion", "search", "warden"]),
+        UICapability(
+            "Companion library", "read a full episode", ["companion", "episode", "abc"]),
+        UICapability(
+            "Companion library", "open an episode with the default app",
+            ["companion", "episode", "abc", "--open"]),
+        UICapability(
+            "Companion library", "index pending episodes", ["companion", "index"]),
+        UICapability(
+            "Companion capture", "remember a recorded voice memory",
+            ["companion", "ingest", "/tmp/voice-memo.wav"]),
+        UICapability(
+            "Companion capture", "remember a typed note",
+            ["companion", "ingest", "/tmp/note.md"]),
+        UICapability(
+            "Companion mind", "run the nightly pipeline", ["companion", "nightly"]),
+        UICapability(
+            "Companion settings", "change the reasoner or its api key",
+            ["companion", "reason", "set", "--provider", "anthropic", "--api-key", "sk-x"]),
+        UICapability(
+            "Companion settings", "test the reasoner", ["companion", "reason", "test"]),
+        UICapability(
+            "Companion settings", "point at another companion",
+            ["config", "set", "companionEndpoint", "http://127.0.0.1:4820"]),
         UICapability("Machines", "add a machine", ["machines", "add", "box", "--host", "h"]),
         UICapability("Machines", "edit a machine", ["machines", "edit", "box"]),
         UICapability("Machines", "delete a machine", ["machines", "rm", "box"]),

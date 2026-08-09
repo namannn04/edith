@@ -1,4 +1,5 @@
 mod ask;
+mod chat;
 mod chunker;
 mod claims;
 mod doctor;
@@ -12,6 +13,7 @@ mod nightly;
 mod reason;
 mod reflect;
 mod server;
+mod settings;
 mod signals;
 mod stt;
 mod turns;
@@ -26,6 +28,7 @@ use crate::github::GithubConnector;
 use crate::nightly::{NightlyDeps, spawn_scheduler};
 use crate::reason::ReasonClient;
 use crate::server::AppState;
+use crate::settings::ReasonHandle;
 use crate::stt::SttClient;
 
 #[tokio::main]
@@ -39,6 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = PgPoolOptions::new().connect(&database_url).await?;
     migrate::run_migrations(&pool).await?;
     let redis = redis::Client::open(redis_url)?;
+    let reason_config = settings::reason_config(&pool).await;
     let state = AppState {
         pool,
         redis,
@@ -46,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         embed: EmbedClient::from_env(),
         stt: SttClient::from_env(),
         github: GithubConnector::from_env(),
-        reason: ReasonClient::from_env(),
+        reason: ReasonHandle::new(ReasonClient::from_config(reason_config)),
     };
     spawn_scheduler(NightlyDeps {
         pool: state.pool.clone(),
