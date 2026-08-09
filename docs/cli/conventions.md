@@ -128,6 +128,12 @@ the remote process's two streams apart on the way through: its stdout arrives on
 your stdout and its stderr on your stderr, unlabelled and unbuffered, which is
 what makes the shorthand usable in a pipeline.
 
+Commands that wait for a reply from the running app suspend until the reply,
+the deadline, or cancellation. They do not poll on a timer. The one-second
+`waiting for Edith to answer...` note and each command's existing timeout are
+unchanged, and the notification observer and both pending timers are removed as
+soon as the wait finishes.
+
 ## Exit codes
 
 There are five, and nothing else is a documented code. A test pins the set to

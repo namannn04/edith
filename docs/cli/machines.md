@@ -19,6 +19,33 @@ round trip on an open channel. If it does not, `ed` opens one, and
 `ControlPersist=10m` keeps that socket alive for ten idle minutes so the next
 command is fast. `ed machines disconnect` closes it early.
 
+## Resource behaviour
+
+The app keeps one metrics stream per connected remote machine. That stream
+samples every two seconds and sends one record back over the shared SSH
+connection. It does not open a new SSH process for every measurement. The
+remote collector reads the block-device list once when it starts and obtains
+the process list with one `ps` invocation per sample. CPU and memory details for
+the selected processes still come from `/proc`, so the values retain their
+per-process accuracy without launching a command for every row.
+
+Local monitoring also samples every two seconds, but the more expensive process
+table is refreshed every fifth sample and reused between refreshes. Each sample
+updates the current metrics and all six chart histories as one published value,
+so one machine sample causes one metrics view update.
+
+Connection health uses a 30 second latency probe while a connection is healthy.
+The shared socket is checked separately only after a failed probe or a wake
+event. Docker container state refreshes every 30 seconds in the background and
+every four seconds while a Docker window is visible. Opening the window or
+performing an action still refreshes immediately. Overlapping container and
+inventory refreshes are coalesced into one run.
+
+Long-running stdout and stderr readers unregister when they reach end of file,
+and completed SSH commands cancel their pending timeout work. A new connection
+waits for its fresh control socket instead of repeatedly launching `ssh -O
+check` while the master is starting.
+
 ## At a glance
 
 | Command | What it does |
