@@ -794,10 +794,13 @@ ed usage machines forget <machine> [--json]
 ```
 
 `dropped` is `false` when there was nothing stored for that machine, and then
-`merging` is `false` too, because the app is only asked to re-fold when
-something actually went away. This is the one verb here that accepts a raw id
-for a machine that is no longer in the directory, so usage left behind by a
-deleted machine can still be cleared.
+`merging` is `false` too, because the fold only runs when something actually
+went away. That fold is the same in-process pipeline `ed usage refresh` runs, so
+no app is involved: the numbers leave `usage.json` there and then. A refresh
+already running elsewhere counts as merged, since it will pick the change up.
+This is the one verb here that accepts a raw id for a machine that is no longer
+in the directory, so usage left behind by a deleted machine can still be
+cleared.
 
 ### `ed usage refresh`
 
