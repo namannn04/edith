@@ -44,7 +44,9 @@ inventory refreshes are coalesced into one run.
 Long-running stdout and stderr readers unregister when they reach end of file,
 and completed SSH commands cancel their pending timeout work. A new connection
 waits for its fresh control socket instead of repeatedly launching `ssh -O
-check` while the master is starting.
+check` while the master is starting. Streaming CLI commands suspend until the
+SSH process reports completion or the command is cancelled. They do not poll
+the process state between metric records.
 
 ## At a glance
 

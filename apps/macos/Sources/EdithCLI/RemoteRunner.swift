@@ -89,8 +89,7 @@ public struct RemoteRunner {
             CLIOut.note("error: could not start ssh: \(error.localizedDescription)")
             return 1
         }
-        process.waitUntilExit()
-        return process.terminationStatus
+        return await stream.waitForExit()
     }
 
     public func stream(
