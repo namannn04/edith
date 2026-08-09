@@ -397,8 +397,15 @@ a limited broadcast, so it reaches the local link and no further: waking a
 machine on another subnet needs a router that forwards directed broadcasts, and
 this command cannot arrange that for you.
 
-Edith learns the address the first time it sees the machine up, by reading
-`/sys/class/net/*/address` and keeping the first entry that is not all zeroes.
+Edith learns the address the first time it sees the machine up, by walking
+`/sys/class/net/*` and picking a real network card. An interface only counts
+when it has a `device` symlink, which is what separates a card from a bridge, a
+veth or a loopback, and an address that is empty or all zeroes is skipped.
+Wired wins: the first non-wireless card ends the search immediately, while a
+wireless one is only remembered as a fallback and used when nothing wired
+turned up. Waking over Wi-Fi needs the card to support it, so a machine that
+only reports a wireless address may store one and still not wake.
+
 Until that has happened there is nothing to send to, and the command exits 4:
 
 ```
@@ -580,6 +587,14 @@ with a 60 second timeout. The unit is only wrapped in single quotes when it hold
 a character outside letters, digits and `._-+/=:@%,`, so an ordinary name goes
 across bare. Note the order: plain `systemctl` first, `sudo -n` as the fallback,
 which is the opposite way round from `reboot` and `shutdown`.
+
+When the machine has a sudo password stored, the two attempts collapse into one:
+`sudo -S -p '' systemctl start nginx.service 2>&1`, with the password written to
+the command's stdin rather than onto a command line, and no fallback afterwards
+to leave stale text in the output. Store it with
+`ed machines edit <machine> --sudo-password-stdin`, which is what makes these
+verbs work on a stock desktop Linux where polkit treats an SSH session as
+inactive and `sudo -n` refuses to prompt.
 
 Systemd's own unit name shorthand applies, because `ed` passes the name straight
 through: `nginx` and `nginx.service` are the same unit to `systemctl start`. The
