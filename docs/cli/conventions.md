@@ -212,8 +212,8 @@ because that failure happens before the remote process exists.
 ## How a failure is reported
 
 A failure is a `CLIFailure`: a kind, a message, and an optional hint. Printing
-one is always `CLIOut.report`, which writes two lines to stderr, the second only
-when there is a hint:
+one is always `CLIOut.report`, which writes the message to stderr and then the
+hint, the second only when there is one:
 
 ```
 error: <message>
@@ -222,14 +222,25 @@ hint: <hint>
 
 The message says what happened in lower case and without a full stop. The hint
 is a next step, and more often than not it is a command you can run or the list
-of things you could have named instead:
+of things you could have named instead.
+
+Both go through `CLIOut.labelled`, which is what keeps a multi-line failure
+readable. Remote output often arrives as several lines, and only the first one
+carries the label; the rest are indented to line up underneath it, by exactly as
+many spaces as the label is wide. So continuation lines sit under `error: ` at
+seven spaces and under `hint: ` at six:
 
 ```
 $ ed machines power reboot tuf --yes
 error: Asus TUF 7 did not reboot: sudo: a password is required
-Call to Reboot failed: Interactive authentication required.
+       Call to Reboot failed: Interactive authentication required.
 hint: give this account passwordless sudo for systemctl on Asus TUF 7
 ```
+
+`labelled` also tidies what it is given: every line is trimmed of surrounding
+whitespace, and blank lines are dropped rather than printed as a bare indent.
+A message with no content left after that collapses to the label on its own,
+`error:` with nothing after it, rather than a label followed by emptiness.
 
 The plumbing behind that is worth knowing, because it is what keeps the output
 identical no matter where the failure came from. Nearly every command body is
@@ -408,6 +419,8 @@ is a local question that needs no permission and no round trip.
 | `ed config`, `ed extensions`, `ed schema`, `ed guide`, `ed version`, `ed install`, `ed uninstall`, `ed completions` | no | defaults and files; a write reaches a running app live |
 | `ed usage limits`, `summary`, `daily`, `models`, `projects`, `sources` | no | they read the collected files the dashboard reads |
 | `ed usage refresh` | no | it runs the collection pipeline in this process, and attaches to the app's run when one is already going |
+| `ed usage machines ls`, `enable`, `disable` | no | the machine directory and one defaults key |
+| `ed usage machines collect`, `forget` | no | the collector runs over SSH from this process, and the fold back into `usage.json` is the same in-process pipeline `ed usage refresh` runs |
 | `ed system stats`, `ed system disks` | no | the same sampler, run in this process |
 | `ed clipboard`, `ed color`, `ed shelf`, `ed download`, `ed cleaner` | no | stores under Application Support and the shared defaults suite |
 | `ed apps ls`, `ed tools ls`, `ed app actions`, `ed app updates`, `ed app clear-updates` | no | the process table, `PATH`, and a log file |
