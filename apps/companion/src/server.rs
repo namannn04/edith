@@ -273,6 +273,42 @@ async fn ask(State(state): State<AppState>, request: Request) -> Response {
     }
 }
 
+async fn signals(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let Some(episode_id) = query
+        .get("episode")
+        .and_then(|value| Uuid::parse_str(value).ok())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "episode is required");
+    };
+    type SignalRow = (f32, f32, String, f32);
+    let rows = sqlx::query_as::<_, SignalRow>(
+        "SELECT t_start_s, t_end_s, kind, value FROM signals WHERE episode_id = $1 ORDER BY t_start_s",
+    )
+    .bind(episode_id)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let signals = rows
+                .into_iter()
+                .map(|(t_start_s, t_end_s, kind, value)| {
+                    serde_json::json!({
+                        "tStartS": t_start_s,
+                        "tEndS": t_end_s,
+                        "kind": kind,
+                        "value": value,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Json(signals).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
 async fn nightly_run(State(state): State<AppState>) -> Response {
     let deps = NightlyDeps {
         pool: state.pool.clone(),
@@ -733,6 +769,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/corroborate", post(corroborate))
         .route("/v1/nightly/run", post(nightly_run))
         .route("/v1/runs", get(runs))
+        .route("/v1/signals", get(signals))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .with_state(state)

@@ -7,6 +7,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::frontmatter::parse_front_matter;
+use crate::signals::{signals_from_segments, store_signals};
 use crate::stt::SttClient;
 use crate::vault::write_vault_file;
 
@@ -232,6 +233,8 @@ pub async fn ingest_audio(
     .await?;
 
     transaction.commit().await?;
+    let signals = signals_from_segments(&transcript.segments, duration);
+    store_signals(pool, episode_id, &signals).await?;
     Ok(IngestOutcome {
         name,
         status: "ingested",

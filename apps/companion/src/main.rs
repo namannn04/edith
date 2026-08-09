@@ -12,6 +12,7 @@ mod nightly;
 mod reason;
 mod reflect;
 mod server;
+mod signals;
 mod stt;
 mod turns;
 mod vault;
