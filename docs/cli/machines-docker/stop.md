@@ -43,7 +43,8 @@ ed machines tuf docker stop open-webui --json
 
 Runs `docker stop -t 10 <container>...`, so each container gets ten seconds to
 exit on its own before docker kills it. The stop button on a group header in the
-Docker window is this command with every running container in the group named. The whole call has a 120 second ceiling.
+Docker window is this command with the group's running and paused containers
+named. The whole call has a 120 second ceiling.
 Stopping a container that is already stopped is docker's business and succeeds
 quietly. Failure exits 1 with docker's stderr as the hint.
 

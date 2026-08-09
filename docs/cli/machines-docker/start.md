@@ -60,8 +60,27 @@ hint: Error response from daemon: No such container: nosuch-container
 failed to start containers: nosuch-container
 ```
 
+Naming several containers is all or nothing in the exit code only. Docker starts
+the ones it can and reports the rest on stderr, so a call that names three and
+fails on one exits 1 having started the other two; the hint names which one
+failed. Re-read the states with `ed machines docker ps --all` rather than
+assuming nothing happened.
+
+A container whose published port is already taken by something else is the case
+worth knowing about, because it does not always fail. Docker sometimes refuses
+outright, with `Bind for 127.0.0.1:6379 failed: port is already allocated`, and
+sometimes exits 0 having left the container `running` with no network attached
+and no ports published at all. `ps` reports that container as running with an
+empty `ports` array, so a group that looks healthy can still have a service
+nothing can reach. `ed machines docker inspect <container>` settles it: an empty
+`NetworkSettings.Networks` is a container that came up without its network.
+
 This is the Docker window's start button, running the same command, and naming
-several containers is what the play button on a group header does.
+several containers is what the play button on a group header does. That button
+names the group's stopped containers, and appears whenever at least one of them
+is stopped, so a group with some containers up and some down shows a play button
+and a stop button side by side. Paused containers are never named here, because
+`docker start` refuses them and one refusal fails the whole call.
 
 ## Where to go next
 
