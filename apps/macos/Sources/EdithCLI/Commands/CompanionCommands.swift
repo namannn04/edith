@@ -19,8 +19,56 @@ struct CompanionCommand: AsyncParsableCommand {
             CompanionIngestCommand.self, CompanionEpisodesCommand.self,
             CompanionSyncCommand.self, CompanionObservationsCommand.self,
             CompanionReflectCommand.self, CompanionBeliefsCommand.self,
+            CompanionAskCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
+}
+
+struct CompanionAskCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "ask", abstract: "Ask a question answered from your own memory.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Argument(help: "The question to answer.")
+    var question: String
+
+    func run() async throws {
+        try await execute {
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.ask(question: question)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "answer": .string(outcome.answer),
+                        "citations": .array(
+                            outcome.citations.map { citation in
+                                .object([
+                                    "episodeId": .string(citation.episodeId),
+                                    "quote": .string(citation.quote),
+                                    "title": .string(citation.title),
+                                    "occurredAt": .string(citation.occurredAt),
+                                ])
+                            }),
+                        "chunksConsidered": .int(outcome.chunksConsidered),
+                        "model": .string(outcome.model),
+                    ]))
+                return
+            }
+            CLIOut.out(outcome.answer)
+            for (index, citation) in outcome.citations.enumerated() {
+                CLIOut.out("[\(index + 1)] \(citation.title) (\(citation.occurredAt))")
+                if !citation.quote.isEmpty {
+                    CLIOut.out("    \u{201C}\(citation.quote)\u{201D}")
+                }
+            }
+        }
+    }
 }
 
 struct CompanionReflectCommand: AsyncParsableCommand {

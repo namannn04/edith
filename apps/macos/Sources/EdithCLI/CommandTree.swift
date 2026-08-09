@@ -696,6 +696,9 @@ public enum CommandTree {
                     CommandNode(
                         "beliefs", "List what the companion believes about you.",
                         options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "ask", "Ask a question answered from your own memory.",
+                        options: common + ["--endpoint"], arguments: [.free]),
                 ]),
         ])
 

@@ -166,6 +166,36 @@ public struct CompanionObservation: Codable, Equatable, Sendable {
     }
 }
 
+public struct CompanionAskCitation: Codable, Equatable, Sendable {
+    public let episodeId: String
+    public let quote: String
+    public let title: String
+    public let occurredAt: String
+
+    public init(episodeId: String, quote: String, title: String, occurredAt: String) {
+        self.episodeId = episodeId
+        self.quote = quote
+        self.title = title
+        self.occurredAt = occurredAt
+    }
+}
+
+public struct CompanionAskOutcome: Codable, Equatable, Sendable {
+    public let answer: String
+    public let citations: [CompanionAskCitation]
+    public let chunksConsidered: Int
+    public let model: String
+
+    public init(
+        answer: String, citations: [CompanionAskCitation], chunksConsidered: Int, model: String
+    ) {
+        self.answer = answer
+        self.citations = citations
+        self.chunksConsidered = chunksConsidered
+        self.model = model
+    }
+}
+
 public struct CompanionReflectOutcome: Codable, Equatable, Sendable {
     public let episodesConsidered: Int
     public let beliefsFormed: Int
@@ -273,6 +303,18 @@ public struct CompanionClient: Sendable {
         return try await self.request(request)
     }
 
+    public func ask(question: String) async throws -> CompanionAskOutcome {
+        var request = URLRequest(url: url(for: "ask"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        do {
+            request.httpBody = try JSONEncoder().encode(AskRequest(question: question))
+        } catch {
+            throw CompanionClientError.unreachable(error.localizedDescription)
+        }
+        return try await self.request(request, timeout: 600)
+    }
+
     public func reflect() async throws -> CompanionReflectOutcome {
         var request = URLRequest(url: url(for: "reflect"))
         request.httpMethod = "POST"
@@ -367,4 +409,8 @@ private struct AudioIngestRequest: Encodable {
     let name: String
     let dataB64: String
     let mtime: String?
+}
+
+private struct AskRequest: Encodable {
+    let question: String
 }
