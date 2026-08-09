@@ -40,6 +40,7 @@ key.
 | [`ed shelf`](./shelf.md) | The notch shelf's staged files |
 | [`ed cleaner`](./cleaner.md) | Scanning and reclaiming disk space |
 | [`ed companion`](./companion.md) | Local memory health, status, Markdown ingest and episodes |
+| [How the companion works](./companion-concepts.md) | The concepts behind the memory: vault, chunking, embeddings, retrieval, claims, beliefs and the nightly loop |
 
 ## Other machines
 
