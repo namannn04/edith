@@ -9,8 +9,10 @@ use uuid::Uuid;
 use crate::claims::{corroborate_claims, extract_claims};
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
+use crate::grounding::GroundingClient;
 use crate::indexer::index_pending;
 use crate::reflect::reflect_run;
+use crate::rerank::RerankClient;
 use crate::settings::ReasonHandle;
 
 #[derive(Clone)]
@@ -19,6 +21,8 @@ pub struct NightlyDeps {
     pub embed: EmbedClient,
     pub reason: ReasonHandle,
     pub github: GithubConnector,
+    pub rerank: RerankClient,
+    pub grounding: GroundingClient,
 }
 
 fn step(name: &str, result: Result<Value, String>) -> Value {

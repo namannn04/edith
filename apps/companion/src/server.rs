@@ -21,19 +21,26 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::ask::ask_run;
-use crate::chat::{chat_stream, event_json, resolve_conversation};
+use crate::chat::{ChatDeps, chat_stream, event_json, resolve_conversation};
+use crate::council::council_run;
 use crate::claims::{corroborate_claims, extract_claims};
 use crate::doctor::run_doctor;
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
-use crate::indexer::{halfvec_literal, index_pending};
+use crate::grounding::GroundingClient;
+use crate::friend::{FriendDeps, answer_with_persona};
+use crate::indexer::index_pending;
 use crate::ingest::{IngestFile, ingest_audio, ingest_files, ingest_pdf, parse_file_date};
 use crate::nightly::{NightlyDeps, record_run};
 use crate::reason::ReasonClient;
+use crate::persona;
 use crate::reflect::reflect_run;
+use crate::rerank::RerankClient;
+use crate::retrieve::{RetrievalPolicy, retrieve};
 use crate::settings::{self, ReasonHandle};
 use crate::stt::SttClient;
 use crate::turns::{RetrievedChunk, latency_since, log_turn};
+use crate::{baseline, core_memory};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -43,6 +50,8 @@ pub struct AppState {
     pub embed: EmbedClient,
     pub stt: SttClient,
     pub github: GithubConnector,
+    pub rerank: RerankClient,
+    pub grounding: GroundingClient,
     pub reason: ReasonHandle,
 }
 
@@ -276,9 +285,113 @@ async fn ask(State(state): State<AppState>, request: Request) -> Response {
     let Some(question) = question else {
         return error_response(StatusCode::BAD_REQUEST, "question is required");
     };
-    match ask_run(&state.pool, &state.embed, &reason, &question).await {
+    let persona_id = serde_json::from_slice::<Value>(&bytes)
+        .ok()
+        .and_then(|body| {
+            body.get("persona")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+        });
+    let deps = FriendDeps {
+        pool: &state.pool,
+        embed: &state.embed,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+        reason: &reason,
+    };
+    match ask_run(&deps, &question, persona_id.as_deref()).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn personas(State(_state): State<AppState>) -> Response {
+    Json(persona::all()).into_response()
+}
+
+async fn council(State(state): State<AppState>, request: Request) -> Response {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    let bytes = match to_bytes(request.into_body(), 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(question) = body
+        .get("question")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|question| !question.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "question is required");
+    };
+    let requested = body
+        .get("personas")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let deps = FriendDeps {
+        pool: &state.pool,
+        embed: &state.embed,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+        reason: &reason,
+    };
+    match council_run(&deps, question, &requested).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn core_memory_route(State(state): State<AppState>) -> Response {
+    match core_memory::load(&state.pool).await {
+        Ok(sections) => Json(sections).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn core_memory_write(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 256 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let section = body.get("section").and_then(Value::as_str).unwrap_or("");
+    let content = body.get("content").and_then(Value::as_str).unwrap_or("");
+    if !core_memory::SECTIONS.contains(&section) {
+        return error_response(StatusCode::BAD_REQUEST, "unknown core memory section");
+    }
+    match core_memory::put(&state.pool, section, content.trim(), "user").await {
+        Ok(()) => Json(serde_json::json!({"section": section, "ok": true})).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn baselines(State(state): State<AppState>) -> Response {
+    match baseline::baselines(&state.pool).await {
+        Ok(rows) => {
+            let seconds = baseline::audio_seconds(&state.pool).await.unwrap_or(0.0);
+            Json(serde_json::json!({
+                "audioSeconds": seconds,
+                "coldStart": seconds < baseline::COLD_START_SECONDS,
+                "baselines": rows,
+            }))
+            .into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     }
 }
 
@@ -370,6 +483,8 @@ async fn nightly_run(State(state): State<AppState>) -> Response {
         embed: state.embed.clone(),
         reason: state.reason.clone(),
         github: state.github.clone(),
+        rerank: state.rerank.clone(),
+        grounding: state.grounding.clone(),
     };
     match record_run(&deps).await {
         Ok(run_id) => Json(serde_json::json!({ "runId": run_id })).into_response(),
@@ -419,17 +534,23 @@ async fn chat(State(state): State<AppState>, request: Request) -> Response {
         Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     };
 
+    let persona_id = body
+        .get("persona")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
     let (events, receiver) = mpsc::unbounded_channel();
     tokio::spawn(async move {
-        chat_stream(
-            &state.pool,
-            &state.embed,
-            &reason,
-            conversation_id,
-            &message,
-            &events,
-        )
-        .await;
+        let deps = ChatDeps {
+            pool: &state.pool,
+            embed: &state.embed,
+            rerank: &state.rerank,
+            grounding: &state.grounding,
+            reason: &reason,
+            persona: persona_id,
+        };
+        chat_stream(&deps, conversation_id, &message, &events).await;
     });
     let sse = stream::unfold(receiver, |mut receiver| async move {
         receiver.recv().await.map(|event| (event, receiver))
@@ -1060,74 +1181,35 @@ async fn search(
         .unwrap_or(8)
         .clamp(1, 50) as usize;
 
-    let query_embedding = match state.embed.embed(&[q.to_owned()]).await {
-        Ok(mut vectors) => halfvec_literal(&vectors.remove(0)),
-        Err(error) => return error_response(StatusCode::BAD_GATEWAY, error),
+    let policy = RetrievalPolicy {
+        k,
+        ..RetrievalPolicy::default()
+    };
+    let outcome = match retrieve(&state.pool, &state.embed, &state.rerank, q, &policy).await {
+        Ok(outcome) => outcome,
+        Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     };
 
-    type CandidateRow = (Uuid, Uuid, i32, String, String, DateTime<Utc>, String);
-    let vector_rows = sqlx::query_as::<_, CandidateRow>(
-        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::halfvec LIMIT 50",
-    )
-    .bind(&query_embedding)
-    .fetch_all(&state.pool)
-    .await;
-    let text_rows = sqlx::query_as::<_, CandidateRow>(
-        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.tsv @@ websearch_to_tsquery('english', $1) ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('english', $1)) DESC LIMIT 50",
-    )
-    .bind(q)
-    .fetch_all(&state.pool)
-    .await;
-
-    let (vector_rows, text_rows) = match (vector_rows, text_rows) {
-        (Ok(vector_rows), Ok(text_rows)) => (vector_rows, text_rows),
-        (Err(error), _) | (_, Err(error)) => {
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
-        }
-    };
-
-    let mut fused: HashMap<Uuid, (CandidateRow, f64)> = HashMap::new();
-    for rows in [vector_rows, text_rows] {
-        for (rank, row) in rows.into_iter().enumerate() {
-            let contribution = 1.0 / (60.0 + rank as f64 + 1.0);
-            fused
-                .entry(row.0)
-                .and_modify(|entry| entry.1 += contribution)
-                .or_insert((row, contribution));
-        }
-    }
-    let mut ranked: Vec<(CandidateRow, f64)> = fused.into_values().collect();
-    ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
-    ranked.truncate(k);
-
-    let results = ranked
-        .into_iter()
-        .map(
-            |((chunk_id, episode_id, ord, text, title, occurred_at, kind), score)| SearchResult {
-                chunk_id,
-                episode_id,
-                ord,
-                title,
-                occurred_at: date_string(occurred_at),
-                kind,
-                snippet: snippet(&text),
-                score: (score * 1e6).round() / 1e6,
-            },
-        )
+    let results = outcome
+        .items
+        .iter()
+        .map(|item| SearchResult {
+            chunk_id: item.item_id,
+            episode_id: item.episode_id.unwrap_or(item.item_id),
+            ord: 0,
+            title: item.title.clone(),
+            occurred_at: date_string(item.occurred_at),
+            kind: item.item_type.clone(),
+            snippet: snippet(&item.text),
+            score: ((item.scores.rerank.unwrap_or(item.scores.fused) as f64) * 1e6).round() / 1e6,
+        })
         .collect::<Vec<_>>();
 
-    let retrieved = results
+    let retrieved = outcome
+        .items
         .iter()
         .enumerate()
-        .map(|(rank, result)| RetrievedChunk {
-            chunk_id: result.chunk_id,
-            episode_id: result.episode_id,
-            rank: rank as i32 + 1,
-            score_vec: None,
-            score_text: None,
-            score_fused: Some(result.score as f32),
-            was_cited: false,
-        })
+        .map(|(rank, item)| RetrievedChunk::from_item(item, rank as i32 + 1, false))
         .collect::<Vec<_>>();
     log_turn(
         &state.pool,
@@ -1228,6 +1310,10 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/reflect", post(reflect))
         .route("/v1/beliefs", get(beliefs))
         .route("/v1/ask", post(ask))
+        .route("/v1/council", post(council))
+        .route("/v1/personas", get(personas))
+        .route("/v1/core", get(core_memory_route).post(core_memory_write))
+        .route("/v1/baselines", get(baselines))
         .route("/v1/chat", post(chat))
         .route("/v1/conversations", get(conversations))
         .route(

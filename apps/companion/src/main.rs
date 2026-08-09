@@ -1,17 +1,25 @@
 mod ask;
+mod baseline;
 mod chat;
+mod core_memory;
+mod council;
 mod chunker;
 mod claims;
 mod doctor;
 mod embed;
+mod friend;
 mod frontmatter;
 mod github;
+mod grounding;
 mod indexer;
 mod ingest;
 mod migrate;
 mod nightly;
+mod persona;
 mod reason;
 mod reflect;
+mod rerank;
+mod retrieve;
 mod server;
 mod settings;
 mod signals;
@@ -25,8 +33,10 @@ use sqlx::postgres::PgPoolOptions;
 
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
+use crate::grounding::GroundingClient;
 use crate::nightly::{NightlyDeps, spawn_scheduler};
 use crate::reason::ReasonClient;
+use crate::rerank::RerankClient;
 use crate::server::AppState;
 use crate::settings::ReasonHandle;
 use crate::stt::SttClient;
@@ -50,6 +60,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         embed: EmbedClient::from_env(),
         stt: SttClient::from_env(),
         github: GithubConnector::from_env(),
+        rerank: RerankClient::from_env(),
+        grounding: GroundingClient::from_env(),
         reason: ReasonHandle::new(ReasonClient::from_config(reason_config)),
     };
     spawn_scheduler(NightlyDeps {
@@ -57,6 +69,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         embed: state.embed.clone(),
         reason: state.reason.clone(),
         github: state.github.clone(),
+        rerank: state.rerank.clone(),
+        grounding: state.grounding.clone(),
     });
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
 
