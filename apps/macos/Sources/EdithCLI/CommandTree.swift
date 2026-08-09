@@ -690,6 +690,12 @@ public enum CommandTree {
                     CommandNode(
                         "observations", "List what the connectors saw you do.",
                         options: common + ["--endpoint", "--limit", "--kind"]),
+                    CommandNode(
+                        "reflect", "Distill fresh beliefs from recent episodes.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "beliefs", "List what the companion believes about you.",
+                        options: common + ["--endpoint", "--limit"]),
                 ]),
         ])
 

@@ -166,6 +166,41 @@ public struct CompanionObservation: Codable, Equatable, Sendable {
     }
 }
 
+public struct CompanionReflectOutcome: Codable, Equatable, Sendable {
+    public let episodesConsidered: Int
+    public let beliefsFormed: Int
+    public let model: String
+
+    public init(episodesConsidered: Int, beliefsFormed: Int, model: String) {
+        self.episodesConsidered = episodesConsidered
+        self.beliefsFormed = beliefsFormed
+        self.model = model
+    }
+}
+
+public struct CompanionBelief: Codable, Equatable, Sendable {
+    public let id: String
+    public let statement: String
+    public let kind: String
+    public let confidence: Double
+    public let firstFormed: String
+    public let evidenceEpisodeIds: [String]
+    public let status: String
+
+    public init(
+        id: String, statement: String, kind: String, confidence: Double, firstFormed: String,
+        evidenceEpisodeIds: [String], status: String
+    ) {
+        self.id = id
+        self.statement = statement
+        self.kind = kind
+        self.confidence = confidence
+        self.firstFormed = firstFormed
+        self.evidenceEpisodeIds = evidenceEpisodeIds
+        self.status = status
+    }
+}
+
 public enum CompanionClientError: Error, Equatable, LocalizedError, Sendable {
     case unreachable(String)
     case badResponse(Int, String)
@@ -236,6 +271,19 @@ public struct CompanionClient: Sendable {
             throw CompanionClientError.unreachable(error.localizedDescription)
         }
         return try await self.request(request)
+    }
+
+    public func reflect() async throws -> CompanionReflectOutcome {
+        var request = URLRequest(url: url(for: "reflect"))
+        request.httpMethod = "POST"
+        request.httpBody = Data()
+        return try await self.request(request, timeout: 600)
+    }
+
+    public func beliefs(limit: Int) async throws -> [CompanionBelief] {
+        var components = URLComponents(url: url(for: "beliefs"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        return try await request(URLRequest(url: components?.url ?? url(for: "beliefs")))
     }
 
     public func syncGithub() async throws -> CompanionSyncOutcome {

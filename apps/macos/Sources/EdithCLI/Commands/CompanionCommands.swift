@@ -18,8 +18,91 @@ struct CompanionCommand: AsyncParsableCommand {
             CompanionSearchCommand.self, CompanionIndexCommand.self,
             CompanionIngestCommand.self, CompanionEpisodesCommand.self,
             CompanionSyncCommand.self, CompanionObservationsCommand.self,
+            CompanionReflectCommand.self, CompanionBeliefsCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
+}
+
+struct CompanionReflectCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "reflect", abstract: "Distill fresh beliefs from recent episodes.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await execute {
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.reflect()
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "episodesConsidered": .int(outcome.episodesConsidered),
+                        "beliefsFormed": .int(outcome.beliefsFormed),
+                        "model": .string(outcome.model),
+                    ]))
+                return
+            }
+            CLIOut.out(
+                "considered \(outcome.episodesConsidered) episodes, "
+                    + "formed \(outcome.beliefsFormed) beliefs (\(outcome.model))")
+        }
+    }
+}
+
+struct CompanionBeliefsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "beliefs", abstract: "List what the companion believes about you.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Option(name: .long, help: "How many to list.")
+    var limit = 20
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            let beliefs = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.beliefs(limit: limit)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .array(
+                        beliefs.map { belief in
+                            .object([
+                                "id": .string(belief.id),
+                                "statement": .string(belief.statement),
+                                "kind": .string(belief.kind),
+                                "confidence": .double(belief.confidence),
+                                "firstFormed": .string(belief.firstFormed),
+                                "evidenceEpisodeIds": .strings(belief.evidenceEpisodeIds),
+                                "status": .string(belief.status),
+                            ])
+                        }))
+                return
+            }
+            guard !beliefs.isEmpty else {
+                CLIOut.out("no beliefs yet, run `ed companion reflect`")
+                return
+            }
+            for (index, belief) in beliefs.enumerated() {
+                CLIOut.out(
+                    "\(index + 1). [\(belief.kind), \(Int(belief.confidence * 100))%] "
+                        + belief.statement)
+                CLIOut.out(
+                    "   evidence: \(belief.evidenceEpisodeIds.count) episodes, "
+                        + "since \(belief.firstFormed)")
+            }
+        }
+    }
 }
 
 struct CompanionSyncCommand: AsyncParsableCommand {
