@@ -25,8 +25,6 @@ services:
       retries: 10
   ollama:
     image: ollama/ollama:latest
-    ports:
-      - "127.0.0.1:${COMPANION_OLLAMA_PORT:-11434}:11434"
     volumes:
       - companion-ollama:/root/.ollama
   api:
