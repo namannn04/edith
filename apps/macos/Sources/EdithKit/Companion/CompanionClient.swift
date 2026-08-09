@@ -189,7 +189,10 @@ public struct CompanionClient: Sendable {
 
     public static func endpoint(override: String?) -> URL {
         let fallback = URL(string: "http://127.0.0.1:4820")!
-        let value = override ?? ProcessInfo.processInfo.environment["EDITH_COMPANION_URL"]
+        let value =
+            override
+            ?? ProcessInfo.processInfo.environment["EDITH_COMPANION_URL"]
+            ?? SharedDefaults.store.string(forKey: "companionEndpoint")
         guard let value, !value.isEmpty else { return fallback }
         return URL(string: value) ?? fallback
     }

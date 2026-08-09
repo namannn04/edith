@@ -83,6 +83,7 @@ enum UIParity {
             "Cleaner card", "clean one category",
             ["cleaner", "clean", "--category", "npm", "--yes"]),
 
+        UICapability("Companion", "sync github activity", ["companion", "sync", "github"]),
         UICapability("Machines", "add a machine", ["machines", "add", "box", "--host", "h"]),
         UICapability("Machines", "edit a machine", ["machines", "edit", "box"]),
         UICapability("Machines", "delete a machine", ["machines", "rm", "box"]),
