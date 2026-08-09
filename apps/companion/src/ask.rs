@@ -14,16 +14,39 @@ use crate::turns::{RetrievedChunk, latency_since, log_turn};
 const SYSTEM_PROMPT: &str = "You answer questions about one person from excerpts of their own \
 notes, voice memos and records. Ground every claim in the excerpts; if they do not answer the \
 question, say so plainly instead of guessing. Answer with JSON only: {\"answer\": string, \
-\"citations\": [{\"episodeId\": string, \"quote\": string}]}. Cite only episode ids you were \
-given, quoting the exact words the claim rests on.";
+\"citations\": [{\"episodeId\": string, \"quote\": string, \"support\": \"verbatim\"|\
+\"paraphrase\"|\"inference\"}]}. Cite only episode ids you were given. support is verbatim when \
+the quote is their exact words, paraphrase when it restates what they wrote, inference when you \
+are reading between the lines.";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AskCitation {
     pub episode_id: Uuid,
     pub quote: String,
+    pub support: String,
     pub title: String,
     pub occurred_at: String,
+}
+
+fn squeeze(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+pub fn resolve_support(claimed: Option<&str>, quote: &str, source: &str) -> String {
+    let quote_appears = !quote.is_empty() && squeeze(source).contains(&squeeze(quote));
+    match claimed {
+        Some("verbatim") if quote_appears => "verbatim".to_owned(),
+        Some("verbatim") => "paraphrase".to_owned(),
+        Some("paraphrase") if quote_appears => "verbatim".to_owned(),
+        Some("paraphrase") => "paraphrase".to_owned(),
+        Some("inference") => "inference".to_owned(),
+        _ if quote_appears => "verbatim".to_owned(),
+        _ => "inference".to_owned(),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -113,7 +136,7 @@ pub async fn ask_run(
         else {
             continue;
         };
-        let Some((_, _, _, title, occurred_at)) =
+        let Some((_, _, text, title, occurred_at)) =
             chunks.iter().find(|(_, id, _, _, _)| *id == episode_id)
         else {
             continue;
@@ -124,9 +147,15 @@ pub async fn ask_run(
             .unwrap_or_default()
             .trim()
             .to_owned();
+        let support = resolve_support(
+            citation.get("support").and_then(Value::as_str),
+            &quote,
+            text,
+        );
         citations.push(AskCitation {
             episode_id,
             quote,
+            support,
             title: title.clone(),
             occurred_at: date_string(*occurred_at),
         });
@@ -168,7 +197,7 @@ pub async fn ask_run(
 
 #[cfg(test)]
 mod tests {
-    use super::extract_json_object;
+    use super::{extract_json_object, resolve_support};
 
     #[test]
     fn finds_object_inside_prose() {
@@ -180,5 +209,32 @@ mod tests {
     #[test]
     fn rejects_missing_object() {
         assert!(extract_json_object("nothing structured").is_none());
+    }
+
+    #[test]
+    fn verbatim_requires_the_quote_to_appear() {
+        let source = "Shipped the auth refactor this week.\nFelt slower than usual.";
+        assert_eq!(
+            resolve_support(Some("verbatim"), "shipped the auth refactor", source),
+            "verbatim"
+        );
+        assert_eq!(
+            resolve_support(Some("verbatim"), "the refactor shipped smoothly", source),
+            "paraphrase"
+        );
+    }
+
+    #[test]
+    fn appearing_quotes_upgrade_and_missing_claims_default() {
+        let source = "Felt slower than usual.";
+        assert_eq!(
+            resolve_support(Some("paraphrase"), "felt slower than usual", source),
+            "verbatim"
+        );
+        assert_eq!(resolve_support(None, "", source), "inference");
+        assert_eq!(
+            resolve_support(Some("inference"), "felt slower", source),
+            "inference"
+        );
     }
 }
