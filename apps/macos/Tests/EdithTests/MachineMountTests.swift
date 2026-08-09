@@ -8,32 +8,48 @@ import Testing
         id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!, name: "tuf",
         host: "10.0.0.4", port: 2222, username: "pulkit")
 
-    @Test func onlyFuseLinesCountAsMachineMounts() {
+    @Test func everyMountedVolumeIsRead() {
         let output = """
             /dev/disk3s1s1 on / (apfs, sealed, local, read-only, journaled)
             pulkit@10.0.0.4:/home/pulkit on /Users/pulkit/Edith/tuf (macfuse, nodev, nosuid)
             map auto_home on /System/Volumes/Data/home (autofs, automounted)
             """
-        let mounts = MachineMounts.parse(output)
-        #expect(mounts.count == 1)
-        #expect(mounts.first?.target == "pulkit@10.0.0.4")
-        #expect(mounts.first?.remotePath == "/home/pulkit")
-        #expect(mounts.first?.mountPoint == "/Users/pulkit/Edith/tuf")
-        #expect(mounts.first?.isReadOnly == false)
+        let volumes = MachineMounts.parse(output)
+        #expect(volumes.count == 3)
+        let fuse = volumes.filter(\.looksLikeFUSE)
+        #expect(fuse.count == 1)
+        #expect(fuse.first?.mountPoint == "/Users/pulkit/Edith/tuf")
+        #expect(volumes.first?.isReadOnly == true)
     }
 
-    @Test func aReadOnlyMountIsReportedAsOne() {
-        let mounts = MachineMounts.parse(
-            "pi@box:/srv on /Users/pulkit/Edith/pi (macfuse, read-only, nodev)")
-        #expect(mounts.first?.isReadOnly == true)
-    }
-
-    @Test func aMachineIsMatchedByItsSSHTarget() {
-        let mounts = MachineMounts.parse(
+    @Test func aMacFuseMountNobodyRecordedIsStillRecognised() {
+        let volumes = MachineMounts.parse(
             "pulkit@10.0.0.4:/home/pulkit on /Users/pulkit/Edith/tuf (macfuse, nodev)")
+        let mounts = MachineMounts.reconcile(records: [], with: volumes)
+        #expect(mounts.count == 1)
         #expect(MachineMounts.mount(for: machine, in: mounts)?.remotePath == "/home/pulkit")
         let other = Machine(name: "pi", host: "box", username: "pi")
         #expect(MachineMounts.mount(for: other, in: mounts) == nil)
+    }
+
+    @Test func aRecordedMountIsMatchedByItsMountPointWhateverTheSourceSays() {
+        let record = MachineMount(
+            machineID: machine.id, target: machine.sshTarget, remotePath: "/srv",
+            mountPoint: "/Users/pulkit/Edith/tuf")
+        let volumes = MachineMounts.parse(
+            "fuse-t:/sshfs on /Users/pulkit/Edith/tuf (nfs, nodev, read-only)")
+        let mounts = MachineMounts.reconcile(records: [record], with: volumes)
+        #expect(mounts.count == 1)
+        #expect(MachineMounts.mount(for: machine, in: mounts)?.remotePath == "/srv")
+        #expect(mounts.first?.isReadOnly == true)
+    }
+
+    @Test func aRecordWhoseMountHasGoneIsDropped() {
+        let record = MachineMount(
+            machineID: machine.id, target: machine.sshTarget, remotePath: "/srv",
+            mountPoint: "/Users/pulkit/Edith/tuf")
+        let volumes = MachineMounts.parse("/dev/disk3s1s1 on / (apfs, local)")
+        #expect(MachineMounts.reconcile(records: [record], with: volumes).isEmpty)
     }
 
     @Test func theMountPointIsNamedAfterTheMachine() {
@@ -54,6 +70,16 @@ import Testing
         #expect(arguments.contains("BatchMode=yes"))
         #expect(arguments.contains("volname=tuf"))
         #expect(!arguments.contains("ro"))
+    }
+
+    @Test func theSecondAttemptDropsTheOptionsOnlyMacFuseKnows() {
+        let arguments = MachineMounts.mountArguments(
+            machine: machine, remotePath: "/srv", mountPoint: "/mnt/tuf", readOnly: true,
+            minimal: true)
+        #expect(!arguments.contains("volname=tuf"))
+        #expect(!arguments.contains("defer_permissions"))
+        #expect(arguments.contains("ControlMaster=no"))
+        #expect(arguments.contains("ro"))
     }
 
     @Test func aManualMachineCarriesItsPortAndKey() {

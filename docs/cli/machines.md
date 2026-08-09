@@ -1548,13 +1548,22 @@ ed machines tuf mount /var/log
 
 #### Behaviour notes
 
-This needs macFUSE and `sshfs` on this Mac, which Edith does not install:
+This needs an `sshfs` on this Mac, which Edith does not install:
 
 ```
 $ ed machines mount tuf
 error: sshfs is not installed on this Mac.
-hint: install macFUSE and sshfs: brew install --cask macfuse && brew install gromgit/fuse/sshfs-mac
+hint: install FUSE-T, which needs no kernel extension: brew install --cask macos-fuse-t/cask/fuse-t macos-fuse-t/cask/fuse-t-sshfs
 ```
+
+Either FUSE works. FUSE-T is the one to reach for first because it is a user
+space NFS server rather than a kernel extension, so it installs without loading
+a kext, without Reduced Security on an Apple Silicon Mac, and without a restart.
+macFUSE with `gromgit/fuse/sshfs-mac` works too, at the cost of approving a
+kernel extension. Edith drives whichever `sshfs` is first on `PATH`, and it
+tries the mount twice: once with the macFUSE-only options, `volname`,
+`idmap=user`, `defer_permissions` and the Apple metadata switches, and then
+without them, so an sshfs that rejects the first set still mounts.
 
 The mount rides the same ControlMaster socket everything else on this page uses.
 `ed` opens the connection first, then points `sshfs` at that socket with
@@ -1584,6 +1593,14 @@ mounted machine is as easy to delete from as a local disk.
 The mount belongs to the login session, not to Edith. It stays up when Edith
 quits, and it goes away on logout or restart. `ed machines disconnect` closes
 the control socket; the mount then keeps itself alive on its own connection.
+
+What Edith keeps is a small record in
+`~/Library/Application Support/Edith/machines/mounts.json`, one line per mount
+it made: the machine, the remote path and the mount point. That is what ties a
+mount back to a machine, because not every FUSE reports the `user@host:/path`
+source in the mount table. The record is checked against the live mount table on
+every read, so one that has gone away, unmounted by hand or lost to a restart,
+is dropped rather than believed.
 
 ### `ed machines unmount`
 
@@ -1693,12 +1710,12 @@ ed machines mounts --json | jq -r '.[].mountPoint'
 
 #### Behaviour notes
 
-This reads `/sbin/mount` and keeps the FUSE entries, so it reports what the
-system says is mounted rather than what Edith remembers mounting. A machine
-mounted by hand with `sshfs` shows up here too; it is matched to a name by its
-`user@host`, and an entry Edith cannot match is listed under that target
-instead. Nothing here dials a machine, so it answers instantly and works with
-every machine asleep.
+This reads `/sbin/mount` and reports what the system says is mounted, filtered
+to the mounts Edith recorded plus any FUSE mount whose source reads
+`user@host:/path`. So a machine mounted by hand with `sshfs` shows up here too,
+matched to a name by its target, and an entry Edith cannot match to a machine is
+listed under that target instead. Nothing here dials a machine, so it answers
+instantly and works with every machine asleep.
 
 ## Exit codes
 

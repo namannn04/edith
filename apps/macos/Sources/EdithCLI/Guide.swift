@@ -102,7 +102,8 @@ public enum Guide {
 
         A machine's disk can also come to you. `mount` hangs its file system off a
         folder on this Mac over the same connection, so Finder and every local tool
-        read and write it in place. It needs macFUSE and sshfs here.
+        read and write it in place. It needs an sshfs here, FUSE-T for a kext-free
+        one or macFUSE if you already run it.
 
         ```
         ed machines mount tuf                   at ~/Edith/tuf

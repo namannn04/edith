@@ -37,8 +37,11 @@ struct MachinesMountCommand: AsyncParsableCommand {
             connection the app and `ed` already share, so nothing asks for the password
             twice.
 
-            This needs macFUSE and sshfs on this Mac:
-            `brew install --cask macfuse && brew install gromgit/fuse/sshfs-mac`.
+            This needs an sshfs on this Mac. FUSE-T is the easy one, a user space NFS
+            server rather than a kernel extension:
+            `brew install --cask macos-fuse-t/cask/fuse-t macos-fuse-t/cask/fuse-t-sshfs`.
+            macFUSE with `gromgit/fuse/sshfs-mac` works too, once its kernel extension
+            is approved.
             """)
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
@@ -127,7 +130,10 @@ struct MachinesMountsCommand: AsyncParsableCommand {
             let machines = MachineDirectory.load()
             let mounts = await MachineMounts.list()
             let named = mounts.map { mount in
-                (machines.first { $0.sshTarget == mount.target }?.name ?? mount.target, mount)
+                let found = machines.first {
+                    $0.id == mount.machineID || $0.sshTarget == mount.target
+                }
+                return (found?.name ?? mount.target, mount)
             }
             guard !json else {
                 CLIOut.json(
