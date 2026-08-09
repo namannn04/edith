@@ -9,8 +9,12 @@ directly on this Mac or through an `ed machines` port forward. Pass
 `--endpoint` for one invocation, set `EDITH_COMPANION_URL` for a shell, or use
 the default `http://127.0.0.1:4820`.
 
-For the machinery behind these commands, vault, chunking, embeddings,
-retrieval, claims and beliefs, read [how the companion works](./concepts.md).
+For the machinery behind these commands, start at
+[how the companion works](./concepts.md), the overview, then go deep:
+[memory](./concepts-memory.md), [ingestion](./concepts-ingestion.md),
+[chunks, embeddings and search](./concepts-search.md),
+[asking and chatting](./concepts-chat.md) and
+[the learning loop](./concepts-learning.md).
 
 ## At a glance
 
