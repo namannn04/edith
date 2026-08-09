@@ -1,5 +1,6 @@
 mod ask;
 mod chunker;
+mod claims;
 mod doctor;
 mod embed;
 mod frontmatter;

@@ -16,6 +16,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::ask::ask_run;
+use crate::claims::{corroborate_claims, extract_claims};
 use crate::doctor::run_doctor;
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
@@ -267,6 +268,76 @@ async fn ask(State(state): State<AppState>, request: Request) -> Response {
     match ask_run(&state.pool, &state.embed, &state.reason, &question).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn claims_extract(State(state): State<AppState>) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    match extract_claims(&state.pool, &state.reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn corroborate(State(state): State<AppState>) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    match corroborate_claims(&state.pool, &state.reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn claims(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    type ClaimRow = (
+        Uuid,
+        String,
+        String,
+        bool,
+        DateTime<Utc>,
+        Option<String>,
+        Option<String>,
+    );
+    let rows = sqlx::query_as::<_, ClaimRow>(
+        "SELECT c.id, c.statement, c.claim_type, c.testable, c.asserted_at, x.verdict, x.note FROM claims c LEFT JOIN LATERAL (SELECT verdict, note FROM corroborations WHERE claim_id = c.id ORDER BY checked_at DESC LIMIT 1) x ON true ORDER BY c.asserted_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let claims = rows
+                .into_iter()
+                .map(
+                    |(id, statement, claim_type, testable, asserted_at, verdict, note)| {
+                        serde_json::json!({
+                            "id": id,
+                            "statement": statement,
+                            "claimType": claim_type,
+                            "testable": testable,
+                            "assertedAt": date_string(asserted_at),
+                            "verdict": verdict,
+                            "verdictNote": note,
+                        })
+                    },
+                )
+                .collect::<Vec<_>>();
+            Json(claims).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     }
 }
 
@@ -586,6 +657,9 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/reflect", post(reflect))
         .route("/v1/beliefs", get(beliefs))
         .route("/v1/ask", post(ask))
+        .route("/v1/claims/extract", post(claims_extract))
+        .route("/v1/claims", get(claims))
+        .route("/v1/corroborate", post(corroborate))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .with_state(state)
