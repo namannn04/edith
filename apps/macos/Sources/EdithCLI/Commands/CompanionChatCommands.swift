@@ -212,6 +212,9 @@ struct CompanionEpisodeCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Print only the body text.")
     var body = false
 
+    @Flag(name: .long, help: "Download the original file and open it with the default app.")
+    var open = false
+
     @Option(name: .long, help: "Companion API base URL.")
     var endpoint: String?
 
@@ -222,6 +225,24 @@ struct CompanionEpisodeCommand: AsyncParsableCommand {
         try await execute {
             let episode = try await CompanionBridge.request(endpoint: endpoint) { client in
                 try await client.episodeDetail(id: id)
+            }
+            if open {
+                let (data, contentType) = try await CompanionBridge.request(endpoint: endpoint) {
+                    client in
+                    try await client.media(episodeId: id)
+                }
+                let url = try CompanionMedia.temporaryFile(
+                    title: episode.title, contentType: contentType, data: data)
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                process.arguments = [url.path]
+                try process.run()
+                guard !json else {
+                    CLIOut.json(.object(["opened": .string(url.path)]))
+                    return
+                }
+                CLIOut.out("opened \(url.path)")
+                return
             }
             guard !json else {
                 CLIOut.json(

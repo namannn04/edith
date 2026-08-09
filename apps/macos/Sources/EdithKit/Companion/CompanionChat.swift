@@ -159,6 +159,35 @@ public struct CompanionDeletion: Codable, Equatable, Sendable {
     }
 }
 
+public enum CompanionMedia {
+    public static func fileExtension(forContentType type: String) -> String {
+        if type.contains("markdown") { return "md" }
+        if type.contains("pdf") { return "pdf" }
+        if type.contains("audio/wav") { return "wav" }
+        if type.contains("audio/mp4") { return "m4a" }
+        if type.contains("audio/mpeg") { return "mp3" }
+        if type.contains("audio/ogg") { return "ogg" }
+        if type.contains("audio/flac") { return "flac" }
+        if type.contains("audio/aiff") { return "aiff" }
+        return "bin"
+    }
+
+    public static func temporaryFile(title: String, contentType: String, data: Data) throws -> URL {
+        let safe =
+            title
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("companion-episodes", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let name = safe.isEmpty ? "episode" : safe
+        let url = directory.appendingPathComponent(
+            "\(name).\(fileExtension(forContentType: contentType))")
+        try data.write(to: url)
+        return url
+    }
+}
+
 public enum CompanionChatEvent: Equatable, Sendable {
     case meta(conversationId: String, model: String)
     case delta(String)

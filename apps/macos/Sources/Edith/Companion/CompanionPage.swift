@@ -165,6 +165,42 @@ struct CompanionPage: View {
 
     private var screens: some View {
         ZStack {
+            screenStack
+            if library.dropTargeted {
+                dropOverlay
+            }
+        }
+        .animation(
+            Motion.animation(Motion.snap, reduceMotion: reduceMotion),
+            value: library.dropTargeted)
+    }
+
+    private var dropOverlay: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: UIScale.pt(14))
+                .fill(DashSkin.paper(dark).opacity(0.88))
+            RoundedRectangle(cornerRadius: UIScale.pt(14))
+                .strokeBorder(
+                    DashSkin.accent(dark), style: StrokeStyle(lineWidth: 1.5, dash: [7, 5]))
+            VStack(spacing: UIScale.pt(8)) {
+                Image(systemName: "tray.and.arrow.down")
+                    .font(.system(size: UIScale.pt(26)))
+                    .foregroundStyle(DashSkin.accent(dark))
+                Text("Drop to remember")
+                    .font(DashSkin.serif(UIScale.pt(20), weight: .semibold))
+                    .foregroundStyle(DashSkin.ink(dark))
+                Text("Markdown notes, voice recordings, PDFs")
+                    .font(.system(size: UIScale.pt(12)))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
+            }
+        }
+        .padding(UIScale.pt(10))
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+
+    private var screenStack: some View {
+        ZStack {
             screen(.chat)
                 .opacity(tab == .chat ? 1 : 0)
                 .allowsHitTesting(tab == .chat)
@@ -187,9 +223,21 @@ struct CompanionPage: View {
     @ViewBuilder
     private func screen(_ item: CompanionTab) -> some View {
         switch item {
-        case .chat: CompanionChatScreen(model: chat, home: home)
+        case .chat:
+            CompanionChatScreen(
+                model: chat, home: home,
+                openEpisode: { id in
+                    select(.library)
+                    Task { await library.select(id) }
+                })
         case .library: CompanionLibraryScreen(model: library, home: home)
-        case .mind: CompanionMindScreen(model: mind)
+        case .mind:
+            CompanionMindScreen(
+                model: mind,
+                openEpisode: { id in
+                    select(.library)
+                    Task { await library.select(id) }
+                })
         case .settings: CompanionSettingsScreen(model: reason, home: home)
         }
     }

@@ -114,6 +114,7 @@ final class CompanionChatModel: ObservableObject {
 struct CompanionChatScreen: View {
     @ObservedObject var model: CompanionChatModel
     @ObservedObject var home: CompanionHomeModel
+    var openEpisode: (String) -> Void = { _ in }
     @Environment(\.colorScheme) private var scheme
     @Environment(\.compactLayout) private var compact
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -298,28 +299,11 @@ struct CompanionChatScreen: View {
     private func citationChips(_ citations: [CompanionAskCitation]) -> some View {
         FlowChips(spacing: UIScale.pt(6)) {
             ForEach(Array(citations.enumerated()), id: \.offset) { index, citation in
-                HStack(spacing: UIScale.pt(4)) {
-                    Text("\(index + 1)")
-                        .font(.system(size: UIScale.pt(10), weight: .bold))
-                        .foregroundStyle(DashSkin.accent(dark))
-                    Text(
-                        "\(citation.title) · \(String(citation.occurredAt.prefix(10))) · \(supportLabel(citation.support))"
-                    )
-                    .font(.system(size: UIScale.pt(10.5)))
-                    .foregroundStyle(DashSkin.inkSoft(dark))
-                }
-                .padding(.horizontal, UIScale.pt(9))
-                .padding(.vertical, UIScale.pt(3))
-                .background(DashSkin.paper(dark), in: Capsule())
-                .overlay { Capsule().strokeBorder(DashSkin.line(dark)) }
-                .help(citation.quote.isEmpty ? citation.title : "\u{201C}\(citation.quote)\u{201D}")
+                CitationChip(
+                    index: index + 1, citation: citation, dark: dark, open: openEpisode)
             }
         }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
-    }
-
-    private func supportLabel(_ support: String) -> String {
-        support == "inference" ? "between the lines" : support
     }
 
     private var composer: some View {
@@ -333,6 +317,7 @@ struct CompanionChatScreen: View {
                 .lineLimit(1...6)
                 .font(.system(size: UIScale.pt(13.5)))
                 .foregroundStyle(DashSkin.ink(dark))
+                .tint(DashSkin.accent(dark))
                 .focused($composerFocused)
                 .focusEffectDisabled()
                 .onSubmit { Task { await model.send() } }
@@ -364,6 +349,68 @@ struct CompanionChatScreen: View {
         .animation(.easeOut(duration: 0.12), value: composerFocused)
         .padding(.horizontal, PageMetrics.gutter(compact))
         .padding(.vertical, UIScale.pt(12))
+    }
+}
+
+private struct CitationChip: View {
+    let index: Int
+    let citation: CompanionAskCitation
+    let dark: Bool
+    let open: (String) -> Void
+    @State private var showing = false
+
+    var body: some View {
+        Button {
+            showing = true
+        } label: {
+            HStack(spacing: UIScale.pt(4)) {
+                Text("\(index)")
+                    .font(.system(size: UIScale.pt(10), weight: .bold))
+                    .foregroundStyle(DashSkin.accent(dark))
+                Text(
+                    "\(citation.title) · \(String(citation.occurredAt.prefix(10))) · \(supportLabel)"
+                )
+                .font(.system(size: UIScale.pt(10.5)))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+            }
+            .padding(.horizontal, UIScale.pt(9))
+            .padding(.vertical, UIScale.pt(3))
+            .background(DashSkin.paper(dark), in: Capsule())
+            .overlay { Capsule().strokeBorder(DashSkin.line(dark)) }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .help("Preview this citation")
+        .popover(isPresented: $showing, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: UIScale.pt(8)) {
+                Text(citation.title)
+                    .font(DashSkin.serif(UIScale.pt(15), weight: .semibold))
+                    .foregroundStyle(DashSkin.ink(dark))
+                Text("\(String(citation.occurredAt.prefix(10))) · \(supportLabel)")
+                    .font(.system(size: UIScale.pt(10.5)))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                if !citation.quote.isEmpty {
+                    Text("\u{201C}\(citation.quote)\u{201D}")
+                        .font(.system(size: UIScale.pt(12.5)))
+                        .italic()
+                        .foregroundStyle(DashSkin.inkSoft(dark))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Button("Open in Library") {
+                    showing = false
+                    open(citation.episodeId)
+                }
+                .padding(.top, UIScale.pt(2))
+            }
+            .padding(UIScale.pt(14))
+            .frame(minWidth: UIScale.pt(240), maxWidth: UIScale.pt(360), alignment: .leading)
+        }
+    }
+
+    private var supportLabel: String {
+        citation.support == "inference" ? "between the lines" : citation.support
     }
 }
 

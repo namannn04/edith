@@ -56,7 +56,7 @@ final class CompanionLibraryModel: ObservableObject {
         }
     }
 
-    func select(_ id: String, kind: String) async {
+    func select(_ id: String) async {
         guard selectedId != id else { return }
         playback.stop()
         selectedId = id
@@ -68,6 +68,7 @@ final class CompanionLibraryModel: ObservableObject {
         do {
             let client = client
             detail = try await client.episodeDetail(id: id)
+            let kind = detail?.kind ?? ""
             if kind == "voice" {
                 signals = (try? await client.signals(episodeId: id)) ?? []
             }
@@ -88,6 +89,18 @@ final class CompanionLibraryModel: ObservableObject {
         detail = nil
         signals = []
         media = nil
+    }
+
+    func openExternally() async {
+        guard let detail else { return }
+        do {
+            let (data, contentType) = try await client.media(episodeId: detail.id)
+            let url = try CompanionMedia.temporaryFile(
+                title: detail.title, contentType: contentType, data: data)
+            NSWorkspace.shared.open(url)
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     func indexNow() async {
@@ -205,7 +218,6 @@ struct CompanionLibraryScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UIScale.pt(10)) {
             stats
-            dropzone
             HStack(alignment: .top, spacing: UIScale.pt(12)) {
                 listColumn
                 if model.selectedId != nil {
@@ -233,9 +245,18 @@ struct CompanionLibraryScreen: View {
             statTile(value: "\(home.status?.episodes ?? 0)", label: "episodes")
             statTile(value: "\(home.status?.chunks ?? 0)", label: "chunks")
             pendingTile
-            statTile(
-                value: model.ingesting ? "…" : (model.ingestSummary ?? "drop files"),
-                label: model.ingesting ? "ingesting" : "last drop")
+            Button {
+                pickAndIngest()
+            } label: {
+                statTile(
+                    value: model.ingesting ? "ingesting…" : (model.ingestSummary ?? "browse…"),
+                    label: model.ingesting ? "hold on" : "add to memory")
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+            .disabled(model.ingesting)
+            .help(
+                "Pick Markdown notes, voice recordings, or PDFs; dropping files anywhere works too")
         }
     }
 
@@ -292,36 +313,6 @@ struct CompanionLibraryScreen: View {
         }
     }
 
-    private var dropzone: some View {
-        HStack(spacing: UIScale.pt(6)) {
-            Spacer()
-            Text("Drop Markdown, voice recordings, or PDFs anywhere — or")
-                .font(.system(size: UIScale.pt(12)))
-                .foregroundStyle(DashSkin.inkSoft(dark))
-            Button("browse…") { pickAndIngest() }
-                .buttonStyle(.plain)
-                .font(.system(size: UIScale.pt(12), weight: .bold))
-                .foregroundStyle(DashSkin.accent(dark))
-                .pointerCursor()
-                .disabled(model.ingesting)
-            Spacer()
-        }
-        .padding(.vertical, UIScale.pt(11))
-        .background(
-            model.dropTargeted ? DashSkin.accent(dark).opacity(0.12) : .clear,
-            in: RoundedRectangle(cornerRadius: UIScale.pt(11))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: UIScale.pt(11))
-                .strokeBorder(
-                    model.dropTargeted ? DashSkin.accent(dark) : DashSkin.lineStrong(dark),
-                    style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
-        }
-        .scaleEffect(model.dropTargeted && !reduceMotion ? 1.008 : 1)
-        .animation(
-            Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: model.dropTargeted)
-    }
-
     private func pickAndIngest() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -369,7 +360,7 @@ struct CompanionLibraryScreen: View {
 
     private func episodeRow(_ episode: CompanionEpisode) -> some View {
         Button {
-            Task { await model.select(episode.id, kind: episode.kind) }
+            Task { await model.select(episode.id) }
         } label: {
             HStack(spacing: UIScale.pt(9)) {
                 kindChip(episode.kind)
@@ -400,7 +391,7 @@ struct CompanionLibraryScreen: View {
 
     private func hitRow(_ hit: CompanionSearchHit) -> some View {
         Button {
-            Task { await model.select(hit.episodeId, kind: hit.kind) }
+            Task { await model.select(hit.episodeId) }
         } label: {
             VStack(alignment: .leading, spacing: UIScale.pt(3)) {
                 HStack(spacing: UIScale.pt(8)) {
@@ -458,6 +449,16 @@ struct CompanionLibraryScreen: View {
                             .foregroundStyle(DashSkin.inkFaint(dark))
                     }
                     Spacer()
+                    Button {
+                        Task { await model.openExternally() }
+                    } label: {
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: UIScale.pt(12.5)))
+                            .foregroundStyle(DashSkin.inkSoft(dark))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                    .help("Open with the default app")
                     Button {
                         model.closeDetail()
                     } label: {

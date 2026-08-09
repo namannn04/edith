@@ -102,6 +102,9 @@ enum UIParity {
         UICapability(
             "Companion library", "read a full episode", ["companion", "episode", "abc"]),
         UICapability(
+            "Companion library", "open an episode with the default app",
+            ["companion", "episode", "abc", "--open"]),
+        UICapability(
             "Companion library", "index pending episodes", ["companion", "index"]),
         UICapability(
             "Companion mind", "run the nightly pipeline", ["companion", "nightly"]),

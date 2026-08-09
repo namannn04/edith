@@ -686,7 +686,8 @@ public enum CommandTree {
                         options: common + ["--endpoint", "--limit"]),
                     CommandNode(
                         "episode", "Read one episode in full.",
-                        options: common + ["--endpoint", "--body"], arguments: [.free]),
+                        options: common + ["--endpoint", "--body", "--open"],
+                        arguments: [.free]),
                     CommandNode(
                         "sync", "Pull a connector's activity into observations.",
                         options: common + ["--endpoint"], arguments: [.free]),

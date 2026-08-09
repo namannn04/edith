@@ -889,7 +889,7 @@ body text.
 Usage:
 
 ```
-ed companion episode <id> [--body] [--json] [--endpoint <url>]
+ed companion episode <id> [--body] [--open] [--json] [--endpoint <url>]
 ```
 
 Options:
@@ -897,6 +897,7 @@ Options:
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `--body` | flag | off | Prints only the body text, for piping. |
+| `--open` | flag | off | Downloads the original file from the vault and opens it with the default app. |
 | `--json` | flag | off | Emits one JSON document on stdout. |
 | `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
 
