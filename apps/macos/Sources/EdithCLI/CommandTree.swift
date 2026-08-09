@@ -650,6 +650,15 @@ public enum CommandTree {
                     CommandNode(
                         "disconnect", "Close the shared SSH connection.", options: ["--json"],
                         arguments: [.machine]),
+                    CommandNode(
+                        "mount", "Mount a machine's file system on this Mac.",
+                        options: ["--json", "--help", "--at", "--read-only"],
+                        arguments: [.machine, .remotePath]),
+                    CommandNode(
+                        "unmount", "Unmount a machine's file system.", aliases: ["umount"],
+                        options: ["--json"], arguments: [.machine]),
+                    CommandNode(
+                        "mounts", "Every machine file system mounted here.", options: common),
                 ]),
         ])
 

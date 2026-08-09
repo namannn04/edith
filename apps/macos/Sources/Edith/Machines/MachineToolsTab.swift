@@ -17,6 +17,8 @@ struct MachineToolsTab: View {
     @State private var message: String?
     @State private var confirmPower: String?
     @State private var serviceFilter = ""
+    @State private var mount: MachineMount?
+    @State private var mounting = false
 
     private var dark: Bool { scheme == .dark }
 
@@ -33,6 +35,7 @@ struct MachineToolsTab: View {
                             DashSkin.accent(dark).opacity(0.12),
                             in: RoundedRectangle(cornerRadius: UIScale.pt(9)))
                 }
+                diskCard
                 forwardsCard
                 snippetsCard
                 servicesCard
@@ -56,7 +59,108 @@ struct MachineToolsTab: View {
         }
         .task {
             await session.refreshServices()
+            await refreshMount()
         }
+    }
+
+    private var diskCard: some View {
+        SkinCard(
+            title: "Disk",
+            note: "Mount this machine's files on your Mac and open them in Finder", dark: dark
+        ) {
+            HStack(spacing: UIScale.pt(10)) {
+                if let mount {
+                    VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                        Text(mount.mountPoint)
+                            .font(DashSkin.mono(11))
+                            .foregroundStyle(DashSkin.ink(dark))
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                        Text("\(mount.remotePath)\(mount.isReadOnly ? "  ·  read only" : "")")
+                            .font(.system(size: UIScale.pt(10.5)))
+                            .foregroundStyle(DashSkin.inkFaint(dark))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Button("Reveal") {
+                        NSWorkspace.shared.activateFileViewerSelecting([
+                            URL(fileURLWithPath: mount.mountPoint)
+                        ])
+                    }
+                    .pointerCursor()
+                    Button("Unmount") { unmountDisk() }
+                        .disabled(mounting)
+                        .pointerCursor()
+                } else {
+                    Text(
+                        MachineMounts.isAvailable
+                            ? MachineMounts.mountPoint(for: session.machine).path
+                            : "sshfs is not installed on this Mac"
+                    )
+                    .font(
+                        MachineMounts.isAvailable
+                            ? DashSkin.mono(11) : .system(size: UIScale.pt(11.5))
+                    )
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    Spacer(minLength: 0)
+                    if mounting {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                    }
+                    Button("Mount") { mountDisk() }
+                        .disabled(
+                            mounting || !MachineMounts.isAvailable || !session.state.isConnected
+                        )
+                        .pointerCursor()
+                }
+            }
+        }
+    }
+
+    private func refreshMount() async {
+        mount = await MachineMounts.current(for: session.machine)
+    }
+
+    private func mountDisk() {
+        mounting = true
+        message = nil
+        Task {
+            do {
+                let home = try await homeDirectory()
+                mount = try await MachineMounts.mount(machine: session.machine, remotePath: home)
+                message = "Mounted at \(mount?.mountPoint ?? "")."
+            } catch let failure as MachineMountError {
+                message = [failure.errorDescription, failure.hint]
+                    .compactMap { $0 }.joined(separator: " ")
+            } catch {
+                message = error.localizedDescription
+            }
+            mounting = false
+        }
+    }
+
+    private func unmountDisk() {
+        mounting = true
+        message = nil
+        Task {
+            do {
+                let released = try await MachineMounts.unmount(machine: session.machine)
+                message = "Unmounted \(released.mountPoint)."
+                mount = nil
+            } catch {
+                message = error.localizedDescription
+                await refreshMount()
+            }
+            mounting = false
+        }
+    }
+
+    private func homeDirectory() async throws -> String {
+        let result = await session.runCommand("printf %s \"$HOME\"", timeout: 15)
+        guard case let .success(output) = result else { return "/" }
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "/" : trimmed
     }
 
     private var forwardsCard: some View {

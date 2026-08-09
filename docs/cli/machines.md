@@ -69,6 +69,9 @@ the process state between metric records.
 | `ed machines exec` | Runs a command there, passing both streams and the remote exit code through. |
 | `ed machines connect` | Opens the shared SSH connection and reports the round trip time. |
 | `ed machines disconnect` | Closes the shared SSH connection and removes its socket. |
+| `ed machines mount` | Mounts a machine's file system on this Mac, so Finder and every local tool can read it. |
+| `ed machines unmount` | Unmounts it again and tidies the folder away. Aliased `umount`. |
+| `ed machines mounts` | Lists every machine file system mounted here right now. |
 
 Seven more subcommands live under `ed machines` and are documented on four
 further pages: [`docker`](./machines-docker.md), [`files`](./machines-files.md),
@@ -1490,6 +1493,212 @@ It closes the connection the app shares, so any port forwards opened with
 reconnects the next time it needs to.
 
 An unknown machine name exits 3. Nothing else here can fail.
+
+### `ed machines mount`
+
+Hangs a machine's file system off a folder on this Mac. Finder shows it as a
+disk and every local tool, an editor, `grep`, `rsync`, reads and writes it in
+place.
+
+```
+ed machines mount <machine> [path] [--at <dir>] [--read-only] [--json]
+```
+
+#### Arguments
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<machine>` | string, required | none | Machine name, ssh alias, id or unambiguous prefix. |
+| `[path]` | remote directory | the working directory `ed <machine> cd` remembers, else the login home | What to mount. |
+
+#### Options
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--at` | local directory, `~` expanded | `~/Edith/<machine name>` | Where to mount it. |
+| `--read-only` | flag | off | Mount it `ro`, so nothing local can write to the machine. |
+| `--json` | flag | off | Emit JSON on stdout instead of the line. |
+| `--help`, `-h` | flag | off | Print the help for this command on stdout and exit 0. |
+
+```
+$ ed machines mount tuf
+pulkit@10.0.0.4:/home/pulkit  ->  /Users/pulkit/Edith/tuf
+```
+
+#### `--json` shape
+
+```json
+{
+  "machine": "Asus TUF 7",
+  "mountPoint": "/Users/pulkit/Edith/tuf",
+  "readOnly": false,
+  "remotePath": "/home/pulkit",
+  "source": "pulkit@10.0.0.4:/home/pulkit"
+}
+```
+
+#### Examples
+
+```
+ed machines mount tuf
+ed machines mount tuf /srv --read-only
+ed machines mount tuf --at ~/mnt/tuf --json
+ed machines tuf mount /var/log
+```
+
+#### Behaviour notes
+
+This needs macFUSE and `sshfs` on this Mac, which Edith does not install:
+
+```
+$ ed machines mount tuf
+error: sshfs is not installed on this Mac.
+hint: install macFUSE and sshfs: brew install --cask macfuse && brew install gromgit/fuse/sshfs-mac
+```
+
+The mount rides the same ControlMaster socket everything else on this page uses.
+`ed` opens the connection first, then points `sshfs` at that socket with
+`ControlPath`, `ControlMaster=no` and `BatchMode=yes`, so the mount is a second
+channel on the connection already there and no password or passphrase is asked
+for twice. Because it never prompts, a mount attempted while the machine is
+unreachable fails rather than hanging.
+
+Files show up owned by you: `idmap=user` maps the remote account to yours, and
+`uid` and `gid` are this Mac's. The volume is named after the machine, so that
+is the name in Finder's sidebar. `reconnect` is on, so the mount survives a
+short network drop instead of turning into stale handles.
+
+The default mount point is created if it is missing. A folder that already has
+something in it is refused, and so is a machine that is already mounted, both
+exiting 1:
+
+```
+$ ed machines mount tuf
+error: That machine is already mounted at /Users/pulkit/Edith/tuf.
+```
+
+Mounting one directory rather than the whole machine is the same command with a
+path, and `--read-only` is worth having on anything you only meant to read: a
+mounted machine is as easy to delete from as a local disk.
+
+The mount belongs to the login session, not to Edith. It stays up when Edith
+quits, and it goes away on logout or restart. `ed machines disconnect` closes
+the control socket; the mount then keeps itself alive on its own connection.
+
+### `ed machines unmount`
+
+Unmounts a machine's file system again. Aliased `umount`.
+
+```
+ed machines unmount <machine> [--json]
+```
+
+#### Arguments
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<machine>` | string, required | none | Machine name, ssh alias, id or unambiguous prefix. |
+
+#### Options
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emit JSON on stdout instead of the line. |
+| `--help`, `-h` | flag | off | Print the help for this command on stdout and exit 0. |
+
+```
+$ ed machines unmount tuf
+unmounted /Users/pulkit/Edith/tuf
+```
+
+#### `--json` shape
+
+```json
+{
+  "machine": "Asus TUF 7",
+  "mountPoint": "/Users/pulkit/Edith/tuf",
+  "readOnly": false,
+  "remotePath": "/home/pulkit",
+  "source": "pulkit@10.0.0.4:/home/pulkit"
+}
+```
+
+#### Examples
+
+```
+ed machines unmount tuf
+ed machines umount tuf --json
+```
+
+#### Behaviour notes
+
+The document describes the mount that was released, so it is the same shape
+`mount` printed when it went up.
+
+`umount` is tried first and `diskutil unmount force` second, which is what gets
+a mount down when a shell is still sitting in it. The mount point is then
+removed if it is empty and inside `~/Edith`, so the folders do not pile up; a
+mount point you chose with `--at` is left where it is.
+
+A machine that is not mounted exits 4 rather than pretending to have done
+something:
+
+```
+$ ed machines unmount tuf
+error: Asus TUF 7 is not mounted.
+```
+
+### `ed machines mounts`
+
+Lists every machine file system mounted on this Mac.
+
+```
+ed machines mounts [--json]
+```
+
+#### Options
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emit JSON on stdout instead of the table. |
+| `--help`, `-h` | flag | off | Print the help for this command on stdout and exit 0. |
+
+```
+$ ed machines mounts
+MACHINE     REMOTE         AT                          MODE
+Asus TUF 7  /home/pulkit   /Users/pulkit/Edith/tuf     rw
+pi          /srv           /Users/pulkit/Edith/pi      ro
+```
+
+#### `--json` shape
+
+```json
+[
+  {
+    "machine": "Asus TUF 7",
+    "mountPoint": "/Users/pulkit/Edith/tuf",
+    "readOnly": false,
+    "remotePath": "/home/pulkit",
+    "source": "pulkit@10.0.0.4:/home/pulkit"
+  }
+]
+```
+
+#### Examples
+
+```
+ed machines mounts
+ed machines mounts --json | jq -r '.[].mountPoint'
+```
+
+#### Behaviour notes
+
+This reads `/sbin/mount` and keeps the FUSE entries, so it reports what the
+system says is mounted rather than what Edith remembers mounting. A machine
+mounted by hand with `sshfs` shows up here too; it is matched to a name by its
+`user@host`, and an entry Edith cannot match is listed under that target
+instead. Nothing here dials a machine, so it answers instantly and works with
+every machine asleep.
 
 ## Exit codes
 

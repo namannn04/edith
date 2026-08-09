@@ -30,6 +30,8 @@ struct MachinesCommand: AsyncParsableCommand {
             MachinesWorkspaceCommand.self,
             MachinesConnectCommand.self,
             MachinesDisconnectCommand.self,
+            MachinesMountCommand.self, MachinesUnmountCommand.self,
+            MachinesMountsCommand.self,
         ],
         defaultSubcommand: MachinesListCommand.self)
 }

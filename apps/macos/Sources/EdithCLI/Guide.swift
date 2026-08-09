@@ -100,6 +100,18 @@ public enum Guide {
         ed machines tuf disconnect
         ```
 
+        A machine's disk can also come to you. `mount` hangs its file system off a
+        folder on this Mac over the same connection, so Finder and every local tool
+        read and write it in place. It needs macFUSE and sshfs here.
+
+        ```
+        ed machines mount tuf                   at ~/Edith/tuf
+        ed machines mount tuf /srv --read-only  one directory, look but do not touch
+        ed machines mounts                      what is mounted right now
+        ed machines unmount tuf
+        ed machines tuf files open /var/log     open the Files window there
+        ```
+
         The list itself is yours to edit from here, and a change reaches a running
         Edith immediately.
 

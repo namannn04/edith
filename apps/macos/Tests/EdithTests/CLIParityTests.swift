@@ -26,7 +26,7 @@ enum UIParity {
         "uninstall", "refresh", "request", "play", "pause", "stop", "toggle", "next",
         "previous", "volume", "connect", "disconnect", "start", "restart", "prune",
         "up", "down", "pull", "put", "quit", "open", "clean-keys", "test-notification",
-        "check-updates", "collect", "forget",
+        "check-updates", "collect", "forget", "mount", "unmount",
     ]
 
     static let notReachableFromTheUI: [String: String] = [
@@ -177,6 +177,10 @@ enum UIParity {
             "Workspace picker", "delete a layout", ["machines", "workspace", "rm", "a"]),
         UICapability("Machines", "open the shared connection", ["machines", "connect", "box"]),
         UICapability("Machines", "close the shared connection", ["machines", "disconnect", "box"]),
+        UICapability(
+            "Machine tools", "mount the machine's disk on this Mac", ["machines", "mount", "box"]),
+        UICapability(
+            "Machine tools", "unmount the machine's disk", ["machines", "unmount", "box"]),
 
         UICapability("Music player", "play", ["music", "play"]),
         UICapability("Music player", "pause", ["music", "pause"]),
