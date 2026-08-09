@@ -1,0 +1,17 @@
+{
+  "name": "companion",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "bun src/main.ts",
+    "migrate": "bun src/migrate.ts"
+  },
+  "dependencies": {
+    "hono": "^4.9.2",
+    "ioredis": "^5.7.0",
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.20"
+  }
+}
