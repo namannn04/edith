@@ -280,12 +280,85 @@ import Testing
         #expect(!text.contains("fflush(\"\")"))
     }
 
+    @Test func collectorBatchesProcessCommandLinesIntoOneProcessSnapshot() {
+        let text = String(decoding: MachineCollector.script() ?? Data(), as: UTF8.self)
+        #expect(text.contains("ps -ww -eo pid=,args="))
+        #expect(text.contains("pidCommand[pid]"))
+        #expect(!text.contains("tr \\\"\\\\000\\\""))
+    }
+
+    @Test func collectorCachesPhysicalBlockDevicesInsteadOfSpawningPerDisk() {
+        let text = String(decoding: MachineCollector.script() ?? Data(), as: UTF8.self)
+        #expect(text.contains("readBlockDevices()"))
+        #expect(text.contains("name in blockDevices"))
+        #expect(!text.contains("system(\"[ -e /sys/block/"))
+    }
+
     @Test func collectorScriptResourceExists() {
         let script = MachineCollector.script()
         #expect(script != nil)
         let text = String(decoding: script ?? Data(), as: UTF8.self)
         #expect(text.hasPrefix("#!/bin/sh"))
         #expect(text.contains("@EDITH@"))
+    }
+}
+
+@Suite struct MachineResourcePolicyTests {
+    @Test func processSamplingStartsImmediatelyAndThenUsesTheStride() {
+        let decisions = (0..<12).filter {
+            MachineResourcePolicy.shouldRefreshProcesses(sampleIndex: $0, stride: 5)
+        }
+        #expect(decisions == [0, 5, 10])
+    }
+
+    @Test func invalidProcessStrideStillMakesForwardProgress() {
+        #expect(MachineResourcePolicy.shouldRefreshProcesses(sampleIndex: 0, stride: 0))
+        #expect(MachineResourcePolicy.shouldRefreshProcesses(sampleIndex: 1, stride: -4))
+    }
+
+    @Test func dockerPollingIsResponsiveOnlyWhileObserved() {
+        #expect(
+            MachineResourcePolicy.dockerPollInterval(observerCount: 1)
+                == MachineResourcePolicy.foregroundDockerPollInterval)
+        #expect(
+            MachineResourcePolicy.dockerPollInterval(observerCount: 0)
+                == MachineResourcePolicy.backgroundDockerPollInterval)
+        #expect(
+            MachineResourcePolicy.backgroundDockerPollInterval
+                > MachineResourcePolicy.foregroundDockerPollInterval)
+    }
+
+    @Test func latencyChecksAreSlowerThanMetricSamples() {
+        #expect(MachineResourcePolicy.latencyProbeInterval >= 30)
+        #expect(MachineResourcePolicy.localProcessSampleStride >= 5)
+    }
+}
+
+private actor ProcessReadProbe {
+    private var reads = 0
+
+    func read() -> [MachineProcess] {
+        reads += 1
+        return [
+            MachineProcess(
+                pid: reads, user: "test", cpu: Double(reads), mem: 0, rssKB: 1,
+                name: "sample-\(reads)", cmd: "sample-\(reads)")
+        ]
+    }
+
+    func count() -> Int { reads }
+}
+
+@Suite struct LocalMachineSamplerResourceTests {
+    @Test func reusesProcessSnapshotsBetweenRefreshes() async {
+        let probe = ProcessReadProbe()
+        let sampler = LocalMachineSampler(processSampleStride: 3) { await probe.read() }
+        var processIDs: [Int] = []
+        for _ in 0..<8 {
+            processIDs.append(await sampler.sample().procs.first?.pid ?? 0)
+        }
+        #expect(processIDs == [1, 1, 1, 2, 2, 2, 3, 3])
+        #expect(await probe.count() == 3)
     }
 }
 
@@ -401,6 +474,80 @@ import Testing
         #expect(
             SSHConnection.friendlyConnectError("Host key verification failed.")
                 .isRecoverable == false)
+    }
+}
+
+@Suite struct SSHProcessWaitTests {
+    private func process(_ command: String) throws -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        return process
+    }
+
+    @Test func returnsTheRealExitStatus() async throws {
+        let process = try process("exit 23")
+        let status = await SSHConnection.waitForExit(process, timeout: 5)
+        #expect(status == 23)
+    }
+
+    @Test func returnsTheStatusWhenTheProcessAlreadyFinished() async throws {
+        let process = try process("exit 0")
+        process.waitUntilExit()
+        let status = await SSHConnection.waitForExit(process, timeout: 30)
+        #expect(status == 0)
+        #expect(!process.isRunning)
+    }
+
+    @Test func terminatesAProcessAtItsDeadline() async throws {
+        let process = try process("exec sleep 300")
+        let status = await SSHConnection.waitForExit(process, timeout: 0.05)
+        #expect(!process.isRunning)
+        #expect(process.terminationReason == .uncaughtSignal)
+        #expect(status != 0)
+    }
+
+    @Test func manyShortCommandsKeepTheirExitStatuses() async throws {
+        for _ in 0..<12 {
+            let process = try process("exit 0")
+            #expect(await SSHConnection.waitForExit(process, timeout: 30) == 0)
+        }
+    }
+}
+
+@Suite struct PipeReadingTests {
+    @Test func deliversAvailableBytes() throws {
+        let pipe = Pipe()
+        try pipe.fileHandleForWriting.write(contentsOf: Data("hello".utf8))
+        try pipe.fileHandleForWriting.close()
+        var received = Data()
+        let consumed = PipeReading.consume(pipe.fileHandleForReading) { received.append($0) }
+        #expect(consumed)
+        #expect(String(decoding: received, as: UTF8.self) == "hello")
+    }
+
+    @Test func unregistersTheCallbackAtEndOfFile() throws {
+        let pipe = Pipe()
+        let handle = pipe.fileHandleForReading
+        handle.readabilityHandler = { _ in }
+        try pipe.fileHandleForWriting.close()
+        let consumed = PipeReading.consume(handle) { _ in }
+        #expect(!consumed)
+        #expect(handle.readabilityHandler == nil)
+    }
+
+    @Test func repeatedEndOfFileReadsStayEmpty() throws {
+        let pipe = Pipe()
+        try pipe.fileHandleForWriting.close()
+        var deliveries = 0
+        for _ in 0..<20 {
+            #expect(!PipeReading.consume(pipe.fileHandleForReading) { _ in deliveries += 1 })
+        }
+        #expect(deliveries == 0)
     }
 }
 

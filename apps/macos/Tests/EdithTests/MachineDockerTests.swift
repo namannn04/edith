@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 
@@ -421,6 +422,18 @@ import Testing
 }
 
 @Suite @MainActor struct MachineSessionHistoryTests {
+    private func session() -> MachineSession {
+        MachineSession(machine: Machine(name: "This Mac", host: "localhost"), local: true)
+    }
+
+    private func sample(_ value: Double) -> MachineSample {
+        MachineSample(
+            ts: value, dt: 2, cpu: MachineCPU(total: value),
+            mem: MachineMemory(totalKB: 100, availKB: 100 - Int64(value), usedKB: Int64(value)),
+            disk: MachineDiskIO(readBps: value * 2, writeBps: value * 3),
+            net: MachineNetwork(rxBps: value * 4, txBps: value * 5))
+    }
+
     @Test func historyKeepsFixedWindow() {
         var history: [Double] = []
         for value in 0..<80 {
@@ -429,6 +442,68 @@ import Testing
         #expect(history.count == MachineSession.historyLength)
         #expect(history.first == 20)
         #expect(history.last == 79)
+    }
+
+    @Test func oneSamplePublishesOneMetricsUpdate() {
+        let session = session()
+        var updates = 0
+        let observation = session.objectWillChange.sink { updates += 1 }
+        session.apply(sample: sample(10))
+        withExtendedLifetime(observation) {}
+        #expect(updates == 1)
+    }
+
+    @Test func oneMetricsUpdateCarriesEveryHistory() {
+        let session = session()
+        session.apply(sample: sample(10))
+        session.apply(sample: sample(20))
+        #expect(session.sample?.cpu.total == 20)
+        #expect(session.cpuHistory.last == 20)
+        #expect(session.memHistory.last == 20)
+        #expect(session.diskReadHistory.last == 40)
+        #expect(session.diskWriteHistory.last == 60)
+        #expect(session.netRxHistory.last == 80)
+        #expect(session.netTxHistory.last == 100)
+    }
+}
+
+@Suite @MainActor struct MachineSessionResourceTests {
+    private func session() -> MachineSession {
+        MachineSession(machine: Machine(name: "This Mac", host: "localhost"), local: true)
+    }
+
+    @Test func dockerUsesTheBackgroundCadenceUntilObserved() {
+        let session = session()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.backgroundDockerPollInterval)
+        session.beginDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.foregroundDockerPollInterval)
+    }
+
+    @Test func dockerStaysForegroundedUntilEveryObserverLeaves() {
+        let session = session()
+        session.beginDockerObservation()
+        session.beginDockerObservation()
+        session.endDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.foregroundDockerPollInterval)
+        session.endDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.backgroundDockerPollInterval)
+    }
+
+    @Test func unmatchedDisappearCannotMakeTheObserverCountNegative() {
+        let session = session()
+        session.endDockerObservation()
+        session.endDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.backgroundDockerPollInterval)
     }
 }
 

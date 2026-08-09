@@ -47,12 +47,26 @@ public enum SSHConnectionError: LocalizedError {
 private final class ResumeGate: @unchecked Sendable {
     private let lock = NSLock()
     private var claimed = false
+    private var timeoutWorkItem: DispatchWorkItem?
+
+    func install(_ workItem: DispatchWorkItem) {
+        lock.lock()
+        if claimed {
+            lock.unlock()
+            workItem.cancel()
+            return
+        }
+        timeoutWorkItem = workItem
+        lock.unlock()
+    }
 
     func claim() -> Bool {
         lock.lock()
         defer { lock.unlock() }
         guard !claimed else { return false }
         claimed = true
+        timeoutWorkItem?.cancel()
+        timeoutWorkItem = nil
         return true
     }
 }
@@ -109,7 +123,7 @@ public actor SSHConnection {
         process.standardError = stderrPipe
         process.standardOutput = Pipe()
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            buffer.append(handle.availableData)
+            PipeReading.consume(handle, receive: buffer.append)
         }
         do {
             try process.run()
@@ -119,18 +133,18 @@ public actor SSHConnection {
         }
         masterProcess = process
 
-        let deadline = Date().addingTimeInterval(25)
-        while Date() < deadline {
-            if await masterIsAlive() { return }
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(25))
+        while clock.now < deadline {
+            if process.isRunning, FileManager.default.fileExists(atPath: socketPath) { return }
             if !process.isRunning {
-                if await masterIsAlive() { return }
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
                 buffer.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
                 masterProcess = nil
                 throw SSHConnectionError.connectFailed(
                     Self.friendlyConnectError(String(decoding: buffer.snapshot(), as: UTF8.self)))
             }
-            try? await Task.sleep(for: .milliseconds(250))
+            try? await Task.sleep(for: .milliseconds(100))
         }
         process.terminate()
         masterProcess = nil
@@ -177,10 +191,10 @@ public actor SSHConnection {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
         stdoutPipe.fileHandleForReading.readabilityHandler = {
-            stdoutBuffer.append($0.availableData)
+            PipeReading.consume($0, receive: stdoutBuffer.append)
         }
         stderrPipe.fileHandleForReading.readabilityHandler = {
-            stderrBuffer.append($0.availableData)
+            PipeReading.consume($0, receive: stderrBuffer.append)
         }
         if let stdin {
             let stdinPipe = Pipe()
@@ -233,7 +247,7 @@ public actor SSHConnection {
         process.standardError = stderrPipe
         process.standardInput = FileHandle.nullDevice
         stderrPipe.fileHandleForReading.readabilityHandler = {
-            stderrBuffer.append($0.availableData)
+            PipeReading.consume($0, receive: stderrBuffer.append)
         }
         FileManager.default.createFile(atPath: localURL.path, contents: nil)
         guard let output = try? FileHandle(forWritingTo: localURL) else {
@@ -287,7 +301,7 @@ public actor SSHConnection {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = stderrPipe
         stderrPipe.fileHandleForReading.readabilityHandler = {
-            stderrBuffer.append($0.availableData)
+            PipeReading.consume($0, receive: stderrBuffer.append)
         }
         try process.run()
         let writer = stdinPipe.fileHandleForWriting
@@ -415,7 +429,9 @@ public actor SSHConnection {
         process.standardOutput = Pipe()
         process.standardError = stderrPipe
         process.standardInput = FileHandle.nullDevice
-        stderrPipe.fileHandleForReading.readabilityHandler = { buffer.append($0.availableData) }
+        stderrPipe.fileHandleForReading.readabilityHandler = {
+            PipeReading.consume($0, receive: buffer.append)
+        }
         try process.run()
         let status = await Self.waitForExit(process, timeout: 10)
         stderrPipe.fileHandleForReading.readabilityHandler = nil
@@ -466,7 +482,7 @@ public actor SSHConnection {
         return env
     }
 
-    private static func waitForExit(_ process: Process, timeout: TimeInterval) async -> Int32 {
+    static func waitForExit(_ process: Process, timeout: TimeInterval) async -> Int32 {
         await withCheckedContinuation { continuation in
             let gate = ResumeGate()
             let resumeOnce: @Sendable (Int32) -> Void = { status in
@@ -478,7 +494,7 @@ public actor SSHConnection {
                 resumeOnce(process.terminationStatus)
                 return
             }
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+            let timeoutWorkItem = DispatchWorkItem {
                 if process.isRunning {
                     process.terminate()
                     DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
@@ -488,6 +504,9 @@ public actor SSHConnection {
                     }
                 }
             }
+            gate.install(timeoutWorkItem)
+            DispatchQueue.global(qos: .utility).asyncAfter(
+                deadline: .now() + timeout, execute: timeoutWorkItem)
         }
     }
 

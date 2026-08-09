@@ -6,8 +6,23 @@ public final class LocalMachineSampler: @unchecked Sendable {
     private var prevAggregate: CPUTicks?
     private var prevNet: [String: (rx: UInt64, tx: UInt64)] = [:]
     private var prevSampleAt: Date?
+    private var processSampleIndex = 0
+    private var cachedProcesses: [MachineProcess] = []
+    private let processSampleStride: Int
+    private let processReader: @Sendable () async -> [MachineProcess]
 
-    public init() {}
+    public init() {
+        processSampleStride = MachineResourcePolicy.localProcessSampleStride
+        processReader = { await Self.readProcesses() }
+    }
+
+    init(
+        processSampleStride: Int,
+        processReader: @escaping @Sendable () async -> [MachineProcess]
+    ) {
+        self.processSampleStride = max(1, processSampleStride)
+        self.processReader = processReader
+    }
 
     public func hello() -> MachineHello {
         MachineHello(
@@ -38,7 +53,13 @@ public final class LocalMachineSampler: @unchecked Sendable {
         var loads = [Double](repeating: 0, count: 3)
         getloadavg(&loads, 3)
 
-        let processes = await Self.readProcesses()
+        if MachineResourcePolicy.shouldRefreshProcesses(
+            sampleIndex: processSampleIndex, stride: processSampleStride)
+        {
+            cachedProcesses = await processReader()
+        }
+        processSampleIndex += 1
+        let processes = cachedProcesses
         return MachineSample(
             ts: now.timeIntervalSince1970, dt: dt,
             cpu: MachineCPU(total: totalPercent, cores: cores),

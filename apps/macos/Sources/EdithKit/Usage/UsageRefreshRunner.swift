@@ -139,10 +139,10 @@ public enum UsageRefreshRunner {
 
         let collector = UsageRefreshCollector(sink: sink, onEvent: onEvent)
         out.fileHandleForReading.readabilityHandler = { handle in
-            collector.ingestStandardOutput(handle.availableData)
+            PipeReading.consume(handle, receive: collector.ingestStandardOutput)
         }
         err.fileHandleForReading.readabilityHandler = { handle in
-            collector.ingestStandardError(handle.availableData)
+            PipeReading.consume(handle, receive: collector.ingestStandardError)
         }
 
         do {

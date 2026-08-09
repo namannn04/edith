@@ -67,42 +67,103 @@ public enum AppBridge {
             trigger()
             return answer(name)
         }
-        let box = ReplyBox()
+        let waiter = ReplyWaiter()
         let token = DistributedNotificationCenter.default().addObserver(
             forName: name, object: nil, queue: .main
         ) { note in
-            box.deliver(note.userInfo ?? [:])
+            waiter.deliver(note.userInfo ?? [:])
         }
         defer { DistributedNotificationCenter.default().removeObserver(token) }
         trigger()
-        let started = Date()
-        let deadline = started.addingTimeInterval(timeout)
-        var announced = false
-        while Date() < deadline {
-            if let value = box.take() { return value }
-            if !announced, Date().timeIntervalSince(started) > 1 {
-                announced = true
-                CLIOut.note("waiting for Edith to answer...")
-            }
-            try? await Task.sleep(for: .milliseconds(50))
+        let timeoutTask = Task {
+            try? await Task.sleep(for: .seconds(max(0, timeout)))
+            guard !Task.isCancelled else { return }
+            waiter.cancel()
         }
-        return box.take()
+        let noteTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, !waiter.isFinished else { return }
+            CLIOut.note("waiting for Edith to answer...")
+        }
+        let value = await waiter.wait()
+        timeoutTask.cancel()
+        noteTask.cancel()
+        return value
     }
 }
 
-final class ReplyBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: [AnyHashable: Any]?
+private struct ReplyValue: @unchecked Sendable {
+    let payload: [AnyHashable: Any]
+}
 
-    func deliver(_ payload: [AnyHashable: Any]) {
-        lock.lock()
-        if value == nil { value = payload }
-        lock.unlock()
+final class ReplyWaiter: @unchecked Sendable {
+    private enum State {
+        case idle
+        case waiting(CheckedContinuation<ReplyValue?, Never>)
+        case finished(ReplyValue?)
     }
 
-    func take() -> [AnyHashable: Any]? {
+    private let lock = NSLock()
+    private var state = State.idle
+
+    var isFinished: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return value
+        if case .finished = state { return true }
+        return false
+    }
+
+    @discardableResult
+    func deliver(_ payload: [AnyHashable: Any]) -> Bool {
+        finish(ReplyValue(payload: payload))
+    }
+
+    @discardableResult
+    func cancel() -> Bool {
+        finish(nil)
+    }
+
+    func wait() async -> [AnyHashable: Any]? {
+        let result = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                install(continuation)
+            }
+        } onCancel: {
+            cancel()
+        }
+        return result?.payload
+    }
+
+    private func install(_ continuation: CheckedContinuation<ReplyValue?, Never>) {
+        var completed: ReplyValue??
+        lock.lock()
+        switch state {
+        case .idle:
+            state = .waiting(continuation)
+        case let .finished(value):
+            completed = value
+        case .waiting:
+            completed = .some(nil)
+        }
+        lock.unlock()
+        if let completed { continuation.resume(returning: completed) }
+    }
+
+    private func finish(_ value: ReplyValue?) -> Bool {
+        var continuation: CheckedContinuation<ReplyValue?, Never>?
+        lock.lock()
+        switch state {
+        case .idle:
+            state = .finished(value)
+        case let .waiting(waiter):
+            state = .finished(value)
+            continuation = waiter
+        case .finished:
+            lock.unlock()
+            return false
+        }
+        lock.unlock()
+        continuation?.resume(returning: value)
+        return true
     }
 }
