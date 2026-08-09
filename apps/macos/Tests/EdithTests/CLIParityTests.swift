@@ -107,6 +107,12 @@ enum UIParity {
         UICapability(
             "Companion library", "index pending episodes", ["companion", "index"]),
         UICapability(
+            "Companion capture", "remember a recorded voice memory",
+            ["companion", "ingest", "/tmp/voice-memo.wav"]),
+        UICapability(
+            "Companion capture", "remember a typed note",
+            ["companion", "ingest", "/tmp/note.md"]),
+        UICapability(
             "Companion mind", "run the nightly pipeline", ["companion", "nightly"]),
         UICapability(
             "Companion settings", "change the reasoner or its api key",

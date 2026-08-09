@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 enum CompanionTab: String, CaseIterable, Identifiable {
     case chat
+    case capture
     case library
     case mind
     case settings
@@ -14,6 +15,7 @@ enum CompanionTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .chat: return "Chat"
+        case .capture: return "Capture"
         case .library: return "Library"
         case .mind: return "Mind"
         case .settings: return "Settings"
@@ -23,6 +25,7 @@ enum CompanionTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .chat: return "bubble.left.and.text.bubble.right"
+        case .capture: return "mic"
         case .library: return "books.vertical"
         case .mind: return "brain"
         case .settings: return "gearshape"
@@ -57,6 +60,7 @@ final class CompanionHomeModel: ObservableObject {
 struct CompanionPage: View {
     @StateObject private var home = CompanionHomeModel()
     @StateObject private var chat = CompanionChatModel()
+    @StateObject private var capture = CompanionCaptureModel()
     @StateObject private var library = CompanionLibraryModel()
     @StateObject private var mind = CompanionMindModel()
     @StateObject private var reason = CompanionSettingsModel()
@@ -205,6 +209,10 @@ struct CompanionPage: View {
                 .opacity(tab == .chat ? 1 : 0)
                 .allowsHitTesting(tab == .chat)
                 .accessibilityHidden(tab != .chat)
+            screen(.capture)
+                .opacity(tab == .capture ? 1 : 0)
+                .allowsHitTesting(tab == .capture)
+                .accessibilityHidden(tab != .capture)
             screen(.library)
                 .opacity(tab == .library ? 1 : 0)
                 .allowsHitTesting(tab == .library)
@@ -230,6 +238,7 @@ struct CompanionPage: View {
                     select(.library)
                     Task { await library.select(id) }
                 })
+        case .capture: CompanionCaptureScreen(model: capture, home: home)
         case .library: CompanionLibraryScreen(model: library, home: home)
         case .mind:
             CompanionMindScreen(

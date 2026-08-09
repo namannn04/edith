@@ -307,11 +307,10 @@ struct CompanionChatScreen: View {
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: UIScale.pt(10)) {
+        HStack(alignment: .center, spacing: UIScale.pt(10)) {
             Image(systemName: "bubble.left")
                 .font(.system(size: UIScale.pt(13)))
                 .foregroundStyle(DashSkin.inkFaint(dark))
-                .padding(.bottom, UIScale.pt(3))
             TextField("Talk to your memory…", text: $model.draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...6)

@@ -328,7 +328,8 @@ public enum ConfigCatalog {
         SettingDefinition(
             "companionTab", .string, group: "companion",
             summary: "Companion screen shown on open.",
-            allowed: ["chat", "library", "mind", "settings"], fallback: .string("chat")),
+            allowed: ["chat", "capture", "library", "mind", "settings"],
+            fallback: .string("chat")),
     ]
 
     private static let machines: [SettingDefinition] = [
