@@ -839,11 +839,13 @@ async fn claims(
         String,
         bool,
         DateTime<Utc>,
+        Option<Uuid>,
         Option<String>,
         Option<String>,
+        Option<Vec<Uuid>>,
     );
     let rows = sqlx::query_as::<_, ClaimRow>(
-        "SELECT c.id, c.statement, c.claim_type, c.testable, c.asserted_at, x.verdict, x.note FROM claims c LEFT JOIN LATERAL (SELECT verdict, note FROM corroborations WHERE claim_id = c.id ORDER BY checked_at DESC LIMIT 1) x ON true ORDER BY c.asserted_at DESC LIMIT $1",
+        "SELECT c.id, c.statement, c.claim_type, c.testable, c.asserted_at, c.episode_id, x.verdict, x.note, x.observation_ids FROM claims c LEFT JOIN LATERAL (SELECT verdict, note, observation_ids FROM corroborations WHERE claim_id = c.id ORDER BY checked_at DESC LIMIT 1) x ON true ORDER BY c.asserted_at DESC LIMIT $1",
     )
     .bind(limit)
     .fetch_all(&state.pool)
@@ -853,15 +855,27 @@ async fn claims(
             let claims = rows
                 .into_iter()
                 .map(
-                    |(id, statement, claim_type, testable, asserted_at, verdict, note)| {
+                    |(
+                        id,
+                        statement,
+                        claim_type,
+                        testable,
+                        asserted_at,
+                        episode_id,
+                        verdict,
+                        note,
+                        observation_ids,
+                    )| {
                         serde_json::json!({
                             "id": id,
                             "statement": statement,
                             "claimType": claim_type,
                             "testable": testable,
                             "assertedAt": date_string(asserted_at),
+                            "episodeId": episode_id,
                             "verdict": verdict,
                             "verdictNote": note,
+                            "observationIds": observation_ids.unwrap_or_default(),
                         })
                     },
                 )
