@@ -19,9 +19,122 @@ struct CompanionCommand: AsyncParsableCommand {
             CompanionIngestCommand.self, CompanionEpisodesCommand.self,
             CompanionSyncCommand.self, CompanionObservationsCommand.self,
             CompanionReflectCommand.self, CompanionBeliefsCommand.self,
-            CompanionAskCommand.self,
+            CompanionAskCommand.self, CompanionExtractCommand.self,
+            CompanionClaimsCommand.self, CompanionCorroborateCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
+}
+
+struct CompanionExtractCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "extract", abstract: "Pull typed claims out of recent episodes.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await execute {
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.extractClaims()
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "episodesConsidered": .int(outcome.episodesConsidered),
+                        "claimsExtracted": .int(outcome.claimsExtracted),
+                    ]))
+                return
+            }
+            CLIOut.out(
+                "considered \(outcome.episodesConsidered) episodes, "
+                    + "extracted \(outcome.claimsExtracted) claims")
+        }
+    }
+}
+
+struct CompanionClaimsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "claims", abstract: "List the claims you have made, with verdicts.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Option(name: .long, help: "How many to list.")
+    var limit = 20
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            let claims = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.claims(limit: limit)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .array(
+                        claims.map { claim in
+                            .object([
+                                "id": .string(claim.id),
+                                "statement": .string(claim.statement),
+                                "claimType": .string(claim.claimType),
+                                "testable": .bool(claim.testable),
+                                "assertedAt": .string(claim.assertedAt),
+                                "verdict": .optional(claim.verdict),
+                                "verdictNote": .optional(claim.verdictNote),
+                            ])
+                        }))
+                return
+            }
+            guard !claims.isEmpty else {
+                CLIOut.out("no claims yet, run `ed companion extract`")
+                return
+            }
+            for (index, claim) in claims.enumerated() {
+                let verdict = claim.verdict.map { " -> \($0)" } ?? ""
+                CLIOut.out("\(index + 1). [\(claim.claimType)]\(verdict) \(claim.statement)")
+                if let note = claim.verdictNote {
+                    CLIOut.out("   \(note)")
+                }
+            }
+        }
+    }
+}
+
+struct CompanionCorroborateCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "corroborate", abstract: "Check testable claims against the record.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await execute {
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.corroborate()
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "claimsChecked": .int(outcome.claimsChecked),
+                        "corroborated": .int(outcome.corroborated),
+                        "contradicted": .int(outcome.contradicted),
+                        "unclear": .int(outcome.unclear),
+                    ]))
+                return
+            }
+            CLIOut.out(
+                "checked \(outcome.claimsChecked) claims: \(outcome.corroborated) corroborated, "
+                    + "\(outcome.contradicted) contradicted, \(outcome.unclear) unclear")
+        }
+    }
 }
 
 struct CompanionAskCommand: AsyncParsableCommand {

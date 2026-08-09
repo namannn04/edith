@@ -93,6 +93,12 @@ enum JSONContract {
         JSONCase("ed companion beliefs", ["companion", "beliefs", "--json"]),
         JSONCase("ed companion ask", ["companion", "ask", "what happened", "--json"]),
         JSONCase(
+            "ed companion extract", ["companion", "extract", "--json"], mutatesTheMachine: true),
+        JSONCase("ed companion claims", ["companion", "claims", "--json"]),
+        JSONCase(
+            "ed companion corroborate", ["companion", "corroborate", "--json"],
+            mutatesTheMachine: true),
+        JSONCase(
             "ed companion ingest", ["companion", "ingest", "/tmp/nowhere.md", "--json"],
             mutatesTheMachine: true),
         JSONCase("ed cleaner scan", ["cleaner", "scan", "--json"]),

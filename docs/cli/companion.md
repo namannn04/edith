@@ -623,6 +623,124 @@ The auth refactor shipped in March, and it felt slower than it should have.
 
 Behaviour: the companion retrieves the eight nearest chunks by embedding, hands them to the reasoner tagged by episode id, and drops any citation that names an episode the reasoner was not shown, so an answer can only cite what it actually read. When the memory holds nothing relevant the answer says so. Needs a reasoning provider like `ed companion reflect`; exit 4 without one.
 
+### `ed companion extract`
+
+Pulls the claims you made out of episodes that have none yet.
+
+Usage:
+
+```
+ed companion extract [--json] [--endpoint <url>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+`--json` shape:
+
+```json
+{
+  "claimsExtracted": 4,
+  "episodesConsidered": 3
+}
+```
+
+Examples:
+
+```
+$ ed companion extract
+considered 3 episodes, extracted 4 claims
+```
+
+Behaviour: the reasoner reads up to ten episodes without claims and records each assertion with a type (`fact`, `intention`, `commitment`, `progress`, `self_assessment`, `prediction`, `preference`, `feeling`) and whether independent records could test it. Needs a reasoning provider; exit 4 without one.
+
+### `ed companion claims`
+
+Lists the extracted claims, newest first, with the latest verdict where one exists.
+
+Usage:
+
+```
+ed companion claims [--json] [--endpoint <url>] [--limit <n>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+| `--limit` | 1 to 200 | 20 | How many to list. |
+
+`--json` shape:
+
+```json
+[
+  {
+    "assertedAt": "2026-03-14T00:00:00Z",
+    "claimType": "progress",
+    "id": "77b7a0e2-4a37-4b3f-8b0f-0a9d1c2c8e21",
+    "statement": "Shipped the auth refactor this week.",
+    "testable": true,
+    "verdict": "corroborated",
+    "verdictNote": "Commits to the auth paths land in the same week."
+  }
+]
+```
+
+`verdict` and `verdictNote` are null until a corroboration pass has judged the claim.
+
+Examples:
+
+```
+$ ed companion claims --limit 1
+1. [progress] -> corroborated Shipped the auth refactor this week.
+   Commits to the auth paths land in the same week.
+```
+
+Behaviour: read-only.
+
+### `ed companion corroborate`
+
+Judges unchecked testable claims against the observations recorded around when they were made.
+
+Usage:
+
+```
+ed companion corroborate [--json] [--endpoint <url>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+`--json` shape:
+
+```json
+{
+  "claimsChecked": 2,
+  "contradicted": 0,
+  "corroborated": 1,
+  "unclear": 1
+}
+```
+
+Examples:
+
+```
+$ ed companion corroborate
+checked 2 claims: 1 corroborated, 0 contradicted, 1 unclear
+```
+
+Behaviour: up to ten unchecked `progress`, `commitment` and `fact` claims are compared against the observations within four days of their assertion. The verdict is `corroborated`, `contradicted` or `unclear` with a one-line note; missing records always read as `unclear`, never as contradiction. Needs a reasoning provider; exit 4 without one.
+
 ## Exit codes
 
 | Code | Meaning |

@@ -196,6 +196,53 @@ public struct CompanionAskOutcome: Codable, Equatable, Sendable {
     }
 }
 
+public struct CompanionExtractOutcome: Codable, Equatable, Sendable {
+    public let episodesConsidered: Int
+    public let claimsExtracted: Int
+
+    public init(episodesConsidered: Int, claimsExtracted: Int) {
+        self.episodesConsidered = episodesConsidered
+        self.claimsExtracted = claimsExtracted
+    }
+}
+
+public struct CompanionCorroborateOutcome: Codable, Equatable, Sendable {
+    public let claimsChecked: Int
+    public let corroborated: Int
+    public let contradicted: Int
+    public let unclear: Int
+
+    public init(claimsChecked: Int, corroborated: Int, contradicted: Int, unclear: Int) {
+        self.claimsChecked = claimsChecked
+        self.corroborated = corroborated
+        self.contradicted = contradicted
+        self.unclear = unclear
+    }
+}
+
+public struct CompanionClaim: Codable, Equatable, Sendable {
+    public let id: String
+    public let statement: String
+    public let claimType: String
+    public let testable: Bool
+    public let assertedAt: String
+    public let verdict: String?
+    public let verdictNote: String?
+
+    public init(
+        id: String, statement: String, claimType: String, testable: Bool, assertedAt: String,
+        verdict: String?, verdictNote: String?
+    ) {
+        self.id = id
+        self.statement = statement
+        self.claimType = claimType
+        self.testable = testable
+        self.assertedAt = assertedAt
+        self.verdict = verdict
+        self.verdictNote = verdictNote
+    }
+}
+
 public struct CompanionReflectOutcome: Codable, Equatable, Sendable {
     public let episodesConsidered: Int
     public let beliefsFormed: Int
@@ -301,6 +348,26 @@ public struct CompanionClient: Sendable {
             throw CompanionClientError.unreachable(error.localizedDescription)
         }
         return try await self.request(request)
+    }
+
+    public func extractClaims() async throws -> CompanionExtractOutcome {
+        var request = URLRequest(url: url(for: "claims/extract"))
+        request.httpMethod = "POST"
+        request.httpBody = Data()
+        return try await self.request(request, timeout: 600)
+    }
+
+    public func corroborate() async throws -> CompanionCorroborateOutcome {
+        var request = URLRequest(url: url(for: "corroborate"))
+        request.httpMethod = "POST"
+        request.httpBody = Data()
+        return try await self.request(request, timeout: 600)
+    }
+
+    public func claims(limit: Int) async throws -> [CompanionClaim] {
+        var components = URLComponents(url: url(for: "claims"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        return try await request(URLRequest(url: components?.url ?? url(for: "claims")))
     }
 
     public func ask(question: String) async throws -> CompanionAskOutcome {

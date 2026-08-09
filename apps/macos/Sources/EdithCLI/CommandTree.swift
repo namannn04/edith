@@ -699,6 +699,15 @@ public enum CommandTree {
                     CommandNode(
                         "ask", "Ask a question answered from your own memory.",
                         options: common + ["--endpoint"], arguments: [.free]),
+                    CommandNode(
+                        "extract", "Pull typed claims out of recent episodes.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "claims", "List the claims you have made, with verdicts.",
+                        options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "corroborate", "Check testable claims against the record.",
+                        options: common + ["--endpoint"]),
                 ]),
         ])
 
