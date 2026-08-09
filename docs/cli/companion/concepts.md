@@ -4,6 +4,17 @@
 machinery behind them, one line per concept. Back to
 [the CLI reference](../README.md).
 
+Each area also has a deep page written for readers with no ML background,
+with worked examples and every term explained from scratch:
+
+| Page | What it explains |
+| --- | --- |
+| [Memory](./concepts-memory.md) | The data ladder, the vault, content hashing, append-only design, where every byte lives |
+| [Ingestion](./concepts-ingestion.md) | Dropped file to episode: dedupe, front matter, dates, PDF extraction, voice transcription, signals |
+| [Chunks, embeddings and search](./concepts-search.md) | How text becomes numbers and how nearest-neighbour search finds meaning, from first principles |
+| [Asking and chatting](./concepts-chat.md) | Retrieval, prompting, streaming, the stream filter, and how citations are policed |
+| [The learning loop](./concepts-learning.md) | Claims, observations, corroboration verdicts, belief life-cycles and the nightly run |
+
 Two pipelines carry everything:
 
 - Every file: md, pdf or voice → SHA-256 dedupe → vault → episode → chunks →
