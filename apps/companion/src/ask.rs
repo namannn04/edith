@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::embed::EmbedClient;
 use crate::indexer::halfvec_literal;
 use crate::reason::ReasonClient;
+use crate::turns::{RetrievedChunk, latency_since, log_turn};
 
 const SYSTEM_PROMPT: &str = "You answer questions about one person from excerpts of their own \
 notes, voice memos and records. Ground every claim in the excerpts; if they do not answer the \
@@ -55,10 +56,11 @@ pub async fn ask_run(
     reason: &ReasonClient,
     question: &str,
 ) -> Result<AskOutcome, Box<dyn Error + Send + Sync>> {
+    let started = std::time::Instant::now();
     let query_embedding = halfvec_literal(&embed.embed(&[question.to_owned()]).await?.remove(0));
-    type ChunkRow = (Uuid, String, String, DateTime<Utc>);
+    type ChunkRow = (Uuid, Uuid, String, String, DateTime<Utc>);
     let chunks = sqlx::query_as::<_, ChunkRow>(
-        "SELECT c.episode_id, c.text_original, e.title, e.occurred_at FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::halfvec LIMIT 8",
+        "SELECT c.id, c.episode_id, c.text_original, e.title, e.occurred_at FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::halfvec LIMIT 8",
     )
     .bind(&query_embedding)
     .fetch_all(pool)
@@ -75,7 +77,7 @@ pub async fn ask_run(
 
     let material = chunks
         .iter()
-        .map(|(episode_id, text, title, occurred_at)| {
+        .map(|(_, episode_id, text, title, occurred_at)| {
             format!(
                 "episode {episode_id} ({}) {title}\n{text}",
                 occurred_at.format("%Y-%m-%d")
@@ -111,8 +113,8 @@ pub async fn ask_run(
         else {
             continue;
         };
-        let Some((_, _, title, occurred_at)) =
-            chunks.iter().find(|(id, _, _, _)| *id == episode_id)
+        let Some((_, _, _, title, occurred_at)) =
+            chunks.iter().find(|(_, id, _, _, _)| *id == episode_id)
         else {
             continue;
         };
@@ -130,11 +132,37 @@ pub async fn ask_run(
         });
     }
 
+    let retrieved = chunks
+        .iter()
+        .enumerate()
+        .map(|(rank, (chunk_id, episode_id, _, _, _))| RetrievedChunk {
+            chunk_id: *chunk_id,
+            episode_id: *episode_id,
+            rank: rank as i32 + 1,
+            score_vec: Some(1.0 / (rank as f32 + 1.0)),
+            score_text: None,
+            score_fused: None,
+            was_cited: citations
+                .iter()
+                .any(|citation| citation.episode_id == *episode_id),
+        })
+        .collect::<Vec<_>>();
+    let model = reason.describe();
+    log_turn(
+        pool,
+        "ask",
+        question,
+        Some(&model),
+        latency_since(started),
+        &retrieved,
+    )
+    .await;
+
     Ok(AskOutcome {
         answer,
         citations,
         chunks_considered: chunks.len(),
-        model: reason.describe(),
+        model,
     })
 }
 

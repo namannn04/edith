@@ -26,6 +26,7 @@ use crate::nightly::{NightlyDeps, record_run};
 use crate::reason::ReasonClient;
 use crate::reflect::reflect_run;
 use crate::stt::SttClient;
+use crate::turns::{RetrievedChunk, latency_since, log_turn};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -546,6 +547,7 @@ async fn search(
     State(state): State<AppState>,
     Query(query): Query<HashMap<String, String>>,
 ) -> Response {
+    let started = std::time::Instant::now();
     let Some(q) = query
         .get("q")
         .map(|value| value.trim())
@@ -614,6 +616,29 @@ async fn search(
             },
         )
         .collect::<Vec<_>>();
+
+    let retrieved = results
+        .iter()
+        .enumerate()
+        .map(|(rank, result)| RetrievedChunk {
+            chunk_id: result.chunk_id,
+            episode_id: result.episode_id,
+            rank: rank as i32 + 1,
+            score_vec: None,
+            score_text: None,
+            score_fused: Some(result.score as f32),
+            was_cited: false,
+        })
+        .collect::<Vec<_>>();
+    log_turn(
+        &state.pool,
+        "search",
+        q,
+        None,
+        latency_since(started),
+        &retrieved,
+    )
+    .await;
     Json(results).into_response()
 }
 
