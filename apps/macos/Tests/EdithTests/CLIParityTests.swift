@@ -98,12 +98,12 @@ enum UIParity {
         UICapability(
             "Machine tools", "delete a snippet", ["machines", "snippets", "rm", "box", "1"]),
         UICapability(
-            "Machine tools", "restart the machine",
+            "Machine header", "restart the machine",
             ["machines", "power", "reboot", "box", "--yes"]),
         UICapability(
-            "Machine tools", "shut the machine down",
+            "Machine header", "shut the machine down",
             ["machines", "power", "shutdown", "box", "--yes"]),
-        UICapability("Machine tools", "wake the machine", ["machines", "power", "wake", "box"]),
+        UICapability("Machine header", "wake the machine", ["machines", "power", "wake", "box"]),
         UICapability(
             "Machine tools", "start a systemd unit",
             ["machines", "services", "start", "box", "nginx.service"]),

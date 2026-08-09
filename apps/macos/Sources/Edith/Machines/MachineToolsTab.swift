@@ -15,7 +15,6 @@ struct MachineToolsTab: View {
     @State private var snippetOutput = ""
     @State private var runningSnippet = false
     @State private var message: String?
-    @State private var confirmPower: String?
     @State private var serviceFilter = ""
     @State private var mount: MachineMount?
     @State private var mounting = false
@@ -39,23 +38,8 @@ struct MachineToolsTab: View {
                 forwardsCard
                 snippetsCard
                 servicesCard
-                powerCard
             }
             .pageContent(compact)
-        }
-        .confirmationDialog(
-            confirmPower == "reboot" ? "Restart this machine?" : "Shut this machine down?",
-            isPresented: Binding(
-                get: { confirmPower != nil }, set: { if !$0 { confirmPower = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button(confirmPower == "reboot" ? "Restart" : "Shut down", role: .destructive) {
-                runPower(confirmPower ?? "")
-                confirmPower = nil
-            }
-            Button("Cancel", role: .cancel) { confirmPower = nil }
-        } message: {
-            Text("The SSH connection drops immediately. Edith reconnects when it comes back.")
         }
         .task {
             await session.refreshServices()
@@ -328,36 +312,6 @@ struct MachineToolsTab: View {
         }
     }
 
-    private var powerCard: some View {
-        SkinCard(title: "Power", dark: dark) {
-            HStack(spacing: UIScale.pt(10)) {
-                Button("Restart…") { confirmPower = "reboot" }
-                    .disabled(!session.state.isConnected)
-                    .pointerCursor()
-                Button("Shut down…") { confirmPower = "poweroff" }
-                    .disabled(!session.state.isConnected)
-                    .pointerCursor()
-                Button("Wake") {
-                    message = model.wake(machine: session.machine)
-                }
-                .disabled(session.machine.wakeMACAddress == nil && session.facts.macAddress == nil)
-                .pointerCursor()
-                Spacer(minLength: 0)
-                if let mac = session.machine.wakeMACAddress ?? session.facts.macAddress {
-                    Text(mac)
-                        .font(DashSkin.mono(10.5))
-                        .foregroundStyle(DashSkin.inkFaint(dark))
-                }
-            }
-        }
-        .onChange(of: session.facts.macAddress) { _, mac in
-            guard let mac, session.machine.wakeMACAddress == nil else { return }
-            var updated = session.machine
-            updated.wakeMACAddress = mac
-            model.store.update(updated)
-        }
-    }
-
     private func addForward() {
         guard let local = Int(newForwardLocal), let remote = Int(newForwardRemote) else { return }
         let host = newForwardHost.trimmingCharacters(in: .whitespaces)
@@ -420,29 +374,6 @@ struct MachineToolsTab: View {
                 message = "\(unit) \(action)ed."
             }
             await session.refreshServices()
-        }
-    }
-
-    private func runPower(_ action: String) {
-        Task {
-            let stdin = SudoPassword.stdin(machineID: session.machine.id)
-            let command =
-                action == "reboot"
-                ? ServiceCommands.reboot(withSudoPassword: stdin != nil)
-                : ServiceCommands.shutdown(withSudoPassword: stdin != nil)
-            let underway = action == "reboot" ? "Restarting…" : "Shutting down…"
-            switch await session.runCommand(command, stdin: stdin, timeout: 20) {
-            case .success:
-                message = underway
-                session.stop()
-            case let .failure(error):
-                guard PowerOutcome.hostWentAway(error) else {
-                    message = PowerOutcome.explain(error)
-                    return
-                }
-                message = underway
-                session.stop()
-            }
         }
     }
 }
