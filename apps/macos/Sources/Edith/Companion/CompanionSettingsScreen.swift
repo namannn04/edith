@@ -232,7 +232,8 @@ struct CompanionSettingsScreen: View {
                             Text("\(check.name) · \(check.detail)")
                                 .font(.system(size: UIScale.pt(11.5)))
                                 .foregroundStyle(
-                                    check.ok ? DashSkin.inkSoft(dark) : .orange)
+                                    check.ok ? DashSkin.inkSoft(dark) : .orange
+                                )
                                 .lineLimit(1)
                                 .help(check.detail)
                         }

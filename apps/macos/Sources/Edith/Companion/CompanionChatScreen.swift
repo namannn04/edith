@@ -73,7 +73,8 @@ final class CompanionChatModel: ObservableObject {
                 citations: [], streaming: false))
         let replyId = "reply-\(UUID().uuidString)"
         messages.append(
-            DisplayMessage(id: replyId, role: "assistant", content: "", citations: [], streaming: true))
+            DisplayMessage(
+                id: replyId, role: "assistant", content: "", citations: [], streaming: true))
         do {
             for try await event in client.chat(message: text, conversationId: activeConversationId)
             {
@@ -305,9 +306,11 @@ struct CompanionChatScreen: View {
                     Text("\(index + 1)")
                         .font(.system(size: UIScale.pt(10), weight: .bold))
                         .foregroundStyle(DashSkin.accent(dark))
-                    Text("\(citation.title) · \(String(citation.occurredAt.prefix(10))) · \(supportLabel(citation.support))")
-                        .font(.system(size: UIScale.pt(10.5)))
-                        .foregroundStyle(DashSkin.inkSoft(dark))
+                    Text(
+                        "\(citation.title) · \(String(citation.occurredAt.prefix(10))) · \(supportLabel(citation.support))"
+                    )
+                    .font(.system(size: UIScale.pt(10.5)))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
                 }
                 .padding(.horizontal, UIScale.pt(9))
                 .padding(.vertical, UIScale.pt(3))
@@ -364,9 +367,11 @@ private struct ConversationRow: View {
                         .font(.system(size: UIScale.pt(12), weight: .semibold))
                         .foregroundStyle(DashSkin.ink(dark))
                         .lineLimit(1)
-                    Text("\(String(conversation.lastActiveAt.prefix(10))) · \(conversation.messageCount) messages")
-                        .font(.system(size: UIScale.pt(10)))
-                        .foregroundStyle(DashSkin.inkFaint(dark))
+                    Text(
+                        "\(String(conversation.lastActiveAt.prefix(10))) · \(conversation.messageCount) messages"
+                    )
+                    .font(.system(size: UIScale.pt(10)))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
                 }
                 Spacer(minLength: 0)
                 if hovering {

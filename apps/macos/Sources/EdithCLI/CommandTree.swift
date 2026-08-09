@@ -685,6 +685,9 @@ public enum CommandTree {
                         "episodes", "List recent companion episodes.",
                         options: common + ["--endpoint", "--limit"]),
                     CommandNode(
+                        "episode", "Read one episode in full.",
+                        options: common + ["--endpoint", "--body"], arguments: [.free]),
+                    CommandNode(
                         "sync", "Pull a connector's activity into observations.",
                         options: common + ["--endpoint"], arguments: [.free]),
                     CommandNode(
@@ -700,6 +703,15 @@ public enum CommandTree {
                         "ask", "Ask a question answered from your own memory.",
                         options: common + ["--endpoint"], arguments: [.free]),
                     CommandNode(
+                        "chat", "Talk with the companion, streamed as it thinks.",
+                        options: common + ["--endpoint", "--conversation"], arguments: [.free]),
+                    CommandNode(
+                        "conversations", "List chats, or replay one by id.",
+                        options: common + ["--endpoint", "--limit"], arguments: [.free]),
+                    CommandNode(
+                        "forget", "Delete a conversation and its messages.",
+                        options: common + ["--endpoint"], arguments: [.free]),
+                    CommandNode(
                         "extract", "Pull typed claims out of recent episodes.",
                         options: common + ["--endpoint"]),
                     CommandNode(
@@ -711,6 +723,27 @@ public enum CommandTree {
                     CommandNode(
                         "runs", "List the background learning runs.",
                         options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "nightly", "Run the nightly learning pipeline right now.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "reason", "Show or change how the companion reasons.",
+                        children: [
+                            CommandNode(
+                                "show", "Show the active reasoning provider.",
+                                options: common + ["--endpoint"]),
+                            CommandNode(
+                                "set",
+                                "Change the reasoning provider, model, URL, or API key.",
+                                options: common
+                                    + [
+                                        "--endpoint", "--provider", "--model", "--url",
+                                        "--api-key",
+                                    ]),
+                            CommandNode(
+                                "test", "Round-trip one tiny completion through the reasoner.",
+                                options: common + ["--endpoint"]),
+                        ]),
                 ]),
         ])
 

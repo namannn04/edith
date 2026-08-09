@@ -20,6 +20,12 @@ the default `http://127.0.0.1:4820`.
 | `ed companion index` | Embeds episodes that are waiting to be indexed. |
 | `ed companion ingest <path>` | Sends one Markdown file or a recursive folder scan to the backend. |
 | `ed companion episodes` | Lists recent episodes, newest first. |
+| `ed companion episode <id>` | Reads one episode in full, body included. |
+| `ed companion chat <message>` | Talks with the companion, streamed as it thinks. |
+| `ed companion conversations` | Lists chats, or replays one by id. |
+| `ed companion forget <id>` | Deletes a conversation and its messages. |
+| `ed companion nightly` | Runs the nightly learning pipeline right now. |
+| `ed companion reason` | Shows or changes the reasoning provider, model and API key. |
 
 ## Commands
 
@@ -790,6 +796,162 @@ $ ed companion runs --limit 1
 ```
 
 Behaviour: read-only. The companion runs the pipeline once a night at `COMPANION_REFLECT_AT` (02:00 by default) in the backend's local time, or continuously every `COMPANION_SCHEDULE_EVERY_SECONDS` when that testing override is set. Steps that lack their prerequisite, like a missing GitHub token or reasoning provider, record themselves as skipped rather than failing the run. `POST /v1/nightly/run` triggers one manually.
+
+### `ed companion chat`
+
+Talks with the companion. Retrieval grounds the reply in your own episodes, the
+reply streams to stdout as the model produces it, and validated citations print
+after it. Every exchange persists, so a conversation can be continued later
+from any machine.
+
+Usage:
+
+```
+ed companion chat <message> [--conversation <id>] [--json] [--endpoint <url>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--conversation` | conversation id | new conversation | Continues that conversation with its history in context. |
+| `--json` | flag | off | Suppresses streaming and emits one JSON document at the end. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+`--json` shape:
+
+```json
+{
+  "answer": "You shipped the auth refactor and kept avoiding the billing migration.",
+  "chunksConsidered": 8,
+  "citations": [
+    {
+      "episodeId": "6a7c1f0e-6f0f-4bb0-9d3a-2f6f6f0e1a2b",
+      "occurredAt": "2026-08-05T09:00:00Z",
+      "quote": "shipped the session-scoped tokens today",
+      "support": "verbatim",
+      "title": "auth-refactor.md"
+    }
+  ],
+  "conversationId": "e3b6d2a4-27c8-4f7c-9b7e-3e2b1a0c9d8f",
+  "latencyMs": 1874,
+  "model": "anthropic, model claude-sonnet-5"
+}
+```
+
+The conversation id prints on stderr after a plain-text chat; pass it back with
+`--conversation` to keep talking in the same thread.
+
+Behaviour: requires a configured reasoning provider (`ed companion reason`);
+without one the backend answers 412 and the command exits `4`.
+
+### `ed companion conversations`
+
+Lists conversations newest-first, or replays one in full when an id is given.
+
+Usage:
+
+```
+ed companion conversations [<id>] [--limit <n>] [--json] [--endpoint <url>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--limit` | positive integer | `20` | How many conversations to list. |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+Without an id the JSON is an array of
+`{id, title, createdAt, lastActiveAt, messageCount, lastMessage}`; with an id it
+is one `{id, title, createdAt, messages}` object whose messages carry `role`,
+`content`, `citations`, `model` and `createdAt`.
+
+### `ed companion forget`
+
+Deletes a conversation and every message in it.
+
+Usage:
+
+```
+ed companion forget <id> [--json] [--endpoint <url>]
+```
+
+`--json` shape: `{"deleted": "<conversation id>"}`. Unknown ids exit `4` with
+the backend's `no such conversation` detail.
+
+### `ed companion episode`
+
+Reads one episode in full: the metadata the list view shows, plus the whole
+body text.
+
+Usage:
+
+```
+ed companion episode <id> [--body] [--json] [--endpoint <url>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--body` | flag | off | Prints only the body text, for piping. |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+`--json` shape: `{id, occurredAt, ingestedAt, kind, title, body, bodyEn, langs,
+durationS, mediaRef, sha256, bytes, chunks}`. `durationS` and `mediaRef` are
+`null` for anything but voice episodes. The raw stored file is served by the
+backend at `GET /v1/episodes/<id>/media`.
+
+### `ed companion nightly`
+
+Runs the whole nightly pipeline immediately: GitHub sync, indexing, claim
+extraction, corroboration and reflection. The command returns when the pipeline
+finishes, which can take minutes on a slow reasoner.
+
+Usage:
+
+```
+ed companion nightly [--json] [--endpoint <url>]
+```
+
+`--json` shape: `{"runId": "<uuid>"}`. Inspect the recorded steps with
+`ed companion runs`.
+
+### `ed companion reason`
+
+Shows or changes how the companion reasons. Settings persist on the backend and
+hot-swap into the running service, so no restart or `.env` edit is needed; the
+environment remains the fallback for anything never set here.
+
+Usage:
+
+```
+ed companion reason [show] [--json] [--endpoint <url>]
+ed companion reason set [--provider <p>] [--model <m>] [--url <u>] [--api-key <k>]
+ed companion reason test [--json] [--endpoint <url>]
+```
+
+Options for `ed companion reason set`:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--provider` | `anthropic` or `openai` | unchanged | Which API shape to speak; `openai` covers any OpenAI-compatible server such as Ollama. |
+| `--model` | model name | unchanged | Model to request; empty resets to the provider default. |
+| `--url` | URL | unchanged | Base URL for the OpenAI-compatible provider. |
+| `--api-key` | secret | unchanged | Stored in the backend's settings table, never on this Mac; empty clears it. |
+
+`ed companion reason show` (also the bare default) prints the active provider,
+model, URL, whether a key is set with its last-four hint, and whether the
+reasoner is configured at all. `--json` shape: `{provider, url, model,
+hasApiKey, apiKeyHint, configured, description}`. The key itself is never
+returned.
+
+`ed companion reason test` sends one tiny completion through the active
+provider and reports the round-trip: `{ok, model, latencyMs}` under `--json`,
+exit `4` with the provider's error when the call fails.
 
 ## Exit codes
 

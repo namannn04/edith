@@ -318,7 +318,8 @@ struct CompanionLibraryScreen: View {
                     style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
         }
         .scaleEffect(model.dropTargeted && !reduceMotion ? 1.008 : 1)
-        .animation(Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: model.dropTargeted)
+        .animation(
+            Motion.animation(Motion.snap, reduceMotion: reduceMotion), value: model.dropTargeted)
     }
 
     private func pickAndIngest() {
@@ -555,7 +556,8 @@ struct CompanionLibraryScreen: View {
             if !pauses.isEmpty {
                 signalBar(
                     label: "pauses",
-                    detail: "\(pauses.count) over \(durationLabel(pauses.map(\.value).reduce(0, +)))",
+                    detail:
+                        "\(pauses.count) over \(durationLabel(pauses.map(\.value).reduce(0, +)))",
                     fraction: min(Double(pauses.count) / 12, 1))
             }
             if !wpm.isEmpty {
@@ -728,7 +730,10 @@ struct MarkdownBody: View {
         switch block {
         case let .heading(level, title):
             Text(inline(title))
-                .font(DashSkin.serif(UIScale.pt(level == 1 ? 17 : level == 2 ? 15 : 13.5), weight: .semibold))
+                .font(
+                    DashSkin.serif(
+                        UIScale.pt(level == 1 ? 17 : level == 2 ? 15 : 13.5), weight: .semibold)
+                )
                 .foregroundStyle(DashSkin.ink(dark))
                 .padding(.top, UIScale.pt(3))
         case let .bullets(items):

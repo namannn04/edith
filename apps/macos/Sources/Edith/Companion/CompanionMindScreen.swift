@@ -122,7 +122,9 @@ struct CompanionMindScreen: View {
             }
         }
         .opacity(superseded ? 0.55 : 1)
-        .help("\(belief.kind) · first formed \(String(belief.firstFormed.prefix(10))) · \(belief.evidenceEpisodeIds.count) evidence episodes")
+        .help(
+            "\(belief.kind) · first formed \(String(belief.firstFormed.prefix(10))) · \(belief.evidenceEpisodeIds.count) evidence episodes"
+        )
     }
 
     private var claimsCard: some View {
