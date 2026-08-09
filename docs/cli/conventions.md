@@ -456,9 +456,13 @@ and `ed app open`, `clean-keys` and `test-notification` post and return. Nothing
 is waited for, so these cost nothing when the app is closed.
 
 The rest are request and reply: `ed` registers an observer for the reply, posts
-the request, then polls until an answer arrives or the deadline passes. After
-one second of waiting it prints `waiting for Edith to answer...` once, on
-stderr. The deadlines are per command:
+the request, then suspends until the observer hands it an answer. It does not
+poll. The deadline is a separate task that sleeps and then cancels the wait, and
+the note is a third that sleeps one second and prints
+`waiting for Edith to answer...` once, on stderr, unless the answer has already
+landed. So a reply that comes back in a millisecond resumes the command in a
+millisecond, and a command that waits the full deadline spends it asleep rather
+than checking. The deadlines are per command:
 
 ```
 ed calendar ls                 4 seconds
