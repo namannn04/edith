@@ -9,7 +9,10 @@ use uuid::Uuid;
 
 use crate::embed::EmbedClient;
 use crate::migrate::migration_count;
+use crate::persona;
 use crate::reason::ReasonClient;
+use crate::rerank::RerankClient;
+use crate::grounding::GroundingClient;
 use crate::stt::SttClient;
 
 #[derive(Debug, Serialize)]
@@ -126,14 +129,29 @@ async fn stt_check(stt: &SttClient) -> Result<String, String> {
     stt.probe().await.map_err(|error| error.to_string())
 }
 
-pub async fn run_doctor(
-    pool: &PgPool,
-    redis: &Client,
-    vault_dir: &Path,
-    embed: &EmbedClient,
-    stt: &SttClient,
-    reason: &ReasonClient,
-) -> DoctorResult {
+pub struct DoctorDeps<'a> {
+    pub pool: &'a PgPool,
+    pub redis: &'a Client,
+    pub vault_dir: &'a Path,
+    pub embed: &'a EmbedClient,
+    pub stt: &'a SttClient,
+    pub reason: &'a ReasonClient,
+    pub rerank: &'a RerankClient,
+    pub grounding: &'a GroundingClient,
+}
+
+pub async fn run_doctor(deps: DoctorDeps<'_>) -> DoctorResult {
+    let DoctorDeps {
+        pool,
+        redis,
+        vault_dir,
+        embed,
+        stt,
+        reason,
+        rerank,
+        grounding,
+    } = deps;
+    let personas = persona::all();
     let checks = vec![
         check("postgres", postgres_check(pool).await),
         check("migrations", migrations_check(pool).await),
@@ -143,6 +161,20 @@ pub async fn run_doctor(
         check("embeddings", embeddings_check(embed).await),
         check("stt", stt_check(stt).await),
         check("reasoning", Ok(reason.describe())),
+        check("reranker", Ok(rerank.describe())),
+        check("grounding", Ok(grounding.describe())),
+        check(
+            "personas",
+            if personas.is_empty() {
+                Err("no persona specs loaded".to_owned())
+            } else {
+                Ok(personas
+                    .iter()
+                    .map(|persona| persona.id.clone())
+                    .collect::<Vec<_>>()
+                    .join(", "))
+            },
+        ),
     ];
     DoctorResult {
         ok: checks.iter().all(|item| item.ok),

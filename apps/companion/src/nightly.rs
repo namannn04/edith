@@ -6,13 +6,13 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::baseline::rescore;
 use crate::claims::{corroborate_claims, extract_claims};
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
-use crate::grounding::GroundingClient;
 use crate::indexer::index_pending;
+use crate::{commitments, core_memory, entities, hypotheses, inquire, lenses};
 use crate::reflect::reflect_run;
-use crate::rerank::RerankClient;
 use crate::settings::ReasonHandle;
 
 #[derive(Clone)]
@@ -21,8 +21,6 @@ pub struct NightlyDeps {
     pub embed: EmbedClient,
     pub reason: ReasonHandle,
     pub github: GithubConnector,
-    pub rerank: RerankClient,
-    pub grounding: GroundingClient,
 }
 
 fn step(name: &str, result: Result<Value, String>) -> Value {
@@ -53,28 +51,86 @@ pub async fn run_pipeline(deps: &NightlyDeps) -> (bool, Vec<Value>) {
         .map_err(|error| error.to_string());
     steps.push(step("index", result));
 
+    let result = rescore(&deps.pool)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("baselines", result));
+
     let reason = deps.reason.current().await;
-    if reason.configured() {
-        let result = extract_claims(&deps.pool, &reason)
-            .await
-            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
-            .map_err(|error| error.to_string());
-        steps.push(step("extract_claims", result));
-
-        let result = corroborate_claims(&deps.pool, &reason)
-            .await
-            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
-            .map_err(|error| error.to_string());
-        steps.push(step("corroborate", result));
-
-        let result = reflect_run(&deps.pool, &deps.embed, &reason)
-            .await
-            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
-            .map_err(|error| error.to_string());
-        steps.push(step("reflect", result));
-    } else {
+    if !reason.configured() {
         steps.push(step("reasoning", Ok(json!("skipped, no provider"))));
+        let ok = steps
+            .iter()
+            .all(|entry| entry.get("ok").and_then(Value::as_bool).unwrap_or(false));
+        return (ok, steps);
     }
+
+    let result = extract_claims(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("extract_claims", result));
+
+    let result = entities::extract(&deps.pool, &deps.embed, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("entities", result));
+
+    let result = corroborate_claims(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("corroborate", result));
+
+    let result = commitments::track(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("commitments", result));
+
+    let result = commitments::score_calibration(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("calibration", result));
+
+    let result = reflect_run(&deps.pool, &deps.embed, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("reflect", result));
+
+    let result = hypotheses::resolve_due(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("resolve_predictions", result));
+
+    let result = hypotheses::generate(&deps.pool, &deps.embed, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("hypotheses", result));
+
+    let result = core_memory::rewrite(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("core_memory", result));
+
+    let result = lenses::rewrite(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("persona_lenses", result));
+
+    let result = inquire::rank(&deps.pool, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("inquiry", result));
 
     let ok = steps
         .iter()

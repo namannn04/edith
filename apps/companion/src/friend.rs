@@ -9,6 +9,7 @@ use crate::ask::{AskCitation, extract_json_object, resolve_support};
 use crate::core_memory;
 use crate::embed::EmbedClient;
 use crate::grounding::{GroundingClient, GroundingReport, verbosity_flag};
+use crate::lenses;
 use crate::persona::Persona;
 use crate::reason::{ReasonClient, ReasonError};
 use crate::rerank::RerankClient;
@@ -242,7 +243,14 @@ pub async fn answer_with_persona(
         let _ = reframed;
     }
 
-    let system = answer_contract(persona);
+    let mut system = answer_contract(persona);
+    let lens = lenses::load(deps.pool, &persona.id).await;
+    if !lens.trim().is_empty() {
+        system.push_str(&format!(
+            "\n\nWhat this lens has learned about being useful to them:\n{}",
+            lens.trim()
+        ));
+    }
     let raw = deps.reason.complete(&system, &prompt).await?;
     stages.push("draft".to_owned());
     let (mut answer, mut abstained, mut citations) = parse_answer(&raw, &retrieval.items)?;

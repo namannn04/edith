@@ -1,18 +1,23 @@
 mod ask;
 mod baseline;
 mod chat;
-mod core_memory;
-mod council;
 mod chunker;
 mod claims;
+mod commitments;
+mod core_memory;
+mod council;
 mod doctor;
 mod embed;
+mod entities;
 mod friend;
 mod frontmatter;
 mod github;
 mod grounding;
+mod hypotheses;
 mod indexer;
 mod ingest;
+mod inquire;
+mod lenses;
 mod migrate;
 mod nightly;
 mod persona;
@@ -69,8 +74,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         embed: state.embed.clone(),
         reason: state.reason.clone(),
         github: state.github.clone(),
-        rerank: state.rerank.clone(),
-        grounding: state.grounding.clone(),
     });
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
 

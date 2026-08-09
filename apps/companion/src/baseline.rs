@@ -94,19 +94,27 @@ pub async fn rescore(pool: &PgPool) -> Result<BaselineOutcome, Box<dyn Error + S
         if row.samples < 20 || !DEVIATION_KINDS.contains(&row.kind.as_str()) {
             continue;
         }
-        let scale = (row.iqr.abs().max(1e-6)) / 1.349;
-        let updated = sqlx::query(
-            "UPDATE signals SET zscore = (value - $3) / $4, baseline_window = $5, confidence = least(1.0, $6::real / 200.0) WHERE kind = $1 AND context_bucket = $2",
+        let confidence = (row.samples as f32 / 200.0).min(1.0);
+        let window = format!("{} samples, all history", row.samples);
+        let signals = sqlx::query_as::<_, (Uuid, f32)>(
+            "SELECT id, value FROM signals WHERE kind = $1 AND context_bucket = $2",
         )
         .bind(&row.kind)
         .bind(&row.context_bucket)
-        .bind(row.median)
-        .bind(scale)
-        .bind(format!("{} samples, all history", row.samples))
-        .bind(row.samples as f32)
-        .execute(pool)
+        .fetch_all(pool)
         .await?;
-        outcome.signals_scored += updated.rows_affected() as usize;
+        for (id, value) in signals {
+            sqlx::query(
+                "UPDATE signals SET zscore = $2, baseline_window = $3, confidence = $4 WHERE id = $1",
+            )
+            .bind(id)
+            .bind(zscore(value as f64, row.median, row.iqr) as f32)
+            .bind(&window)
+            .bind(confidence)
+            .execute(pool)
+            .await?;
+            outcome.signals_scored += 1;
+        }
     }
 
     outcome.chunks_scored = rescore_chunks(pool).await?;
@@ -114,25 +122,40 @@ pub async fn rescore(pool: &PgPool) -> Result<BaselineOutcome, Box<dyn Error + S
 }
 
 pub async fn rescore_chunks(pool: &PgPool) -> Result<usize, sqlx::Error> {
-    let updated = sqlx::query(
-        "UPDATE chunks c SET salience = sub.salience FROM (
-            SELECT c.id AS chunk_id,
-                   least(1.0,
-                     0.45 * least(4.0, coalesce(max(abs(s.zscore)), 0)) / 4.0
-                   + 0.25 * least(1.0, coalesce(max(s.value) FILTER (WHERE s.kind = 'pause_s'), 0) / 20.0)
-                   + 0.20 * least(1.0, count(*) FILTER (WHERE s.kind LIKE 'event_%')::real / 3.0)
-                   + 0.10 * least(1.0, count(*) FILTER (WHERE s.kind IN ('repair', 'code_switch'))::real / 4.0)
-                   )::real AS salience
-            FROM chunks c
-            JOIN signals s ON s.episode_id = c.episode_id
-              AND c.t_start_s IS NOT NULL AND c.t_end_s IS NOT NULL
-              AND s.t_start_s < c.t_end_s AND s.t_end_s > c.t_start_s
-            GROUP BY c.id
-        ) sub WHERE c.id = sub.chunk_id AND c.salience IS DISTINCT FROM sub.salience",
+    type Row = (Uuid, Option<f64>, Option<f64>, i64, i64);
+    let features = sqlx::query_as::<_, Row>(
+        "SELECT c.id,
+                max(abs(s.zscore))::float8,
+                max(s.value) FILTER (WHERE s.kind = 'pause_s')::float8,
+                count(*) FILTER (WHERE s.kind LIKE 'event_%'),
+                count(*) FILTER (WHERE s.kind IN ('repair', 'code_switch'))
+         FROM chunks c
+         JOIN signals s ON s.episode_id = c.episode_id
+           AND c.t_start_s IS NOT NULL AND c.t_end_s IS NOT NULL
+           AND s.t_start_s < c.t_end_s AND s.t_end_s > c.t_start_s
+         GROUP BY c.id",
     )
-    .execute(pool)
+    .fetch_all(pool)
     .await?;
-    Ok(updated.rows_affected() as usize)
+
+    let mut scored = 0;
+    for (chunk_id, deviation, longest_pause, events, repairs) in features {
+        let salience = salience_from(
+            deviation.unwrap_or(0.0),
+            longest_pause.unwrap_or(0.0) / 20.0,
+            events as f64 / 3.0,
+            repairs as f64 / 4.0,
+        );
+        let updated = sqlx::query(
+            "UPDATE chunks SET salience = $2 WHERE id = $1 AND salience IS DISTINCT FROM $2",
+        )
+        .bind(chunk_id)
+        .bind(salience)
+        .execute(pool)
+        .await?;
+        scored += updated.rows_affected() as usize;
+    }
+    Ok(scored)
 }
 
 pub async fn episode_context_bucket(pool: &PgPool, episode_id: Uuid) -> String {

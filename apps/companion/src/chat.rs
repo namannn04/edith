@@ -10,6 +10,7 @@ use crate::ask::{AskCitation, resolve_support};
 use crate::core_memory;
 use crate::embed::EmbedClient;
 use crate::grounding::GroundingClient;
+use crate::lenses;
 use crate::persona::{self, Persona};
 use crate::reason::{ReasonClient, extract_json_array};
 use crate::rerank::RerankClient;
@@ -281,7 +282,15 @@ async fn run(
     if !core.is_empty() {
         system.push_str(&format!("\n\nWho they are right now:\n{core}"));
     }
-    system.push_str(&format!("\n\n{}\n\n{material}", lens.voice_text));
+    let lens_note = lenses::load(pool, &lens.id).await;
+    system.push_str(&format!("\n\n{}", lens.voice_text));
+    if !lens_note.trim().is_empty() {
+        system.push_str(&format!(
+            "\n\nWhat this lens has learned about being useful to them:\n{}",
+            lens_note.trim()
+        ));
+    }
+    system.push_str(&format!("\n\n{material}"));
 
     let mut messages = history;
     messages.push(("user".to_owned(), message.to_owned()));

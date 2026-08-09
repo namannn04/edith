@@ -24,11 +24,11 @@ use crate::ask::ask_run;
 use crate::chat::{ChatDeps, chat_stream, event_json, resolve_conversation};
 use crate::council::council_run;
 use crate::claims::{corroborate_claims, extract_claims};
-use crate::doctor::run_doctor;
+use crate::doctor::{DoctorDeps, run_doctor};
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
 use crate::grounding::GroundingClient;
-use crate::friend::{FriendDeps, answer_with_persona};
+use crate::friend::FriendDeps;
 use crate::indexer::index_pending;
 use crate::ingest::{IngestFile, ingest_audio, ingest_files, ingest_pdf, parse_file_date};
 use crate::nightly::{NightlyDeps, record_run};
@@ -40,7 +40,7 @@ use crate::retrieve::{RetrievalPolicy, retrieve};
 use crate::settings::{self, ReasonHandle};
 use crate::stt::SttClient;
 use crate::turns::{RetrievedChunk, latency_since, log_turn};
-use crate::{baseline, core_memory};
+use crate::{baseline, commitments, core_memory, entities, hypotheses, inquire, lenses};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -98,14 +98,16 @@ fn error_response(status: StatusCode, detail: impl ToString) -> Response {
 
 async fn health(State(state): State<AppState>) -> Response {
     let reason = state.reason.current().await;
-    let result = run_doctor(
-        &state.pool,
-        &state.redis,
-        &state.vault_dir,
-        &state.embed,
-        &state.stt,
-        &reason,
-    )
+    let result = run_doctor(DoctorDeps {
+        pool: &state.pool,
+        redis: &state.redis,
+        vault_dir: &state.vault_dir,
+        embed: &state.embed,
+        stt: &state.stt,
+        reason: &reason,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+    })
     .await;
     let status = if result.ok {
         StatusCode::OK
@@ -380,6 +382,254 @@ async fn core_memory_write(State(state): State<AppState>, request: Request) -> R
     }
 }
 
+fn limit_of(query: &HashMap<String, String>, fallback: i64) -> i64 {
+    query
+        .get("limit")
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .unwrap_or(fallback)
+        .clamp(1, 500)
+}
+
+async fn hypotheses_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match hypotheses::list(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn hypotheses_run(State(state): State<AppState>) -> Response {
+    let reason = state.reason.current().await;
+    let resolved = hypotheses::resolve_due(&state.pool, &reason).await;
+    let formed = hypotheses::generate(&state.pool, &state.embed, &reason).await;
+    match (resolved, formed) {
+        (Ok(resolved), Ok(formed)) => Json(serde_json::json!({
+            "resolved": resolved,
+            "generated": formed,
+        }))
+        .into_response(),
+        (Err(error), _) | (_, Err(error)) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn predictions_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    type Row = (
+        Uuid,
+        Uuid,
+        String,
+        String,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+        Option<String>,
+    );
+    let rows = sqlx::query_as::<_, Row>(
+        "SELECT p.id, p.hypothesis_id, p.statement, p.observable, p.window_start, p.window_end, p.resolved_at, p.outcome FROM predictions p ORDER BY p.window_end DESC LIMIT $1",
+    )
+    .bind(limit_of(&query, 40))
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => Json(
+            rows.into_iter()
+                .map(|row| {
+                    serde_json::json!({
+                        "id": row.0,
+                        "hypothesisId": row.1,
+                        "statement": row.2,
+                        "observable": row.3,
+                        "windowStart": date_string(row.4),
+                        "windowEnd": date_string(row.5),
+                        "resolvedAt": row.6.map(date_string),
+                        "outcome": row.7,
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn commitments_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match commitments::commitments(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn discrepancies_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match commitments::discrepancies(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn discrepancy_override(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(real) = body
+        .get("real")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|real| !real.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "real is required");
+    };
+    match commitments::override_discrepancy(&state.pool, id, real).await {
+        Ok(true) => Json(serde_json::json!({"id": id, "ok": true})).into_response(),
+        Ok(false) => error_response(StatusCode::NOT_FOUND, "no such discrepancy"),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn calibration_route(State(state): State<AppState>) -> Response {
+    match commitments::calibration_profile(&state.pool).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn questions_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match inquire::list(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => {
+            let muted = inquire::muted(&state.pool).await.unwrap_or_default();
+            let asked = inquire::asked_today(&state.pool).await.unwrap_or(0);
+            Json(serde_json::json!({
+                "questions": rows,
+                "muted": muted,
+                "askedToday": asked,
+                "dailyBudget": inquire::DAILY_BUDGET,
+            }))
+            .into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_next(State(state): State<AppState>) -> Response {
+    if let Err(error) = inquire::seed_onboarding(&state.pool).await {
+        return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+    }
+    match inquire::next(&state.pool).await {
+        Ok(Some(question)) => {
+            if let Err(error) = inquire::mark_asked(&state.pool, question.id).await {
+                return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+            }
+            Json(serde_json::json!({"question": question})).into_response()
+        }
+        Ok(None) => Json(serde_json::json!({
+            "question": Value::Null,
+            "askedToday": inquire::asked_today(&state.pool).await.unwrap_or(0),
+            "dailyBudget": inquire::DAILY_BUDGET,
+        }))
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_answer(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 512 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(text) = body
+        .get("answer")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "answer is required");
+    };
+    match inquire::answer(&state.pool, id, text).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) if error.to_string() == "no such question" => {
+            error_response(StatusCode::NOT_FOUND, error)
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_skip(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    match inquire::skip(&state.pool, id).await {
+        Ok(true) => Json(serde_json::json!({"id": id, "status": "skipped"})).into_response(),
+        Ok(false) => error_response(StatusCode::NOT_FOUND, "no such question"),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_mute(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(topic) = body
+        .get("topic")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|topic| !topic.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "topic is required");
+    };
+    match inquire::mute(&state.pool, &topic.to_lowercase()).await {
+        Ok(suppressed) => {
+            Json(serde_json::json!({"topic": topic, "suppressed": suppressed})).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn entities_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    if let Some(name) = query.get("name").map(|value| value.trim()).filter(|value| !value.is_empty())
+    {
+        return match entities::timeline(&state.pool, name, limit_of(&query, 40)).await {
+            Ok(rows) => Json(serde_json::json!({"name": name, "timeline": rows})).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        };
+    }
+    match entities::list(&state.pool, limit_of(&query, 40)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn lenses_route(State(state): State<AppState>) -> Response {
+    match lenses::list(&state.pool).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
 async fn baselines(State(state): State<AppState>) -> Response {
     match baseline::baselines(&state.pool).await {
         Ok(rows) => {
@@ -483,8 +733,6 @@ async fn nightly_run(State(state): State<AppState>) -> Response {
         embed: state.embed.clone(),
         reason: state.reason.clone(),
         github: state.github.clone(),
-        rerank: state.rerank.clone(),
-        grounding: state.grounding.clone(),
     };
     match record_run(&deps).await {
         Ok(run_id) => Json(serde_json::json!({ "runId": run_id })).into_response(),
@@ -1314,6 +1562,20 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/personas", get(personas))
         .route("/v1/core", get(core_memory_route).post(core_memory_write))
         .route("/v1/baselines", get(baselines))
+        .route("/v1/hypotheses", get(hypotheses_route))
+        .route("/v1/hypotheses/run", post(hypotheses_run))
+        .route("/v1/predictions", get(predictions_route))
+        .route("/v1/commitments", get(commitments_route))
+        .route("/v1/discrepancies", get(discrepancies_route))
+        .route("/v1/discrepancies/{id}/override", post(discrepancy_override))
+        .route("/v1/calibration", get(calibration_route))
+        .route("/v1/questions", get(questions_route))
+        .route("/v1/questions/next", post(question_next))
+        .route("/v1/questions/{id}/answer", post(question_answer))
+        .route("/v1/questions/{id}/skip", post(question_skip))
+        .route("/v1/questions/mute", post(question_mute))
+        .route("/v1/entities", get(entities_route))
+        .route("/v1/lenses", get(lenses_route))
         .route("/v1/chat", post(chat))
         .route("/v1/conversations", get(conversations))
         .route(
