@@ -53,11 +53,41 @@ impl GithubConnector {
         self.token.is_some()
     }
 
-    async fn events_page(&self, token: &str, page: u32) -> Result<Vec<Value>, GithubError> {
+    async fn login(&self, token: &str) -> Result<String, GithubError> {
+        let response = self
+            .client
+            .get("https://api.github.com/user")
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "edith-companion")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .send()
+            .await
+            .map_err(|error| GithubError(format!("GitHub request failed: {error}")))?;
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|error| GithubError(format!("GitHub response unreadable: {error}")))?;
+        if !status.is_success() {
+            return Err(GithubError(format!("GitHub returned {status}: {body}")));
+        }
+        serde_json::from_str::<Value>(&body)
+            .ok()
+            .and_then(|user| user.get("login").and_then(Value::as_str).map(str::to_owned))
+            .ok_or_else(|| GithubError("GitHub user response had no login".to_owned()))
+    }
+
+    async fn events_page(
+        &self,
+        token: &str,
+        login: &str,
+        page: u32,
+    ) -> Result<Vec<Value>, GithubError> {
         let response = self
             .client
             .get(format!(
-                "https://api.github.com/user/events?per_page=100&page={page}"
+                "https://api.github.com/users/{login}/events?per_page=100&page={page}"
             ))
             .header("Authorization", format!("Bearer {token}"))
             .header("Accept", "application/vnd.github+json")
@@ -84,9 +114,10 @@ impl GithubConnector {
             .as_deref()
             .ok_or_else(|| GithubError("GITHUB_TOKEN is not configured".to_owned()))?;
 
+        let login = self.login(token).await?;
         let mut outcome = SyncOutcome::default();
         for page in 1..=3 {
-            let events = self.events_page(token, page).await?;
+            let events = self.events_page(token, &login, page).await?;
             if events.is_empty() {
                 break;
             }
