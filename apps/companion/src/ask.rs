@@ -19,7 +19,7 @@ question, say so plainly instead of guessing. Answer with JSON only: {\"answer\"
 the quote is their exact words, paraphrase when it restates what they wrote, inference when you \
 are reading between the lines.";
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AskCitation {
     pub episode_id: Uuid,

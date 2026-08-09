@@ -10,14 +10,14 @@ use crate::claims::{corroborate_claims, extract_claims};
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
 use crate::indexer::index_pending;
-use crate::reason::ReasonClient;
 use crate::reflect::reflect_run;
+use crate::settings::ReasonHandle;
 
 #[derive(Clone)]
 pub struct NightlyDeps {
     pub pool: PgPool,
     pub embed: EmbedClient,
-    pub reason: ReasonClient,
+    pub reason: ReasonHandle,
     pub github: GithubConnector,
 }
 
@@ -49,20 +49,21 @@ pub async fn run_pipeline(deps: &NightlyDeps) -> (bool, Vec<Value>) {
         .map_err(|error| error.to_string());
     steps.push(step("index", result));
 
-    if deps.reason.configured() {
-        let result = extract_claims(&deps.pool, &deps.reason)
+    let reason = deps.reason.current().await;
+    if reason.configured() {
+        let result = extract_claims(&deps.pool, &reason)
             .await
             .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
             .map_err(|error| error.to_string());
         steps.push(step("extract_claims", result));
 
-        let result = corroborate_claims(&deps.pool, &deps.reason)
+        let result = corroborate_claims(&deps.pool, &reason)
             .await
             .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
             .map_err(|error| error.to_string());
         steps.push(step("corroborate", result));
 
-        let result = reflect_run(&deps.pool, &deps.embed, &deps.reason)
+        let result = reflect_run(&deps.pool, &deps.embed, &reason)
             .await
             .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
             .map_err(|error| error.to_string());

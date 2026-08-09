@@ -1,21 +1,27 @@
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::path::PathBuf;
 
 use axum::body::to_bytes;
-use axum::extract::{Query, Request, State};
+use axum::extract::{Path, Query, Request, State};
 use axum::http::StatusCode;
+use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use chrono::{DateTime, SecondsFormat, Utc};
+use futures_util::StreamExt;
+use futures_util::stream;
 use redis::Client;
 use serde::Serialize;
 use serde_json::{Value, json};
 use sqlx::PgPool;
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::ask::ask_run;
+use crate::chat::{chat_stream, event_json, resolve_conversation};
 use crate::claims::{corroborate_claims, extract_claims};
 use crate::doctor::run_doctor;
 use crate::embed::EmbedClient;
@@ -25,6 +31,7 @@ use crate::ingest::{IngestFile, ingest_audio, ingest_files, ingest_pdf, parse_fi
 use crate::nightly::{NightlyDeps, record_run};
 use crate::reason::ReasonClient;
 use crate::reflect::reflect_run;
+use crate::settings::{self, ReasonHandle};
 use crate::stt::SttClient;
 use crate::turns::{RetrievedChunk, latency_since, log_turn};
 
@@ -36,7 +43,7 @@ pub struct AppState {
     pub embed: EmbedClient,
     pub stt: SttClient,
     pub github: GithubConnector,
-    pub reason: ReasonClient,
+    pub reason: ReasonHandle,
 }
 
 #[derive(Serialize)]
@@ -81,13 +88,14 @@ fn error_response(status: StatusCode, detail: impl ToString) -> Response {
 }
 
 async fn health(State(state): State<AppState>) -> Response {
+    let reason = state.reason.current().await;
     let result = run_doctor(
         &state.pool,
         &state.redis,
         &state.vault_dir,
         &state.embed,
         &state.stt,
-        &state.reason,
+        &reason,
     )
     .await;
     let status = if result.ok {
@@ -245,7 +253,8 @@ async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> 
 }
 
 async fn ask(State(state): State<AppState>, request: Request) -> Response {
-    if !state.reason.configured() {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
         return error_response(
             StatusCode::PRECONDITION_FAILED,
             "no reasoning provider is configured on the companion",
@@ -267,7 +276,7 @@ async fn ask(State(state): State<AppState>, request: Request) -> Response {
     let Some(question) = question else {
         return error_response(StatusCode::BAD_REQUEST, "question is required");
     };
-    match ask_run(&state.pool, &state.embed, &state.reason, &question).await {
+    match ask_run(&state.pool, &state.embed, &reason, &question).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
@@ -368,6 +377,356 @@ async fn nightly_run(State(state): State<AppState>) -> Response {
     }
 }
 
+async fn chat(State(state): State<AppState>, request: Request) -> Response {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    let bytes = match to_bytes(request.into_body(), 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let Some(message) = body
+        .get("message")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|message| !message.is_empty())
+        .map(str::to_owned)
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "message is required");
+    };
+    let conversation_id = match body.get("conversationId") {
+        None | Some(Value::Null) => None,
+        Some(value) => match value.as_str().and_then(|id| Uuid::parse_str(id).ok()) {
+            Some(id) => Some(id),
+            None => {
+                return error_response(StatusCode::BAD_REQUEST, "conversationId must be a uuid");
+            }
+        },
+    };
+    let conversation_id = match resolve_conversation(&state.pool, conversation_id, &message).await {
+        Ok(id) => id,
+        Err(error) if error.to_string() == "no such conversation" => {
+            return error_response(StatusCode::NOT_FOUND, error);
+        }
+        Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    };
+
+    let (events, receiver) = mpsc::unbounded_channel();
+    tokio::spawn(async move {
+        chat_stream(
+            &state.pool,
+            &state.embed,
+            &reason,
+            conversation_id,
+            &message,
+            &events,
+        )
+        .await;
+    });
+    let sse = stream::unfold(receiver, |mut receiver| async move {
+        receiver.recv().await.map(|event| (event, receiver))
+    })
+    .map(|event| {
+        let (name, data) = event_json(&event);
+        Ok::<SseEvent, Infallible>(SseEvent::default().event(name).data(data.to_string()))
+    });
+    Sse::new(sse)
+        .keep_alive(KeepAlive::default())
+        .into_response()
+}
+
+async fn conversations(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    type ConversationRow = (
+        Uuid,
+        String,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        i64,
+        Option<String>,
+    );
+    let rows = sqlx::query_as::<_, ConversationRow>(
+        "SELECT c.id, c.title, c.created_at, c.last_active_at, (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id), (SELECT content FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at DESC LIMIT 1) FROM conversations c ORDER BY c.last_active_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let conversations = rows
+                .into_iter()
+                .map(|(id, title, created_at, last_active_at, count, last)| {
+                    json!({
+                        "id": id,
+                        "title": title,
+                        "createdAt": date_string(created_at),
+                        "lastActiveAt": date_string(last_active_at),
+                        "messageCount": count,
+                        "lastMessage": last.map(|text| snippet_of(&text, 120)),
+                    })
+                })
+                .collect::<Vec<_>>();
+            Json(conversations).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn conversation_detail(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    let conversation = sqlx::query_as::<_, (String, DateTime<Utc>)>(
+        "SELECT title, created_at FROM conversations WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await;
+    let (title, created_at) = match conversation {
+        Ok(Some(row)) => row,
+        Ok(None) => return error_response(StatusCode::NOT_FOUND, "no such conversation"),
+        Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    };
+    type MessageRow = (
+        Uuid,
+        String,
+        String,
+        Option<Value>,
+        Option<String>,
+        Option<i32>,
+        DateTime<Utc>,
+    );
+    let rows = sqlx::query_as::<_, MessageRow>(
+        "SELECT id, role, content, citations, model, latency_ms, created_at FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 500",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let messages = rows
+                .into_iter()
+                .map(
+                    |(id, role, content, citations, model, latency_ms, created_at)| {
+                        json!({
+                            "id": id,
+                            "role": role,
+                            "content": content,
+                            "citations": citations,
+                            "model": model,
+                            "latencyMs": latency_ms,
+                            "createdAt": date_string(created_at),
+                        })
+                    },
+                )
+                .collect::<Vec<_>>();
+            Json(json!({
+                "id": id,
+                "title": title,
+                "createdAt": date_string(created_at),
+                "messages": messages,
+            }))
+            .into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn conversation_delete(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    match sqlx::query("DELETE FROM conversations WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(result) if result.rows_affected() == 0 => {
+            error_response(StatusCode::NOT_FOUND, "no such conversation")
+        }
+        Ok(_) => Json(json!({"deleted": id})).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn episode_detail(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    type EpisodeRow = (
+        Uuid,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Vec<String>,
+        Option<f64>,
+        Option<String>,
+        String,
+        i64,
+        i64,
+    );
+    let row = sqlx::query_as::<_, EpisodeRow>(
+        "SELECT e.id, e.occurred_at, e.ingested_at, e.kind, e.title, e.body_original, e.body_en, COALESCE(e.langs, '{}'), e.duration_s::float8, e.media_ref, s.sha256, s.bytes, (SELECT count(*) FROM chunks c WHERE c.episode_id = e.id) FROM episodes e JOIN sources s ON s.id = e.source_id WHERE e.id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await;
+    match row {
+        Ok(Some((
+            id,
+            occurred_at,
+            ingested_at,
+            kind,
+            title,
+            body,
+            body_en,
+            langs,
+            duration_s,
+            media_ref,
+            sha256,
+            bytes,
+            chunks,
+        ))) => Json(json!({
+            "id": id,
+            "occurredAt": date_string(occurred_at),
+            "ingestedAt": date_string(ingested_at),
+            "kind": kind,
+            "title": title,
+            "body": body,
+            "bodyEn": body_en,
+            "langs": langs,
+            "durationS": duration_s,
+            "mediaRef": media_ref,
+            "sha256": sha256,
+            "bytes": bytes,
+            "chunks": chunks,
+        }))
+        .into_response(),
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "no such episode"),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn api_key_hint(key: &str) -> String {
+    if key.chars().count() < 8 {
+        return String::new();
+    }
+    let tail = key
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    format!("\u{2026}{tail}")
+}
+
+async fn reason_settings_payload(state: &AppState) -> Value {
+    let reason = state.reason.current().await;
+    let config = reason.config();
+    json!({
+        "provider": reason.provider_name(),
+        "url": config.url,
+        "model": reason.model_name(),
+        "hasApiKey": !config.api_key.is_empty(),
+        "apiKeyHint": api_key_hint(&config.api_key),
+        "configured": reason.configured(),
+        "description": reason.describe(),
+    })
+}
+
+async fn reason_settings(State(state): State<AppState>) -> Response {
+    Json(reason_settings_payload(&state).await).into_response()
+}
+
+async fn reason_settings_put(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(Value::Object(body)) => body,
+        _ => return error_response(StatusCode::BAD_REQUEST, "Body must be an object"),
+    };
+    let fields = [
+        ("provider", settings::REASON_PROVIDER),
+        ("url", settings::REASON_URL),
+        ("model", settings::REASON_MODEL),
+        ("apiKey", settings::REASON_API_KEY),
+    ];
+    if let Some(provider) = body.get("provider").and_then(Value::as_str)
+        && !["", "anthropic", "openai"].contains(&provider.trim())
+    {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "provider must be anthropic or openai",
+        );
+    }
+    for (field, key) in fields {
+        let Some(value) = body.get(field) else {
+            continue;
+        };
+        let Some(value) = value.as_str() else {
+            return error_response(StatusCode::BAD_REQUEST, format!("{field} must be a string"));
+        };
+        let result = if value.trim().is_empty() {
+            settings::remove(&state.pool, key).await
+        } else {
+            settings::put(&state.pool, key, value.trim()).await
+        };
+        if let Err(error) = result {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+        }
+    }
+    let config = settings::reason_config(&state.pool).await;
+    state
+        .reason
+        .replace(ReasonClient::from_config(config))
+        .await;
+    Json(reason_settings_payload(&state).await).into_response()
+}
+
+async fn reason_settings_test(State(state): State<AppState>) -> Response {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    let started = std::time::Instant::now();
+    match reason
+        .complete("Reply with the single word ok.", "ping")
+        .await
+    {
+        Ok(_) => Json(json!({
+            "ok": true,
+            "model": reason.describe(),
+            "latencyMs": latency_since(started),
+        }))
+        .into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+fn snippet_of(text: &str, limit: usize) -> String {
+    let squeezed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if squeezed.chars().count() <= limit {
+        return squeezed;
+    }
+    let cut = squeezed
+        .char_indices()
+        .nth(limit)
+        .map_or(squeezed.len(), |(i, _)| i);
+    format!("{}\u{2026}", &squeezed[..cut])
+}
+
 async fn runs(
     State(state): State<AppState>,
     Query(query): Query<HashMap<String, String>>,
@@ -401,26 +760,28 @@ async fn runs(
 }
 
 async fn claims_extract(State(state): State<AppState>) -> Response {
-    if !state.reason.configured() {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
         return error_response(
             StatusCode::PRECONDITION_FAILED,
             "no reasoning provider is configured on the companion",
         );
     }
-    match extract_claims(&state.pool, &state.reason).await {
+    match extract_claims(&state.pool, &reason).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
 }
 
 async fn corroborate(State(state): State<AppState>) -> Response {
-    if !state.reason.configured() {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
         return error_response(
             StatusCode::PRECONDITION_FAILED,
             "no reasoning provider is configured on the companion",
         );
     }
-    match corroborate_claims(&state.pool, &state.reason).await {
+    match corroborate_claims(&state.pool, &reason).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
@@ -471,13 +832,14 @@ async fn claims(
 }
 
 async fn reflect(State(state): State<AppState>) -> Response {
-    if !state.reason.configured() {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
         return error_response(
             StatusCode::PRECONDITION_FAILED,
             "no reasoning provider is configured on the companion",
         );
     }
-    match reflect_run(&state.pool, &state.embed, &state.reason).await {
+    match reflect_run(&state.pool, &state.embed, &reason).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
@@ -811,6 +1173,17 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/reflect", post(reflect))
         .route("/v1/beliefs", get(beliefs))
         .route("/v1/ask", post(ask))
+        .route("/v1/chat", post(chat))
+        .route("/v1/conversations", get(conversations))
+        .route(
+            "/v1/conversations/{id}",
+            get(conversation_detail).delete(conversation_delete),
+        )
+        .route(
+            "/v1/settings/reason",
+            get(reason_settings).put(reason_settings_put),
+        )
+        .route("/v1/settings/reason/test", post(reason_settings_test))
         .route("/v1/claims/extract", post(claims_extract))
         .route("/v1/claims", get(claims))
         .route("/v1/corroborate", post(corroborate))
@@ -819,5 +1192,6 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/signals", get(signals))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
+        .route("/v1/episodes/{id}", get(episode_detail))
         .with_state(state)
 }

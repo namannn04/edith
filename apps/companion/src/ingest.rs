@@ -170,7 +170,9 @@ pub async fn ingest_pdf(
         .map_err(|error| format!("PDF text extraction failed: {error}"))?;
     let text = text.trim().to_owned();
     if text.is_empty() {
-        return Err("PDF contained no extractable text; scanned documents are not supported yet".into());
+        return Err(
+            "PDF contained no extractable text; scanned documents are not supported yet".into(),
+        );
     }
 
     let uri = write_vault_file(vault_dir, &sha256, &name, &bytes).await?;
