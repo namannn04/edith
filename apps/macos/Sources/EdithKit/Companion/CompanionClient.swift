@@ -481,11 +481,11 @@ public struct CompanionClient: Sendable {
         return try await self.request(request, timeout: 600)
     }
 
-    private func get<T: Decodable>(_ path: String, allowing: Set<Int> = []) async throws -> T {
+    func get<T: Decodable>(_ path: String, allowing: Set<Int> = []) async throws -> T {
         try await request(URLRequest(url: url(for: path)), allowing: allowing)
     }
 
-    private func request<T: Decodable>(
+    func request<T: Decodable>(
         _ request: URLRequest, allowing: Set<Int> = [], timeout: TimeInterval = 5
     ) async throws
         -> T
@@ -512,7 +512,7 @@ public struct CompanionClient: Sendable {
         }
     }
 
-    private func url(for path: String) -> URL {
+    func url(for path: String) -> URL {
         baseURL.appendingPathComponent("v1").appendingPathComponent(path)
     }
 
