@@ -983,3 +983,5 @@ embedding model to be pulled before the first request.
 Use [`ed machines`](./machines.md) to create and open a port forward. Read
 [conventions and contracts](./conventions.md) for JSON, stdout, stderr and exit
 code guarantees shared by every command.
+
+- [All `ed` commands](./README.md)

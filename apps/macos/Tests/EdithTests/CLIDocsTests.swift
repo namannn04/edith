@@ -71,6 +71,17 @@ struct CLIDocsTests {
             "these pages are not linked from docs/cli/README.md: \(unlisted.sorted())")
     }
 
+    @Test func everyPageLinksBackToTheIndex() throws {
+        let pages = try CLIDocs.pages()
+        let orphans =
+            pages
+            .filter { $0.key != "README.md" && !$0.value.contains("(./README.md)") }
+            .keys
+        #expect(
+            orphans.isEmpty,
+            "these pages never link back to docs/cli/README.md: \(orphans.sorted())")
+    }
+
     @Test func everyRelativeLinkResolves() throws {
         let pages = try CLIDocs.pages()
         var broken: [String] = []
