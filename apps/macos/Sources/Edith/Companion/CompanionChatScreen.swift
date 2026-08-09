@@ -268,23 +268,18 @@ struct CompanionChatScreen: View {
                     .font(.system(size: UIScale.pt(9.5), weight: .semibold))
                     .tracking(1.1)
                     .foregroundStyle(DashSkin.inkFaint(dark))
-                HStack(alignment: .bottom, spacing: UIScale.pt(2)) {
-                    Text(message.content)
-                        .font(.system(size: UIScale.pt(13)))
-                        .foregroundStyle(DashSkin.ink(dark))
-                        .textSelection(.enabled)
-                    if message.streaming {
-                        RoundedRectangle(cornerRadius: UIScale.pt(1))
-                            .fill(DashSkin.accent(dark))
-                            .frame(width: UIScale.pt(7), height: UIScale.pt(14))
-                            .opacity(caretDim ? 0.15 : 1)
-                            .onAppear {
-                                guard !reduceMotion else { return }
-                                withAnimation(.easeInOut(duration: 0.5).repeatForever()) {
-                                    caretDim = true
-                                }
+                MarkdownBody(text: message.content, dark: dark, size: 13, bodyInk: true)
+                if message.streaming {
+                    RoundedRectangle(cornerRadius: UIScale.pt(1))
+                        .fill(DashSkin.accent(dark))
+                        .frame(width: UIScale.pt(7), height: UIScale.pt(14))
+                        .opacity(caretDim ? 0.15 : 1)
+                        .onAppear {
+                            guard !reduceMotion else { return }
+                            withAnimation(.easeInOut(duration: 0.5).repeatForever()) {
+                                caretDim = true
                             }
-                    }
+                        }
                 }
                 if !message.citations.isEmpty {
                     citationChips(message.citations)
