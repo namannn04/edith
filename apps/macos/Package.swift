@@ -42,7 +42,7 @@ let package = Package(
             dependencies: ["EdithCLI"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-        .executableTarget(
+        .target(
             name: "Edith",
             dependencies: [
                 "EdithKit",
@@ -51,10 +51,26 @@ let package = Package(
                 "Highlighter",
             ],
             resources: [.copy("Resources/appicon.png")],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "EdithMain",
+            dependencies: ["Edith"],
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [
                 .unsafeFlags([
                     "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",
+                ])
+            ]
+        ),
+        .executableTarget(
+            name: "EdithFiles",
+            dependencies: ["Edith"],
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-rpath", "-Xlinker",
+                    "@executable_path/../../../../../Frameworks",
                 ])
             ]
         ),

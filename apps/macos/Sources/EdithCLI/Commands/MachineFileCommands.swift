@@ -188,8 +188,10 @@ struct MachinesFilesOpenCommand: AsyncParsableCommand {
         commandName: "open",
         abstract: "Open Edith's Files window on a machine directory.",
         discussion: """
-            The window belongs to the app, so `ed` asks it to open one, starting Edith
-            first when it is not already up.
+            The window belongs to Edith Files, a separate app that holds nothing but
+            these windows: no dashboard, no menu bar item, and it quits when you close
+            the last one. `ed` starts it when it is not already up, and asks the running
+            one for another window when it is.
 
             With no path it opens the directory this terminal is in, the one
             `ed <machine> cd` remembers, so browsing carries on where the shell left off.
@@ -210,12 +212,20 @@ struct MachinesFilesOpenCommand: AsyncParsableCommand {
             let directory =
                 path ?? MachineWorkingDirectory.load(machineID: target.id)
             let progress = CLIProgress.forCommand(json: json)
-            var answer: [AnyHashable: Any]?
-            for attempt in 0..<8 {
-                if !AppBridge.mainAppIsRunning {
-                    if attempt == 0 { progress.begin("starting Edith") }
-                    try await AppBridge.startMainApp()
+            guard AppBridge.filesAppIsRunning else {
+                progress.begin("starting Edith Files")
+                do {
+                    try await AppBridge.startFilesApp(machineID: target.id, path: directory)
+                } catch {
+                    progress.end()
+                    throw error
                 }
+                progress.end()
+                report(machine: target, directory: directory)
+                return
+            }
+            var answer: [AnyHashable: Any]?
+            for _ in 0..<4 {
                 answer = await AppBridge.awaitReply(IPC.Name.finderOpenResult, timeout: 3) {
                     var info: [String: Any] = ["machine": target.id.uuidString]
                     if let directory { info["path"] = directory }
@@ -229,20 +239,24 @@ struct MachinesFilesOpenCommand: AsyncParsableCommand {
             }
             guard reply["opened"] as? Bool == true else {
                 throw CLIFailure.unavailable(
-                    "Edith would not open a Files window for \(target.name)",
+                    "Edith Files would not open a window for \(target.name)",
                     hint: reply["reason"] as? String)
             }
-            guard !json else {
-                CLIOut.json(
-                    .object([
-                        "machine": .string(target.name),
-                        "opened": .bool(true),
-                        "path": .string(directory ?? ""),
-                    ]))
-                return
-            }
-            CLIOut.out("opened \(directory ?? "the home directory") on \(target.name)")
+            report(machine: target, directory: directory)
         }
+    }
+
+    private func report(machine target: Machine, directory: String?) {
+        guard !json else {
+            CLIOut.json(
+                .object([
+                    "machine": .string(target.name),
+                    "opened": .bool(true),
+                    "path": .string(directory ?? ""),
+                ]))
+            return
+        }
+        CLIOut.out("opened \(directory ?? "the home directory") on \(target.name)")
     }
 }
 

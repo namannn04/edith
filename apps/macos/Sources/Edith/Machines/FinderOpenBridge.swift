@@ -19,7 +19,7 @@ enum FinderOpenBridge {
             })
     }
 
-    private static func open(machineID: UUID, path: String?) {
+    static func open(machineID: UUID, path: String?) {
         let model = MachinesModel.shared
         guard model.store.machines.contains(where: { $0.id == machineID }) else {
             IPC.post(

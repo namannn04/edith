@@ -113,7 +113,7 @@ public enum Guide {
         ed machines mounts                      what is mounted, and whether it answers
         ed machines mount tuf                   again: puts a dead mount back
         ed machines unmount tuf
-        ed machines tuf files open /var/log     open the Files window there
+        ed machines tuf files open /var/log     a Files window, in its own small app
         ```
 
         The list itself is yours to edit from here, and a change reaches a running

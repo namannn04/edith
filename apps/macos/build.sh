@@ -119,12 +119,13 @@ fi
 APP="dist/Edith.app"
 LOGIN_ITEMS="$APP/Contents/Library/LoginItems"
 HELPER="$LOGIN_ITEMS/Edith.app"
+FILES_APP="$APP/Contents/Library/Applications/Edith Files.app"
 SPARKLE_FRAMEWORK="$(find .build/artifacts -type d -name Sparkle.framework -print -quit)"
 [ -n "$SPARKLE_FRAMEWORK" ] || { echo "Sparkle.framework not found in SwiftPM artifacts" >&2; exit 1; }
 rm -rf dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 rm -rf "$LOGIN_ITEMS/Edith"Helper.app
-cp .build/release/Edith "$APP/Contents/MacOS/"
+cp .build/release/EdithMain "$APP/Contents/MacOS/Edith"
 cp .build/release/ed "$APP/Contents/MacOS/"
 cp .build/release/edh "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
@@ -142,6 +143,18 @@ cp -R .build/release/Edith_EdithKit.bundle "$HELPER/Contents/Resources/"
 cp "$ARTWORK" "$HELPER/Contents/Resources/MenuBar.png"
 sips -c 942 942 "$HELPER/Contents/Resources/MenuBar.png" >/dev/null 2>&1
 sips -z 80 80 "$HELPER/Contents/Resources/MenuBar.png" >/dev/null 2>&1
+
+mkdir -p "$FILES_APP/Contents/MacOS" "$FILES_APP/Contents/Resources"
+cp .build/release/EdithFiles "$FILES_APP/Contents/MacOS/"
+cp Resources/FilesInfo.plist "$FILES_APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$FILES_APP/Contents/Resources/"
+cp -R .build/release/Edith_EdithKit.bundle "$FILES_APP/Contents/Resources/"
+cp -R .build/release/Edith_Edith.bundle "$FILES_APP/Contents/Resources/"
+cp -R .build/release/Edith_Highlighter.bundle "$FILES_APP/Contents/Resources/"
+for field in CFBundleShortVersionString CFBundleVersion; do
+  value="$(/usr/libexec/PlistBuddy -c "Print :$field" Resources/Info.plist)"
+  /usr/libexec/PlistBuddy -c "Set :$field $value" "$FILES_APP/Contents/Info.plist"
+done
 
 if [ "$SIGN_IDENTITY" = "-" ]; then
   echo "WARNING: no signing identity found; signing ad-hoc. The code signature" >&2
@@ -174,6 +187,7 @@ sign_tool() {
 sign_tool "$APP/Contents/MacOS/ed"
 sign_tool "$APP/Contents/MacOS/edh"
 sign "$HELPER"
+sign "$FILES_APP"
 sign "$APP"
 
 killall Edith 2>/dev/null || true
