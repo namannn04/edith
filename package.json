@@ -8,7 +8,7 @@
     "wiki": "bun scripts/sync-wiki.mjs",
     "selftest": "bun scripts/strip-comments.mjs --selftest",
     "lint": "biome check .",
-    "test": "bun test ./scripts && bun test ./apps/companion",
+    "test": "bun test ./scripts",
     "prepare": "lefthook install"
   },
   "devDependencies": {

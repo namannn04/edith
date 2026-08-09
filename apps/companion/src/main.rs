@@ -1,0 +1,36 @@
+mod doctor;
+mod frontmatter;
+mod ingest;
+mod migrate;
+mod server;
+mod vault;
+
+use std::env;
+
+use sqlx::postgres::PgPoolOptions;
+
+use crate::server::AppState;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://companion:companion-dev@127.0.0.1:5432/companion".to_owned()
+    });
+    let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+    let vault_dir = env::var("VAULT_DIR").unwrap_or_else(|_| "/vault".to_owned());
+
+    let pool = PgPoolOptions::new().connect(&database_url).await?;
+    migrate::run_migrations(&pool).await?;
+    let redis = redis::Client::open(redis_url)?;
+    let state = AppState {
+        pool,
+        redis,
+        vault_dir: vault_dir.into(),
+    };
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
+
+    println!("companion api listening on 0.0.0.0:4820");
+    axum::serve(listener, server::router(state)).await?;
+
+    Ok(())
+}

@@ -3,7 +3,6 @@
   "files": {
     "includes": [
       "scripts/**",
-      "apps/companion/**",
       "apps/site/main.js",
       "apps/site/styles.css",
       "!**/.claude",
