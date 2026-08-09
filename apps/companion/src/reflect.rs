@@ -102,6 +102,7 @@ pub async fn reflect_run(
         let duplicate = sqlx::query_scalar::<_, i64>(
             "SELECT count(*) FROM beliefs WHERE status = 'active' AND lower(statement) = lower($1)",
         )
+        .bind(statement)
         .fetch_one(pool)
         .await?;
         if duplicate > 0 {
