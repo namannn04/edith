@@ -11,7 +11,9 @@ public struct HoverButton: ViewModifier {
         if #available(macOS 26.0, *) {
             content
                 .padding(UIScale.pt(4))
-                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: UIScale.pt(6)))
+                .glassEffect(
+                    .regular.interactive(), in: RoundedRectangle(cornerRadius: UIScale.pt(6))
+                )
                 .onHover { hovering = $0 }
                 .pointerCursor()
                 .animation(.easeOut(duration: 0.12), value: hovering)
@@ -24,7 +26,8 @@ public struct HoverButton: ViewModifier {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: UIScale.pt(6))
-                        .strokeBorder(.primary.opacity(hovering ? 0.18 : 0), lineWidth: UIScale.pt(0.5))
+                        .strokeBorder(
+                            .primary.opacity(hovering ? 0.18 : 0), lineWidth: UIScale.pt(0.5))
                 )
                 .shadow(color: .black.opacity(hovering ? 0.35 : 0), radius: UIScale.pt(4), y: 1)
                 .onHover { hovering = $0 }
@@ -81,7 +84,8 @@ extension View {
         } else {
             padding(13)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+                .background(
+                    .primary.opacity(0.05), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
         }
     }
 
@@ -94,7 +98,9 @@ extension View {
     }
 
     @ViewBuilder
-    public func edithGlass<S: Shape>(_ tint: Color? = nil, interactive: Bool = false, in shape: S) -> some View {
+    public func edithGlass<S: Shape>(_ tint: Color? = nil, interactive: Bool = false, in shape: S)
+        -> some View
+    {
         if #available(macOS 26.0, *) {
             self.glassEffect(edithGlassStyle(tint, interactive: interactive), in: shape)
         } else if let tint {

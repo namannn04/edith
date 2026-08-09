@@ -13,4 +13,3 @@ enum AppArtwork {
         return NSImage(contentsOf: url)
     }()
 }
-
