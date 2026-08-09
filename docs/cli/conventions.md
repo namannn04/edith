@@ -508,11 +508,11 @@ claiming it stopped a transfer.
 
 ## Where to go next
 
-- [`ed machines`](./machines.md) for the SSH transport, and the one command in
+- [`ed machines`](./machines/README.md) for the SSH transport, and the one command in
   the group that needs the app.
-- [`ed app`](./app.md) for the one-shot actions and which process each needs.
-- [`ed permissions`](./permissions.md) for why the grants belong to the bundle
+- [`ed app`](./app/README.md) for the one-shot actions and which process each needs.
+- [`ed permissions`](./permissions/README.md) for why the grants belong to the bundle
   rather than to `ed`.
-- [`ed usage`](./usage.md) for the commands that read files, the one that
+- [`ed usage`](./usage/README.md) for the commands that read files, the one that
   collects them again, and the one that asks the app.
 - [All command pages](./README.md).
