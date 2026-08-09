@@ -3,7 +3,7 @@ import Foundation
 private final class BundleToken {}
 
 public enum BundledResources {
-    public static let kitBundleName = "Edith_EdithKit"
+    public static let kitBundleName = "EdithKit_EdithKit"
 
     public static func url(
         forResource name: String, withExtension ext: String, in bundleName: String = kitBundleName
@@ -16,11 +16,13 @@ public enum BundledResources {
         fileManager: FileManager = .default
     ) -> URL? {
         for directory in directories {
-            let candidate =
-                directory
-                .appendingPathComponent("\(bundleName).bundle")
-                .appendingPathComponent(file)
-            if fileManager.isReadableFile(atPath: candidate.path) { return candidate }
+            let bundle = directory.appendingPathComponent("\(bundleName).bundle")
+            for candidate in [
+                bundle.appendingPathComponent(file),
+                bundle.appendingPathComponent("Contents/Resources").appendingPathComponent(file),
+            ] {
+                if fileManager.isReadableFile(atPath: candidate.path) { return candidate }
+            }
         }
         return nil
     }

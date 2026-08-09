@@ -3,7 +3,7 @@ import SwiftUI
 
 public enum ProviderLogo {
     private static let resources = [Bundle.main.resourceURL, Bundle.main.bundleURL]
-        .compactMap { $0?.appendingPathComponent("Edith_EdithKit.bundle") }
+        .compactMap { $0?.appendingPathComponent("EdithKit_EdithKit.bundle") }
         .compactMap(Bundle.init(url:))
         .first
 

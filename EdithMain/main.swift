@@ -1,3 +1,1 @@
-import Edith
-
 EdithApp.main()
