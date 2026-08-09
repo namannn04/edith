@@ -1569,8 +1569,14 @@ The mount rides the same ControlMaster socket everything else on this page uses.
 `ed` opens the connection first, then points `sshfs` at that socket with
 `ControlPath`, `ControlMaster=no` and `BatchMode=yes`, so the mount is a second
 channel on the connection already there and no password or passphrase is asked
-for twice. Because it never prompts, a mount attempted while the machine is
-unreachable fails rather than hanging.
+for twice. The socket path is quoted inside the option, because it lives under
+`Application Support` and `ssh` would otherwise stop at the space. Because it
+never prompts, a mount attempted while the machine is unreachable fails rather
+than hanging.
+
+`sshfs` stays running as the mount's own process, so `ed` does not wait for it
+to exit: it watches the mount table for up to 16 seconds and reports the mount
+the moment it appears, or stops the process and reports what it printed.
 
 Files show up owned by you: `idmap=user` maps the remote account to yours, and
 `uid` and `gid` are this Mac's. The volume is named after the machine, so that

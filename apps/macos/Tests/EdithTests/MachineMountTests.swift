@@ -65,7 +65,9 @@ import Testing
         #expect(arguments.first == "pulkit@10.0.0.4:/srv")
         #expect(arguments[1] == "/Users/pulkit/Edith/tuf")
         #expect(
-            arguments.contains("ControlPath=\(MachinePaths.socketFile(for: machine.id).path)"))
+            arguments.contains(
+                "ControlPath=\"\(MachinePaths.socketFile(for: machine.id).path)\""),
+            "the socket path is quoted, or ssh breaks on the space in Application Support")
         #expect(arguments.contains("ControlMaster=no"))
         #expect(arguments.contains("BatchMode=yes"))
         #expect(arguments.contains("volname=tuf"))

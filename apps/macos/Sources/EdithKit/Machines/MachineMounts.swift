@@ -72,6 +72,24 @@ public enum MachineMountError: LocalizedError, Equatable {
     }
 }
 
+final class MountOutput: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock()
+        data.append(chunk)
+        lock.unlock()
+    }
+
+    func text() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return String(decoding: data, as: UTF8.self)
+    }
+}
+
 public enum MachineMounts {
     nonisolated(unsafe) public static var root: URL =
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Edith")
@@ -167,7 +185,7 @@ public enum MachineMounts {
         minimal: Bool = false
     ) -> [String] {
         var options = [
-            "ControlPath=\(MachinePaths.socketFile(for: machine.id).path)",
+            "ControlPath=\"\(MachinePaths.socketFile(for: machine.id).path)\"",
             "ControlMaster=no",
             "BatchMode=yes",
             "reconnect",
@@ -221,17 +239,16 @@ public enum MachineMounts {
         try prepare(destination)
         var complaint = ""
         for minimal in [false, true] {
-            let result = await run(
-                tool,
-                mountArguments(
-                    machine: machine, remotePath: remotePath, mountPoint: destination.path,
-                    readOnly: readOnly, minimal: minimal))
-            if let landed = await settled(machine: machine, at: destination, remotePath: remotePath)
-            {
+            let arguments = mountArguments(
+                machine: machine, remotePath: remotePath, mountPoint: destination.path,
+                readOnly: readOnly, minimal: minimal)
+            let attempt = await attach(
+                tool, arguments, machine: machine, at: destination, remotePath: remotePath)
+            if let landed = attempt.mount {
                 remember(records().filter { $0.machineID != machine.id } + [landed])
                 return landed
             }
-            complaint = explain(result)
+            complaint = attempt.complaint
         }
         discardEmptyFolder(at: destination.path)
         throw MachineMountError.failed(complaint)
@@ -249,7 +266,7 @@ public enum MachineMounts {
                 ["unmount", "force", existing.mountPoint])
         }
         guard await current(for: machine) == nil else {
-            throw MachineMountError.failed(explain(result))
+            throw MachineMountError.failed(explain(result.output))
         }
         remember(records().filter { $0.mountPoint != existing.mountPoint })
         discardEmptyFolder(at: existing.mountPoint)
@@ -259,16 +276,46 @@ public enum MachineMounts {
     static func settled(machine: Machine, at destination: URL, remotePath: String) async
         -> MachineMount?
     {
-        for _ in 0..<10 {
-            let volumes = await volumes()
-            if let volume = volumes.first(where: { $0.mountPoint == destination.path }) {
-                return MachineMount(
-                    machineID: machine.id, target: machine.sshTarget, remotePath: remotePath,
-                    mountPoint: destination.path, isReadOnly: volume.isReadOnly)
-            }
-            try? await Task.sleep(for: .milliseconds(300))
+        guard let volume = await volumes().first(where: { $0.mountPoint == destination.path })
+        else { return nil }
+        return MachineMount(
+            machineID: machine.id, target: machine.sshTarget, remotePath: remotePath,
+            mountPoint: destination.path, isReadOnly: volume.isReadOnly)
+    }
+
+    private static func attach(
+        _ tool: URL, _ arguments: [String], machine: Machine, at destination: URL,
+        remotePath: String
+    ) async -> (mount: MachineMount?, complaint: String) {
+        let process = Process()
+        process.executableURL = tool
+        process.arguments = arguments
+        process.environment = CLIToolEnvironment.sanitized()
+        let pipe = Pipe()
+        let output = MountOutput()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        process.standardInput = FileHandle.nullDevice
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            PipeReading.consume(handle, receive: output.append)
         }
-        return nil
+        guard (try? process.run()) != nil else {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            return (nil, "\(tool.lastPathComponent) could not be started")
+        }
+        var landed: MachineMount?
+        for _ in 0..<40 {
+            try? await Task.sleep(for: .milliseconds(400))
+            landed = await settled(machine: machine, at: destination, remotePath: remotePath)
+            if landed != nil { break }
+            if !process.isRunning {
+                landed = await settled(machine: machine, at: destination, remotePath: remotePath)
+                break
+            }
+        }
+        if landed == nil, process.isRunning { process.terminate() }
+        pipe.fileHandleForReading.readabilityHandler = nil
+        return (landed, landed == nil ? explain(output.text()) : "")
     }
 
     static func prepare(_ mountPoint: URL) throws {
@@ -309,12 +356,12 @@ public enum MachineMounts {
         try? fm.removeItem(atPath: path)
     }
 
-    private static func explain(_ result: (status: Int32, output: String)) -> String {
-        let trimmed = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func explain(_ output: String) -> String {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty else {
             return trimmed.split(separator: "\n").last.map(String.init) ?? trimmed
         }
-        return "sshfs exited with status \(result.status) and said nothing"
+        return "sshfs did not mount it and said nothing about why"
     }
 
     private static func run(_ executable: URL, _ arguments: [String]) async -> (
