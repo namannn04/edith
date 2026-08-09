@@ -17,6 +17,7 @@ final class MainAppDelegate: NSObject, NSApplicationDelegate {
         ScrollForwarding.install()
         RetiredLicenseCleanup.run()
         FinderUndoBridge.start()
+        FinderOpenBridge.start()
         startApp()
         SectionWindowMenu.install()
     }

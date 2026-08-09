@@ -148,6 +148,9 @@ enum UIParity {
         UICapability(
             "Machine finder", "undo the last move or rename",
             ["machines", "files", "undo", "box"]),
+        UICapability(
+            "Machine tab bar", "open the Files window",
+            ["machines", "files", "open", "box", "/var/log"]),
         UICapability("Workspace view", "list saved layouts", ["machines", "workspace", "ls"]),
         UICapability(
             "Workspace pane menu", "split a pane",

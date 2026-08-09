@@ -13,6 +13,7 @@ struct MachinesFilesCommand: AsyncParsableCommand {
             MachinesFilesMakeDirectoryCommand.self, MachinesFilesRemoveCommand.self,
             MachinesFilesSearchCommand.self, MachinesFilesInfoCommand.self,
             MachinesFilesDuplicateCommand.self, MachinesFilesUndoCommand.self,
+            MachinesFilesOpenCommand.self,
         ],
         defaultSubcommand: MachineFilesListCommand.self)
 }
@@ -178,6 +179,64 @@ struct MachineFilesPutCommand: AsyncParsableCommand {
                 return
             }
             CLIOut.out("\(destination)  \(ByteFormatter.string(Int64(size)))")
+        }
+    }
+}
+
+struct MachinesFilesOpenCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "open",
+        abstract: "Open Edith's Files window on a machine directory.",
+        discussion: """
+            The window belongs to the running app, so `ed` asks it to open one and says
+            to start Edith when it is closed.
+
+            With no path it opens the directory this terminal is in, the one
+            `ed <machine> cd` remembers, so browsing carries on where the shell left off.
+            """)
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Argument(help: "Machine name, ssh alias or id.")
+    var machine: String
+
+    @Argument(help: "Remote directory to show. Defaults to this terminal's directory.")
+    var path: String?
+
+    func run() async throws {
+        try await execute {
+            let target = try MachineResolver.machine(machine)
+            guard AppBridge.mainAppIsRunning else {
+                throw CLIFailure.unavailable(
+                    "the Files window belongs to Edith, and Edith is not running",
+                    hint: "open Edith, then retry")
+            }
+            let directory =
+                path ?? MachineWorkingDirectory.load(machineID: target.id)
+            let reply = await AppBridge.awaitReply(IPC.Name.finderOpenResult, timeout: 20) {
+                var info: [String: Any] = ["machine": target.id.uuidString]
+                if let directory { info["path"] = directory }
+                AppBridge.post(IPC.Name.requestFinderOpen, userInfo: info)
+            }
+            guard let reply else {
+                throw AppBridge.silence("opening the Files window")
+            }
+            guard reply["opened"] as? Bool == true else {
+                throw CLIFailure.unavailable(
+                    "Edith would not open a Files window for \(target.name)",
+                    hint: reply["reason"] as? String)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "machine": .string(target.name),
+                        "opened": .bool(true),
+                        "path": .string(directory ?? ""),
+                    ]))
+                return
+            }
+            CLIOut.out("opened \(directory ?? "the home directory") on \(target.name)")
         }
     }
 }
