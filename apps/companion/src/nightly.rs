@@ -62,7 +62,7 @@ pub async fn run_pipeline(deps: &NightlyDeps) -> (bool, Vec<Value>) {
             .map_err(|error| error.to_string());
         steps.push(step("corroborate", result));
 
-        let result = reflect_run(&deps.pool, &deps.reason)
+        let result = reflect_run(&deps.pool, &deps.embed, &deps.reason)
             .await
             .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
             .map_err(|error| error.to_string());

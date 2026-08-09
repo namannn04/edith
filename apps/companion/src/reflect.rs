@@ -6,6 +6,8 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::embed::EmbedClient;
+use crate::indexer::halfvec_literal;
 use crate::reason::{ReasonClient, ReasonError, extract_json_array};
 
 const EXTRACTOR_VERSION: &str = "reflect-v1";
@@ -22,16 +24,47 @@ episode ids you were given. If the material supports nothing durable, answer [].
 pub struct ReflectOutcome {
     pub episodes_considered: usize,
     pub beliefs_formed: usize,
+    pub beliefs_strengthened: usize,
+    pub beliefs_superseded: usize,
     pub model: String,
+}
+
+async fn backfill_belief_embeddings(
+    pool: &PgPool,
+    embed: &EmbedClient,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let pending = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT id, statement FROM beliefs WHERE embedding IS NULL LIMIT 64",
+    )
+    .fetch_all(pool)
+    .await?;
+    if pending.is_empty() {
+        return Ok(());
+    }
+    let statements = pending
+        .iter()
+        .map(|(_, statement)| statement.clone())
+        .collect::<Vec<_>>();
+    let embeddings = embed.embed(&statements).await?;
+    for ((id, _), embedding) in pending.iter().zip(embeddings) {
+        sqlx::query("UPDATE beliefs SET embedding = $2::halfvec WHERE id = $1")
+            .bind(id)
+            .bind(halfvec_literal(&embedding))
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
 }
 
 pub async fn reflect_run(
     pool: &PgPool,
+    embed: &EmbedClient,
     reason: &ReasonClient,
 ) -> Result<ReflectOutcome, Box<dyn Error + Send + Sync>> {
     if !reason.configured() {
         return Err(Box::new(ReasonError::unconfigured()));
     }
+    backfill_belief_embeddings(pool, embed).await?;
 
     let episodes = sqlx::query_as::<_, (Uuid, DateTime<Utc>, String, String)>(
         "SELECT id, occurred_at, title, left(body_original, 1200) FROM episodes ORDER BY ingested_at DESC LIMIT 20",
@@ -41,6 +74,8 @@ pub async fn reflect_run(
     let mut outcome = ReflectOutcome {
         episodes_considered: episodes.len(),
         beliefs_formed: 0,
+        beliefs_strengthened: 0,
+        beliefs_superseded: 0,
         model: reason.describe(),
     };
     if episodes.is_empty() {
@@ -99,27 +134,62 @@ pub async fn reflect_run(
             continue;
         }
 
-        let duplicate = sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM beliefs WHERE status = 'active' AND lower(statement) = lower($1)",
+        let embedding = halfvec_literal(&embed.embed(&[statement.to_owned()]).await?.remove(0));
+        let nearest = sqlx::query_as::<_, (Uuid, f64)>(
+            "SELECT id, 1 - (embedding <=> $1::halfvec) AS similarity FROM beliefs WHERE status = 'active' AND embedding IS NOT NULL ORDER BY embedding <=> $1::halfvec LIMIT 1",
         )
-        .bind(statement)
-        .fetch_one(pool)
+        .bind(&embedding)
+        .fetch_optional(pool)
         .await?;
-        if duplicate > 0 {
-            continue;
-        }
 
-        sqlx::query(
-            "INSERT INTO beliefs (statement, kind, confidence, evidence_episode_ids, extractor_version) VALUES ($1, $2, $3, $4, $5)",
-        )
-        .bind(statement)
-        .bind(kind)
-        .bind(confidence)
-        .bind(&evidence)
-        .bind(EXTRACTOR_VERSION)
-        .execute(pool)
-        .await?;
-        outcome.beliefs_formed += 1;
+        match nearest {
+            Some((existing_id, similarity)) if similarity >= 0.90 => {
+                sqlx::query(
+                    "UPDATE beliefs SET last_confirmed = now(), stability = stability + 1, evidence_episode_ids = ARRAY(SELECT DISTINCT unnest(evidence_episode_ids || $2::uuid[])) WHERE id = $1",
+                )
+                .bind(existing_id)
+                .bind(&evidence)
+                .execute(pool)
+                .await?;
+                outcome.beliefs_strengthened += 1;
+            }
+            Some((existing_id, similarity)) if similarity >= 0.80 => {
+                let new_id = sqlx::query_scalar::<_, Uuid>(
+                    "INSERT INTO beliefs (statement, kind, confidence, evidence_episode_ids, extractor_version, embedding) VALUES ($1, $2, $3, $4, $5, $6::halfvec) RETURNING id",
+                )
+                .bind(statement)
+                .bind(kind)
+                .bind(confidence)
+                .bind(&evidence)
+                .bind(EXTRACTOR_VERSION)
+                .bind(&embedding)
+                .fetch_one(pool)
+                .await?;
+                sqlx::query(
+                    "UPDATE beliefs SET status = 'superseded', superseded_by = $2 WHERE id = $1",
+                )
+                .bind(existing_id)
+                .bind(new_id)
+                .execute(pool)
+                .await?;
+                outcome.beliefs_superseded += 1;
+                outcome.beliefs_formed += 1;
+            }
+            _ => {
+                sqlx::query(
+                    "INSERT INTO beliefs (statement, kind, confidence, evidence_episode_ids, extractor_version, embedding) VALUES ($1, $2, $3, $4, $5, $6::halfvec)",
+                )
+                .bind(statement)
+                .bind(kind)
+                .bind(confidence)
+                .bind(&evidence)
+                .bind(EXTRACTOR_VERSION)
+                .bind(&embedding)
+                .execute(pool)
+                .await?;
+                outcome.beliefs_formed += 1;
+            }
+        }
     }
 
     sqlx::query(

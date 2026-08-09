@@ -395,7 +395,7 @@ async fn reflect(State(state): State<AppState>) -> Response {
             "no reasoning provider is configured on the companion",
         );
     }
-    match reflect_run(&state.pool, &state.reason).await {
+    match reflect_run(&state.pool, &state.embed, &state.reason).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
