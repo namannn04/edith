@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::chunker::chunk_text;
 use crate::embed::{EmbedClient, EmbedError};
+use crate::frontmatter::body_without_front_matter;
 
 #[derive(Clone, Copy, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -87,7 +88,7 @@ pub async fn index_pending(
     .map_err(|error| IndexFailure::database(outcome, error))?;
 
     for (episode_id, body_original) in episodes {
-        let chunks = chunk_text(&body_original);
+        let chunks = chunk_text(body_without_front_matter(&body_original));
         let mut embeddings = Vec::with_capacity(chunks.len());
         for batch in chunks.chunks(16) {
             let mut batch_embeddings = embed_client

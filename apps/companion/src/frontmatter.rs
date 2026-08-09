@@ -27,6 +27,25 @@ fn parsed_date(value: &str) -> Option<DateTime<Utc>> {
         .map(|date| date.with_timezone(&Utc))
 }
 
+pub fn body_without_front_matter(text: &str) -> &str {
+    let mut rest = text;
+    let Some(first) = rest.split_inclusive('\n').next() else {
+        return text;
+    };
+    if first.trim() != "---" {
+        return text;
+    }
+    rest = &rest[first.len()..];
+    let mut offset = first.len();
+    for line in rest.split_inclusive('\n') {
+        offset += line.len();
+        if line.trim() == "---" {
+            return text[offset..].trim_start_matches('\n');
+        }
+    }
+    text
+}
+
 pub fn parse_front_matter(text: &str) -> FrontMatter {
     let lines = text.lines().collect::<Vec<_>>();
     let mut body_start = 0;
@@ -82,7 +101,20 @@ pub fn parse_front_matter(text: &str) -> FrontMatter {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_front_matter;
+    use super::{body_without_front_matter, parse_front_matter};
+
+    #[test]
+    fn strips_front_matter_from_body() {
+        assert_eq!(
+            body_without_front_matter("---\ndate: 2026-08-09\n---\n# Note\n\nBody."),
+            "# Note\n\nBody."
+        );
+        assert_eq!(
+            body_without_front_matter("# Note\n\nBody."),
+            "# Note\n\nBody."
+        );
+        assert_eq!(body_without_front_matter("---\nunclosed"), "---\nunclosed");
+    }
 
     #[test]
     fn parses_plain_date() {
