@@ -257,11 +257,7 @@ struct CompanionPage: View {
                     ForEach(Array(outcome.citations.enumerated()), id: \.offset) {
                         index, citation in
                         VStack(alignment: .leading, spacing: UIScale.pt(2)) {
-                            Text(
-                                "[\(index + 1)] \(citation.title)  \(citation.occurredAt)  "
-                                    + (citation.support == "inference"
-                                        ? "reading between the lines"
-                                        : citation.support))
+                            Text(citationLabel(index: index, citation: citation))
                                 .font(.system(size: UIScale.pt(11), weight: .semibold))
                                 .foregroundStyle(DashSkin.inkFaint(dark))
                             if !citation.quote.isEmpty {
@@ -279,6 +275,12 @@ struct CompanionPage: View {
                 }
             }
         }
+    }
+
+    private func citationLabel(index: Int, citation: CompanionAskCitation) -> String {
+        let tag =
+            citation.support == "inference" ? "reading between the lines" : citation.support
+        return "[\(index + 1)] \(citation.title)  \(citation.occurredAt)  \(tag)"
     }
 
     private var beliefsCard: some View {
