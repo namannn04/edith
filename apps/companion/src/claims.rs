@@ -6,6 +6,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::ask::extract_json_object;
 use crate::reason::{ReasonClient, extract_json_array};
 
 const CLAIM_TYPES: [&str; 8] = [
@@ -143,7 +144,8 @@ pub async fn corroborate_claims(
         );
         let answer = reason.complete(JUDGE_PROMPT, &prompt).await?;
         let judgement = extract_json_array(&answer)
-            .and_then(|array| array.as_array().and_then(|items| items.first().cloned()));
+            .and_then(|array| array.as_array().and_then(|items| items.first().cloned()))
+            .or_else(|| extract_json_object(&answer));
         let (verdict, note) = match judgement {
             Some(item) => {
                 let verdict = item
