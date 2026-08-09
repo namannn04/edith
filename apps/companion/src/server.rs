@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::ask::ask_run;
 use crate::doctor::run_doctor;
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
@@ -236,6 +237,35 @@ async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> 
             }
             Json(outcome).into_response()
         }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn ask(State(state): State<AppState>, request: Request) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    let bytes = match to_bytes(request.into_body(), 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let question = serde_json::from_slice::<Value>(&bytes)
+        .ok()
+        .and_then(|body| {
+            body.get("question")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|question| !question.is_empty())
+                .map(str::to_owned)
+        });
+    let Some(question) = question else {
+        return error_response(StatusCode::BAD_REQUEST, "question is required");
+    };
+    match ask_run(&state.pool, &state.embed, &state.reason, &question).await {
+        Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
 }
@@ -555,6 +585,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/observations", get(observations))
         .route("/v1/reflect", post(reflect))
         .route("/v1/beliefs", get(beliefs))
+        .route("/v1/ask", post(ask))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .with_state(state)
