@@ -708,6 +708,9 @@ public enum CommandTree {
                     CommandNode(
                         "corroborate", "Check testable claims against the record.",
                         options: common + ["--endpoint"]),
+                    CommandNode(
+                        "runs", "List the background learning runs.",
+                        options: common + ["--endpoint", "--limit"]),
                 ]),
         ])
 

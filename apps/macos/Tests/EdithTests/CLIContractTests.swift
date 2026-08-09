@@ -98,6 +98,7 @@ enum JSONContract {
         JSONCase(
             "ed companion corroborate", ["companion", "corroborate", "--json"],
             mutatesTheMachine: true),
+        JSONCase("ed companion runs", ["companion", "runs", "--json"]),
         JSONCase(
             "ed companion ingest", ["companion", "ingest", "/tmp/nowhere.md", "--json"],
             mutatesTheMachine: true),

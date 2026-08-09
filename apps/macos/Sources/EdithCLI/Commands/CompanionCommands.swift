@@ -21,8 +21,62 @@ struct CompanionCommand: AsyncParsableCommand {
             CompanionReflectCommand.self, CompanionBeliefsCommand.self,
             CompanionAskCommand.self, CompanionExtractCommand.self,
             CompanionClaimsCommand.self, CompanionCorroborateCommand.self,
+            CompanionRunsCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
+}
+
+struct CompanionRunsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "runs", abstract: "List the background learning runs.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Option(name: .long, help: "How many to list.")
+    var limit = 10
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            let runs = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.runs(limit: limit)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .array(
+                        runs.map { run in
+                            .object([
+                                "id": .string(run.id),
+                                "startedAt": .string(run.startedAt),
+                                "finishedAt": .optional(run.finishedAt),
+                                "ok": .bool(run.ok),
+                                "steps": .array(
+                                    run.steps.map { step in
+                                        .object([
+                                            "name": .string(step.name),
+                                            "ok": .bool(step.ok),
+                                        ])
+                                    }),
+                            ])
+                        }))
+                return
+            }
+            guard !runs.isEmpty else {
+                CLIOut.out("no runs yet, the scheduler fires nightly")
+                return
+            }
+            for (index, run) in runs.enumerated() {
+                let mark = run.ok ? "ok" : "failed"
+                let steps = run.steps.map { "\($0.name)\($0.ok ? "" : "!")" }
+                    .joined(separator: ", ")
+                CLIOut.out("\(index + 1). \(run.startedAt)  \(mark)  \(steps)")
+            }
+        }
+    }
 }
 
 struct CompanionExtractCommand: AsyncParsableCommand {

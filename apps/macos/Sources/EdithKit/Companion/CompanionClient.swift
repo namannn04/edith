@@ -196,6 +196,34 @@ public struct CompanionAskOutcome: Codable, Equatable, Sendable {
     }
 }
 
+public struct CompanionRunStep: Codable, Equatable, Sendable {
+    public let name: String
+    public let ok: Bool
+
+    public init(name: String, ok: Bool) {
+        self.name = name
+        self.ok = ok
+    }
+}
+
+public struct CompanionRun: Codable, Equatable, Sendable {
+    public let id: String
+    public let startedAt: String
+    public let finishedAt: String?
+    public let ok: Bool
+    public let steps: [CompanionRunStep]
+
+    public init(
+        id: String, startedAt: String, finishedAt: String?, ok: Bool, steps: [CompanionRunStep]
+    ) {
+        self.id = id
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
+        self.ok = ok
+        self.steps = steps
+    }
+}
+
 public struct CompanionExtractOutcome: Codable, Equatable, Sendable {
     public let episodesConsidered: Int
     public let claimsExtracted: Int
@@ -348,6 +376,12 @@ public struct CompanionClient: Sendable {
             throw CompanionClientError.unreachable(error.localizedDescription)
         }
         return try await self.request(request)
+    }
+
+    public func runs(limit: Int) async throws -> [CompanionRun] {
+        var components = URLComponents(url: url(for: "runs"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        return try await request(URLRequest(url: components?.url ?? url(for: "runs")))
     }
 
     public func extractClaims() async throws -> CompanionExtractOutcome {
