@@ -1,0 +1,150 @@
+use std::env;
+use std::time::Duration;
+
+use chrono::{Local, NaiveTime, Timelike};
+use serde_json::{Value, json};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::claims::{corroborate_claims, extract_claims};
+use crate::embed::EmbedClient;
+use crate::github::GithubConnector;
+use crate::indexer::index_pending;
+use crate::reason::ReasonClient;
+use crate::reflect::reflect_run;
+
+#[derive(Clone)]
+pub struct NightlyDeps {
+    pub pool: PgPool,
+    pub embed: EmbedClient,
+    pub reason: ReasonClient,
+    pub github: GithubConnector,
+}
+
+fn step(name: &str, result: Result<Value, String>) -> Value {
+    match result {
+        Ok(detail) => json!({"name": name, "ok": true, "detail": detail}),
+        Err(error) => json!({"name": name, "ok": false, "detail": error}),
+    }
+}
+
+pub async fn run_pipeline(deps: &NightlyDeps) -> (bool, Vec<Value>) {
+    let mut steps = Vec::new();
+
+    if deps.github.configured() {
+        let result = deps
+            .github
+            .sync(&deps.pool)
+            .await
+            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+            .map_err(|error| error.to_string());
+        steps.push(step("sync_github", result));
+    } else {
+        steps.push(step("sync_github", Ok(json!("skipped, no token"))));
+    }
+
+    let result = index_pending(&deps.pool, &deps.embed)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("index", result));
+
+    if deps.reason.configured() {
+        let result = extract_claims(&deps.pool, &deps.reason)
+            .await
+            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+            .map_err(|error| error.to_string());
+        steps.push(step("extract_claims", result));
+
+        let result = corroborate_claims(&deps.pool, &deps.reason)
+            .await
+            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+            .map_err(|error| error.to_string());
+        steps.push(step("corroborate", result));
+
+        let result = reflect_run(&deps.pool, &deps.reason)
+            .await
+            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+            .map_err(|error| error.to_string());
+        steps.push(step("reflect", result));
+    } else {
+        steps.push(step("reasoning", Ok(json!("skipped, no provider"))));
+    }
+
+    let ok = steps
+        .iter()
+        .all(|entry| entry.get("ok").and_then(Value::as_bool).unwrap_or(false));
+    (ok, steps)
+}
+
+pub async fn record_run(deps: &NightlyDeps) -> Result<Uuid, sqlx::Error> {
+    let run_id =
+        sqlx::query_scalar::<_, Uuid>("INSERT INTO nightly_runs DEFAULT VALUES RETURNING id")
+            .fetch_one(&deps.pool)
+            .await?;
+    let (ok, steps) = run_pipeline(deps).await;
+    sqlx::query("UPDATE nightly_runs SET finished_at = now(), ok = $2, steps = $3 WHERE id = $1")
+        .bind(run_id)
+        .bind(ok)
+        .bind(Value::Array(steps))
+        .execute(&deps.pool)
+        .await?;
+    Ok(run_id)
+}
+
+pub fn seconds_until_next(now_seconds_of_day: u32, at: NaiveTime) -> u64 {
+    let target = at.num_seconds_from_midnight();
+    let day = 24 * 60 * 60;
+    if target > now_seconds_of_day {
+        (target - now_seconds_of_day) as u64
+    } else {
+        (day - now_seconds_of_day + target) as u64
+    }
+}
+
+pub fn spawn_scheduler(deps: NightlyDeps) {
+    let every_override = env::var("COMPANION_SCHEDULE_EVERY_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| *seconds >= 30);
+    let at = env::var("COMPANION_REFLECT_AT")
+        .ok()
+        .and_then(|value| NaiveTime::parse_from_str(&value, "%H:%M").ok())
+        .unwrap_or_else(|| NaiveTime::from_hms_opt(2, 0, 0).unwrap());
+
+    tokio::spawn(async move {
+        loop {
+            let wait = match every_override {
+                Some(seconds) => seconds,
+                None => {
+                    let now = Local::now().time().num_seconds_from_midnight();
+                    seconds_until_next(now, at)
+                }
+            };
+            tokio::time::sleep(Duration::from_secs(wait)).await;
+            match record_run(&deps).await {
+                Ok(run_id) => println!("nightly run {run_id} finished"),
+                Err(error) => eprintln!("nightly run failed to record: {error}"),
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::seconds_until_next;
+    use chrono::NaiveTime;
+
+    #[test]
+    fn waits_until_tonight_when_target_is_ahead() {
+        let at = NaiveTime::from_hms_opt(2, 0, 0).unwrap();
+        assert_eq!(seconds_until_next(0, at), 7200);
+    }
+
+    #[test]
+    fn rolls_to_tomorrow_when_target_has_passed() {
+        let at = NaiveTime::from_hms_opt(2, 0, 0).unwrap();
+        let day = 24 * 60 * 60;
+        assert_eq!(seconds_until_next(3 * 60 * 60, at), day - 3600);
+    }
+}

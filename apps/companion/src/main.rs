@@ -8,6 +8,7 @@ mod github;
 mod indexer;
 mod ingest;
 mod migrate;
+mod nightly;
 mod reason;
 mod reflect;
 mod server;
@@ -20,6 +21,7 @@ use sqlx::postgres::PgPoolOptions;
 
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
+use crate::nightly::{NightlyDeps, spawn_scheduler};
 use crate::reason::ReasonClient;
 use crate::server::AppState;
 use crate::stt::SttClient;
@@ -44,6 +46,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         github: GithubConnector::from_env(),
         reason: ReasonClient::from_env(),
     };
+    spawn_scheduler(NightlyDeps {
+        pool: state.pool.clone(),
+        embed: state.embed.clone(),
+        reason: state.reason.clone(),
+        github: state.github.clone(),
+    });
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
 
     println!("companion api listening on 0.0.0.0:4820");

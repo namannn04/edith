@@ -22,6 +22,7 @@ use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
 use crate::indexer::{halfvec_literal, index_pending};
 use crate::ingest::{IngestFile, ingest_audio, ingest_files, parse_file_date};
+use crate::nightly::{NightlyDeps, record_run};
 use crate::reason::ReasonClient;
 use crate::reflect::reflect_run;
 use crate::stt::SttClient;
@@ -268,6 +269,51 @@ async fn ask(State(state): State<AppState>, request: Request) -> Response {
     match ask_run(&state.pool, &state.embed, &state.reason, &question).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn nightly_run(State(state): State<AppState>) -> Response {
+    let deps = NightlyDeps {
+        pool: state.pool.clone(),
+        embed: state.embed.clone(),
+        reason: state.reason.clone(),
+        github: state.github.clone(),
+    };
+    match record_run(&deps).await {
+        Ok(run_id) => Json(serde_json::json!({ "runId": run_id })).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn runs(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    type RunRow = (Uuid, DateTime<Utc>, Option<DateTime<Utc>>, bool, Value);
+    let rows = sqlx::query_as::<_, RunRow>(
+        "SELECT id, started_at, finished_at, ok, steps FROM nightly_runs ORDER BY started_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let runs = rows
+                .into_iter()
+                .map(|(id, started_at, finished_at, ok, steps)| {
+                    serde_json::json!({
+                        "id": id,
+                        "startedAt": date_string(started_at),
+                        "finishedAt": finished_at.map(date_string),
+                        "ok": ok,
+                        "steps": steps,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Json(runs).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     }
 }
 
@@ -660,6 +706,8 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/claims/extract", post(claims_extract))
         .route("/v1/claims", get(claims))
         .route("/v1/corroborate", post(corroborate))
+        .route("/v1/nightly/run", post(nightly_run))
+        .route("/v1/runs", get(runs))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .with_state(state)
