@@ -127,11 +127,10 @@ jobs:
             Packages/EdithKit Packages/EdithCLI
       - name: Build
         run: |
-          xcodebuild -project edth.xcodeproj -scheme EdithMain -configuration Debug -derivedDataPath build build
-          xcodebuild -project edth.xcodeproj -scheme EdithHelper -configuration Debug -derivedDataPath build build
-          xcodebuild -project edth.xcodeproj -scheme EdithFiles -configuration Debug -derivedDataPath build build
-          xcodebuild -project edth.xcodeproj -scheme ed -configuration Debug -derivedDataPath build build
-          xcodebuild -project edth.xcodeproj -scheme edh -configuration Debug -derivedDataPath build build
+          SIGN=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=)
+          for scheme in EdithMain EdithHelper EdithFiles ed edh; do
+            xcodebuild -project edth.xcodeproj -scheme "$scheme" -configuration Debug -derivedDataPath build "${SIGN[@]}" build
+          done
       - name: Verify nested helper bundle and signing
         run: |
           APP=build/Build/Products/Debug/Edith.app

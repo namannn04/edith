@@ -83,14 +83,19 @@ ci-swift: ci-swift-check
 # edth.xcodeproj is the target build system (see docs/apps/macos migration
 # notes in CONTRIBUTING.md); apps/macos above stays in place until release
 # signing, notarization and the test suite have moved over too.
+# CODE_SIGN_IDENTITY/DEVELOPMENT_TEAM are overridden to ad-hoc here so this
+# matches CI (a clean runner has no Apple Development certificate); local
+# ./build.sh still uses CODE_SIGN_STYLE = Automatic and picks up whatever
+# real identity is on this Mac.
+XCODE_SIGN_OVERRIDES := CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+
 ci-xcode-check:
 	swift format lint --strict --parallel --recursive EdithMain EdithHelper EdithFiles ed edh \
 	  Packages/EdithKit Packages/EdithCLI
-	xcodebuild -project edth.xcodeproj -scheme EdithMain -configuration Debug -derivedDataPath build build
-	xcodebuild -project edth.xcodeproj -scheme EdithHelper -configuration Debug -derivedDataPath build build
-	xcodebuild -project edth.xcodeproj -scheme EdithFiles -configuration Debug -derivedDataPath build build
-	xcodebuild -project edth.xcodeproj -scheme ed -configuration Debug -derivedDataPath build build
-	xcodebuild -project edth.xcodeproj -scheme edh -configuration Debug -derivedDataPath build build
+	for scheme in EdithMain EdithHelper EdithFiles ed edh; do \
+	  xcodebuild -project edth.xcodeproj -scheme "$$scheme" -configuration Debug -derivedDataPath build \
+	    $(XCODE_SIGN_OVERRIDES) build || exit 1; \
+	done
 
 ci-xcode: ci-xcode-check
 	APP=build/Build/Products/Debug/Edith.app; \
