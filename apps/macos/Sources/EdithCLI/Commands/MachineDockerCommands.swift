@@ -264,16 +264,19 @@ protocol DockerLifecycleCommand: AsyncParsableCommand {
     static var action: String { get }
     var json: Bool { get }
     var machine: String { get }
-    var container: String { get }
+    var containers: [String] { get }
 }
 
 extension DockerLifecycleCommand {
     func apply() async throws {
         try await execute {
             let action = Self.action
+            guard !containers.isEmpty else {
+                throw CLIFailure("name at least one container")
+            }
             let runner = try await DockerBridge.runner(machine)
             let result = try await runner.run(
-                DockerCommands.lifecycle(action, id: container), timeout: 120)
+                DockerCommands.lifecycle(action, ids: containers), timeout: 120)
             guard result.succeeded else {
                 throw CLIFailure(
                     "docker \(action) failed on \(runner.machine.name)",
@@ -283,12 +286,12 @@ extension DockerLifecycleCommand {
                 CLIOut.json(
                     .object([
                         "machine": .string(runner.machine.name),
-                        "container": .string(container),
+                        "containers": .strings(containers),
                         "action": .string(action),
                     ]))
                 return
             }
-            CLIOut.out("\(action) \(container)")
+            CLIOut.out("\(action) \(containers.joined(separator: " "))")
         }
     }
 }
@@ -304,8 +307,8 @@ struct DockerStartCommand: DockerLifecycleCommand {
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
-    @Argument(help: "Container name or id.")
-    var container: String
+    @Argument(help: "Container names or ids.")
+    var containers: [String] = []
 
     func run() async throws { try await apply() }
 }
@@ -321,8 +324,8 @@ struct DockerStopCommand: DockerLifecycleCommand {
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
-    @Argument(help: "Container name or id.")
-    var container: String
+    @Argument(help: "Container names or ids.")
+    var containers: [String] = []
 
     func run() async throws { try await apply() }
 }
@@ -338,8 +341,8 @@ struct DockerRestartCommand: DockerLifecycleCommand {
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
-    @Argument(help: "Container name or id.")
-    var container: String
+    @Argument(help: "Container names or ids.")
+    var containers: [String] = []
 
     func run() async throws { try await apply() }
 }
@@ -355,8 +358,8 @@ struct DockerRemoveCommand: DockerLifecycleCommand {
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
-    @Argument(help: "Container name or id.")
-    var container: String
+    @Argument(help: "Container names or ids.")
+    var containers: [String] = []
 
     func run() async throws { try await apply() }
 }
@@ -372,8 +375,8 @@ struct DockerPauseCommand: DockerLifecycleCommand {
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
-    @Argument(help: "Container name or id.")
-    var container: String
+    @Argument(help: "Container names or ids.")
+    var containers: [String] = []
 
     func run() async throws { try await apply() }
 }
@@ -389,8 +392,8 @@ struct DockerUnpauseCommand: DockerLifecycleCommand {
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
-    @Argument(help: "Container name or id.")
-    var container: String
+    @Argument(help: "Container names or ids.")
+    var containers: [String] = []
 
     func run() async throws { try await apply() }
 }

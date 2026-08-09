@@ -283,7 +283,12 @@ struct DockerConsoleView: View {
                         DockerCommands.lifecycle(action, id: container.id), on: container.id)
                 },
                 onShell: { terminalFor = $0 },
-                onRemove: { pendingRemoval = $0 })
+                onRemove: { pendingRemoval = $0 },
+                onGroupAction: { key, containers, action in
+                    guard !containers.isEmpty else { return }
+                    perform(
+                        DockerCommands.lifecycle(action, ids: containers.map(\.id)), on: key)
+                })
         case .images:
             DockerSimpleList(
                 rows: imageRows, dark: dark,

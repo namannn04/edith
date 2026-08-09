@@ -245,6 +245,12 @@ enum UIParity {
         UICapability(
             "Docker window", "start a container", ["machines", "docker", "start", "box", "api"]),
         UICapability(
+            "Docker group header", "start every container in the group",
+            ["machines", "docker", "start", "box", "api", "db"]),
+        UICapability(
+            "Docker group header", "stop every running container in the group",
+            ["machines", "docker", "stop", "box", "api", "db"]),
+        UICapability(
             "Docker window", "stop a container", ["machines", "docker", "stop", "box", "api"]),
         UICapability(
             "Docker window", "restart a container",

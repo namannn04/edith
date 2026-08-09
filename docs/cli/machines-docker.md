@@ -29,12 +29,12 @@ being the usual example.
 | `ed machines docker df` | Disk usage by object type, with what is reclaimable. |
 | `ed machines docker logs` | Streams one container's logs, with timestamps. |
 | `ed machines docker inspect` | Prints docker's own `inspect` JSON, untouched. |
-| `ed machines docker start` | Starts a container. |
-| `ed machines docker stop` | Stops a container, with a 10 second grace period. |
-| `ed machines docker restart` | Restarts a container, with a 10 second grace period. |
-| `ed machines docker rm` | Removes a container, killing it first. Destructive, and there is no `--yes`. |
-| `ed machines docker pause` | Freezes a container's processes. |
-| `ed machines docker unpause` | Lets a frozen container run again. |
+| `ed machines docker start` | Starts one or more containers. |
+| `ed machines docker stop` | Stops one or more containers, with a 10 second grace period. |
+| `ed machines docker restart` | Restarts one or more containers, with a 10 second grace period. |
+| `ed machines docker rm` | Removes one or more containers, killing them first. Destructive, and there is no `--yes`. |
+| `ed machines docker pause` | Freezes the processes of one or more containers. |
+| `ed machines docker unpause` | Lets one or more frozen containers run again. |
 | `ed machines docker rmi` | Removes an image. Destructive. Aliased `remove-image`. |
 | `ed machines docker volume-rm` | Removes a volume and the data in it. Destructive, needs `--yes`. |
 | `ed machines docker prune` | Reclaims space from unused objects. Destructive, needs `--yes`. |
@@ -635,7 +635,7 @@ When docker succeeds but prints nothing at all, `ed` reports
 Starts a stopped container.
 
 ```
-ed machines docker start [--json] <machine> <container>
+ed machines docker start [--json] <machine> <container>...
 ```
 
 #### Arguments
@@ -643,7 +643,7 @@ ed machines docker start [--json] <machine> <container>
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `<machine>` | machine name, ssh alias, id, or any unambiguous prefix | required | Which machine to act on. |
-| `<container>` | container name or id | required | Which container to start. |
+| `<container>...` | one or more container names or ids | at least one required | Which containers to start. Docker is given all of them in one call. |
 
 #### Options
 
@@ -659,26 +659,31 @@ Human output is one line, `start <container>`.
 ```json
 {
   "action": "start",
-  "container": "open-webui",
+  "containers": [
+    "open-webui"
+  ],
   "machine": "Asus TUF 7"
 }
 ```
 
 `machine` is the machine's display name as Edith stores it, not what you typed.
-`container` is echoed back exactly as you typed it, so passing a short id gives
-you a short id here.
+`containers` echoes back exactly what you typed, in the order you typed it, so
+passing a short id gives you a short id here. Naming no container at all exits 1
+with `name at least one container`, before the machine is dialled.
 
 #### Examples
 
 ```
 ed machines tuf docker start open-webui
 ed machines tuf docker start b556d7fef23e --json
+ed machines tuf docker start api postgres redis
 ```
 
 #### Behaviour notes
 
-Runs `docker start <container>` with a 120 second ceiling. A docker that refuses
-exits 1, with docker's own stderr as the hint:
+Runs `docker start <container>...` with a 120 second ceiling, one call however
+many containers are named. A docker that refuses exits 1, with docker's own
+stderr as the hint:
 
 ```
 $ ed machines tuf docker start nosuch-container
@@ -687,14 +692,15 @@ hint: Error response from daemon: No such container: nosuch-container
 failed to start containers: nosuch-container
 ```
 
-This is the Docker window's start button, running the same command.
+This is the Docker window's start button, running the same command, and naming
+several containers is what the play button on a group header does.
 
 ### `ed machines docker stop`
 
 Stops a running container.
 
 ```
-ed machines docker stop [--json] <machine> <container>
+ed machines docker stop [--json] <machine> <container>...
 ```
 
 #### Arguments
@@ -702,7 +708,7 @@ ed machines docker stop [--json] <machine> <container>
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `<machine>` | machine name, ssh alias, id, or any unambiguous prefix | required | Which machine to act on. |
-| `<container>` | container name or id | required | Which container to stop. |
+| `<container>...` | one or more container names or ids | at least one required | Which containers to stop. Docker is given all of them in one call. |
 
 #### Options
 
@@ -716,7 +722,9 @@ ed machines docker stop [--json] <machine> <container>
 ```json
 {
   "action": "stop",
-  "container": "open-webui",
+  "containers": [
+    "open-webui"
+  ],
   "machine": "Asus TUF 7"
 }
 ```
@@ -730,8 +738,9 @@ ed machines tuf docker stop open-webui --json
 
 #### Behaviour notes
 
-Runs `docker stop -t 10 <container>`, so the container gets ten seconds to exit
-on its own before docker kills it. The whole call has a 120 second ceiling.
+Runs `docker stop -t 10 <container>...`, so each container gets ten seconds to
+exit on its own before docker kills it. The stop button on a group header in the
+Docker window is this command with every running container in the group named. The whole call has a 120 second ceiling.
 Stopping a container that is already stopped is docker's business and succeeds
 quietly. Failure exits 1 with docker's stderr as the hint.
 
@@ -740,7 +749,7 @@ quietly. Failure exits 1 with docker's stderr as the hint.
 Restarts a container.
 
 ```
-ed machines docker restart [--json] <machine> <container>
+ed machines docker restart [--json] <machine> <container>...
 ```
 
 #### Arguments
@@ -748,7 +757,7 @@ ed machines docker restart [--json] <machine> <container>
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `<machine>` | machine name, ssh alias, id, or any unambiguous prefix | required | Which machine to act on. |
-| `<container>` | container name or id | required | Which container to restart. |
+| `<container>...` | one or more container names or ids | at least one required | Which containers to restart. Docker is given all of them in one call. |
 
 #### Options
 
@@ -762,7 +771,9 @@ ed machines docker restart [--json] <machine> <container>
 ```json
 {
   "action": "restart",
-  "container": "noveum-local-db-postgres-1",
+  "containers": [
+    "noveum-local-db-postgres-1"
+  ],
   "machine": "Asus TUF 7"
 }
 ```
@@ -786,7 +797,7 @@ check with `ed machines docker ps` rather than assuming the restart was lost.
 Removes a container, killing it first.
 
 ```
-ed machines docker rm [--json] <machine> <container>
+ed machines docker rm [--json] <machine> <container>...
 ```
 
 #### Arguments
@@ -794,7 +805,7 @@ ed machines docker rm [--json] <machine> <container>
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `<machine>` | machine name, ssh alias, id, or any unambiguous prefix | required | Which machine to act on. |
-| `<container>` | container name or id | required | Which container to remove. |
+| `<container>...` | one or more container names or ids | at least one required | Which containers to remove. Docker is given all of them in one call. |
 
 #### Options
 
@@ -808,7 +819,9 @@ ed machines docker rm [--json] <machine> <container>
 ```json
 {
   "action": "rm",
-  "container": "open-webui",
+  "containers": [
+    "open-webui"
+  ],
   "machine": "Asus TUF 7"
 }
 ```
@@ -836,7 +849,7 @@ hint. This is the Docker window's remove button, running the same command.
 Freezes a container's processes without stopping it.
 
 ```
-ed machines docker pause [--json] <machine> <container>
+ed machines docker pause [--json] <machine> <container>...
 ```
 
 #### Arguments
@@ -844,7 +857,7 @@ ed machines docker pause [--json] <machine> <container>
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `<machine>` | machine name, ssh alias, id, or any unambiguous prefix | required | Which machine to act on. |
-| `<container>` | container name or id | required | Which container to freeze. |
+| `<container>...` | one or more container names or ids | at least one required | Which containers to freeze. Docker is given all of them in one call. |
 
 #### Options
 
@@ -858,7 +871,9 @@ ed machines docker pause [--json] <machine> <container>
 ```json
 {
   "action": "pause",
-  "container": "open-webui",
+  "containers": [
+    "open-webui"
+  ],
   "machine": "Asus TUF 7"
 }
 ```
@@ -885,7 +900,7 @@ counts as not running, so it vanishes from a bare `ps` and only reappears with
 Lets a frozen container run again.
 
 ```
-ed machines docker unpause [--json] <machine> <container>
+ed machines docker unpause [--json] <machine> <container>...
 ```
 
 #### Arguments
@@ -893,7 +908,7 @@ ed machines docker unpause [--json] <machine> <container>
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `<machine>` | machine name, ssh alias, id, or any unambiguous prefix | required | Which machine to act on. |
-| `<container>` | container name or id | required | Which container to resume. |
+| `<container>...` | one or more container names or ids | at least one required | Which containers to resume. Docker is given all of them in one call. |
 
 #### Options
 
@@ -907,7 +922,9 @@ ed machines docker unpause [--json] <machine> <container>
 ```json
 {
   "action": "unpause",
-  "container": "open-webui",
+  "containers": [
+    "open-webui"
+  ],
   "machine": "Asus TUF 7"
 }
 ```

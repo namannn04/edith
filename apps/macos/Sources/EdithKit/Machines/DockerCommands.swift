@@ -50,13 +50,18 @@ public enum DockerCommands {
     }
 
     public static func lifecycle(_ action: String, id: String) -> String {
+        lifecycle(action, ids: [id])
+    }
+
+    public static func lifecycle(_ action: String, ids: [String]) -> String {
+        let targets = ids.map(ShellQuote.quote).joined(separator: " ")
         switch action {
         case "stop", "restart":
-            return "docker \(action) -t 10 \(ShellQuote.quote(id))"
+            return "docker \(action) -t 10 \(targets)"
         case "rm":
-            return "docker rm -f \(ShellQuote.quote(id))"
+            return "docker rm -f \(targets)"
         default:
-            return "docker \(action) \(ShellQuote.quote(id))"
+            return "docker \(action) \(targets)"
         }
     }
 
