@@ -603,6 +603,7 @@ Options:
       "episodeId": "ade45706-c7e0-480c-9125-11503509bef2",
       "occurredAt": "2026-03-14T00:00:00Z",
       "quote": "Shipped the auth refactor this week. Felt slower than it should have been.",
+      "support": "verbatim",
       "title": "Warden retro"
     }
   ],
@@ -610,14 +611,14 @@ Options:
 }
 ```
 
-`answer` is the grounded reply, `citations` the episodes it rests on with the exact quoted words, `chunksConsidered` how many memory chunks were retrieved, and `model` the reasoner that answered.
+`answer` is the grounded reply, `citations` the episodes it rests on, `chunksConsidered` how many memory chunks were retrieved, and `model` the reasoner that answered. `support` types each citation: `verbatim` is checked structurally, the quote must actually appear in the cited text or the label demotes to `paraphrase`; `inference` marks the reasoner reading between the lines and renders that way.
 
 Examples:
 
 ```
 $ ed companion ask "how did the auth refactor go"
 The auth refactor shipped in March, and it felt slower than it should have.
-[1] Warden retro (2026-03-14T00:00:00Z)
+[1] Warden retro (2026-03-14T00:00:00Z)  [verbatim]
     "Shipped the auth refactor this week. Felt slower than it should have been."
 ```
 

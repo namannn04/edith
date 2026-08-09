@@ -169,12 +169,16 @@ public struct CompanionObservation: Codable, Equatable, Sendable {
 public struct CompanionAskCitation: Codable, Equatable, Sendable {
     public let episodeId: String
     public let quote: String
+    public let support: String
     public let title: String
     public let occurredAt: String
 
-    public init(episodeId: String, quote: String, title: String, occurredAt: String) {
+    public init(
+        episodeId: String, quote: String, support: String, title: String, occurredAt: String
+    ) {
         self.episodeId = episodeId
         self.quote = quote
+        self.support = support
         self.title = title
         self.occurredAt = occurredAt
     }

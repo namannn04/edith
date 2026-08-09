@@ -218,6 +218,7 @@ struct CompanionAskCommand: AsyncParsableCommand {
                                 .object([
                                     "episodeId": .string(citation.episodeId),
                                     "quote": .string(citation.quote),
+                                    "support": .string(citation.support),
                                     "title": .string(citation.title),
                                     "occurredAt": .string(citation.occurredAt),
                                 ])
@@ -229,8 +230,11 @@ struct CompanionAskCommand: AsyncParsableCommand {
             }
             CLIOut.out(outcome.answer)
             for (index, citation) in outcome.citations.enumerated() {
-                CLIOut.out("[\(index + 1)] \(citation.title) (\(citation.occurredAt))")
-                if !citation.quote.isEmpty {
+                let tag =
+                    citation.support == "inference"
+                    ? "reading between the lines" : citation.support
+                CLIOut.out("[\(index + 1)] \(citation.title) (\(citation.occurredAt))  [\(tag)]")
+                if !citation.quote.isEmpty, citation.support != "inference" {
                     CLIOut.out("    \u{201C}\(citation.quote)\u{201D}")
                 }
             }

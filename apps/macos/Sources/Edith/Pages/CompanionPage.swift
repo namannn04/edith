@@ -257,7 +257,11 @@ struct CompanionPage: View {
                     ForEach(Array(outcome.citations.enumerated()), id: \.offset) {
                         index, citation in
                         VStack(alignment: .leading, spacing: UIScale.pt(2)) {
-                            Text("[\(index + 1)] \(citation.title)  \(citation.occurredAt)")
+                            Text(
+                                "[\(index + 1)] \(citation.title)  \(citation.occurredAt)  "
+                                    + (citation.support == "inference"
+                                        ? "reading between the lines"
+                                        : citation.support))
                                 .font(.system(size: UIScale.pt(11), weight: .semibold))
                                 .foregroundStyle(DashSkin.inkFaint(dark))
                             if !citation.quote.isEmpty {
