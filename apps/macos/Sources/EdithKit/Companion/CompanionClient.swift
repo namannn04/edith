@@ -27,16 +27,20 @@ public struct CompanionStatus: Codable, Equatable, Sendable {
     public let episodes: Int
     public let claims: Int
     public let observations: Int
+    public let chunks: Int
+    public let pendingEpisodes: Int
     public let latestIngestedAt: String?
 
     public init(
         sources: Int, episodes: Int, claims: Int, observations: Int,
-        latestIngestedAt: String?
+        chunks: Int, pendingEpisodes: Int, latestIngestedAt: String?
     ) {
         self.sources = sources
         self.episodes = episodes
         self.claims = claims
         self.observations = observations
+        self.chunks = chunks
+        self.pendingEpisodes = pendingEpisodes
         self.latestIngestedAt = latestIngestedAt
     }
 
@@ -45,7 +49,44 @@ public struct CompanionStatus: Codable, Equatable, Sendable {
         case episodes
         case claims
         case observations
+        case chunks
+        case pendingEpisodes = "pending_episodes"
         case latestIngestedAt = "latest_ingested_at"
+    }
+}
+
+public struct CompanionSearchHit: Codable, Equatable, Sendable {
+    public let chunkId: String
+    public let episodeId: String
+    public let ord: Int
+    public let title: String
+    public let occurredAt: String
+    public let kind: String
+    public let snippet: String
+    public let score: Double
+
+    public init(
+        chunkId: String, episodeId: String, ord: Int, title: String, occurredAt: String,
+        kind: String, snippet: String, score: Double
+    ) {
+        self.chunkId = chunkId
+        self.episodeId = episodeId
+        self.ord = ord
+        self.title = title
+        self.occurredAt = occurredAt
+        self.kind = kind
+        self.snippet = snippet
+        self.score = score
+    }
+}
+
+public struct CompanionIndexOutcome: Codable, Equatable, Sendable {
+    public let episodesIndexed: Int
+    public let chunksCreated: Int
+
+    public init(episodesIndexed: Int, chunksCreated: Int) {
+        self.episodesIndexed = episodesIndexed
+        self.chunksCreated = chunksCreated
     }
 }
 
@@ -139,6 +180,21 @@ public struct CompanionClient: Sendable {
         var components = URLComponents(url: url(for: "episodes"), resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
         return try await request(URLRequest(url: components?.url ?? url(for: "episodes")))
+    }
+
+    public func search(query: String, k: Int) async throws -> [CompanionSearchHit] {
+        var components = URLComponents(url: url(for: "search"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "q", value: query), URLQueryItem(name: "k", value: String(k)),
+        ]
+        return try await request(URLRequest(url: components?.url ?? url(for: "search")))
+    }
+
+    public func index() async throws -> CompanionIndexOutcome {
+        var request = URLRequest(url: url(for: "index"))
+        request.httpMethod = "POST"
+        request.httpBody = Data()
+        return try await self.request(request)
     }
 
     public func ingest(files: [CompanionIngestFile]) async throws -> [CompanionIngestOutcome] {

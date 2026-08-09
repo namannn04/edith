@@ -14,8 +14,10 @@ the default `http://127.0.0.1:4820`.
 | Command | What it does |
 | --- | --- |
 | `ed companion` | Runs `ed companion status`, the default subcommand. |
-| `ed companion status` | Counts stored sources, episodes, claims and observations. |
+| `ed companion status` | Counts stored records and episodes waiting to be indexed. |
 | `ed companion doctor` | Checks Postgres, migrations, pgvector, Redis and the vault. |
+| `ed companion search <query>` | Searches indexed memory with hybrid retrieval. |
+| `ed companion index` | Embeds episodes that are waiting to be indexed. |
 | `ed companion ingest <path>` | Sends one Markdown file or a recursive folder scan to the backend. |
 | `ed companion episodes` | Lists recent episodes, newest first. |
 
@@ -43,35 +45,43 @@ Options:
 
 ```json
 {
+  "chunks": 126,
   "claims": 18,
   "episodes": 42,
   "latestIngestedAt": "2026-08-09T08:14:22.301Z",
   "observations": 64,
+  "pendingEpisodes": 2,
   "sources": 39
 }
 ```
 
 `sources` counts unique note bodies, `episodes` counts appended memory events,
-and `claims` and `observations` count derived records. `latestIngestedAt` is the
-most recent ingest time as an ISO 8601 string, or `null` when no episode exists.
+and `claims` and `observations` count derived records. `chunks` counts embedded
+search chunks, and `pendingEpisodes` counts episodes that have no chunks yet.
+`latestIngestedAt` is the most recent ingest time as an ISO 8601 string, or
+`null` when no episode exists.
 
 Examples:
 
 ```
 $ ed companion status
-RESOURCE      COUNT
-sources       39
-episodes      42
-claims        18
-observations  64
+RESOURCE          COUNT
+sources           39
+episodes          42
+claims            18
+observations      64
+chunks            126
+pending episodes  2
 latest  2026-08-09T08:14:22.301Z
 
 $ ed companion status --endpoint http://127.0.0.1:4821 --json
 {
+  "chunks": 126,
   "claims": 18,
   "episodes": 42,
   "latestIngestedAt": "2026-08-09T08:14:22.301Z",
   "observations": 64,
+  "pendingEpisodes": 2,
   "sources": 39
 }
 ```
@@ -138,6 +148,116 @@ $ ed companion doctor --json
 Behaviour: `doctor` decodes the health report even when the API returns HTTP
 503. A reachable but unhealthy backend still exits 0 because health lives in
 the payload, where scripts can inspect `ok`. Failure to reach the API exits 4.
+
+### `ed companion search`
+
+Searches embedded memory chunks with hybrid vector and full-text retrieval.
+
+Usage:
+
+```
+ed companion search <query> [--limit <n>] [--json] [--endpoint <url>]
+```
+
+Arguments:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<query>` | text | required | Supplies the memory search text. |
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--limit` | integer from `1` to `50` | `8` | Asks for this many ranked hits. |
+| `--json` | flag | off | Emits one JSON array on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+`--json` shape:
+
+```json
+[
+  {
+    "chunkId": "ad5085e1-6c90-471f-a58d-16e028423d10",
+    "episodeId": "5d4c0ebf-1086-46fb-ab93-dd325ed197f3",
+    "kind": "md",
+    "occurredAt": "2026-08-09T06:30:00Z",
+    "ord": 0,
+    "score": 0.032787,
+    "snippet": "The launch plan calls for a staged rollout after the warden review.",
+    "title": "Planning notes"
+  }
+]
+```
+
+Each hit identifies its chunk and parent episode with `chunkId` and
+`episodeId`. `ord` is the chunk position in the episode. `title`, `occurredAt`
+and `kind` describe the source episode, `snippet` contains matching text, and
+`score` is the fused retrieval score.
+
+Examples:
+
+```
+$ ed companion search "launch plan" --limit 3
+#  SCORE     TITLE           OCCURRED
+1  0.032787  Planning notes  2026-08-09T06:30:00Z
+  1  The launch plan calls for a staged rollout after the warden review.
+
+$ ed companion search "nothing like this" --json
+[]
+```
+
+Behaviour: this is a read-only `GET /v1/search`. The query is URL encoded and
+`--limit` must be from 1 through 50. No hits print `no matches` in human output
+or `[]` with `--json`. If the embedding service returns HTTP 502, the command
+names the Ollama embedding service, leaves stdout empty, and exits 4.
+
+### `ed companion index`
+
+Embeds pending episodes and stores their searchable chunks.
+
+Usage:
+
+```
+ed companion index [--json] [--endpoint <url>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+`--json` shape:
+
+```json
+{
+  "chunksCreated": 9,
+  "episodesIndexed": 3
+}
+```
+
+`episodesIndexed` counts episodes completed by this request, and
+`chunksCreated` counts the searchable chunks created for them.
+
+Examples:
+
+```
+$ ed companion index
+indexed 3 episodes into 9 chunks
+
+$ ed companion index --json
+{
+  "chunksCreated": 9,
+  "episodesIndexed": 3
+}
+```
+
+Behaviour: this mutating command sends `POST /v1/index` with an empty body.
+Only episodes without chunks are indexed. If the embedding service returns
+HTTP 502, the command names the Ollama embedding service, leaves stdout empty,
+and exits 4.
 
 ### `ed companion ingest`
 
@@ -293,6 +413,9 @@ Each Markdown file must be no larger than 2MB. Larger notes are skipped before
 any request, and uploads are split into batches of 200 files. The backend
 deduplicates by SHA-256 of the note text, so ingesting the same content again is
 safe and returns `duplicate` with the original episode id.
+
+Search and indexing need the Ollama service to be reachable and the configured
+embedding model to be pulled before the first request.
 
 ## Where to go next
 

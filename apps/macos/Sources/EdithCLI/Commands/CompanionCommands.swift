@@ -15,6 +15,7 @@ struct CompanionCommand: AsyncParsableCommand {
             """,
         subcommands: [
             CompanionStatusCommand.self, CompanionDoctorCommand.self,
+            CompanionSearchCommand.self, CompanionIndexCommand.self,
             CompanionIngestCommand.self, CompanionEpisodesCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
@@ -35,13 +36,53 @@ enum CompanionBridge {
         }
     }
 
+    static func embeddingRequest<T>(
+        endpoint: String?, operation: (CompanionClient) async throws -> T
+    ) async throws -> T {
+        let resolved = CompanionClient.endpoint(override: endpoint)
+        do {
+            return try await operation(CompanionClient(baseURL: resolved))
+        } catch let CompanionClientError.badResponse(status, detail) where status == 502 {
+            throw CLIFailure.unavailable(
+                "the Ollama embedding service is unavailable",
+                hint: detail.isEmpty ? "check the Ollama service and embedding model" : detail)
+        } catch let error as CompanionClientError {
+            throw CLIFailure.unavailable(
+                "the companion backend at \(resolved.absoluteString) is unavailable",
+                hint: "\(error.localizedDescription); run `docker compose up` in "
+                    + "apps/companion or `ed machines forwards on tuf 2`")
+        }
+    }
+
     static func statusJSON(_ status: CompanionStatus) -> JSONValue {
         .object([
             "sources": .int(status.sources),
             "episodes": .int(status.episodes),
             "claims": .int(status.claims),
             "observations": .int(status.observations),
+            "chunks": .int(status.chunks),
+            "pendingEpisodes": .int(status.pendingEpisodes),
             "latestIngestedAt": .optional(status.latestIngestedAt),
+        ])
+    }
+
+    static func searchJSON(_ hit: CompanionSearchHit) -> JSONValue {
+        .object([
+            "chunkId": .string(hit.chunkId),
+            "episodeId": .string(hit.episodeId),
+            "ord": .int(hit.ord),
+            "title": .string(hit.title),
+            "occurredAt": .string(hit.occurredAt),
+            "kind": .string(hit.kind),
+            "snippet": .string(hit.snippet),
+            "score": .double(hit.score),
+        ])
+    }
+
+    static func indexJSON(_ outcome: CompanionIndexOutcome) -> JSONValue {
+        .object([
+            "episodesIndexed": .int(outcome.episodesIndexed),
+            "chunksCreated": .int(outcome.chunksCreated),
         ])
     }
 
@@ -92,8 +133,83 @@ struct CompanionStatusCommand: AsyncParsableCommand {
                         ["episodes", String(status.episodes)],
                         ["claims", String(status.claims)],
                         ["observations", String(status.observations)],
+                        ["chunks", String(status.chunks)],
+                        ["pending episodes", String(status.pendingEpisodes)],
                     ]))
             if let latest = status.latestIngestedAt { CLIOut.out("latest  \(latest)") }
+        }
+    }
+}
+
+struct CompanionSearchCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "search", abstract: "Search companion memory with hybrid retrieval.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Option(name: .long, help: "How many hits.")
+    var limit = 8
+
+    @Argument(help: "What to look for.")
+    var query: String
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            guard limit <= 50 else {
+                throw CLIFailure.usage("--limit must be 50 or less")
+            }
+            let hits = try await CompanionBridge.embeddingRequest(endpoint: endpoint) { client in
+                try await client.search(query: query, k: limit)
+            }
+            guard !json else {
+                CLIOut.json(.array(hits.map(CompanionBridge.searchJSON)))
+                return
+            }
+            guard !hits.isEmpty else {
+                CLIOut.out("no matches")
+                return
+            }
+            let rows = hits.enumerated().map { offset, hit in
+                [
+                    String(offset + 1), String(format: "%.6f", hit.score), hit.title,
+                    hit.occurredAt,
+                ]
+            }
+            CLIOut.out(
+                TextTable.render(headers: ["#", "SCORE", "TITLE", "OCCURRED"], rows: rows))
+            for (offset, hit) in hits.enumerated() {
+                CLIOut.out("  \(offset + 1)  \(TextTable.oneLine(hit.snippet))")
+            }
+        }
+    }
+}
+
+struct CompanionIndexCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "index", abstract: "Embed pending companion episodes.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await execute {
+            let outcome = try await CompanionBridge.embeddingRequest(endpoint: endpoint) { client in
+                try await client.index()
+            }
+            guard !json else {
+                CLIOut.json(CompanionBridge.indexJSON(outcome))
+                return
+            }
+            CLIOut.out(
+                "indexed \(outcome.episodesIndexed) episodes into \(outcome.chunksCreated) chunks")
         }
     }
 }

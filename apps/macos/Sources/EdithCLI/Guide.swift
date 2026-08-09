@@ -180,6 +180,7 @@ public enum Guide {
         ```
         ed companion status                     counts and latest ingest
         ed companion doctor                     postgres, redis and vault checks
+        ed companion search "launch plan"        search indexed memory
         ed companion ingest ./notes --json      ingest a Markdown tree
         ```
 

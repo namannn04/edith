@@ -673,6 +673,12 @@ public enum CommandTree {
                         "doctor", "Check the companion's dependencies.",
                         options: common + ["--endpoint"]),
                     CommandNode(
+                        "search", "Search companion memory with hybrid retrieval.",
+                        options: common + ["--endpoint", "--limit"], arguments: [.free]),
+                    CommandNode(
+                        "index", "Embed pending companion episodes.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
                         "ingest", "Ingest Markdown notes as episodes.",
                         options: ["--json", "--endpoint"], arguments: [.localPath]),
                     CommandNode(
