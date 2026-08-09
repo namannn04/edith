@@ -188,8 +188,8 @@ struct MachinesFilesOpenCommand: AsyncParsableCommand {
         commandName: "open",
         abstract: "Open Edith's Files window on a machine directory.",
         discussion: """
-            The window belongs to the running app, so `ed` asks it to open one and says
-            to start Edith when it is closed.
+            The window belongs to the app, so `ed` asks it to open one, starting Edith
+            first when it is not already up.
 
             With no path it opens the directory this terminal is in, the one
             `ed <machine> cd` remembers, so browsing carries on where the shell left off.
@@ -207,19 +207,24 @@ struct MachinesFilesOpenCommand: AsyncParsableCommand {
     func run() async throws {
         try await execute {
             let target = try MachineResolver.machine(machine)
-            guard AppBridge.mainAppIsRunning else {
-                throw CLIFailure.unavailable(
-                    "the Files window belongs to Edith, and Edith is not running",
-                    hint: "open Edith, then retry")
-            }
             let directory =
                 path ?? MachineWorkingDirectory.load(machineID: target.id)
-            let reply = await AppBridge.awaitReply(IPC.Name.finderOpenResult, timeout: 20) {
-                var info: [String: Any] = ["machine": target.id.uuidString]
-                if let directory { info["path"] = directory }
-                AppBridge.post(IPC.Name.requestFinderOpen, userInfo: info)
+            let progress = CLIProgress.forCommand(json: json)
+            var answer: [AnyHashable: Any]?
+            for attempt in 0..<8 {
+                if !AppBridge.mainAppIsRunning {
+                    if attempt == 0 { progress.begin("starting Edith") }
+                    try await AppBridge.startMainApp()
+                }
+                answer = await AppBridge.awaitReply(IPC.Name.finderOpenResult, timeout: 3) {
+                    var info: [String: Any] = ["machine": target.id.uuidString]
+                    if let directory { info["path"] = directory }
+                    AppBridge.post(IPC.Name.requestFinderOpen, userInfo: info)
+                }
+                if answer != nil { break }
             }
-            guard let reply else {
+            progress.end()
+            guard let reply = answer else {
                 throw AppBridge.silence("opening the Files window")
             }
             guard reply["opened"] as? Bool == true else {

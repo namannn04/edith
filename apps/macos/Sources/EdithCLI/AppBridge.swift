@@ -30,6 +30,30 @@ public enum AppBridge {
         CLIEnvironment.deliver(name, userInfo)
     }
 
+    public static func startMainApp(within seconds: TimeInterval = 20) async throws {
+        guard !mainAppIsRunning else { return }
+        guard let bundle = CLIEnvironment.installedAppURL() else {
+            throw CLIFailure.unavailable(
+                "Edith is not installed where ed can find it",
+                hint: "it looks in /Applications and alongside this binary")
+        }
+        do {
+            try await EdithProcesses.launch(bundle)
+        } catch {
+            throw CLIFailure.unavailable(
+                "could not start Edith: \(error.localizedDescription)",
+                hint: "open \(bundle.path) from Finder, then retry")
+        }
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline {
+            if mainAppIsRunning { return }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        throw CLIFailure.unavailable(
+            "Edith did not come up in time",
+            hint: "open \(bundle.path) from Finder, then retry")
+    }
+
     public static func silence(
         _ what: String, extensionKey: String? = nil, permission: String? = nil
     ) -> CLIFailure {
