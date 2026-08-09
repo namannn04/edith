@@ -49,6 +49,14 @@ final class DockerDetailModel: ObservableObject {
 
     func startLogs(session: MachineSession, container: DockerContainer) {
         stopLogs()
+        logs = []
+        nextLogID = 0
+        cpuHistory = []
+        memHistory = []
+        processes = []
+        files = []
+        filePath = "/"
+        inspect = nil
         streamEnded = false
         reattempts = 0
         logGeneration += 1
@@ -173,12 +181,19 @@ struct DockerContainerDetail: View {
     let onAction: (String) -> Void
     let onShell: () -> Void
     let onRemove: () -> Void
+    let onSwitch: (DockerContainer) -> Void
 
     @StateObject private var model = DockerDetailModel()
     @State private var tab = DockerDetailTab.logs
 
     private var live: DockerContainer {
         session.containers.first { $0.id == container.id } ?? container
+    }
+
+    private var siblings: [DockerContainer] {
+        session.containers
+            .filter { $0.composeProject == live.composeProject }
+            .sorted { $0.displayName < $1.displayName }
     }
 
     var body: some View {
@@ -214,6 +229,7 @@ struct DockerContainerDetail: View {
                         .font(DashSkin.mono(10.5))
                         .foregroundStyle(DashSkin.inkFaint(dark))
                 }
+                switcher
                 Spacer(minLength: 0)
                 statusPill
             }
@@ -239,6 +255,44 @@ struct DockerContainerDetail: View {
         }
         .padding(.horizontal, UIScale.pt(16))
         .padding(.vertical, UIScale.pt(12))
+    }
+
+    @ViewBuilder
+    private var switcher: some View {
+        if siblings.count > 1 {
+            Menu {
+                Section(live.composeProject ?? "Standalone") {
+                    ForEach(siblings) { sibling in
+                        Button {
+                            guard sibling.id != live.id else { return }
+                            onSwitch(sibling)
+                        } label: {
+                            Label(
+                                sibling.composeService ?? sibling.displayName,
+                                systemImage: symbol(for: sibling))
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: UIScale.pt(10), weight: .semibold))
+                    .foregroundStyle(DashSkin.inkSoft(dark))
+                    .padding(.horizontal, UIScale.pt(7))
+                    .padding(.vertical, UIScale.pt(5))
+                    .background(
+                        DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(7)))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .pointerCursor()
+            .help("Switch to another container in this group")
+        }
+    }
+
+    private func symbol(for sibling: DockerContainer) -> String {
+        guard sibling.id != live.id else { return "checkmark" }
+        return sibling.state.isRunning ? "circle.fill" : "circle"
     }
 
     private var statusPill: some View {

@@ -6,10 +6,11 @@ copy, move, rename, trash, search and duplicate operations the app's Files pane
 runs. Reach for it when you want to look at or rearrange something on another
 box without opening a shell there, and when you want the result in JSON.
 
-Everything here except `undo` is plain shell sent over the SSH connection Edith
-already holds, so nothing is installed on the machine and Edith does not have to
-be running. `undo` is the exception, because the history it reverses lives in
-an open window rather than on disk.
+Everything here except `undo` and `open` is plain shell sent over the SSH
+connection Edith already holds, so nothing is installed on the machine and Edith
+does not have to be running. Those two are the exceptions, because the history
+one reverses lives in the running app, and the window the other raises belongs
+to Edith Files.
 
 ## At a glance
 
@@ -27,6 +28,7 @@ an open window rather than on disk.
 | `ed machines files info` | Measure a path with `du`, directories included. |
 | `ed machines files duplicate` | Copy a file beside itself, the way the window does. |
 | `ed machines files undo` | Undo the last move or rename an open Files pane made. |
+| `ed machines files open` | Open a Files window on a directory, by default the one this terminal is in. Starts Edith Files when it is closed. |
 
 ## How these reach the machine
 
@@ -63,7 +65,8 @@ own matching.
 
 A relative path is resolved by the machine against the SSH login directory,
 normally the home directory. The working directory `ed tuf cd` remembers belongs
-to `ed machines exec` alone; nothing in this group reads it.
+to `ed machines exec`, and `open` is the one verb here that reads it, so a
+Files window opens where the shell in that terminal left off.
 
 ## Commands
 
@@ -798,6 +801,83 @@ undid Undo Rename on Asus TUF 7
 The only values `what` takes are `Undo Rename`, `Undo Move` and, if the pane has
 no title to give, `the last change`.
 
+### `ed machines files open`
+
+Opens a Files window on a directory of the machine.
+
+```
+ed machines files open <machine> [path] [--json]
+```
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `machine` | machine name, SSH alias, id or unambiguous prefix | required | Which machine to browse. |
+| `path` | remote directory | the directory `ed <machine> cd` remembers for this terminal, else the machine's home | Where to open. |
+| `--json` | flag | off | Emit JSON on stdout. |
+
+```json
+{
+  "machine": "Asus TUF 7",
+  "opened": true,
+  "path": "/var/log"
+}
+```
+
+```
+ed machines files open tuf
+ed machines files open tuf /var/log
+ed tuf cd /srv/app && ed machines files open tuf
+```
+
+The window does not belong to Edith itself. It belongs to **Edith Files**, a
+separate app that lives inside `Edith.app` at
+`Contents/Library/Applications/Edith Files.app` and holds nothing but these
+windows: no dashboard, no menu bar item, no usage collection. It quits when you
+close the last window. That is why opening a folder from the shell costs a
+window rather than the whole app.
+
+So this verb never touches SSH itself. When Edith Files is not running, `ed`
+launches it with the machine and path on its command line, which is the fast
+path, a tenth of a second rather than the four seconds a full Edith took:
+
+```
+$ ed machines files open tuf /etc
+opened /etc on Asus TUF 7
+```
+
+When it is already running, `ed` posts a request carrying the machine's id and
+the path instead, and the running app opens another window and answers. Either
+way the machine is connected if it was not already, so this works from cold, and
+Edith itself can stay closed throughout.
+
+`undo` still refuses when Edith is closed, because the history it reverses died
+with the window that held it. A window, unlike a history, can be opened from
+nothing.
+
+The default path is what makes it worth typing. `ed tuf cd /srv/app` remembers a
+directory per terminal, and `open` with no path reads that same record, so the
+window lands where the shell is rather than at the home directory. Give a path
+to override it, and give a path in a terminal that has never `cd`'d anywhere for
+that machine, or the window opens at home.
+
+Opening twice for the same machine and path brings the existing window forward
+instead of stacking another one, which is the same rule the Files button in the
+machine's tab bar follows.
+
+What exits 4 is an Edith Files that cannot be started, either because it is not
+inside the installed `Edith.app`, or because it did not come up within 20
+seconds:
+
+```
+$ ed machines files open tuf
+error: Edith Files is not installed where ed can find it
+hint: it lives inside Edith.app; reinstall Edith and retry
+```
+
+So does a running one that never answers, reported the way `undo` reports it.
+Both happen after the machine name has resolved, so an unknown machine still
+exits 3 first.
+
 ## Exit codes
 
 | Code | What produced it |
@@ -806,12 +886,14 @@ no title to give, `the last change`.
 | 1 | The machine ran the command and it failed: a `cp`, `mv`, `mkdir` or `rm` the account is not allowed to make, a `rename` onto a name already taken, a `duplicate` that could not be written, a `get` or `put` that failed its checks, an `ls` that could read nothing. Also the local refusals: fewer than two paths for `cp` or `mv`, no path for `rm`, a slash in a `rename` name. |
 | 2 | `--limit` of zero or less on `search`. Also any parse failure: an unknown flag, a missing positional, a `--limit` that is not a number. |
 | 3 | No machine matches the name, more than one does, or no machines are configured at all. Also `put` when there is no local file at the path given. |
-| 4 | The machine could not be reached, or the SSH transport failed part way through a command. Also all three ways `undo` gives up: Edith's main window closed, no pane with anything to undo, or no reply in 20 seconds. |
+| 4 | The machine could not be reached, or the SSH transport failed part way through a command. Also all three ways `undo` gives up: Edith's main window closed, no pane with anything to undo, or no reply in 20 seconds. `open` uses it when Edith Files cannot be found or will not start, and when a running one never answers. |
 
 ## Notes and gotchas
 
-Nothing in this group needs Edith running except `undo`, and `undo` needs the
-main window rather than the menu bar helper. The rest go straight down the
+Nothing in this group needs Edith running except `undo`, which wants the main
+window rather than the menu bar helper and refuses when it is closed, because
+the history it reverses died with it. `open` needs no Edith at all: it starts
+Edith Files, which is its own app. The rest go straight down the
 ControlMaster socket the app and `ed` share, so they work with Edith closed and
 they reuse an open connection when it is there.
 

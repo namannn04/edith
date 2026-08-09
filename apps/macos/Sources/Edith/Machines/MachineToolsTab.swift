@@ -15,8 +15,8 @@ struct MachineToolsTab: View {
     @State private var snippetOutput = ""
     @State private var runningSnippet = false
     @State private var message: String?
-    @State private var confirmPower: String?
     @State private var serviceFilter = ""
+    @State private var mounting = false
 
     private var dark: Bool { scheme == .dark }
 
@@ -33,29 +33,134 @@ struct MachineToolsTab: View {
                             DashSkin.accent(dark).opacity(0.12),
                             in: RoundedRectangle(cornerRadius: UIScale.pt(9)))
                 }
+                diskCard
                 forwardsCard
                 snippetsCard
                 servicesCard
-                powerCard
             }
             .pageContent(compact)
         }
-        .confirmationDialog(
-            confirmPower == "reboot" ? "Restart this machine?" : "Shut this machine down?",
-            isPresented: Binding(
-                get: { confirmPower != nil }, set: { if !$0 { confirmPower = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button(confirmPower == "reboot" ? "Restart" : "Shut down", role: .destructive) {
-                runPower(confirmPower ?? "")
-                confirmPower = nil
-            }
-            Button("Cancel", role: .cancel) { confirmPower = nil }
-        } message: {
-            Text("The SSH connection drops immediately. Edith reconnects when it comes back.")
-        }
         .task {
             await session.refreshServices()
+            await session.restoreMount()
+        }
+    }
+
+    private var diskCard: some View {
+        SkinCard(
+            title: "Disk",
+            note: "Mount this machine's whole file system on your Mac and open it in Finder",
+            dark: dark
+        ) {
+            HStack(spacing: UIScale.pt(10)) {
+                if let mount = session.mount {
+                    VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                        Text(mount.mountPoint)
+                            .font(DashSkin.mono(11))
+                            .foregroundStyle(DashSkin.ink(dark))
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                        HStack(spacing: UIScale.pt(6)) {
+                            Circle()
+                                .fill(healthColor)
+                                .frame(width: UIScale.pt(6), height: UIScale.pt(6))
+                            Text(subtitle(for: mount))
+                                .font(.system(size: UIScale.pt(10.5)))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if session.isRemounting {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                    }
+                    Button("Reveal") {
+                        NSWorkspace.shared.activateFileViewerSelecting([
+                            URL(fileURLWithPath: mount.mountPoint)
+                        ])
+                    }
+                    .disabled(session.mountHealth != .mounted)
+                    .pointerCursor()
+                    Button("Unmount") { unmountDisk() }
+                        .disabled(mounting || session.isRemounting)
+                        .pointerCursor()
+                } else {
+                    Text(
+                        MachineMounts.isAvailable
+                            ? MachineMounts.mountPoint(for: session.machine).path
+                            : "sshfs is not installed on this Mac"
+                    )
+                    .font(
+                        MachineMounts.isAvailable
+                            ? DashSkin.mono(11) : .system(size: UIScale.pt(11.5))
+                    )
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    Spacer(minLength: 0)
+                    if mounting {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                    }
+                    Button("Mount") { mountDisk() }
+                        .disabled(
+                            mounting || !MachineMounts.isAvailable || !session.state.isConnected
+                        )
+                        .pointerCursor()
+                }
+            }
+        }
+    }
+
+    private var healthColor: Color {
+        switch session.mountHealth {
+        case .mounted: return DashSkin.ok
+        case .stale, .gone: return session.isRemounting ? DashSkin.gold : DashSkin.danger
+        case nil: return DashSkin.inkFaint(dark)
+        }
+    }
+
+    private func subtitle(for mount: MachineMount) -> String {
+        var parts = [mount.remotePath]
+        if mount.isReadOnly { parts.append("read only") }
+        if session.isRemounting {
+            parts.append("reconnecting…")
+        } else if let health = session.mountHealth, health.needsRepair {
+            parts.append(health.describes)
+        }
+        return parts.joined(separator: "  ·  ")
+    }
+
+    private func mountDisk() {
+        mounting = true
+        message = nil
+        Task {
+            do {
+                let landed = try await MachineMounts.mount(
+                    machine: session.machine, remotePath: "/")
+                message = "Mounted at \(landed.mountPoint)."
+            } catch let failure as MachineMountError {
+                message = [failure.errorDescription, failure.hint]
+                    .compactMap { $0 }.joined(separator: " ")
+            } catch {
+                message = error.localizedDescription
+            }
+            await session.restoreMount()
+            mounting = false
+        }
+    }
+
+    private func unmountDisk() {
+        mounting = true
+        message = nil
+        Task {
+            do {
+                let released = try await MachineMounts.unmount(machine: session.machine)
+                message = "Unmounted \(released.mountPoint)."
+            } catch {
+                message = error.localizedDescription
+            }
+            await session.restoreMount()
+            mounting = false
         }
     }
 
@@ -224,36 +329,6 @@ struct MachineToolsTab: View {
         }
     }
 
-    private var powerCard: some View {
-        SkinCard(title: "Power", dark: dark) {
-            HStack(spacing: UIScale.pt(10)) {
-                Button("Restart…") { confirmPower = "reboot" }
-                    .disabled(!session.state.isConnected)
-                    .pointerCursor()
-                Button("Shut down…") { confirmPower = "poweroff" }
-                    .disabled(!session.state.isConnected)
-                    .pointerCursor()
-                Button("Wake") {
-                    message = model.wake(machine: session.machine)
-                }
-                .disabled(session.machine.wakeMACAddress == nil && session.facts.macAddress == nil)
-                .pointerCursor()
-                Spacer(minLength: 0)
-                if let mac = session.machine.wakeMACAddress ?? session.facts.macAddress {
-                    Text(mac)
-                        .font(DashSkin.mono(10.5))
-                        .foregroundStyle(DashSkin.inkFaint(dark))
-                }
-            }
-        }
-        .onChange(of: session.facts.macAddress) { _, mac in
-            guard let mac, session.machine.wakeMACAddress == nil else { return }
-            var updated = session.machine
-            updated.wakeMACAddress = mac
-            model.store.update(updated)
-        }
-    }
-
     private func addForward() {
         guard let local = Int(newForwardLocal), let remote = Int(newForwardRemote) else { return }
         let host = newForwardHost.trimmingCharacters(in: .whitespaces)
@@ -316,29 +391,6 @@ struct MachineToolsTab: View {
                 message = "\(unit) \(action)ed."
             }
             await session.refreshServices()
-        }
-    }
-
-    private func runPower(_ action: String) {
-        Task {
-            let stdin = SudoPassword.stdin(machineID: session.machine.id)
-            let command =
-                action == "reboot"
-                ? ServiceCommands.reboot(withSudoPassword: stdin != nil)
-                : ServiceCommands.shutdown(withSudoPassword: stdin != nil)
-            let underway = action == "reboot" ? "Restarting…" : "Shutting down…"
-            switch await session.runCommand(command, stdin: stdin, timeout: 20) {
-            case .success:
-                message = underway
-                session.stop()
-            case let .failure(error):
-                guard PowerOutcome.hostWentAway(error) else {
-                    message = PowerOutcome.explain(error)
-                    return
-                }
-                message = underway
-                session.stop()
-            }
         }
     }
 }

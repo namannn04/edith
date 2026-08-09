@@ -28,10 +28,11 @@ public enum EdithProcesses {
         return running.filter { !$0.isTerminated }.isEmpty
     }
 
-    public static func launch(_ bundle: URL) async throws {
+    public static func launch(_ bundle: URL, arguments: [String] = []) async throws {
         let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
-        configuration.createsNewApplicationInstance = true
+        configuration.activates = !arguments.isEmpty
+        configuration.createsNewApplicationInstance = arguments.isEmpty
+        configuration.arguments = arguments
         _ = try await NSWorkspace.shared.openApplication(
             at: bundle, configuration: configuration)
     }

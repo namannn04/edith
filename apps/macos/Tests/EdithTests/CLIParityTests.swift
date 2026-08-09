@@ -26,7 +26,7 @@ enum UIParity {
         "uninstall", "refresh", "request", "play", "pause", "stop", "toggle", "next",
         "previous", "volume", "connect", "disconnect", "start", "restart", "prune",
         "up", "down", "pull", "put", "quit", "open", "clean-keys", "test-notification",
-        "check-updates", "collect", "forget",
+        "check-updates", "collect", "forget", "mount", "unmount",
     ]
 
     static let notReachableFromTheUI: [String: String] = [
@@ -98,12 +98,12 @@ enum UIParity {
         UICapability(
             "Machine tools", "delete a snippet", ["machines", "snippets", "rm", "box", "1"]),
         UICapability(
-            "Machine tools", "restart the machine",
+            "Machine header", "restart the machine",
             ["machines", "power", "reboot", "box", "--yes"]),
         UICapability(
-            "Machine tools", "shut the machine down",
+            "Machine header", "shut the machine down",
             ["machines", "power", "shutdown", "box", "--yes"]),
-        UICapability("Machine tools", "wake the machine", ["machines", "power", "wake", "box"]),
+        UICapability("Machine header", "wake the machine", ["machines", "power", "wake", "box"]),
         UICapability(
             "Machine tools", "start a systemd unit",
             ["machines", "services", "start", "box", "nginx.service"]),
@@ -148,6 +148,9 @@ enum UIParity {
         UICapability(
             "Machine finder", "undo the last move or rename",
             ["machines", "files", "undo", "box"]),
+        UICapability(
+            "Machine tab bar", "open the Files window",
+            ["machines", "files", "open", "box", "/var/log"]),
         UICapability("Workspace view", "list saved layouts", ["machines", "workspace", "ls"]),
         UICapability(
             "Workspace pane menu", "split a pane",
@@ -177,6 +180,10 @@ enum UIParity {
             "Workspace picker", "delete a layout", ["machines", "workspace", "rm", "a"]),
         UICapability("Machines", "open the shared connection", ["machines", "connect", "box"]),
         UICapability("Machines", "close the shared connection", ["machines", "disconnect", "box"]),
+        UICapability(
+            "Machine tools", "mount the machine's disk on this Mac", ["machines", "mount", "box"]),
+        UICapability(
+            "Machine tools", "unmount the machine's disk", ["machines", "unmount", "box"]),
 
         UICapability("Music player", "play", ["music", "play"]),
         UICapability("Music player", "pause", ["music", "pause"]),
@@ -240,6 +247,12 @@ enum UIParity {
 
         UICapability(
             "Docker window", "start a container", ["machines", "docker", "start", "box", "api"]),
+        UICapability(
+            "Docker group header", "start every container in the group",
+            ["machines", "docker", "start", "box", "api", "db"]),
+        UICapability(
+            "Docker group header", "stop every running container in the group",
+            ["machines", "docker", "stop", "box", "api", "db"]),
         UICapability(
             "Docker window", "stop a container", ["machines", "docker", "stop", "box", "api"]),
         UICapability(

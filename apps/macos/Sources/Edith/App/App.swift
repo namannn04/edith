@@ -142,15 +142,14 @@ private func relaunchHelper(at url: URL, after proc: NSRunningApplication) {
     }
 }
 
-@main
-struct EdithApp: App {
+public struct EdithApp: App {
     @NSApplicationDelegateAdaptor(MainAppDelegate.self) private var delegate
 
-    init() {
+    public init() {
         _ = AskpassEntry.runIfRequested()
     }
 
-    var body: some Scene {
+    public var body: some Scene {
         Settings {
             SettingsRedirect()
         }

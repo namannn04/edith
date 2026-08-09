@@ -11,6 +11,9 @@ struct DockerContainerList: View {
     let onAction: (DockerContainer, String) -> Void
     let onShell: (DockerContainer) -> Void
     let onRemove: (DockerContainer) -> Void
+    let onGroupAction: (String, [DockerContainer], String) -> Void
+
+    static func groupKey(_ project: String?) -> String { "group:\(project ?? "")" }
 
     private var filtered: [DockerContainer] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
@@ -67,6 +70,7 @@ struct DockerContainerList: View {
                                 .font(DashSkin.mono(10))
                                 .foregroundStyle(DashSkin.inkFaint(dark))
                             Spacer(minLength: 0)
+                            groupSwitch(group.project, group.containers)
                         }
                         .foregroundStyle(DashSkin.inkSoft(dark))
                         .padding(.horizontal, UIScale.pt(16))
@@ -75,6 +79,30 @@ struct DockerContainerList: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func groupSwitch(_ project: String?, _ containers: [DockerContainer]) -> some View {
+        let key = Self.groupKey(project)
+        let running = containers.filter { $0.state.isRunning }
+        let starting = running.isEmpty
+        if busyIDs.contains(key) {
+            ProgressView().controlSize(.small).scaleEffect(0.5).frame(width: UIScale.pt(20))
+        } else {
+            Button {
+                let targets = starting ? containers.filter { !$0.state.isRunning } : running
+                onGroupAction(key, targets, starting ? "start" : "stop")
+            } label: {
+                Image(systemName: starting ? "play.fill" : "stop.fill")
+                    .font(.system(size: UIScale.pt(9.5)))
+            }
+            .buttonStyle(HoverButtonStyle())
+            .help(
+                starting
+                    ? "Start every container in this group"
+                    : "Stop the \(running.count) running container"
+                        + (running.count == 1 ? "" : "s") + " in this group")
         }
     }
 }

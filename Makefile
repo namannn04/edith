@@ -62,6 +62,9 @@ ci-swift: ci-swift-check
 	test -f apps/macos/dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/claude.svg
 	test -f apps/macos/dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/codex.svg
 	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/MacOS/Edith
+	test -x "apps/macos/dist/Edith.app/Contents/Library/Applications/Edith Files.app/Contents/MacOS/EdithFiles"
+	test -f "apps/macos/dist/Edith.app/Contents/Library/Applications/Edith Files.app/Contents/Resources/Edith_Edith.bundle/appicon.png"
+	/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "apps/macos/dist/Edith.app/Contents/Library/Applications/Edith Files.app/Contents/Info.plist" | grep -qx com.pulkit.edith.files
 	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/AppIcon.icns
 	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/claude.svg
 	test -f apps/macos/dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/codex.svg

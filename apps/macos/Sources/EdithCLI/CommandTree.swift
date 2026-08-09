@@ -541,6 +541,9 @@ public enum CommandTree {
                                 "undo", "Undo the last change a Finder window made.",
                                 options: common, arguments: [.machine]),
                             CommandNode(
+                                "open", "Open the Files window on a directory.",
+                                options: common, arguments: [.machine, .remotePath]),
+                            CommandNode(
                                 "duplicate", "Copy a file beside itself.", options: common,
                                 arguments: [.machine, .remotePath]),
                             CommandNode(
@@ -650,6 +653,15 @@ public enum CommandTree {
                     CommandNode(
                         "disconnect", "Close the shared SSH connection.", options: ["--json"],
                         arguments: [.machine]),
+                    CommandNode(
+                        "mount", "Mount a machine's file system on this Mac.",
+                        options: ["--json", "--help", "--at", "--read-only"],
+                        arguments: [.machine, .remotePath]),
+                    CommandNode(
+                        "unmount", "Unmount a machine's file system.", aliases: ["umount"],
+                        options: ["--json"], arguments: [.machine]),
+                    CommandNode(
+                        "mounts", "Every machine file system mounted here.", options: common),
                 ]),
         ])
 

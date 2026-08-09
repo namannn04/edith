@@ -30,6 +30,9 @@ public final class MachineSession: ObservableObject {
     @Published public private(set) var services: [SystemdService] = []
     @Published public private(set) var facts = MachineSessionSummary()
     @Published public private(set) var activeForwards: Set<UUID> = []
+    @Published public private(set) var mount: MachineMount?
+    @Published public private(set) var mountHealth: MountHealth?
+    @Published public private(set) var isRemounting = false
     @Published public private(set) var isLocal: Bool
 
     public static let historyLength = 60
@@ -51,6 +54,7 @@ public final class MachineSession: ObservableObject {
     private var localTask: Task<Void, Never>?
     private var metricsRestartTask: Task<Void, Never>?
     private var probeTask: Task<Void, Never>?
+    private var mountTask: Task<Void, Never>?
     private var wakeObserver: NSObjectProtocol?
     private var reconnects = true
     private var rememberedForwards: [UUID: PortForward] = [:]
@@ -126,6 +130,8 @@ public final class MachineSession: ObservableObject {
         metricsRestartTask = nil
         probeTask?.cancel()
         probeTask = nil
+        mountTask?.cancel()
+        mountTask = nil
         metricsStream?.cancel()
         metricsStream = nil
     }
@@ -153,6 +159,7 @@ public final class MachineSession: ObservableObject {
                     startMetricsStream()
                     startDockerPolling()
                     startLatencyProbe()
+                    startMountWatch()
                     await loadFacts()
                     return
                 } catch {
@@ -193,6 +200,7 @@ public final class MachineSession: ObservableObject {
 
     private func reconnectAfterWake() {
         guard reconnects, !machine.isMissing else { return }
+        Task { await restoreMount() }
         switch state {
         case .connected: probeConnection()
         case .reconnecting, .failed:
@@ -496,6 +504,46 @@ public final class MachineSession: ObservableObject {
             who: MachineFacts.parseWho(who?.stdoutText ?? ""),
             updatesAvailable: MachineFacts.parseUpdates(updates?.stdoutText ?? ""),
             macAddress: MachineFacts.parseMACAddress(mac?.stdoutText ?? ""))
+    }
+
+    private func startMountWatch() {
+        guard !isLocal else { return }
+        mountTask?.cancel()
+        mountTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await restoreMount()
+                try? await Task.sleep(for: .seconds(MachineResourcePolicy.mountCheckInterval))
+            }
+        }
+    }
+
+    @discardableResult
+    public func restoreMount() async -> MountRepair {
+        guard !isLocal, !isRemounting else { return .nothingToDo }
+        guard let wanted = MachineMounts.recorded(for: machine) else {
+            mount = await MachineMounts.current(for: machine)
+            mountHealth = mount == nil ? nil : .mounted
+            return .nothingToDo
+        }
+        let health = await MachineMounts.health(of: wanted)
+        mount = wanted
+        mountHealth = health
+        guard health.needsRepair else { return .healthy(wanted) }
+        isRemounting = true
+        let repair = await MachineMounts.restore(machine: machine)
+        isRemounting = false
+        switch repair {
+        case let .remounted(landed), let .healthy(landed):
+            mount = landed
+            mountHealth = .mounted
+        case let .failed(record, _):
+            mount = record
+        case .nothingToDo:
+            mount = nil
+            mountHealth = nil
+        }
+        return repair
     }
 
     private func replayForwards(on connection: SSHConnection) async {

@@ -77,6 +77,9 @@ struct MachineDetailView: View {
 
             Spacer(minLength: 0)
             ConnectionPill(session: session, dark: dark)
+            if !session.isLocal {
+                MachinePowerControls(session: session, model: model, dark: dark)
+            }
         }
         .padding(.horizontal, PageMetrics.gutter(compact))
         .padding(.bottom, UIScale.pt(12))

@@ -238,6 +238,11 @@ enum JSONContract {
         JSONCase("ed machines workspace rm", ["machines", "workspace", "rm", "nope", "--json"]),
         JSONCase(
             "ed machines files undo", ["machines", "files", "undo", "nowhere-at-all", "--json"]),
+        JSONCase(
+            "ed machines files open", ["machines", "files", "open", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines mounts", ["machines", "mounts", "--json"]),
+        JSONCase("ed machines mount", ["machines", "mount", "nowhere-at-all", "--json"]),
+        JSONCase("ed machines unmount", ["machines", "unmount", "nowhere-at-all", "--json"]),
         JSONCase("ed machines connect", ["machines", "connect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines disconnect", ["machines", "disconnect", "nowhere-at-all", "--json"]),
         JSONCase("ed machines services", ["machines", "services", "nowhere-at-all", "--json"]),
