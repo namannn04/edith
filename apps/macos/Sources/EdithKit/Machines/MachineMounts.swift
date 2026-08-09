@@ -36,6 +36,29 @@ public struct MountedVolume: Equatable, Sendable {
     public var looksLikeFUSE: Bool { kinds.contains { $0.contains("fuse") } }
 }
 
+public enum MountHealth: String, Equatable, Sendable {
+    case mounted
+    case stale
+    case gone
+
+    public var needsRepair: Bool { self != .mounted }
+
+    public var describes: String {
+        switch self {
+        case .mounted: return "mounted"
+        case .stale: return "not answering"
+        case .gone: return "gone"
+        }
+    }
+}
+
+public enum MountRepair: Equatable, Sendable {
+    case nothingToDo
+    case healthy(MachineMount)
+    case remounted(MachineMount)
+    case failed(MachineMount, String)
+}
+
 public enum MachineMountError: LocalizedError, Equatable {
     case toolMissing
     case alreadyMounted(String)
@@ -171,9 +194,13 @@ public enum MachineMounts {
     }
 
     public static func list() async -> [MachineMount] {
+        reconcile(records: records(), with: await volumes())
+    }
+
+    public static func tracked() async -> [MachineMount] {
         let live = reconcile(records: records(), with: await volumes())
-        remember(live.filter { $0.machineID != nil })
-        return live
+        let known = Set(live.map(\.mountPoint))
+        return live + records().filter { !known.contains($0.mountPoint) }
     }
 
     public static func current(for machine: Machine) async -> MachineMount? {
@@ -187,11 +214,11 @@ public enum MachineMounts {
         var options = [
             "ControlPath=\"\(MachinePaths.socketFile(for: machine.id).path)\"",
             "ControlMaster=no",
-            "BatchMode=yes",
             "reconnect",
             "ServerAliveInterval=15",
             "ServerAliveCountMax=3",
         ]
+        if !machine.auth.usesAskpass { options.append("BatchMode=yes") }
         if !minimal {
             options += [
                 "volname=\(folderName(for: machine))",
@@ -251,7 +278,8 @@ public enum MachineMounts {
             complaint = attempt.complaint
         }
         discardEmptyFolder(at: destination.path)
-        throw MachineMountError.failed(complaint)
+        throw MachineMountError.failed(
+            complaint.isEmpty ? "sshfs did not mount it and said nothing about why" : complaint)
     }
 
     @discardableResult
@@ -259,18 +287,61 @@ public enum MachineMounts {
         guard let existing = await current(for: machine) else {
             throw MachineMountError.notMounted(machine.name)
         }
-        var result = await run(URL(fileURLWithPath: "/sbin/umount"), [existing.mountPoint])
-        if result.status != 0 {
-            result = await run(
-                URL(fileURLWithPath: "/usr/sbin/diskutil"),
-                ["unmount", "force", existing.mountPoint])
-        }
+        let complaint = await release(existing.mountPoint)
         guard await current(for: machine) == nil else {
-            throw MachineMountError.failed(explain(result.output))
+            throw MachineMountError.failed(
+                complaint.isEmpty
+                    ? "\(existing.mountPoint) would not unmount; something may still be in it"
+                    : complaint)
         }
         remember(records().filter { $0.mountPoint != existing.mountPoint })
         discardEmptyFolder(at: existing.mountPoint)
         return existing
+    }
+
+    public static func health(of mount: MachineMount) async -> MountHealth {
+        guard await volumes().contains(where: { $0.mountPoint == mount.mountPoint }) else {
+            return .gone
+        }
+        let probe = await run(
+            URL(fileURLWithPath: "/usr/bin/stat"), ["-f%i", mount.mountPoint], timeout: 6)
+        return probe.status == 0 ? .mounted : .stale
+    }
+
+    public static func recorded(for machine: Machine, in file: URL? = nil) -> MachineMount? {
+        records(in: file).first { $0.machineID == machine.id }
+    }
+
+    @discardableResult
+    public static func restore(machine: Machine) async -> MountRepair {
+        guard let wanted = recorded(for: machine) else { return .nothingToDo }
+        let health = await health(of: wanted)
+        guard health.needsRepair else { return .healthy(wanted) }
+        if health == .stale { _ = await release(wanted.mountPoint) }
+        remember(records().filter { $0.machineID != machine.id })
+        do {
+            let landed = try await mount(
+                machine: machine, remotePath: wanted.remotePath,
+                at: URL(fileURLWithPath: wanted.mountPoint), readOnly: wanted.isReadOnly)
+            return .remounted(landed)
+        } catch {
+            remember(records() + [wanted])
+            return .failed(wanted, error.localizedDescription)
+        }
+    }
+
+    static func release(_ mountPoint: String) async -> String {
+        var result = await run(URL(fileURLWithPath: "/sbin/umount"), [mountPoint], timeout: 20)
+        if result.status != 0 {
+            result = await run(
+                URL(fileURLWithPath: "/sbin/umount"), ["-f", mountPoint], timeout: 20)
+        }
+        if result.status != 0 {
+            result = await run(
+                URL(fileURLWithPath: "/usr/sbin/diskutil"),
+                ["unmount", "force", mountPoint], timeout: 30)
+        }
+        return explain(result.output)
     }
 
     static func settled(machine: Machine, at destination: URL, remotePath: String) async
@@ -290,7 +361,7 @@ public enum MachineMounts {
         let process = Process()
         process.executableURL = tool
         process.arguments = arguments
-        process.environment = CLIToolEnvironment.sanitized()
+        process.environment = MachineSSHEnvironment.make(for: machine)
         let pipe = Pipe()
         let output = MountOutput()
         process.standardOutput = pipe
@@ -334,18 +405,19 @@ public enum MachineMounts {
         }
     }
 
-    static func records() -> [MachineMount] {
-        guard let data = try? Data(contentsOf: recordsFile) else { return [] }
+    public static func records(in file: URL? = nil) -> [MachineMount] {
+        guard let data = try? Data(contentsOf: file ?? recordsFile) else { return [] }
         return (try? JSONDecoder().decode([MachineMount].self, from: data)) ?? []
     }
 
-    static func remember(_ mounts: [MachineMount]) {
+    public static func remember(_ mounts: [MachineMount], in file: URL? = nil) {
+        let destination = file ?? recordsFile
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? encoder.encode(mounts.filter { $0.machineID != nil }) else { return }
         try? FileManager.default.createDirectory(
-            at: MachinePaths.dir, withIntermediateDirectories: true)
-        try? data.write(to: recordsFile, options: .atomic)
+            at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: destination, options: .atomic)
     }
 
     private static func discardEmptyFolder(at path: String) {
@@ -358,30 +430,31 @@ public enum MachineMounts {
 
     private static func explain(_ output: String) -> String {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty else {
-            return trimmed.split(separator: "\n").last.map(String.init) ?? trimmed
-        }
-        return "sshfs did not mount it and said nothing about why"
+        guard !trimmed.isEmpty else { return "" }
+        return trimmed.split(separator: "\n").last.map(String.init) ?? trimmed
     }
 
-    private static func run(_ executable: URL, _ arguments: [String]) async -> (
-        status: Int32, output: String
-    ) {
-        await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            process.executableURL = executable
-            process.arguments = arguments
-            process.environment = CLIToolEnvironment.sanitized()
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-            process.standardInput = FileHandle.nullDevice
-            guard (try? process.run()) != nil else {
-                return (Int32(-1), "\(executable.lastPathComponent) could not be started")
-            }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            return (process.terminationStatus, String(decoding: data, as: UTF8.self))
-        }.value
+    private static func run(
+        _ executable: URL, _ arguments: [String], timeout: TimeInterval = 30
+    ) async -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        process.environment = CLIToolEnvironment.sanitized()
+        let pipe = Pipe()
+        let output = MountOutput()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        process.standardInput = FileHandle.nullDevice
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            PipeReading.consume(handle, receive: output.append)
+        }
+        guard (try? process.run()) != nil else {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            return (-1, "\(executable.lastPathComponent) could not be started")
+        }
+        let status = await SSHConnection.waitForExit(process, timeout: timeout)
+        pipe.fileHandleForReading.readabilityHandler = nil
+        return (status, output.text())
     }
 }

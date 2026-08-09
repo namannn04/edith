@@ -16,14 +16,18 @@ enum MountBridge {
         }
     }
 
-    static func report(_ mount: MachineMount, machine: Machine) -> JSONValue {
-        .object([
+    static func report(_ mount: MachineMount, machine: Machine, state: MountHealth? = nil)
+        -> JSONValue
+    {
+        var fields: [String: JSONValue] = [
             "machine": .string(machine.name),
             "source": .string(mount.source),
             "remotePath": .string(mount.remotePath),
             "mountPoint": .string(mount.mountPoint),
             "readOnly": .bool(mount.isReadOnly),
-        ])
+        ]
+        if let state { fields["state"] = .string(state.rawValue) }
+        return .object(fields)
     }
 }
 
@@ -64,6 +68,27 @@ struct MachinesMountCommand: AsyncParsableCommand {
             let runner = try await MachineResolver.runner(machine)
             let remote = path.flatMap { $0.isEmpty ? nil : $0 } ?? "/"
             let destination = at.map { URL(fileURLWithPath: $0.expandingTilde()) }
+            if path == nil, at == nil {
+                switch await MachineMounts.restore(machine: runner.machine) {
+                case let .remounted(landed):
+                    guard !json else {
+                        CLIOut.json(MountBridge.report(landed, machine: runner.machine))
+                        return
+                    }
+                    CLIOut.out("remounted \(landed.source)  ->  \(landed.mountPoint)")
+                    return
+                case let .healthy(landed):
+                    throw MountBridge.failure(
+                        MachineMountError.alreadyMounted(landed.mountPoint),
+                        machine: runner.machine)
+                case let .failed(record, message):
+                    throw CLIFailure(
+                        "could not put \(runner.machine.name) back at \(record.mountPoint)",
+                        hint: message)
+                case .nothingToDo:
+                    break
+                }
+            }
             do {
                 let mounted = try await MachineMounts.mount(
                     machine: runner.machine, remotePath: remote, at: destination,
@@ -118,23 +143,26 @@ struct MachinesMountsCommand: AsyncParsableCommand {
     func run() async throws {
         try await execute {
             let machines = MachineDirectory.load()
-            let mounts = await MachineMounts.list()
-            let named = mounts.map { mount in
+            let mounts = await MachineMounts.tracked()
+            var named: [(String, MachineMount, MountHealth)] = []
+            for mount in mounts {
                 let found = machines.first {
                     $0.id == mount.machineID || $0.sshTarget == mount.target
                 }
-                return (found?.name ?? mount.target, mount)
+                let state = await MachineMounts.health(of: mount)
+                named.append((found?.name ?? mount.target, mount, state))
             }
             guard !json else {
                 CLIOut.json(
                     .array(
-                        named.map { name, mount in
+                        named.map { name, mount, state in
                             .object([
                                 "machine": .string(name),
                                 "source": .string(mount.source),
                                 "remotePath": .string(mount.remotePath),
                                 "mountPoint": .string(mount.mountPoint),
                                 "readOnly": .bool(mount.isReadOnly),
+                                "state": .string(state.rawValue),
                             ])
                         }))
                 return
@@ -143,11 +171,15 @@ struct MachinesMountsCommand: AsyncParsableCommand {
                 CLIOut.note("nothing is mounted; mount one with `ed machines mount <machine>`")
                 return
             }
-            let rows = named.map { name, mount in
-                [name, mount.remotePath, mount.mountPoint, mount.isReadOnly ? "ro" : "rw"]
+            let rows = named.map { name, mount, state in
+                [
+                    name, mount.remotePath, mount.mountPoint, mount.isReadOnly ? "ro" : "rw",
+                    state.rawValue,
+                ]
             }
             CLIOut.out(
-                TextTable.render(headers: ["MACHINE", "REMOTE", "AT", "MODE"], rows: rows))
+                TextTable.render(
+                    headers: ["MACHINE", "REMOTE", "AT", "MODE", "STATE"], rows: rows))
         }
     }
 }

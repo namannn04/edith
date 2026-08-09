@@ -69,9 +69,9 @@ the process state between metric records.
 | `ed machines exec` | Runs a command there, passing both streams and the remote exit code through. |
 | `ed machines connect` | Opens the shared SSH connection and reports the round trip time. |
 | `ed machines disconnect` | Closes the shared SSH connection and removes its socket. |
-| `ed machines mount` | Mounts a machine's whole file system on this Mac, so Finder and every local tool can read it. |
+| `ed machines mount` | Mounts a machine's whole file system on this Mac, so Finder and every local tool can read it. Run again to put a dead mount back. |
 | `ed machines unmount` | Unmounts it again and tidies the folder away. Aliased `umount`. |
-| `ed machines mounts` | Lists every machine file system mounted here right now. |
+| `ed machines mounts` | Lists every machine file system Edith mounted or can see, and whether each one still answers. |
 
 Seven more subcommands live under `ed machines` and are documented on four
 further pages: [`docker`](./machines-docker.md), [`files`](./machines-files.md),
@@ -1584,13 +1584,29 @@ is the name in Finder's sidebar. `reconnect` is on, so the mount survives a
 short network drop instead of turning into stale handles.
 
 The default mount point is created if it is missing. A folder that already has
-something in it is refused, and so is a machine that is already mounted, both
-exiting 1:
+something in it is refused, and so is a machine that is already mounted and
+answering, both exiting 1:
 
 ```
 $ ed machines mount tuf
 error: That machine is already mounted at /Users/pulkit/Edith/tuf.
 ```
+
+A mount that is recorded but dead is the case this command repairs instead of
+refusing. With no `path` and no `--at` it takes whatever is left down and mounts
+again where it was, with the same remote path and the same read-only setting:
+
+```
+$ ed machines mounts
+MACHINE     REMOTE  AT                       MODE  STATE
+Asus TUF 7  /       /Users/pulkit/Edith/tuf  rw    gone
+
+$ ed machines mount tuf
+remounted tuf:/  ->  /Users/pulkit/Edith/tuf
+```
+
+Naming a `path` or an `--at` turns that off, because then you are asking for a
+different mount rather than for the one that broke.
 
 The default is the whole file system, so `~/Edith/tuf/etc/hosts` is the
 machine's `/etc/hosts`. Mounting one directory instead is the same command with
@@ -1605,9 +1621,28 @@ What Edith keeps is a small record in
 `~/Library/Application Support/Edith/machines/mounts.json`, one line per mount
 it made: the machine, the remote path and the mount point. That is what ties a
 mount back to a machine, because not every FUSE reports the `user@host:/path`
-source in the mount table. The record is checked against the live mount table on
-every read, so one that has gone away, unmounted by hand or lost to a restart,
-is dropped rather than believed.
+source in the mount table, and it is what a repair puts back.
+
+**When the connection goes.** A mount is its own `sshfs` process rather than a
+channel on the shared connection, so a dropped master does not take it down and
+`-o reconnect` rides out a short network blip on its own. What it does not
+survive is the machine sleeping or rebooting, or the process being killed: the
+mount either disappears or turns into a folder that hangs when you touch it.
+Both are named by the state in `ed machines mounts`, and both are repaired the
+same way, by taking whatever is left down and mounting again from the record.
+
+Three things trigger the repair. The app checks every machine it is connected to
+every 20 seconds, and again after this Mac wakes, which is the same shape the
+port forward replay has. `ed machines mount <machine>` with no path repairs
+rather than refusing, and says `remounted` when it did. Opening the machine's
+Tools tab checks once on the spot, and the dot beside the mount point says
+whether it is answering.
+
+Nothing repairs a mount you took down yourself: `ed machines unmount` and the
+Unmount button both drop the record, and a mount with no record is left alone.
+That also means a mount you drop with a bare `umount` behind Edith's back comes
+back on the next check, because from here it looks exactly like a mount that
+died. Use `ed machines unmount` when you mean it.
 
 ### `ed machines unmount`
 
@@ -1689,9 +1724,9 @@ ed machines mounts [--json]
 
 ```
 $ ed machines mounts
-MACHINE     REMOTE  AT                       MODE
-Asus TUF 7  /       /Users/pulkit/Edith/tuf  rw
-pi          /srv    /Users/pulkit/Edith/pi   ro
+MACHINE     REMOTE  AT                       MODE  STATE
+Asus TUF 7  /       /Users/pulkit/Edith/tuf  rw    mounted
+pi          /srv    /Users/pulkit/Edith/pi   ro    gone
 ```
 
 #### `--json` shape
@@ -1703,7 +1738,8 @@ pi          /srv    /Users/pulkit/Edith/pi   ro
     "mountPoint": "/Users/pulkit/Edith/tuf",
     "readOnly": false,
     "remotePath": "/",
-    "source": "tuf:/"
+    "source": "tuf:/",
+    "state": "mounted"
   }
 ]
 ```
@@ -1719,7 +1755,11 @@ ed machines mounts --json | jq -r '.[].mountPoint'
 
 This reads `/sbin/mount` and reports what the system says is mounted, filtered
 to the mounts Edith recorded plus any FUSE mount whose source reads
-`user@host:/path`. So a machine mounted by hand with `sshfs` shows up here too,
+`user@host:/path`. A recorded mount that is no longer in the table is listed too
+rather than hidden, because Edith still means to have it: that is the `gone`
+state. `STATE` is `mounted` when a `stat` on the mount point answers within six
+seconds, `stale` when the mount is there but does not answer, and `gone` when
+it has vanished. The last two are what `ed machines mount <machine>` repairs. So a machine mounted by hand with `sshfs` shows up here too,
 matched to a name by its target, and an entry Edith cannot match to a machine is
 listed under that target instead. Nothing here dials a machine, so it answers
 instantly and works with every machine asleep.

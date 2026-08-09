@@ -16,7 +16,6 @@ struct MachineToolsTab: View {
     @State private var runningSnippet = false
     @State private var message: String?
     @State private var serviceFilter = ""
-    @State private var mount: MachineMount?
     @State private var mounting = false
 
     private var dark: Bool { scheme == .dark }
@@ -43,7 +42,7 @@ struct MachineToolsTab: View {
         }
         .task {
             await session.refreshServices()
-            await refreshMount()
+            await session.restoreMount()
         }
     }
 
@@ -54,27 +53,36 @@ struct MachineToolsTab: View {
             dark: dark
         ) {
             HStack(spacing: UIScale.pt(10)) {
-                if let mount {
+                if let mount = session.mount {
                     VStack(alignment: .leading, spacing: UIScale.pt(2)) {
                         Text(mount.mountPoint)
                             .font(DashSkin.mono(11))
                             .foregroundStyle(DashSkin.ink(dark))
                             .lineLimit(1)
                             .truncationMode(.head)
-                        Text("\(mount.remotePath)\(mount.isReadOnly ? "  ·  read only" : "")")
-                            .font(.system(size: UIScale.pt(10.5)))
-                            .foregroundStyle(DashSkin.inkFaint(dark))
-                            .lineLimit(1)
+                        HStack(spacing: UIScale.pt(6)) {
+                            Circle()
+                                .fill(healthColor)
+                                .frame(width: UIScale.pt(6), height: UIScale.pt(6))
+                            Text(subtitle(for: mount))
+                                .font(.system(size: UIScale.pt(10.5)))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                                .lineLimit(1)
+                        }
                     }
                     Spacer(minLength: 0)
+                    if session.isRemounting {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                    }
                     Button("Reveal") {
                         NSWorkspace.shared.activateFileViewerSelecting([
                             URL(fileURLWithPath: mount.mountPoint)
                         ])
                     }
+                    .disabled(session.mountHealth != .mounted)
                     .pointerCursor()
                     Button("Unmount") { unmountDisk() }
-                        .disabled(mounting)
+                        .disabled(mounting || session.isRemounting)
                         .pointerCursor()
                 } else {
                     Text(
@@ -103,8 +111,23 @@ struct MachineToolsTab: View {
         }
     }
 
-    private func refreshMount() async {
-        mount = await MachineMounts.current(for: session.machine)
+    private var healthColor: Color {
+        switch session.mountHealth {
+        case .mounted: return DashSkin.ok
+        case .stale, .gone: return session.isRemounting ? DashSkin.gold : DashSkin.danger
+        case nil: return DashSkin.inkFaint(dark)
+        }
+    }
+
+    private func subtitle(for mount: MachineMount) -> String {
+        var parts = [mount.remotePath]
+        if mount.isReadOnly { parts.append("read only") }
+        if session.isRemounting {
+            parts.append("reconnecting…")
+        } else if let health = session.mountHealth, health.needsRepair {
+            parts.append(health.describes)
+        }
+        return parts.joined(separator: "  ·  ")
     }
 
     private func mountDisk() {
@@ -112,14 +135,16 @@ struct MachineToolsTab: View {
         message = nil
         Task {
             do {
-                mount = try await MachineMounts.mount(machine: session.machine, remotePath: "/")
-                message = "Mounted at \(mount?.mountPoint ?? "")."
+                let landed = try await MachineMounts.mount(
+                    machine: session.machine, remotePath: "/")
+                message = "Mounted at \(landed.mountPoint)."
             } catch let failure as MachineMountError {
                 message = [failure.errorDescription, failure.hint]
                     .compactMap { $0 }.joined(separator: " ")
             } catch {
                 message = error.localizedDescription
             }
+            await session.restoreMount()
             mounting = false
         }
     }
@@ -131,11 +156,10 @@ struct MachineToolsTab: View {
             do {
                 let released = try await MachineMounts.unmount(machine: session.machine)
                 message = "Unmounted \(released.mountPoint)."
-                mount = nil
             } catch {
                 message = error.localizedDescription
-                await refreshMount()
             }
+            await session.restoreMount()
             mounting = false
         }
     }

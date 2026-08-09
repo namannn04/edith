@@ -104,6 +104,51 @@ import Testing
         #expect(!arguments.contains("-p"))
     }
 
+    @Test func healthSaysWhatARepairWouldHaveToDo() {
+        #expect(MountHealth.mounted.needsRepair == false)
+        #expect(MountHealth.stale.needsRepair)
+        #expect(MountHealth.gone.needsRepair)
+        #expect(MountHealth.stale.describes == "not answering")
+    }
+
+    private func scratchFile() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("mounts.json")
+    }
+
+    @Test func aRecordSurvivesTheMountGoingAwaySoItCanBePutBack() {
+        let file = scratchFile()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        let record = MachineMount(
+            machineID: machine.id, target: machine.sshTarget, remotePath: "/",
+            mountPoint: "/Users/pulkit/Edith/tuf", isReadOnly: true)
+        MachineMounts.remember([record], in: file)
+        #expect(MachineMounts.recorded(for: machine, in: file) == record)
+        let other = Machine(name: "pi", host: "box")
+        #expect(MachineMounts.recorded(for: other, in: file) == nil)
+    }
+
+    @Test func anAdoptedMountIsNeverPutBackBecauseEdithDidNotMakeIt() {
+        let file = scratchFile()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        MachineMounts.remember(
+            [MachineMount(target: "pulkit@10.0.0.4", remotePath: "/", mountPoint: "/mnt/x")],
+            in: file)
+        #expect(MachineMounts.records(in: file).isEmpty)
+        #expect(MachineMounts.recorded(for: machine, in: file) == nil)
+    }
+
+    @Test func aPasswordMachineKeepsItsAskpassRatherThanBatchMode() {
+        var secret = machine
+        secret.auth = .password
+        let options = MachineMounts.options(machine: secret, readOnly: false)
+        #expect(!options.contains("BatchMode=yes"))
+        #expect(options.contains("reconnect"))
+        let agent = MachineMounts.options(machine: machine, readOnly: false)
+        #expect(agent.contains("BatchMode=yes"))
+    }
+
     @Test func aMountPointWithSomethingInItIsRefused() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
