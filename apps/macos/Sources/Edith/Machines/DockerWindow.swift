@@ -220,7 +220,8 @@ struct DockerConsoleView: View {
                     perform(DockerCommands.lifecycle(action, id: container.id), on: container.id)
                 },
                 onShell: { terminalFor = container },
-                onRemove: { pendingRemoval = container })
+                onRemove: { pendingRemoval = container },
+                onSwitch: { selected = $0 })
         } else {
             VStack(spacing: 0) {
                 header
