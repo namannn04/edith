@@ -39,6 +39,7 @@ public final class MachineSession: ObservableObject {
     private var localTask: Task<Void, Never>?
     private var wakeObserver: NSObjectProtocol?
     private var reconnects = true
+    private var rememberedForwards: [UUID: PortForward] = [:]
 
     public init(machine: Machine, local: Bool = false) {
         self.machine = machine
@@ -73,6 +74,8 @@ public final class MachineSession: ObservableObject {
     public func stop() {
         reconnects = false
         cancelWork()
+        rememberedForwards.removeAll()
+        activeForwards.removeAll()
         let connection = connection
         Task { await connection?.disconnect() }
         state = .disconnected
@@ -122,6 +125,8 @@ public final class MachineSession: ObservableObject {
                 guard !Task.isCancelled, let self, let connection else { return }
                 do {
                     try await connection.connect()
+                    guard !Task.isCancelled else { return }
+                    await replayForwards(on: connection)
                     guard !Task.isCancelled else { return }
                     state = .connected(latencyMillis: nil)
                     startMetricsStream()
@@ -446,11 +451,27 @@ public final class MachineSession: ObservableObject {
             macAddress: MachineFacts.parseMACAddress(mac?.stdoutText ?? ""))
     }
 
+    private func replayForwards(on connection: SSHConnection) async {
+        let forwards = Array(rememberedForwards.values)
+        var failedIDs: Set<UUID> = []
+        for forward in forwards {
+            do {
+                try await connection.addForward(forward)
+            } catch {
+                failedIDs.insert(forward.id)
+            }
+        }
+        rememberedForwards = MachineForwardReplay.retainedForwards(
+            rememberedForwards, failedIDs: failedIDs)
+        activeForwards = Set(rememberedForwards.keys)
+    }
+
     public func setForward(_ forward: PortForward, active: Bool) async -> String? {
         guard let connection else { return "Not connected." }
         if active {
             do {
                 try await connection.addForward(forward)
+                rememberedForwards[forward.id] = forward
                 activeForwards.insert(forward.id)
                 return nil
             } catch {
@@ -458,6 +479,7 @@ public final class MachineSession: ObservableObject {
             }
         }
         await connection.cancelForward(forward)
+        rememberedForwards.removeValue(forKey: forward.id)
         activeForwards.remove(forward.id)
         return nil
     }
@@ -533,5 +555,13 @@ public final class MachineSession: ObservableObject {
                 modified: values?.contentModificationDate)
         }
         return FileListing.sorted(entries)
+    }
+}
+
+enum MachineForwardReplay {
+    static func retainedForwards(
+        _ forwards: [UUID: PortForward], failedIDs: Set<UUID>
+    ) -> [UUID: PortForward] {
+        forwards.filter { !failedIDs.contains($0.key) }
     }
 }
