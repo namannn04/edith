@@ -1,6 +1,16 @@
 import AppKit
 import Foundation
 
+private struct MachineLiveMetrics {
+    var sample: MachineSample?
+    var cpuHistory: [Double] = []
+    var memHistory: [Double] = []
+    var netRxHistory: [Double] = []
+    var netTxHistory: [Double] = []
+    var diskReadHistory: [Double] = []
+    var diskWriteHistory: [Double] = []
+}
+
 @MainActor
 public final class MachineSession: ObservableObject {
     public let machine: Machine
@@ -8,14 +18,8 @@ public final class MachineSession: ObservableObject {
 
     @Published public private(set) var state: MachineConnectionState = .disconnected
     @Published public private(set) var hello: MachineHello?
-    @Published public private(set) var sample: MachineSample?
     @Published public private(set) var slow: MachineSlow?
-    @Published public private(set) var cpuHistory: [Double] = []
-    @Published public private(set) var memHistory: [Double] = []
-    @Published public private(set) var netRxHistory: [Double] = []
-    @Published public private(set) var netTxHistory: [Double] = []
-    @Published public private(set) var diskReadHistory: [Double] = []
-    @Published public private(set) var diskWriteHistory: [Double] = []
+    @Published private var liveMetrics = MachineLiveMetrics()
     @Published public private(set) var docker = DockerAvailability(status: .unknown)
     @Published public private(set) var containersLoaded = false
     @Published public private(set) var containers: [DockerContainer] = []
@@ -29,6 +33,14 @@ public final class MachineSession: ObservableObject {
     @Published public private(set) var isLocal: Bool
 
     public static let historyLength = 60
+
+    public var sample: MachineSample? { liveMetrics.sample }
+    public var cpuHistory: [Double] { liveMetrics.cpuHistory }
+    public var memHistory: [Double] { liveMetrics.memHistory }
+    public var netRxHistory: [Double] { liveMetrics.netRxHistory }
+    public var netTxHistory: [Double] { liveMetrics.netTxHistory }
+    public var diskReadHistory: [Double] { liveMetrics.diskReadHistory }
+    public var diskWriteHistory: [Double] { liveMetrics.diskWriteHistory }
 
     private let connection: SSHConnection?
     private let localSampler: LocalMachineSampler?
@@ -261,14 +273,16 @@ public final class MachineSession: ObservableObject {
         }
     }
 
-    private func apply(sample value: MachineSample) {
-        sample = value
-        cpuHistory = Self.appending(value.cpu.total, to: cpuHistory)
-        memHistory = Self.appending(value.mem.usedPercent, to: memHistory)
-        netRxHistory = Self.appending(value.net.rxBps, to: netRxHistory)
-        netTxHistory = Self.appending(value.net.txBps, to: netTxHistory)
-        diskReadHistory = Self.appending(value.disk.readBps, to: diskReadHistory)
-        diskWriteHistory = Self.appending(value.disk.writeBps, to: diskWriteHistory)
+    func apply(sample value: MachineSample) {
+        var next = liveMetrics
+        next.sample = value
+        next.cpuHistory = Self.appending(value.cpu.total, to: next.cpuHistory)
+        next.memHistory = Self.appending(value.mem.usedPercent, to: next.memHistory)
+        next.netRxHistory = Self.appending(value.net.rxBps, to: next.netRxHistory)
+        next.netTxHistory = Self.appending(value.net.txBps, to: next.netTxHistory)
+        next.diskReadHistory = Self.appending(value.disk.readBps, to: next.diskReadHistory)
+        next.diskWriteHistory = Self.appending(value.disk.writeBps, to: next.diskWriteHistory)
+        liveMetrics = next
     }
 
     public static func appending(_ value: Double, to history: [Double]) -> [Double] {
