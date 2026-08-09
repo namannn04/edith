@@ -612,6 +612,47 @@ async fn episode_detail(State(state): State<AppState>, Path(id): Path<Uuid>) -> 
     }
 }
 
+pub fn media_content_type(uri: &str) -> &'static str {
+    let extension = uri.rsplit('.').next().unwrap_or_default().to_lowercase();
+    match extension.as_str() {
+        "md" | "markdown" => "text/markdown; charset=utf-8",
+        "pdf" => "application/pdf",
+        "wav" => "audio/wav",
+        "m4a" => "audio/mp4",
+        "mp3" => "audio/mpeg",
+        "ogg" => "audio/ogg",
+        "flac" => "audio/flac",
+        "aiff" => "audio/aiff",
+        _ => "application/octet-stream",
+    }
+}
+
+async fn episode_media(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    let row = sqlx::query_as::<_, (String,)>(
+        "SELECT s.uri FROM episodes e JOIN sources s ON s.id = e.source_id WHERE e.id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await;
+    let uri = match row {
+        Ok(Some((uri,))) => uri,
+        Ok(None) => return error_response(StatusCode::NOT_FOUND, "no such episode"),
+        Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    };
+    match tokio::fs::read(state.vault_dir.join(&uri)).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, media_content_type(&uri))],
+            bytes,
+        )
+            .into_response(),
+        Err(error) => error_response(
+            StatusCode::NOT_FOUND,
+            format!("media unavailable in the vault: {error}"),
+        ),
+    }
+}
+
 fn api_key_hint(key: &str) -> String {
     if key.chars().count() < 8 {
         return String::new();
@@ -1193,5 +1234,6 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .route("/v1/episodes/{id}", get(episode_detail))
+        .route("/v1/episodes/{id}/media", get(episode_media))
         .with_state(state)
 }
