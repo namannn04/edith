@@ -6,6 +6,8 @@ mod github;
 mod indexer;
 mod ingest;
 mod migrate;
+mod reason;
+mod reflect;
 mod server;
 mod stt;
 mod vault;
@@ -16,6 +18,7 @@ use sqlx::postgres::PgPoolOptions;
 
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
+use crate::reason::ReasonClient;
 use crate::server::AppState;
 use crate::stt::SttClient;
 
@@ -37,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         embed: EmbedClient::from_env(),
         stt: SttClient::from_env(),
         github: GithubConnector::from_env(),
+        reason: ReasonClient::from_env(),
     };
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
 

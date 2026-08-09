@@ -20,6 +20,8 @@ use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
 use crate::indexer::{halfvec_literal, index_pending};
 use crate::ingest::{IngestFile, ingest_audio, ingest_files, parse_file_date};
+use crate::reason::ReasonClient;
+use crate::reflect::reflect_run;
 use crate::stt::SttClient;
 
 #[derive(Clone)]
@@ -30,6 +32,7 @@ pub struct AppState {
     pub embed: EmbedClient,
     pub stt: SttClient,
     pub github: GithubConnector,
+    pub reason: ReasonClient,
 }
 
 #[derive(Serialize)]
@@ -80,6 +83,7 @@ async fn health(State(state): State<AppState>) -> Response {
         &state.vault_dir,
         &state.embed,
         &state.stt,
+        &state.reason,
     )
     .await;
     let status = if result.ok {
@@ -236,6 +240,55 @@ async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> 
     }
 }
 
+async fn reflect(State(state): State<AppState>) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    match reflect_run(&state.pool, &state.reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn beliefs(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    type BeliefRow = (Uuid, String, String, f32, DateTime<Utc>, Vec<Uuid>, String);
+    let rows = sqlx::query_as::<_, BeliefRow>(
+        "SELECT id, statement, kind, confidence, first_formed, evidence_episode_ids, status FROM beliefs ORDER BY first_formed DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let beliefs = rows
+                .into_iter()
+                .map(
+                    |(id, statement, kind, confidence, first_formed, evidence, status)| {
+                        serde_json::json!({
+                            "id": id,
+                            "statement": statement,
+                            "kind": kind,
+                            "confidence": confidence,
+                            "firstFormed": date_string(first_formed),
+                            "evidenceEpisodeIds": evidence,
+                            "status": status,
+                        })
+                    },
+                )
+                .collect::<Vec<_>>();
+            Json(beliefs).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
 async fn github_sync(State(state): State<AppState>) -> Response {
     if !state.github.configured() {
         return error_response(
@@ -271,11 +324,13 @@ async fn observations(
             let observations = rows
                 .into_iter()
                 .map(|(id, source, observed_at, kind, payload)| {
+                    let summary = observation_summary(&kind, &payload);
                     serde_json::json!({
                         "id": id,
                         "source": source,
                         "observedAt": date_string(observed_at),
                         "kind": kind,
+                        "summary": summary,
                         "payload": payload,
                     })
                 })
@@ -283,6 +338,38 @@ async fn observations(
             Json(observations).into_response()
         }
         Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn observation_summary(kind: &str, payload: &Value) -> String {
+    let text = |key: &str| {
+        payload
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let number = payload.get("number").and_then(Value::as_i64).unwrap_or(0);
+    match kind {
+        "commit" => {
+            let sha = text("sha");
+            let short = sha.get(..7).unwrap_or(&sha);
+            format!("{} {short} {}", text("repo"), text("message"))
+        }
+        "pull_request" => format!(
+            "{} #{number} {} {}",
+            text("repo"),
+            text("action"),
+            text("title")
+        ),
+        "issue" => format!(
+            "{} #{number} {} {}",
+            text("repo"),
+            text("action"),
+            text("title")
+        ),
+        "review" => format!("{} #{number} {}", text("repo"), text("state")),
+        _ => text("repo"),
     }
 }
 
@@ -466,6 +553,8 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/search", get(search))
         .route("/v1/connectors/github/sync", post(github_sync))
         .route("/v1/observations", get(observations))
+        .route("/v1/reflect", post(reflect))
+        .route("/v1/beliefs", get(beliefs))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .with_state(state)
