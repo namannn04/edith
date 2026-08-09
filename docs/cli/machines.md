@@ -69,7 +69,7 @@ the process state between metric records.
 | `ed machines exec` | Runs a command there, passing both streams and the remote exit code through. |
 | `ed machines connect` | Opens the shared SSH connection and reports the round trip time. |
 | `ed machines disconnect` | Closes the shared SSH connection and removes its socket. |
-| `ed machines mount` | Mounts a machine's file system on this Mac, so Finder and every local tool can read it. |
+| `ed machines mount` | Mounts a machine's whole file system on this Mac, so Finder and every local tool can read it. |
 | `ed machines unmount` | Unmounts it again and tidies the folder away. Aliased `umount`. |
 | `ed machines mounts` | Lists every machine file system mounted here right now. |
 
@@ -1496,9 +1496,9 @@ An unknown machine name exits 3. Nothing else here can fail.
 
 ### `ed machines mount`
 
-Hangs a machine's file system off a folder on this Mac. Finder shows it as a
-disk and every local tool, an editor, `grep`, `rsync`, reads and writes it in
-place.
+Hangs a machine's file system off a folder on this Mac, from `/` down. Finder
+shows it as a disk and every local tool, an editor, `grep`, `rsync`, reads and
+writes it in place.
 
 ```
 ed machines mount <machine> [path] [--at <dir>] [--read-only] [--json]
@@ -1509,7 +1509,7 @@ ed machines mount <machine> [path] [--at <dir>] [--read-only] [--json]
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
 | `<machine>` | string, required | none | Machine name, ssh alias, id or unambiguous prefix. |
-| `[path]` | remote directory | the working directory `ed <machine> cd` remembers, else the login home | What to mount. |
+| `[path]` | remote directory | `/`, the whole file system | What to mount. |
 
 #### Options
 
@@ -1522,7 +1522,7 @@ ed machines mount <machine> [path] [--at <dir>] [--read-only] [--json]
 
 ```
 $ ed machines mount tuf
-pulkit@10.0.0.4:/home/pulkit  ->  /Users/pulkit/Edith/tuf
+tuf:/  ->  /Users/pulkit/Edith/tuf
 ```
 
 #### `--json` shape
@@ -1532,8 +1532,8 @@ pulkit@10.0.0.4:/home/pulkit  ->  /Users/pulkit/Edith/tuf
   "machine": "Asus TUF 7",
   "mountPoint": "/Users/pulkit/Edith/tuf",
   "readOnly": false,
-  "remotePath": "/home/pulkit",
-  "source": "pulkit@10.0.0.4:/home/pulkit"
+  "remotePath": "/",
+  "source": "tuf:/"
 }
 ```
 
@@ -1592,9 +1592,10 @@ $ ed machines mount tuf
 error: That machine is already mounted at /Users/pulkit/Edith/tuf.
 ```
 
-Mounting one directory rather than the whole machine is the same command with a
-path, and `--read-only` is worth having on anything you only meant to read: a
-mounted machine is as easy to delete from as a local disk.
+The default is the whole file system, so `~/Edith/tuf/etc/hosts` is the
+machine's `/etc/hosts`. Mounting one directory instead is the same command with
+a path, and `--read-only` is worth having on anything you only meant to read: a
+mounted machine is as easy to delete from as a local disk, root included.
 
 The mount belongs to the login session, not to Edith. It stays up when Edith
 quits, and it goes away on logout or restart. `ed machines disconnect` closes
@@ -1641,8 +1642,8 @@ unmounted /Users/pulkit/Edith/tuf
   "machine": "Asus TUF 7",
   "mountPoint": "/Users/pulkit/Edith/tuf",
   "readOnly": false,
-  "remotePath": "/home/pulkit",
-  "source": "pulkit@10.0.0.4:/home/pulkit"
+  "remotePath": "/",
+  "source": "tuf:/"
 }
 ```
 
@@ -1688,9 +1689,9 @@ ed machines mounts [--json]
 
 ```
 $ ed machines mounts
-MACHINE     REMOTE         AT                          MODE
-Asus TUF 7  /home/pulkit   /Users/pulkit/Edith/tuf     rw
-pi          /srv           /Users/pulkit/Edith/pi      ro
+MACHINE     REMOTE  AT                       MODE
+Asus TUF 7  /       /Users/pulkit/Edith/tuf  rw
+pi          /srv    /Users/pulkit/Edith/pi   ro
 ```
 
 #### `--json` shape
@@ -1701,8 +1702,8 @@ pi          /srv           /Users/pulkit/Edith/pi      ro
     "machine": "Asus TUF 7",
     "mountPoint": "/Users/pulkit/Edith/tuf",
     "readOnly": false,
-    "remotePath": "/home/pulkit",
-    "source": "pulkit@10.0.0.4:/home/pulkit"
+    "remotePath": "/",
+    "source": "tuf:/"
   }
 ]
 ```

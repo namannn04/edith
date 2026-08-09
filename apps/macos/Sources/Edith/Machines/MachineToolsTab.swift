@@ -50,7 +50,8 @@ struct MachineToolsTab: View {
     private var diskCard: some View {
         SkinCard(
             title: "Disk",
-            note: "Mount this machine's files on your Mac and open them in Finder", dark: dark
+            note: "Mount this machine's whole file system on your Mac and open it in Finder",
+            dark: dark
         ) {
             HStack(spacing: UIScale.pt(10)) {
                 if let mount {
@@ -111,8 +112,7 @@ struct MachineToolsTab: View {
         message = nil
         Task {
             do {
-                let home = try await homeDirectory()
-                mount = try await MachineMounts.mount(machine: session.machine, remotePath: home)
+                mount = try await MachineMounts.mount(machine: session.machine, remotePath: "/")
                 message = "Mounted at \(mount?.mountPoint ?? "")."
             } catch let failure as MachineMountError {
                 message = [failure.errorDescription, failure.hint]
@@ -138,13 +138,6 @@ struct MachineToolsTab: View {
             }
             mounting = false
         }
-    }
-
-    private func homeDirectory() async throws -> String {
-        let result = await session.runCommand("printf %s \"$HOME\"", timeout: 15)
-        guard case let .success(output) = result else { return "/" }
-        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "/" : trimmed
     }
 
     private var forwardsCard: some View {

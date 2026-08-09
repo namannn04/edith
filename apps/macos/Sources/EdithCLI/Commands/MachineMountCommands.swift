@@ -32,10 +32,10 @@ struct MachinesMountCommand: AsyncParsableCommand {
         commandName: "mount",
         abstract: "Mount a machine's file system on this Mac.",
         discussion: """
-            The folder appears in Finder like a disk, so every local tool sees the machine's
-            files: `ls ~/Edith/tuf`, `open`, an editor, `rsync`. It rides the same SSH
-            connection the app and `ed` already share, so nothing asks for the password
-            twice.
+            The whole file system, from `/`, appears in Finder like a disk, so every local
+            tool sees the machine's files: `ls ~/Edith/tuf/etc`, `open`, an editor,
+            `rsync`. It rides the same SSH connection the app and `ed` already share, so
+            nothing asks for the password twice. Name a directory to mount that instead.
 
             This needs an sshfs on this Mac. FUSE-T is the easy one, a user space NFS
             server rather than a kernel extension:
@@ -56,13 +56,13 @@ struct MachinesMountCommand: AsyncParsableCommand {
     @Argument(help: "Machine name, ssh alias or id.")
     var machine: String
 
-    @Argument(help: "Remote directory to mount. Defaults to the home directory.")
+    @Argument(help: "Remote directory to mount. Defaults to the whole file system.")
     var path: String?
 
     func run() async throws {
         try await execute {
             let runner = try await MachineResolver.runner(machine)
-            let remote = try await resolvedRemotePath(runner)
+            let remote = path.flatMap { $0.isEmpty ? nil : $0 } ?? "/"
             let destination = at.map { URL(fileURLWithPath: $0.expandingTilde()) }
             do {
                 let mounted = try await MachineMounts.mount(
@@ -77,16 +77,6 @@ struct MachinesMountCommand: AsyncParsableCommand {
                 throw MountBridge.failure(error, machine: runner.machine)
             }
         }
-    }
-
-    private func resolvedRemotePath(_ runner: RemoteRunner) async throws -> String {
-        if let path, !path.isEmpty { return path }
-        if let stored = MachineWorkingDirectory.load(machineID: runner.machine.id) {
-            return stored
-        }
-        let home = try await runner.text("printf %s \"$HOME\"", timeout: 15)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return home.isEmpty ? "/" : home
     }
 }
 

@@ -106,7 +106,7 @@ public enum Guide {
         one or macFUSE if you already run it.
 
         ```
-        ed machines mount tuf                   at ~/Edith/tuf
+        ed machines mount tuf                   all of / at ~/Edith/tuf
         ed machines mount tuf /srv --read-only  one directory, look but do not touch
         ed machines mounts                      what is mounted right now
         ed machines unmount tuf
