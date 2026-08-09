@@ -327,6 +327,32 @@ private struct MindDetailSheet: View {
     let dark: Bool
     let openEpisode: (String) -> Void
     let close: () -> Void
+    @State private var episodeRefs: [(String, String)] = []
+
+    private var client: CompanionClient {
+        CompanionClient(baseURL: CompanionClient.endpoint(override: nil))
+    }
+
+    private var contextIds: [String] {
+        switch detail {
+        case let .belief(belief): return belief.evidenceEpisodeIds
+        case let .claim(claim): return claim.episodeId.map { [$0] } ?? []
+        case .observation: return []
+        }
+    }
+
+    private func loadRefs() async {
+        var refs: [(String, String)] = []
+        for id in contextIds {
+            if let episode = try? await client.episodeDetail(id: id) {
+                let date = String(episode.occurredAt.prefix(10))
+                refs.append((id, "\(episode.title) · \(episode.kind) · \(date)"))
+            } else {
+                refs.append((id, "episode \(String(id.prefix(8)))…"))
+            }
+        }
+        episodeRefs = refs
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIScale.pt(12)) {
@@ -353,6 +379,42 @@ private struct MindDetailSheet: View {
         .padding(UIScale.pt(20))
         .frame(width: UIScale.pt(460), height: UIScale.pt(360), alignment: .topLeading)
         .background(DashSkin.paper(dark))
+        .task {
+            await loadRefs()
+        }
+    }
+
+    private func contextRows(_ label: String) -> some View {
+        VStack(alignment: .leading, spacing: UIScale.pt(4)) {
+            Text(label)
+                .font(.system(size: UIScale.pt(9.5), weight: .semibold))
+                .tracking(0.9)
+                .foregroundStyle(DashSkin.inkFaint(dark))
+                .padding(.top, UIScale.pt(4))
+            if episodeRefs.isEmpty {
+                Text("Loading the involved episodes…")
+                    .font(.system(size: UIScale.pt(11)))
+                    .foregroundStyle(DashSkin.inkFaint(dark))
+            }
+            ForEach(Array(episodeRefs.enumerated()), id: \.offset) { _, ref in
+                Button {
+                    close()
+                    openEpisode(ref.0)
+                } label: {
+                    HStack(spacing: UIScale.pt(6)) {
+                        Image(systemName: "book.pages")
+                            .font(.system(size: UIScale.pt(10)))
+                        Text(ref.1)
+                            .font(.system(size: UIScale.pt(11.5)))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(DashSkin.accent(dark))
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                .help("Open this episode in Library")
+            }
+        }
     }
 
     private var eyebrow: String {
@@ -395,32 +457,8 @@ private struct MindDetailSheet: View {
             .font(.system(size: UIScale.pt(11)))
             .foregroundStyle(DashSkin.inkFaint(dark))
         if !belief.evidenceEpisodeIds.isEmpty {
-            Text("EVIDENCE")
-                .font(.system(size: UIScale.pt(9.5), weight: .semibold))
-                .tracking(0.9)
-                .foregroundStyle(DashSkin.inkFaint(dark))
-                .padding(.top, UIScale.pt(4))
             ScrollView {
-                VStack(alignment: .leading, spacing: UIScale.pt(4)) {
-                    ForEach(Array(belief.evidenceEpisodeIds.enumerated()), id: \.offset) {
-                        index, episodeId in
-                        Button {
-                            close()
-                            openEpisode(episodeId)
-                        } label: {
-                            HStack(spacing: UIScale.pt(6)) {
-                                Image(systemName: "book.pages")
-                                    .font(.system(size: UIScale.pt(10)))
-                                Text("Episode \(index + 1) · \(String(episodeId.prefix(8)))…")
-                                    .font(.system(size: UIScale.pt(11.5)))
-                            }
-                            .foregroundStyle(DashSkin.accent(dark))
-                        }
-                        .buttonStyle(.plain)
-                        .pointerCursor()
-                        .help("Open this episode in Library")
-                    }
-                }
+                contextRows("EVIDENCE · \(belief.evidenceEpisodeIds.count) EPISODES")
             }
         }
     }
@@ -457,6 +495,14 @@ private struct MindDetailSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(9)))
+        }
+        if claim.episodeId != nil {
+            contextRows("SAID IN")
+        }
+        if let observations = claim.observationIds, !observations.isEmpty {
+            Text("Checked against \(observations.count) observations")
+                .font(.system(size: UIScale.pt(11)))
+                .foregroundStyle(DashSkin.inkFaint(dark))
         }
     }
 

@@ -258,20 +258,24 @@ public struct CompanionClaim: Codable, Equatable, Sendable {
     public let claimType: String
     public let testable: Bool
     public let assertedAt: String
+    public let episodeId: String?
     public let verdict: String?
     public let verdictNote: String?
+    public let observationIds: [String]?
 
     public init(
         id: String, statement: String, claimType: String, testable: Bool, assertedAt: String,
-        verdict: String?, verdictNote: String?
+        episodeId: String?, verdict: String?, verdictNote: String?, observationIds: [String]?
     ) {
         self.id = id
         self.statement = statement
         self.claimType = claimType
         self.testable = testable
         self.assertedAt = assertedAt
+        self.episodeId = episodeId
         self.verdict = verdict
         self.verdictNote = verdictNote
+        self.observationIds = observationIds
     }
 }
 
