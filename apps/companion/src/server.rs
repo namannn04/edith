@@ -15,6 +15,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::doctor::run_doctor;
+use crate::embed::EmbedClient;
+use crate::indexer::{halfvec_literal, index_pending};
 use crate::ingest::{IngestFile, ingest_files, parse_file_date};
 
 #[derive(Clone)]
@@ -22,6 +24,7 @@ pub struct AppState {
     pub pool: PgPool,
     pub redis: Client,
     pub vault_dir: PathBuf,
+    pub embed: EmbedClient,
 }
 
 #[derive(Serialize)]
@@ -30,7 +33,22 @@ struct StatusResult {
     episodes: i64,
     claims: i64,
     observations: i64,
+    chunks: i64,
+    pending_episodes: i64,
     latest_ingested_at: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SearchResult {
+    chunk_id: Uuid,
+    episode_id: Uuid,
+    ord: i32,
+    title: String,
+    occurred_at: String,
+    kind: String,
+    snippet: String,
+    score: f64,
 }
 
 #[derive(Serialize)]
@@ -51,7 +69,7 @@ fn error_response(status: StatusCode, detail: impl ToString) -> Response {
 }
 
 async fn health(State(state): State<AppState>) -> Response {
-    let result = run_doctor(&state.pool, &state.redis, &state.vault_dir).await;
+    let result = run_doctor(&state.pool, &state.redis, &state.vault_dir, &state.embed).await;
     let status = if result.ok {
         StatusCode::OK
     } else {
@@ -125,24 +143,142 @@ async fn ingest(State(state): State<AppState>, request: Request) -> Response {
     };
 
     match ingest_files(&state.pool, &state.vault_dir, files).await {
-        Ok(results) => Json(results).into_response(),
+        Ok(results) => {
+            if results.iter().any(|result| result.status == "ingested") {
+                let pool = state.pool.clone();
+                let embed = state.embed.clone();
+                tokio::spawn(async move {
+                    if let Err(error) = index_pending(&pool, &embed).await {
+                        eprintln!("background indexing failed: {error}");
+                    }
+                });
+            }
+            Json(results).into_response()
+        }
         Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     }
 }
 
+async fn index(State(state): State<AppState>) -> Response {
+    match index_pending(&state.pool, &state.embed).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(failure) => {
+            let status = if failure.is_embedding() {
+                StatusCode::BAD_GATEWAY
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, failure)
+        }
+    }
+}
+
+fn snippet(text: &str) -> String {
+    if text.chars().count() <= 300 {
+        return text.to_owned();
+    }
+    let cut = text.char_indices().nth(300).map_or(text.len(), |(i, _)| i);
+    format!("{}\u{2026}", &text[..cut])
+}
+
+async fn search(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let Some(q) = query
+        .get("q")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "q is required");
+    };
+    let k = query
+        .get("k")
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .unwrap_or(8)
+        .clamp(1, 50) as usize;
+
+    let query_embedding = match state.embed.embed(&[q.to_owned()]).await {
+        Ok(mut vectors) => halfvec_literal(&vectors.remove(0)),
+        Err(error) => return error_response(StatusCode::BAD_GATEWAY, error),
+    };
+
+    type CandidateRow = (Uuid, Uuid, i32, String, String, DateTime<Utc>, String);
+    let vector_rows = sqlx::query_as::<_, CandidateRow>(
+        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::halfvec LIMIT 50",
+    )
+    .bind(&query_embedding)
+    .fetch_all(&state.pool)
+    .await;
+    let text_rows = sqlx::query_as::<_, CandidateRow>(
+        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.tsv @@ websearch_to_tsquery('english', $1) ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('english', $1)) DESC LIMIT 50",
+    )
+    .bind(q)
+    .fetch_all(&state.pool)
+    .await;
+
+    let (vector_rows, text_rows) = match (vector_rows, text_rows) {
+        (Ok(vector_rows), Ok(text_rows)) => (vector_rows, text_rows),
+        (Err(error), _) | (_, Err(error)) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+        }
+    };
+
+    let mut fused: HashMap<Uuid, (CandidateRow, f64)> = HashMap::new();
+    for rows in [vector_rows, text_rows] {
+        for (rank, row) in rows.into_iter().enumerate() {
+            let contribution = 1.0 / (60.0 + rank as f64 + 1.0);
+            fused
+                .entry(row.0)
+                .and_modify(|entry| entry.1 += contribution)
+                .or_insert((row, contribution));
+        }
+    }
+    let mut ranked: Vec<(CandidateRow, f64)> = fused.into_values().collect();
+    ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+    ranked.truncate(k);
+
+    let results = ranked
+        .into_iter()
+        .map(
+            |((chunk_id, episode_id, ord, text, title, occurred_at, kind), score)| SearchResult {
+                chunk_id,
+                episode_id,
+                ord,
+                title,
+                occurred_at: date_string(occurred_at),
+                kind,
+                snippet: snippet(&text),
+                score: (score * 1e6).round() / 1e6,
+            },
+        )
+        .collect::<Vec<_>>();
+    Json(results).into_response()
+}
+
 async fn status(State(state): State<AppState>) -> Response {
-    let result = sqlx::query_as::<_, (i64, i64, i64, i64, Option<DateTime<Utc>>)>(
-        "SELECT (SELECT count(*) FROM sources), (SELECT count(*) FROM episodes), (SELECT count(*) FROM claims), (SELECT count(*) FROM observations), (SELECT max(ingested_at) FROM episodes)",
+    let result = sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64, Option<DateTime<Utc>>)>(
+        "SELECT (SELECT count(*) FROM sources), (SELECT count(*) FROM episodes), (SELECT count(*) FROM claims), (SELECT count(*) FROM observations), (SELECT count(*) FROM chunks), (SELECT count(*) FROM episodes e WHERE NOT EXISTS (SELECT 1 FROM chunks c WHERE c.episode_id = e.id)), (SELECT max(ingested_at) FROM episodes)",
     )
     .fetch_one(&state.pool)
     .await;
 
     match result {
-        Ok((sources, episodes, claims, observations, latest_ingested_at)) => Json(StatusResult {
+        Ok((
             sources,
             episodes,
             claims,
             observations,
+            chunks,
+            pending_episodes,
+            latest_ingested_at,
+        )) => Json(StatusResult {
+            sources,
+            episodes,
+            claims,
+            observations,
+            chunks,
+            pending_episodes,
             latest_ingested_at: latest_ingested_at.map(date_string),
         })
         .into_response(),
@@ -198,6 +334,8 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/ingest", post(ingest))
+        .route("/v1/index", post(index))
+        .route("/v1/search", get(search))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .with_state(state)

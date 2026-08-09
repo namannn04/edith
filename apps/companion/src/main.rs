@@ -1,5 +1,8 @@
+mod chunker;
 mod doctor;
+mod embed;
 mod frontmatter;
+mod indexer;
 mod ingest;
 mod migrate;
 mod server;
@@ -9,6 +12,7 @@ use std::env;
 
 use sqlx::postgres::PgPoolOptions;
 
+use crate::embed::EmbedClient;
 use crate::server::AppState;
 
 #[tokio::main]
@@ -26,6 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool,
         redis,
         vault_dir: vault_dir.into(),
+        embed: EmbedClient::from_env(),
     };
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
 

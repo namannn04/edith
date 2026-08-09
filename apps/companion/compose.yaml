@@ -23,6 +23,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:${COMPANION_OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - companion-ollama:/root/.ollama
   api:
     build: .
     depends_on:
@@ -30,10 +36,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ollama:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://companion:${COMPANION_PG_PASSWORD:-companion-dev}@postgres:5432/companion
       REDIS_URL: redis://redis:6379
       VAULT_DIR: /vault
+      EMBED_URL: http://ollama:11434
+      EMBED_MODEL: ${COMPANION_EMBED_MODEL:-qwen3-embedding:0.6b}
     ports:
       - "${COMPANION_API_BIND:-127.0.0.1}:${COMPANION_API_PORT:-4820}:4820"
     volumes:
@@ -42,3 +52,4 @@ services:
 volumes:
   companion-pg:
   companion-vault:
+  companion-ollama:

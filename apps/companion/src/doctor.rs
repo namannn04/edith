@@ -7,6 +7,7 @@ use tokio::fs::{self, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
+use crate::embed::EmbedClient;
 use crate::migrate::migration_count;
 
 #[derive(Debug, Serialize)]
@@ -111,13 +112,27 @@ async fn vault_check(vault_dir: &Path) -> Result<String, String> {
     Ok("writable".to_owned())
 }
 
-pub async fn run_doctor(pool: &PgPool, redis: &Client, vault_dir: &Path) -> DoctorResult {
+async fn embeddings_check(embed: &EmbedClient) -> Result<String, String> {
+    embed
+        .version_probe()
+        .await
+        .map(|version| format!("ollama {version}, model {}", embed.model()))
+        .map_err(|error| error.to_string())
+}
+
+pub async fn run_doctor(
+    pool: &PgPool,
+    redis: &Client,
+    vault_dir: &Path,
+    embed: &EmbedClient,
+) -> DoctorResult {
     let checks = vec![
         check("postgres", postgres_check(pool).await),
         check("migrations", migrations_check(pool).await),
         check("pgvector", pgvector_check(pool).await),
         check("redis", redis_check(redis).await),
         check("vault", vault_check(vault_dir).await),
+        check("embeddings", embeddings_check(embed).await),
     ];
     DoctorResult {
         ok: checks.iter().all(|item| item.ok),
