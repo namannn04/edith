@@ -8,7 +8,7 @@ pub async fn write_vault_file(
     vault_dir: &Path,
     sha256: &str,
     name: &str,
-    text: &str,
+    bytes: &[u8],
 ) -> io::Result<String> {
     let basename = Path::new(name)
         .file_name()
@@ -35,7 +35,7 @@ pub async fn write_vault_file(
         .open(&path)
         .await
     {
-        Ok(mut file) => file.write_all(text.as_bytes()).await?,
+        Ok(mut file) => file.write_all(bytes).await?,
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(error),
     }

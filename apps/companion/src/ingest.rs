@@ -7,6 +7,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::frontmatter::parse_front_matter;
+use crate::stt::SttClient;
 use crate::vault::write_vault_file;
 
 #[derive(Debug)]
@@ -88,7 +89,7 @@ pub async fn ingest_files(
             continue;
         }
 
-        let uri = write_vault_file(vault_dir, &sha256, &file.name, &file.text).await?;
+        let uri = write_vault_file(vault_dir, &sha256, &file.name, file.text.as_bytes()).await?;
         let source_id = sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO sources (kind, uri, sha256, bytes) VALUES ('md', $1, $2, $3) ON CONFLICT (sha256) DO NOTHING RETURNING id",
         )
@@ -139,4 +140,102 @@ pub async fn ingest_files(
     }
 
     Ok(outcomes)
+}
+
+pub async fn ingest_audio(
+    pool: &PgPool,
+    vault_dir: &Path,
+    stt: &SttClient,
+    name: String,
+    bytes: Vec<u8>,
+    mtime: Option<String>,
+) -> Result<IngestOutcome, Box<dyn std::error::Error + Send + Sync>> {
+    let sha256 = hex::encode(Sha256::digest(&bytes));
+
+    {
+        let mut transaction = pool.begin().await?;
+        if let Some((episode_id, occurred_at)) = existing_episode(&mut transaction, &sha256).await?
+        {
+            transaction.commit().await?;
+            return Ok(IngestOutcome {
+                name,
+                status: "duplicate",
+                episode_id,
+                occurred_at,
+            });
+        }
+    }
+
+    let transcript = stt.transcribe(&name, bytes.clone()).await?;
+    let uri = write_vault_file(vault_dir, &sha256, &name, &bytes).await?;
+    let duration = transcript.duration.or_else(|| {
+        transcript
+            .segments
+            .last()
+            .map(|segment| segment.end)
+            .filter(|end| *end > 0.0)
+    });
+    let segments = transcript
+        .segments
+        .iter()
+        .map(|segment| {
+            serde_json::json!({
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text.trim(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let langs = transcript.language.clone().into_iter().collect::<Vec<_>>();
+
+    let mut transaction = pool.begin().await?;
+    let source_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO sources (kind, uri, sha256, bytes) VALUES ('voice', $1, $2, $3) ON CONFLICT (sha256) DO NOTHING RETURNING id",
+    )
+    .bind(uri)
+    .bind(&sha256)
+    .bind(bytes.len() as i64)
+    .fetch_optional(&mut *transaction)
+    .await?;
+
+    let Some(source_id) = source_id else {
+        let raced_episode = existing_episode(&mut transaction, &sha256).await?;
+        let Some((episode_id, occurred_at)) = raced_episode else {
+            return Err(format!("Source {sha256} exists without an episode").into());
+        };
+        transaction.commit().await?;
+        return Ok(IngestOutcome {
+            name,
+            status: "duplicate",
+            episode_id,
+            occurred_at,
+        });
+    };
+
+    let occurred_at = mtime
+        .as_deref()
+        .and_then(parse_file_date)
+        .unwrap_or_else(Utc::now);
+    let title = file_title(&name);
+    let (episode_id, occurred_at) = sqlx::query_as::<_, (Uuid, DateTime<Utc>)>(
+        "INSERT INTO episodes (source_id, occurred_at, kind, title, body_original, langs, media_ref, duration_s, meta) VALUES ($1, $2, 'voice', $3, $4, $5, $6, $7, $8) RETURNING id, occurred_at",
+    )
+    .bind(source_id)
+    .bind(occurred_at)
+    .bind(title)
+    .bind(transcript.text.trim())
+    .bind(&langs)
+    .bind(format!("vault:{sha256}"))
+    .bind(duration)
+    .bind(serde_json::json!({ "segments": segments }))
+    .fetch_one(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
+    Ok(IngestOutcome {
+        name,
+        status: "ingested",
+        episode_id,
+        occurred_at,
+    })
 }

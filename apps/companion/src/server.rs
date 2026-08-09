@@ -7,6 +7,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use base64::Engine;
 use chrono::{DateTime, SecondsFormat, Utc};
 use redis::Client;
 use serde::Serialize;
@@ -17,7 +18,8 @@ use uuid::Uuid;
 use crate::doctor::run_doctor;
 use crate::embed::EmbedClient;
 use crate::indexer::{halfvec_literal, index_pending};
-use crate::ingest::{IngestFile, ingest_files, parse_file_date};
+use crate::ingest::{IngestFile, ingest_audio, ingest_files, parse_file_date};
+use crate::stt::SttClient;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,6 +27,7 @@ pub struct AppState {
     pub redis: Client,
     pub vault_dir: PathBuf,
     pub embed: EmbedClient,
+    pub stt: SttClient,
 }
 
 #[derive(Serialize)]
@@ -69,7 +72,14 @@ fn error_response(status: StatusCode, detail: impl ToString) -> Response {
 }
 
 async fn health(State(state): State<AppState>) -> Response {
-    let result = run_doctor(&state.pool, &state.redis, &state.vault_dir, &state.embed).await;
+    let result = run_doctor(
+        &state.pool,
+        &state.redis,
+        &state.vault_dir,
+        &state.embed,
+        &state.stt,
+    )
+    .await;
     let status = if result.ok {
         StatusCode::OK
     } else {
@@ -145,17 +155,82 @@ async fn ingest(State(state): State<AppState>, request: Request) -> Response {
     match ingest_files(&state.pool, &state.vault_dir, files).await {
         Ok(results) => {
             if results.iter().any(|result| result.status == "ingested") {
-                let pool = state.pool.clone();
-                let embed = state.embed.clone();
-                tokio::spawn(async move {
-                    if let Err(error) = index_pending(&pool, &embed).await {
-                        eprintln!("background indexing failed: {error}");
-                    }
-                });
+                spawn_index(&state);
             }
             Json(results).into_response()
         }
         Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn spawn_index(state: &AppState) {
+    let pool = state.pool.clone();
+    let embed = state.embed.clone();
+    tokio::spawn(async move {
+        if let Err(error) = index_pending(&pool, &embed).await {
+            eprintln!("background indexing failed: {error}");
+        }
+    });
+}
+
+async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let Some(object) = body.as_object() else {
+        return error_response(StatusCode::BAD_REQUEST, "Body must be an object");
+    };
+    let Some(name) = object
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "name is required");
+    };
+    let Some(data) = object.get("dataB64").and_then(Value::as_str) else {
+        return error_response(StatusCode::BAD_REQUEST, "dataB64 is required");
+    };
+    let mtime = match object.get("mtime") {
+        None => None,
+        Some(value) => match value
+            .as_str()
+            .filter(|value| parse_file_date(value).is_some())
+        {
+            Some(value) => Some(value.to_owned()),
+            None => return error_response(StatusCode::BAD_REQUEST, "mtime must be a date"),
+        },
+    };
+    let audio = match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(audio) if !audio.is_empty() => audio,
+        Ok(_) => return error_response(StatusCode::BAD_REQUEST, "dataB64 is empty"),
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "dataB64 is not valid base64"),
+    };
+    if audio.len() > 48 * 1024 * 1024 {
+        return error_response(StatusCode::BAD_REQUEST, "Audio must be at most 48MB");
+    }
+
+    match ingest_audio(
+        &state.pool,
+        &state.vault_dir,
+        &state.stt,
+        name.to_owned(),
+        audio,
+        mtime,
+    )
+    .await
+    {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
 }
 
@@ -334,6 +409,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/ingest", post(ingest))
+        .route("/v1/ingest/audio", post(ingest_audio_route))
         .route("/v1/index", post(index))
         .route("/v1/search", get(search))
         .route("/v1/status", get(status))

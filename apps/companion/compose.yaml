@@ -27,6 +27,13 @@ services:
     image: ollama/ollama:latest
     volumes:
       - companion-ollama:/root/.ollama
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp:main
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - test -f /models/${COMPANION_STT_MODEL:-ggml-base.bin} || /app/models/download-ggml-model.sh ${COMPANION_STT_MODEL_NAME:-base} /models; exec /app/build/bin/whisper-server -m /models/${COMPANION_STT_MODEL:-ggml-base.bin} --host 0.0.0.0 --port 8080
+    volumes:
+      - companion-whisper:/models
   api:
     build: .
     depends_on:
@@ -36,12 +43,15 @@ services:
         condition: service_healthy
       ollama:
         condition: service_started
+      whisper:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://companion:${COMPANION_PG_PASSWORD:-companion-dev}@postgres:5432/companion
       REDIS_URL: redis://redis:6379
       VAULT_DIR: /vault
       EMBED_URL: http://ollama:11434
       EMBED_MODEL: ${COMPANION_EMBED_MODEL:-qwen3-embedding:0.6b}
+      STT_URL: http://whisper:8080
     ports:
       - "${COMPANION_API_BIND:-127.0.0.1}:${COMPANION_API_PORT:-4820}:4820"
     volumes:
@@ -51,3 +61,4 @@ volumes:
   companion-pg:
   companion-vault:
   companion-ollama:
+  companion-whisper:

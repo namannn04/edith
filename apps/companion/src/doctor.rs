@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::embed::EmbedClient;
 use crate::migrate::migration_count;
+use crate::stt::SttClient;
 
 #[derive(Debug, Serialize)]
 pub struct Check {
@@ -120,11 +121,16 @@ async fn embeddings_check(embed: &EmbedClient) -> Result<String, String> {
         .map_err(|error| error.to_string())
 }
 
+async fn stt_check(stt: &SttClient) -> Result<String, String> {
+    stt.probe().await.map_err(|error| error.to_string())
+}
+
 pub async fn run_doctor(
     pool: &PgPool,
     redis: &Client,
     vault_dir: &Path,
     embed: &EmbedClient,
+    stt: &SttClient,
 ) -> DoctorResult {
     let checks = vec![
         check("postgres", postgres_check(pool).await),
@@ -133,6 +139,7 @@ pub async fn run_doctor(
         check("redis", redis_check(redis).await),
         check("vault", vault_check(vault_dir).await),
         check("embeddings", embeddings_check(embed).await),
+        check("stt", stt_check(stt).await),
     ];
     DoctorResult {
         ok: checks.iter().all(|item| item.ok),
