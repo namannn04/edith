@@ -1,0 +1,823 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use axum::body::to_bytes;
+use axum::extract::{Query, Request, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use base64::Engine;
+use chrono::{DateTime, SecondsFormat, Utc};
+use redis::Client;
+use serde::Serialize;
+use serde_json::{Value, json};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::ask::ask_run;
+use crate::claims::{corroborate_claims, extract_claims};
+use crate::doctor::run_doctor;
+use crate::embed::EmbedClient;
+use crate::github::GithubConnector;
+use crate::indexer::{halfvec_literal, index_pending};
+use crate::ingest::{IngestFile, ingest_audio, ingest_files, ingest_pdf, parse_file_date};
+use crate::nightly::{NightlyDeps, record_run};
+use crate::reason::ReasonClient;
+use crate::reflect::reflect_run;
+use crate::stt::SttClient;
+use crate::turns::{RetrievedChunk, latency_since, log_turn};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+    pub redis: Client,
+    pub vault_dir: PathBuf,
+    pub embed: EmbedClient,
+    pub stt: SttClient,
+    pub github: GithubConnector,
+    pub reason: ReasonClient,
+}
+
+#[derive(Serialize)]
+struct StatusResult {
+    sources: i64,
+    episodes: i64,
+    claims: i64,
+    observations: i64,
+    chunks: i64,
+    pending_episodes: i64,
+    latest_ingested_at: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SearchResult {
+    chunk_id: Uuid,
+    episode_id: Uuid,
+    ord: i32,
+    title: String,
+    occurred_at: String,
+    kind: String,
+    snippet: String,
+    score: f64,
+}
+
+#[derive(Serialize)]
+struct EpisodeResult {
+    id: Uuid,
+    occurred_at: String,
+    kind: String,
+    title: String,
+    sha256: String,
+}
+
+fn date_string(date: DateTime<Utc>) -> String {
+    date.to_rfc3339_opts(SecondsFormat::AutoSi, true)
+}
+
+fn error_response(status: StatusCode, detail: impl ToString) -> Response {
+    (status, Json(json!({ "error": detail.to_string() }))).into_response()
+}
+
+async fn health(State(state): State<AppState>) -> Response {
+    let result = run_doctor(
+        &state.pool,
+        &state.redis,
+        &state.vault_dir,
+        &state.embed,
+        &state.stt,
+        &state.reason,
+    )
+    .await;
+    let status = if result.ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (status, Json(result)).into_response()
+}
+
+fn parse_files(body: Value) -> Result<Vec<IngestFile>, &'static str> {
+    let object = body.as_object().ok_or("Body must be an object")?;
+    let values = object
+        .get("files")
+        .and_then(Value::as_array)
+        .ok_or("files must be an array")?;
+    if values.len() > 200 {
+        return Err("files must contain at most 200 items");
+    }
+
+    let mut files = Vec::with_capacity(values.len());
+    for value in values {
+        let Some(file) = value.as_object() else {
+            return Err("Each file requires name and text");
+        };
+        let Some(name) = file.get("name").and_then(Value::as_str) else {
+            return Err("Each file requires name and text");
+        };
+        let Some(text) = file.get("text").and_then(Value::as_str) else {
+            return Err("Each file requires name and text");
+        };
+        if name.is_empty() {
+            return Err("Each file requires name and text");
+        }
+        let mtime = match file.get("mtime") {
+            None => None,
+            Some(value) => {
+                let Some(value) = value.as_str() else {
+                    return Err("Each file requires name and text");
+                };
+                if parse_file_date(value).is_none() {
+                    return Err("Each file requires name and text");
+                }
+                Some(value.to_owned())
+            }
+        };
+        files.push(IngestFile {
+            name: name.to_owned(),
+            text: text.to_owned(),
+            mtime,
+        });
+    }
+
+    if files.iter().any(|file| file.text.len() > 2 * 1024 * 1024) {
+        return Err("Each file must be at most 2MB");
+    }
+
+    Ok(files)
+}
+
+async fn ingest(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 420 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let files = match parse_files(body) {
+        Ok(files) => files,
+        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    };
+
+    match ingest_files(&state.pool, &state.vault_dir, files).await {
+        Ok(results) => {
+            if results.iter().any(|result| result.status == "ingested") {
+                spawn_index(&state);
+            }
+            Json(results).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn spawn_index(state: &AppState) {
+    let pool = state.pool.clone();
+    let embed = state.embed.clone();
+    tokio::spawn(async move {
+        if let Err(error) = index_pending(&pool, &embed).await {
+            eprintln!("background indexing failed: {error}");
+        }
+    });
+}
+
+async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let Some(object) = body.as_object() else {
+        return error_response(StatusCode::BAD_REQUEST, "Body must be an object");
+    };
+    let Some(name) = object
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "name is required");
+    };
+    let Some(data) = object.get("dataB64").and_then(Value::as_str) else {
+        return error_response(StatusCode::BAD_REQUEST, "dataB64 is required");
+    };
+    let mtime = match object.get("mtime") {
+        None => None,
+        Some(value) => match value
+            .as_str()
+            .filter(|value| parse_file_date(value).is_some())
+        {
+            Some(value) => Some(value.to_owned()),
+            None => return error_response(StatusCode::BAD_REQUEST, "mtime must be a date"),
+        },
+    };
+    let audio = match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(audio) if !audio.is_empty() => audio,
+        Ok(_) => return error_response(StatusCode::BAD_REQUEST, "dataB64 is empty"),
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "dataB64 is not valid base64"),
+    };
+    if audio.len() > 48 * 1024 * 1024 {
+        return error_response(StatusCode::BAD_REQUEST, "Audio must be at most 48MB");
+    }
+
+    match ingest_audio(
+        &state.pool,
+        &state.vault_dir,
+        &state.stt,
+        name.to_owned(),
+        audio,
+        mtime,
+    )
+    .await
+    {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn ask(State(state): State<AppState>, request: Request) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    let bytes = match to_bytes(request.into_body(), 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let question = serde_json::from_slice::<Value>(&bytes)
+        .ok()
+        .and_then(|body| {
+            body.get("question")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|question| !question.is_empty())
+                .map(str::to_owned)
+        });
+    let Some(question) = question else {
+        return error_response(StatusCode::BAD_REQUEST, "question is required");
+    };
+    match ask_run(&state.pool, &state.embed, &state.reason, &question).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn ingest_pdf_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let Some(object) = body.as_object() else {
+        return error_response(StatusCode::BAD_REQUEST, "Body must be an object");
+    };
+    let Some(name) = object
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "name is required");
+    };
+    let Some(data) = object.get("dataB64").and_then(Value::as_str) else {
+        return error_response(StatusCode::BAD_REQUEST, "dataB64 is required");
+    };
+    let mtime = object
+        .get("mtime")
+        .and_then(Value::as_str)
+        .filter(|value| parse_file_date(value).is_some())
+        .map(str::to_owned);
+    let pdf = match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(pdf) if !pdf.is_empty() => pdf,
+        _ => return error_response(StatusCode::BAD_REQUEST, "dataB64 is not valid base64"),
+    };
+    if pdf.len() > 48 * 1024 * 1024 {
+        return error_response(StatusCode::BAD_REQUEST, "PDF must be at most 48MB");
+    }
+
+    match ingest_pdf(&state.pool, &state.vault_dir, name.to_owned(), pdf, mtime).await {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::UNPROCESSABLE_ENTITY, error),
+    }
+}
+
+async fn signals(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let Some(episode_id) = query
+        .get("episode")
+        .and_then(|value| Uuid::parse_str(value).ok())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "episode is required");
+    };
+    type SignalRow = (f32, f32, String, f32);
+    let rows = sqlx::query_as::<_, SignalRow>(
+        "SELECT t_start_s, t_end_s, kind, value FROM signals WHERE episode_id = $1 ORDER BY t_start_s",
+    )
+    .bind(episode_id)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let signals = rows
+                .into_iter()
+                .map(|(t_start_s, t_end_s, kind, value)| {
+                    serde_json::json!({
+                        "tStartS": t_start_s,
+                        "tEndS": t_end_s,
+                        "kind": kind,
+                        "value": value,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Json(signals).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn nightly_run(State(state): State<AppState>) -> Response {
+    let deps = NightlyDeps {
+        pool: state.pool.clone(),
+        embed: state.embed.clone(),
+        reason: state.reason.clone(),
+        github: state.github.clone(),
+    };
+    match record_run(&deps).await {
+        Ok(run_id) => Json(serde_json::json!({ "runId": run_id })).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn runs(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    type RunRow = (Uuid, DateTime<Utc>, Option<DateTime<Utc>>, bool, Value);
+    let rows = sqlx::query_as::<_, RunRow>(
+        "SELECT id, started_at, finished_at, ok, steps FROM nightly_runs ORDER BY started_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let runs = rows
+                .into_iter()
+                .map(|(id, started_at, finished_at, ok, steps)| {
+                    serde_json::json!({
+                        "id": id,
+                        "startedAt": date_string(started_at),
+                        "finishedAt": finished_at.map(date_string),
+                        "ok": ok,
+                        "steps": steps,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Json(runs).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn claims_extract(State(state): State<AppState>) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    match extract_claims(&state.pool, &state.reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn corroborate(State(state): State<AppState>) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    match corroborate_claims(&state.pool, &state.reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn claims(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    type ClaimRow = (
+        Uuid,
+        String,
+        String,
+        bool,
+        DateTime<Utc>,
+        Option<String>,
+        Option<String>,
+    );
+    let rows = sqlx::query_as::<_, ClaimRow>(
+        "SELECT c.id, c.statement, c.claim_type, c.testable, c.asserted_at, x.verdict, x.note FROM claims c LEFT JOIN LATERAL (SELECT verdict, note FROM corroborations WHERE claim_id = c.id ORDER BY checked_at DESC LIMIT 1) x ON true ORDER BY c.asserted_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let claims = rows
+                .into_iter()
+                .map(
+                    |(id, statement, claim_type, testable, asserted_at, verdict, note)| {
+                        serde_json::json!({
+                            "id": id,
+                            "statement": statement,
+                            "claimType": claim_type,
+                            "testable": testable,
+                            "assertedAt": date_string(asserted_at),
+                            "verdict": verdict,
+                            "verdictNote": note,
+                        })
+                    },
+                )
+                .collect::<Vec<_>>();
+            Json(claims).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn reflect(State(state): State<AppState>) -> Response {
+    if !state.reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    match reflect_run(&state.pool, &state.embed, &state.reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn beliefs(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    type BeliefRow = (Uuid, String, String, f32, DateTime<Utc>, Vec<Uuid>, String);
+    let rows = sqlx::query_as::<_, BeliefRow>(
+        "SELECT id, statement, kind, confidence, first_formed, evidence_episode_ids, status FROM beliefs ORDER BY first_formed DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let beliefs = rows
+                .into_iter()
+                .map(
+                    |(id, statement, kind, confidence, first_formed, evidence, status)| {
+                        serde_json::json!({
+                            "id": id,
+                            "statement": statement,
+                            "kind": kind,
+                            "confidence": confidence,
+                            "firstFormed": date_string(first_formed),
+                            "evidenceEpisodeIds": evidence,
+                            "status": status,
+                        })
+                    },
+                )
+                .collect::<Vec<_>>();
+            Json(beliefs).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn github_sync(State(state): State<AppState>) -> Response {
+    if !state.github.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "GITHUB_TOKEN is not configured on the companion",
+        );
+    }
+    match state.github.sync(&state.pool).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn observations(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    let kind = query
+        .get("kind")
+        .map(String::as_str)
+        .filter(|value| !value.is_empty());
+    type ObservationRow = (Uuid, String, DateTime<Utc>, String, Value);
+    let rows = sqlx::query_as::<_, ObservationRow>(
+        "SELECT id, source, observed_at, kind, payload FROM observations WHERE ($1::text IS NULL OR kind = $1) ORDER BY observed_at DESC LIMIT $2",
+    )
+    .bind(kind)
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let observations = rows
+                .into_iter()
+                .map(|(id, source, observed_at, kind, payload)| {
+                    let summary = observation_summary(&kind, &payload);
+                    serde_json::json!({
+                        "id": id,
+                        "source": source,
+                        "observedAt": date_string(observed_at),
+                        "kind": kind,
+                        "summary": summary,
+                        "payload": payload,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Json(observations).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn observation_summary(kind: &str, payload: &Value) -> String {
+    let text = |key: &str| {
+        payload
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let number = payload.get("number").and_then(Value::as_i64).unwrap_or(0);
+    match kind {
+        "commit" => {
+            let sha = text("sha");
+            let short = sha.get(..7).unwrap_or(&sha);
+            format!("{} {short} {}", text("repo"), text("message"))
+        }
+        "pull_request" => format!(
+            "{} #{number} {} {}",
+            text("repo"),
+            text("action"),
+            text("title")
+        ),
+        "issue" => format!(
+            "{} #{number} {} {}",
+            text("repo"),
+            text("action"),
+            text("title")
+        ),
+        "review" => format!("{} #{number} {}", text("repo"), text("state")),
+        _ => text("repo"),
+    }
+}
+
+async fn index(State(state): State<AppState>) -> Response {
+    match index_pending(&state.pool, &state.embed).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(failure) => {
+            let status = if failure.is_embedding() {
+                StatusCode::BAD_GATEWAY
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            error_response(status, failure)
+        }
+    }
+}
+
+fn snippet(text: &str) -> String {
+    if text.chars().count() <= 300 {
+        return text.to_owned();
+    }
+    let cut = text.char_indices().nth(300).map_or(text.len(), |(i, _)| i);
+    format!("{}\u{2026}", &text[..cut])
+}
+
+async fn search(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let started = std::time::Instant::now();
+    let Some(q) = query
+        .get("q")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "q is required");
+    };
+    let k = query
+        .get("k")
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .unwrap_or(8)
+        .clamp(1, 50) as usize;
+
+    let query_embedding = match state.embed.embed(&[q.to_owned()]).await {
+        Ok(mut vectors) => halfvec_literal(&vectors.remove(0)),
+        Err(error) => return error_response(StatusCode::BAD_GATEWAY, error),
+    };
+
+    type CandidateRow = (Uuid, Uuid, i32, String, String, DateTime<Utc>, String);
+    let vector_rows = sqlx::query_as::<_, CandidateRow>(
+        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::halfvec LIMIT 50",
+    )
+    .bind(&query_embedding)
+    .fetch_all(&state.pool)
+    .await;
+    let text_rows = sqlx::query_as::<_, CandidateRow>(
+        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.tsv @@ websearch_to_tsquery('english', $1) ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('english', $1)) DESC LIMIT 50",
+    )
+    .bind(q)
+    .fetch_all(&state.pool)
+    .await;
+
+    let (vector_rows, text_rows) = match (vector_rows, text_rows) {
+        (Ok(vector_rows), Ok(text_rows)) => (vector_rows, text_rows),
+        (Err(error), _) | (_, Err(error)) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+        }
+    };
+
+    let mut fused: HashMap<Uuid, (CandidateRow, f64)> = HashMap::new();
+    for rows in [vector_rows, text_rows] {
+        for (rank, row) in rows.into_iter().enumerate() {
+            let contribution = 1.0 / (60.0 + rank as f64 + 1.0);
+            fused
+                .entry(row.0)
+                .and_modify(|entry| entry.1 += contribution)
+                .or_insert((row, contribution));
+        }
+    }
+    let mut ranked: Vec<(CandidateRow, f64)> = fused.into_values().collect();
+    ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+    ranked.truncate(k);
+
+    let results = ranked
+        .into_iter()
+        .map(
+            |((chunk_id, episode_id, ord, text, title, occurred_at, kind), score)| SearchResult {
+                chunk_id,
+                episode_id,
+                ord,
+                title,
+                occurred_at: date_string(occurred_at),
+                kind,
+                snippet: snippet(&text),
+                score: (score * 1e6).round() / 1e6,
+            },
+        )
+        .collect::<Vec<_>>();
+
+    let retrieved = results
+        .iter()
+        .enumerate()
+        .map(|(rank, result)| RetrievedChunk {
+            chunk_id: result.chunk_id,
+            episode_id: result.episode_id,
+            rank: rank as i32 + 1,
+            score_vec: None,
+            score_text: None,
+            score_fused: Some(result.score as f32),
+            was_cited: false,
+        })
+        .collect::<Vec<_>>();
+    log_turn(
+        &state.pool,
+        "search",
+        q,
+        None,
+        latency_since(started),
+        &retrieved,
+    )
+    .await;
+    Json(results).into_response()
+}
+
+async fn status(State(state): State<AppState>) -> Response {
+    let result = sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64, Option<DateTime<Utc>>)>(
+        "SELECT (SELECT count(*) FROM sources), (SELECT count(*) FROM episodes), (SELECT count(*) FROM claims), (SELECT count(*) FROM observations), (SELECT count(*) FROM chunks), (SELECT count(*) FROM episodes e WHERE NOT EXISTS (SELECT 1 FROM chunks c WHERE c.episode_id = e.id)), (SELECT max(ingested_at) FROM episodes)",
+    )
+    .fetch_one(&state.pool)
+    .await;
+
+    match result {
+        Ok((
+            sources,
+            episodes,
+            claims,
+            observations,
+            chunks,
+            pending_episodes,
+            latest_ingested_at,
+        )) => Json(StatusResult {
+            sources,
+            episodes,
+            claims,
+            observations,
+            chunks,
+            pending_episodes,
+            latest_ingested_at: latest_ingested_at.map(date_string),
+        })
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn requested_limit(value: Option<&str>) -> i64 {
+    let numeric = match value {
+        None => 20.0,
+        Some(value) if value.trim().is_empty() => 0.0,
+        Some(value) => value.trim().parse::<f64>().unwrap_or(20.0),
+    };
+    let integral = if numeric.is_finite() {
+        numeric.trunc()
+    } else {
+        20.0
+    };
+    integral.clamp(1.0, 200.0) as i64
+}
+
+async fn episodes(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    let result = sqlx::query_as::<_, (Uuid, DateTime<Utc>, String, String, String)>(
+        "SELECT e.id, e.occurred_at, e.kind, e.title, s.sha256 FROM episodes e JOIN sources s ON s.id = e.source_id ORDER BY e.occurred_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let episodes = rows
+                .into_iter()
+                .map(|(id, occurred_at, kind, title, sha256)| EpisodeResult {
+                    id,
+                    occurred_at: date_string(occurred_at),
+                    kind,
+                    title,
+                    sha256,
+                })
+                .collect::<Vec<_>>();
+            Json(episodes).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/v1/health", get(health))
+        .route("/v1/ingest", post(ingest))
+        .route("/v1/ingest/audio", post(ingest_audio_route))
+        .route("/v1/ingest/pdf", post(ingest_pdf_route))
+        .route("/v1/index", post(index))
+        .route("/v1/search", get(search))
+        .route("/v1/connectors/github/sync", post(github_sync))
+        .route("/v1/observations", get(observations))
+        .route("/v1/reflect", post(reflect))
+        .route("/v1/beliefs", get(beliefs))
+        .route("/v1/ask", post(ask))
+        .route("/v1/claims/extract", post(claims_extract))
+        .route("/v1/claims", get(claims))
+        .route("/v1/corroborate", post(corroborate))
+        .route("/v1/nightly/run", post(nightly_run))
+        .route("/v1/runs", get(runs))
+        .route("/v1/signals", get(signals))
+        .route("/v1/status", get(status))
+        .route("/v1/episodes", get(episodes))
+        .with_state(state)
+}

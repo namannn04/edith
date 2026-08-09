@@ -27,3 +27,4 @@ apps/macos/*.dmg
 apps/macos/dmg-root/
 apps/macos/dist/
 .vercel
+apps/companion/target/

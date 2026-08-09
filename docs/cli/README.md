@@ -39,6 +39,7 @@ key.
 | [`ed tools`](./tools.md) | The command line tools Edith can install for you |
 | [`ed shelf`](./shelf.md) | The notch shelf's staged files |
 | [`ed cleaner`](./cleaner.md) | Scanning and reclaiming disk space |
+| [`ed companion`](./companion.md) | Local memory health, status, Markdown ingest and episodes |
 
 ## Other machines
 

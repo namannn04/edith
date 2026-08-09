@@ -77,6 +77,31 @@ enum JSONContract {
         JSONCase("ed shelf add", ["shelf", "add", "/etc/hosts", "--json"]),
         JSONCase("ed shelf rm", ["shelf", "rm", "1", "--json"]),
         JSONCase("ed shelf clear", ["shelf", "clear", "--json"]),
+        JSONCase("ed companion status", ["companion", "status", "--json"]),
+        JSONCase("ed companion doctor", ["companion", "doctor", "--json"]),
+        JSONCase("ed companion search", ["companion", "search", "warden", "--json"]),
+        JSONCase(
+            "ed companion index", ["companion", "index", "--json"],
+            mutatesTheMachine: true),
+        JSONCase("ed companion episodes", ["companion", "episodes", "--json"]),
+        JSONCase(
+            "ed companion sync", ["companion", "sync", "github", "--json"],
+            mutatesTheMachine: true),
+        JSONCase("ed companion observations", ["companion", "observations", "--json"]),
+        JSONCase(
+            "ed companion reflect", ["companion", "reflect", "--json"], mutatesTheMachine: true),
+        JSONCase("ed companion beliefs", ["companion", "beliefs", "--json"]),
+        JSONCase("ed companion ask", ["companion", "ask", "what happened", "--json"]),
+        JSONCase(
+            "ed companion extract", ["companion", "extract", "--json"], mutatesTheMachine: true),
+        JSONCase("ed companion claims", ["companion", "claims", "--json"]),
+        JSONCase(
+            "ed companion corroborate", ["companion", "corroborate", "--json"],
+            mutatesTheMachine: true),
+        JSONCase("ed companion runs", ["companion", "runs", "--json"]),
+        JSONCase(
+            "ed companion ingest", ["companion", "ingest", "/tmp/nowhere.md", "--json"],
+            mutatesTheMachine: true),
         JSONCase("ed cleaner scan", ["cleaner", "scan", "--json"]),
         JSONCase("ed cleaner categories", ["cleaner", "categories", "--json"]),
         JSONCase("ed cleaner clean", ["cleaner", "clean", "--json"]),

@@ -663,6 +663,55 @@ public enum CommandTree {
                     CommandNode(
                         "mounts", "Every machine file system mounted here.", options: common),
                 ]),
+            CommandNode(
+                "companion", "The companion memory backend.",
+                children: [
+                    CommandNode(
+                        "status", "Count what the companion remembers.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "doctor", "Check the companion's dependencies.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "search", "Search companion memory with hybrid retrieval.",
+                        options: common + ["--endpoint", "--limit"], arguments: [.free]),
+                    CommandNode(
+                        "index", "Embed pending companion episodes.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "ingest", "Ingest Markdown notes and voice recordings as episodes.",
+                        options: ["--json", "--endpoint"], arguments: [.localPath]),
+                    CommandNode(
+                        "episodes", "List recent companion episodes.",
+                        options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "sync", "Pull a connector's activity into observations.",
+                        options: common + ["--endpoint"], arguments: [.free]),
+                    CommandNode(
+                        "observations", "List what the connectors saw you do.",
+                        options: common + ["--endpoint", "--limit", "--kind"]),
+                    CommandNode(
+                        "reflect", "Distill fresh beliefs from recent episodes.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "beliefs", "List what the companion believes about you.",
+                        options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "ask", "Ask a question answered from your own memory.",
+                        options: common + ["--endpoint"], arguments: [.free]),
+                    CommandNode(
+                        "extract", "Pull typed claims out of recent episodes.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "claims", "List the claims you have made, with verdicts.",
+                        options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "corroborate", "Check testable claims against the record.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "runs", "List the background learning runs.",
+                        options: common + ["--endpoint", "--limit"]),
+                ]),
         ])
 
     public static var topLevelNames: [String] {
