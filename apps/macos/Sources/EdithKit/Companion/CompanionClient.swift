@@ -451,6 +451,21 @@ public struct CompanionClient: Sendable {
         return try await request(URLRequest(url: components?.url ?? url(for: "observations")))
     }
 
+    public func ingestPdf(name: String, data: Data, mtime: String?) async throws
+        -> CompanionIngestOutcome
+    {
+        var request = URLRequest(url: url(for: "ingest/pdf"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        do {
+            request.httpBody = try JSONEncoder().encode(
+                AudioIngestRequest(name: name, dataB64: data.base64EncodedString(), mtime: mtime))
+        } catch {
+            throw CompanionClientError.unreachable(error.localizedDescription)
+        }
+        return try await self.request(request, timeout: 120)
+    }
+
     public func ingestAudio(name: String, data: Data, mtime: String?) async throws
         -> CompanionIngestOutcome
     {

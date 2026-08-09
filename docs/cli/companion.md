@@ -261,7 +261,7 @@ and exits 4.
 
 ### `ed companion ingest`
 
-Scans Markdown and audio recordings and posts them to the companion.
+Scans Markdown, audio recordings and PDFs and posts them to the companion.
 
 Usage:
 
@@ -273,7 +273,7 @@ Arguments:
 
 | Name | Type / values | Default | What it does |
 | --- | --- | --- | --- |
-| `<path>` | `.md` or audio file, or a directory | required | Reads one file or recursively finds Markdown and audio (`.wav`, `.m4a`, `.mp3`, `.ogg`, `.flac`, `.aiff`) below a folder. |
+| `<path>` | `.md`, audio or `.pdf` file, or a directory | required | Reads one file or recursively finds Markdown, audio (`.wav`, `.m4a`, `.mp3`, `.ogg`, `.flac`, `.aiff`) and PDFs below a folder. |
 
 Options:
 
@@ -336,7 +336,9 @@ stderr. No matching file is a usage error. Markdown is posted in batches of at
 most 200; audio uploads one file at a time and waits while the companion
 transcribes it with whisper.cpp, so a long recording takes a while. The
 transcript becomes the episode body with kind `voice`, the detected language,
-the duration, and per-segment timings kept in the episode metadata.
+the duration, and per-segment timings kept in the episode metadata. PDFs upload
+one at a time and land as kind `pdf` with their extracted text as the body;
+scanned PDFs without a text layer are rejected with a clear error.
 
 ### `ed companion episodes`
 

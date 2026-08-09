@@ -661,9 +661,11 @@ struct CompanionIngestCommand: AsyncParsableCommand {
             let url = URL(fileURLWithPath: path.expandingTilde())
             let scan: CompanionScanResult
             let audioScan: CompanionAudioScanResult
+            let pdfScan: CompanionAudioScanResult
             do {
                 scan = try CompanionScan.markdownFiles(at: url)
                 audioScan = try CompanionScan.audioFiles(at: url)
+                pdfScan = try CompanionScan.pdfFiles(at: url)
             } catch {
                 throw CLIFailure.usage(
                     "could not scan \(url.path)", hint: error.localizedDescription)
@@ -671,13 +673,14 @@ struct CompanionIngestCommand: AsyncParsableCommand {
             for name in scan.skipped {
                 CLIOut.note("skipped \(name): larger than 2MB")
             }
-            for name in audioScan.skipped {
+            for name in audioScan.skipped + pdfScan.skipped {
                 CLIOut.note("skipped \(name): larger than 48MB")
             }
-            guard !scan.files.isEmpty || !audioScan.files.isEmpty else {
+            guard !scan.files.isEmpty || !audioScan.files.isEmpty || !pdfScan.files.isEmpty
+            else {
                 throw CLIFailure.usage(
-                    "no Markdown or audio files found at \(url.path)",
-                    hint: "pass a .md or audio file, or a folder containing them")
+                    "no Markdown, audio or PDF files found at \(url.path)",
+                    hint: "pass a .md, audio or .pdf file, or a folder containing them")
             }
             var outcomes: [CompanionIngestOutcome] = []
             for start in stride(from: 0, to: scan.files.count, by: 200) {
@@ -695,7 +698,15 @@ struct CompanionIngestCommand: AsyncParsableCommand {
                 }
                 outcomes.append(outcome)
             }
-            let skippedCount = scan.skipped.count + audioScan.skipped.count
+            for file in pdfScan.files {
+                let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                    try await client.ingestPdf(
+                        name: file.name, data: file.data, mtime: file.mtime)
+                }
+                outcomes.append(outcome)
+            }
+            let skippedCount =
+                scan.skipped.count + audioScan.skipped.count + pdfScan.skipped.count
             let ingested = outcomes.filter { $0.status == "ingested" }.count
             let duplicates = outcomes.filter { $0.status == "duplicate" }.count
             guard !json else {

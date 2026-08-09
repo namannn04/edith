@@ -35,12 +35,26 @@ public struct CompanionAudioScanResult: Equatable, Sendable {
 public enum CompanionScan {
     public static let audioExtensions: Set<String> = ["wav", "m4a", "mp3", "ogg", "flac", "aiff"]
 
+    public static func pdfFiles(
+        at url: URL, limit maximumByteSize: Int = 48 * 1024 * 1024
+    ) throws -> CompanionAudioScanResult {
+        try binaryFiles(
+            at: url, extensions: ["pdf"], maximumByteSize: maximumByteSize)
+    }
+
     public static func audioFiles(
         at url: URL, limit maximumByteSize: Int = 48 * 1024 * 1024
     ) throws -> CompanionAudioScanResult {
+        try binaryFiles(
+            at: url, extensions: audioExtensions, maximumByteSize: maximumByteSize)
+    }
+
+    private static func binaryFiles(
+        at url: URL, extensions: Set<String>, maximumByteSize: Int
+    ) throws -> CompanionAudioScanResult {
         let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
         if values.isRegularFile == true {
-            guard audioExtensions.contains(url.pathExtension.lowercased()) else {
+            guard extensions.contains(url.pathExtension.lowercased()) else {
                 return CompanionAudioScanResult(files: [], skipped: [])
             }
             return try scanAudio(urls: [url], relativeTo: nil, maximumByteSize: maximumByteSize)
@@ -55,14 +69,14 @@ public enum CompanionScan {
         else {
             return CompanionAudioScanResult(files: [], skipped: [])
         }
-        let audio = enumerator.compactMap { item -> URL? in
+        let matches = enumerator.compactMap { item -> URL? in
             guard let item = item as? URL,
-                audioExtensions.contains(item.pathExtension.lowercased())
+                extensions.contains(item.pathExtension.lowercased())
             else { return nil }
             let itemValues = try? item.resourceValues(forKeys: [.isRegularFileKey])
             return itemValues?.isRegularFile == true ? item : nil
         }
-        return try scanAudio(urls: audio, relativeTo: url, maximumByteSize: maximumByteSize)
+        return try scanAudio(urls: matches, relativeTo: url, maximumByteSize: maximumByteSize)
     }
 
     private static func scanAudio(

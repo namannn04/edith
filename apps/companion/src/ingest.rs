@@ -143,6 +143,85 @@ pub async fn ingest_files(
     Ok(outcomes)
 }
 
+pub async fn ingest_pdf(
+    pool: &PgPool,
+    vault_dir: &Path,
+    name: String,
+    bytes: Vec<u8>,
+    mtime: Option<String>,
+) -> Result<IngestOutcome, Box<dyn std::error::Error + Send + Sync>> {
+    let sha256 = hex::encode(Sha256::digest(&bytes));
+
+    {
+        let mut transaction = pool.begin().await?;
+        if let Some((episode_id, occurred_at)) = existing_episode(&mut transaction, &sha256).await?
+        {
+            transaction.commit().await?;
+            return Ok(IngestOutcome {
+                name,
+                status: "duplicate",
+                episode_id,
+                occurred_at,
+            });
+        }
+    }
+
+    let text = pdf_extract::extract_text_from_mem(&bytes)
+        .map_err(|error| format!("PDF text extraction failed: {error}"))?;
+    let text = text.trim().to_owned();
+    if text.is_empty() {
+        return Err("PDF contained no extractable text; scanned documents are not supported yet".into());
+    }
+
+    let uri = write_vault_file(vault_dir, &sha256, &name, &bytes).await?;
+    let mut transaction = pool.begin().await?;
+    let source_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO sources (kind, uri, sha256, bytes) VALUES ('pdf', $1, $2, $3) ON CONFLICT (sha256) DO NOTHING RETURNING id",
+    )
+    .bind(uri)
+    .bind(&sha256)
+    .bind(bytes.len() as i64)
+    .fetch_optional(&mut *transaction)
+    .await?;
+
+    let Some(source_id) = source_id else {
+        let raced_episode = existing_episode(&mut transaction, &sha256).await?;
+        let Some((episode_id, occurred_at)) = raced_episode else {
+            return Err(format!("Source {sha256} exists without an episode").into());
+        };
+        transaction.commit().await?;
+        return Ok(IngestOutcome {
+            name,
+            status: "duplicate",
+            episode_id,
+            occurred_at,
+        });
+    };
+
+    let occurred_at = mtime
+        .as_deref()
+        .and_then(parse_file_date)
+        .unwrap_or_else(Utc::now);
+    let title = file_title(&name);
+    let (episode_id, occurred_at) = sqlx::query_as::<_, (Uuid, DateTime<Utc>)>(
+        "INSERT INTO episodes (source_id, occurred_at, kind, title, body_original, langs) VALUES ($1, $2, 'pdf', $3, $4, ARRAY['en']::text[]) RETURNING id, occurred_at",
+    )
+    .bind(source_id)
+    .bind(occurred_at)
+    .bind(title)
+    .bind(&text)
+    .fetch_one(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
+    Ok(IngestOutcome {
+        name,
+        status: "ingested",
+        episode_id,
+        occurred_at,
+    })
+}
+
 pub async fn ingest_audio(
     pool: &PgPool,
     vault_dir: &Path,

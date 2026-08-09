@@ -21,7 +21,7 @@ use crate::doctor::run_doctor;
 use crate::embed::EmbedClient;
 use crate::github::GithubConnector;
 use crate::indexer::{halfvec_literal, index_pending};
-use crate::ingest::{IngestFile, ingest_audio, ingest_files, parse_file_date};
+use crate::ingest::{IngestFile, ingest_audio, ingest_files, ingest_pdf, parse_file_date};
 use crate::nightly::{NightlyDeps, record_run};
 use crate::reason::ReasonClient;
 use crate::reflect::reflect_run;
@@ -270,6 +270,52 @@ async fn ask(State(state): State<AppState>, request: Request) -> Response {
     match ask_run(&state.pool, &state.embed, &state.reason, &question).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn ingest_pdf_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let Some(object) = body.as_object() else {
+        return error_response(StatusCode::BAD_REQUEST, "Body must be an object");
+    };
+    let Some(name) = object
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "name is required");
+    };
+    let Some(data) = object.get("dataB64").and_then(Value::as_str) else {
+        return error_response(StatusCode::BAD_REQUEST, "dataB64 is required");
+    };
+    let mtime = object
+        .get("mtime")
+        .and_then(Value::as_str)
+        .filter(|value| parse_file_date(value).is_some())
+        .map(str::to_owned);
+    let pdf = match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(pdf) if !pdf.is_empty() => pdf,
+        _ => return error_response(StatusCode::BAD_REQUEST, "dataB64 is not valid base64"),
+    };
+    if pdf.len() > 48 * 1024 * 1024 {
+        return error_response(StatusCode::BAD_REQUEST, "PDF must be at most 48MB");
+    }
+
+    match ingest_pdf(&state.pool, &state.vault_dir, name.to_owned(), pdf, mtime).await {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::UNPROCESSABLE_ENTITY, error),
     }
 }
 
@@ -757,6 +803,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/health", get(health))
         .route("/v1/ingest", post(ingest))
         .route("/v1/ingest/audio", post(ingest_audio_route))
+        .route("/v1/ingest/pdf", post(ingest_pdf_route))
         .route("/v1/index", post(index))
         .route("/v1/search", get(search))
         .route("/v1/connectors/github/sync", post(github_sync))
