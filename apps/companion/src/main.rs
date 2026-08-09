@@ -2,6 +2,7 @@ mod chunker;
 mod doctor;
 mod embed;
 mod frontmatter;
+mod github;
 mod indexer;
 mod ingest;
 mod migrate;
@@ -14,6 +15,7 @@ use std::env;
 use sqlx::postgres::PgPoolOptions;
 
 use crate::embed::EmbedClient;
+use crate::github::GithubConnector;
 use crate::server::AppState;
 use crate::stt::SttClient;
 
@@ -34,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         vault_dir: vault_dir.into(),
         embed: EmbedClient::from_env(),
         stt: SttClient::from_env(),
+        github: GithubConnector::from_env(),
     };
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
 

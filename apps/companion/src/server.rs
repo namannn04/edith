@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::doctor::run_doctor;
 use crate::embed::EmbedClient;
+use crate::github::GithubConnector;
 use crate::indexer::{halfvec_literal, index_pending};
 use crate::ingest::{IngestFile, ingest_audio, ingest_files, parse_file_date};
 use crate::stt::SttClient;
@@ -28,6 +29,7 @@ pub struct AppState {
     pub vault_dir: PathBuf,
     pub embed: EmbedClient,
     pub stt: SttClient,
+    pub github: GithubConnector,
 }
 
 #[derive(Serialize)]
@@ -234,6 +236,56 @@ async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> 
     }
 }
 
+async fn github_sync(State(state): State<AppState>) -> Response {
+    if !state.github.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "GITHUB_TOKEN is not configured on the companion",
+        );
+    }
+    match state.github.sync(&state.pool).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn observations(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let limit = requested_limit(query.get("limit").map(String::as_str));
+    let kind = query
+        .get("kind")
+        .map(String::as_str)
+        .filter(|value| !value.is_empty());
+    type ObservationRow = (Uuid, String, DateTime<Utc>, String, Value);
+    let rows = sqlx::query_as::<_, ObservationRow>(
+        "SELECT id, source, observed_at, kind, payload FROM observations WHERE ($1::text IS NULL OR kind = $1) ORDER BY observed_at DESC LIMIT $2",
+    )
+    .bind(kind)
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => {
+            let observations = rows
+                .into_iter()
+                .map(|(id, source, observed_at, kind, payload)| {
+                    serde_json::json!({
+                        "id": id,
+                        "source": source,
+                        "observedAt": date_string(observed_at),
+                        "kind": kind,
+                        "payload": payload,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Json(observations).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
 async fn index(State(state): State<AppState>) -> Response {
     match index_pending(&state.pool, &state.embed).await {
         Ok(outcome) => Json(outcome).into_response(),
@@ -412,6 +464,8 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/ingest/audio", post(ingest_audio_route))
         .route("/v1/index", post(index))
         .route("/v1/search", get(search))
+        .route("/v1/connectors/github/sync", post(github_sync))
+        .route("/v1/observations", get(observations))
         .route("/v1/status", get(status))
         .route("/v1/episodes", get(episodes))
         .with_state(state)
