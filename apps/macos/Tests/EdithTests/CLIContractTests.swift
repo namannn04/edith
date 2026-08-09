@@ -77,6 +77,12 @@ enum JSONContract {
         JSONCase("ed shelf add", ["shelf", "add", "/etc/hosts", "--json"]),
         JSONCase("ed shelf rm", ["shelf", "rm", "1", "--json"]),
         JSONCase("ed shelf clear", ["shelf", "clear", "--json"]),
+        JSONCase("ed companion status", ["companion", "status", "--json"]),
+        JSONCase("ed companion doctor", ["companion", "doctor", "--json"]),
+        JSONCase("ed companion episodes", ["companion", "episodes", "--json"]),
+        JSONCase(
+            "ed companion ingest", ["companion", "ingest", "/tmp/nowhere.md", "--json"],
+            mutatesTheMachine: true),
         JSONCase("ed cleaner scan", ["cleaner", "scan", "--json"]),
         JSONCase("ed cleaner categories", ["cleaner", "categories", "--json"]),
         JSONCase("ed cleaner clean", ["cleaner", "clean", "--json"]),

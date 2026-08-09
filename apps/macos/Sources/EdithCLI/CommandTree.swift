@@ -663,6 +663,22 @@ public enum CommandTree {
                     CommandNode(
                         "mounts", "Every machine file system mounted here.", options: common),
                 ]),
+            CommandNode(
+                "companion", "The companion memory backend.",
+                children: [
+                    CommandNode(
+                        "status", "Count what the companion remembers.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "doctor", "Check the companion's dependencies.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "ingest", "Ingest Markdown notes as episodes.",
+                        options: ["--json", "--endpoint"], arguments: [.localPath]),
+                    CommandNode(
+                        "episodes", "List recent companion episodes.",
+                        options: common + ["--endpoint", "--limit"]),
+                ]),
         ])
 
     public static var topLevelNames: [String] {
