@@ -9,6 +9,9 @@ directly on this Mac or through an `ed machines` port forward. Pass
 `--endpoint` for one invocation, set `EDITH_COMPANION_URL` for a shell, or use
 the default `http://127.0.0.1:4820`.
 
+For the machinery behind these commands, vault, chunking, embeddings,
+retrieval, claims and beliefs, read [how the companion works](./concepts.md).
+
 ## At a glance
 
 | Command | What it does |
