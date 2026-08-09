@@ -843,9 +843,17 @@ ed machines forwards on tuf 1 --json
 
 Opens the shared connection if it is not already up, then sends
 `ssh -O forward -L 127.0.0.1:<local>:<remoteHost>:<remotePort>` down the control
-socket. Nothing is written to disk, so the open state is not remembered: the
-tunnel lives as long as the connection does and `ed machines disconnect` takes
-it with it.
+socket. Nothing is written to disk, so which forwards are open is not recorded
+anywhere: the tunnel lives as long as the connection does and
+`ed machines disconnect` takes it with it.
+
+A session the app is supervising is the exception, and this is the port forward
+replay the mount section refers to. That session keeps the forwards it opened in
+memory, and when it reconnects after a drop it opens them again, so a blip or a
+sleeping laptop no longer costs you every tunnel. A forward whose replay fails
+is dropped from the remembered set rather than retried forever. This belongs to
+the app's session: a forward you opened with `ed machines forwards on` is not in
+that set, so a reconnect does not bring it back and you open it again yourself.
 
 The local end is bound to `127.0.0.1` only, so nothing else on your network can
 reach through it.
