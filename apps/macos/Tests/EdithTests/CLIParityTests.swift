@@ -84,6 +84,9 @@ enum UIParity {
             ["cleaner", "clean", "--category", "npm", "--yes"]),
 
         UICapability("Companion", "sync github activity", ["companion", "sync", "github"]),
+        UICapability("Companion", "ask about your life", ["companion", "ask", "how is warden"]),
+        UICapability(
+            "Companion", "ingest dropped files", ["companion", "ingest", "/tmp/notes"]),
         UICapability("Machines", "add a machine", ["machines", "add", "box", "--host", "h"]),
         UICapability("Machines", "edit a machine", ["machines", "edit", "box"]),
         UICapability("Machines", "delete a machine", ["machines", "rm", "box"]),
