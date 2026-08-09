@@ -799,6 +799,172 @@ async fn machines_profile(
     }
 }
 
+async fn memory_why(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    type BeliefRow = (
+        String,
+        String,
+        f32,
+        f32,
+        String,
+        String,
+        Vec<Uuid>,
+        Vec<Uuid>,
+        String,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        Option<Uuid>,
+    );
+    if let Ok(Some(belief)) = sqlx::query_as::<_, BeliefRow>(
+        "SELECT statement, kind, confidence, stability, corroboration, status, evidence_episode_ids, counter_evidence_episode_ids, extractor_version, first_formed, last_confirmed, superseded_by FROM beliefs WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        let evidence = episode_titles(&state.pool, &belief.6).await;
+        let counter = episode_titles(&state.pool, &belief.7).await;
+        let links = sqlx::query_as::<_, (Uuid, String, String)>(
+            "SELECT b.id, l.relation, b.statement FROM belief_links l JOIN beliefs b ON b.id = l.to_id WHERE l.from_id = $1",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        return Json(json!({
+            "kind": "belief",
+            "id": id,
+            "statement": belief.0,
+            "beliefKind": belief.1,
+            "confidence": belief.2,
+            "stability": belief.3,
+            "corroboration": belief.4,
+            "status": belief.5,
+            "promptVersion": belief.8,
+            "firstFormed": date_string(belief.9),
+            "lastConfirmed": date_string(belief.10),
+            "supersededBy": belief.11,
+            "evidence": evidence,
+            "counterEvidence": counter,
+            "links": links.iter().map(|(to, relation, statement)| json!({
+                "id": to, "relation": relation, "statement": statement,
+            })).collect::<Vec<_>>(),
+        }))
+        .into_response();
+    }
+
+    type HypothesisRow = (
+        String,
+        String,
+        String,
+        f32,
+        f32,
+        i32,
+        Vec<String>,
+        DateTime<Utc>,
+        String,
+    );
+    if let Ok(Some(row)) = sqlx::query_as::<_, HypothesisRow>(
+        "SELECT statement, mechanism, status, prior, posterior, test_count, alternative_explanations, formed_at, generated_by FROM hypotheses WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        let revisions = sqlx::query_as::<_, (DateTime<Utc>, f32, String, String)>(
+            "SELECT at, posterior, status, note FROM hypothesis_revisions WHERE hypothesis_id = $1 ORDER BY at",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        let predictions = sqlx::query_as::<_, (Uuid, String, String, Option<String>)>(
+            "SELECT id, statement, observable, outcome FROM predictions WHERE hypothesis_id = $1 ORDER BY window_end",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        return Json(json!({
+            "kind": "hypothesis",
+            "id": id,
+            "statement": row.0,
+            "mechanism": row.1,
+            "status": row.2,
+            "prior": row.3,
+            "posterior": row.4,
+            "testCount": row.5,
+            "alternatives": row.6,
+            "formedAt": date_string(row.7),
+            "generatedBy": row.8,
+            "revisions": revisions.iter().map(|(at, posterior, status, note)| json!({
+                "at": date_string(*at), "posterior": posterior, "status": status, "note": note,
+            })).collect::<Vec<_>>(),
+            "predictions": predictions.iter().map(|(id, statement, observable, outcome)| json!({
+                "id": id, "statement": statement, "observable": observable, "outcome": outcome,
+            })).collect::<Vec<_>>(),
+        }))
+        .into_response();
+    }
+
+    type ClaimRow = (Uuid, String, String, DateTime<Utc>, bool);
+    if let Ok(Some(claim)) = sqlx::query_as::<_, ClaimRow>(
+        "SELECT episode_id, statement, claim_type, asserted_at, testable FROM claims WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        let verdicts = sqlx::query_as::<_, (String, String, DateTime<Utc>)>(
+            "SELECT verdict, note, checked_at FROM corroborations WHERE claim_id = $1 ORDER BY checked_at",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        return Json(json!({
+            "kind": "claim",
+            "id": id,
+            "statement": claim.1,
+            "claimType": claim.2,
+            "assertedAt": date_string(claim.3),
+            "testable": claim.4,
+            "episode": episode_titles(&state.pool, &[claim.0]).await,
+            "verdicts": verdicts.iter().map(|(verdict, note, at)| json!({
+                "verdict": verdict, "note": note, "at": date_string(*at),
+            })).collect::<Vec<_>>(),
+        }))
+        .into_response();
+    }
+
+    error_response(
+        StatusCode::NOT_FOUND,
+        "no belief, hypothesis or claim with that id",
+    )
+}
+
+async fn episode_titles(pool: &PgPool, ids: &[Uuid]) -> Vec<Value> {
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    sqlx::query_as::<_, (Uuid, DateTime<Utc>, String, String)>(
+        "SELECT id, occurred_at, kind, left(body_original, 240) FROM episodes WHERE id = ANY($1) ORDER BY occurred_at",
+    )
+    .bind(ids)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(id, occurred_at, kind, excerpt)| {
+        json!({
+            "episodeId": id,
+            "occurredAt": date_string(occurred_at),
+            "kind": kind,
+            "excerpt": excerpt,
+        })
+    })
+    .collect()
+}
+
 async fn baselines(State(state): State<AppState>) -> Response {
     match baseline::baselines(&state.pool).await {
         Ok(rows) => {
@@ -1881,6 +2047,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/questions/mute", post(question_mute))
         .route("/v1/entities", get(entities_route))
         .route("/v1/lenses", get(lenses_route))
+        .route("/v1/memory/why/{id}", get(memory_why))
         .route("/v1/evals", get(evals_route))
         .route("/v1/evals/run", post(evals_run))
         .route("/v1/standup", post(standup_route))
