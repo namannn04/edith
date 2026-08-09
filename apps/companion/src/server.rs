@@ -43,7 +43,10 @@ use crate::lang::SttRouter;
 use crate::media::{VideoDeps, ingest_image, ingest_video, kind_for};
 use crate::vision::VisionClient;
 use crate::turns::{RetrievedChunk, latency_since, log_turn};
-use crate::{baseline, commitments, core_memory, entities, hypotheses, inquire, lenses};
+use crate::{
+    baseline, commitments, core_memory, entities, evals, hypotheses, inquire, lenses, machines,
+    standup,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -635,6 +638,163 @@ async fn entities_route(
 async fn lenses_route(State(state): State<AppState>) -> Response {
     match lenses::list(&state.pool).await {
         Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn evals_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match evals::history(&state.pool, limit_of(&query, 20)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn evals_run(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let reason = state.reason.current().await;
+    let deps = FriendDeps {
+        pool: &state.pool,
+        embed: &state.embed,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+        reason: &reason,
+    };
+    match evals::run(&deps, query.get("persona").map(String::as_str)).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn standup_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 4 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(text) = body
+        .get("text")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "text is required");
+    };
+    let verify = body
+        .get("verify")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let reason = state.reason.current().await;
+    match standup::record(&state.pool, &state.vault_dir, &reason, text, verify).await {
+        Ok(outcome) => {
+            spawn_index(&state);
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn standup_aggregate(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let aggregate = standup::aggregate(&state.pool).await;
+    let phrase = match query.get("phrase").map(String::as_str).filter(|phrase| !phrase.is_empty()) {
+        Some(phrase) => standup::phrase_history(&state.pool, phrase).await.ok(),
+        None => None,
+    };
+    match aggregate {
+        Ok(aggregate) => Json(json!({
+            "aggregate": aggregate,
+            "phrase": phrase,
+            "dueSoon": standup::due_soon(&state.pool).await.unwrap_or(0),
+        }))
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_route(State(state): State<AppState>) -> Response {
+    match machines::list(&state.pool).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_add(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(name) = body
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "name is required");
+    };
+    let transport = body
+        .get("transport")
+        .and_then(Value::as_str)
+        .unwrap_or("local");
+    if !["local", "ssh", "context"].contains(&transport) {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "transport must be local, ssh or context",
+        );
+    }
+    let endpoint = body.get("endpoint").and_then(Value::as_str).unwrap_or("");
+    match machines::add(&state.pool, name, transport, endpoint).await {
+        Ok(id) => Json(json!({"id": id, "name": name, "transport": transport})).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_probe(State(state): State<AppState>, Path(name): Path<String>) -> Response {
+    match machines::probe(&state.pool, &name).await {
+        Ok(machine) => Json(machine).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn machines_plan(State(state): State<AppState>) -> Response {
+    match machines::plan(&state.pool).await {
+        Ok(plan) => Json(plan).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_profile(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 16 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(profile) = body
+        .get("profile")
+        .and_then(Value::as_str)
+        .filter(|profile| {
+            ["gpu-large", "gpu-small", "apple-metal", "cpu-only"].contains(profile)
+        })
+    else {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "profile must be gpu-large, gpu-small, apple-metal or cpu-only",
+        );
+    };
+    match machines::set_profile(&state.pool, &name, profile).await {
+        Ok(true) => Json(json!({"name": name, "profile": profile})).into_response(),
+        Ok(false) => error_response(StatusCode::NOT_FOUND, "no such machine"),
         Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     }
 }
@@ -1721,6 +1881,14 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/questions/mute", post(question_mute))
         .route("/v1/entities", get(entities_route))
         .route("/v1/lenses", get(lenses_route))
+        .route("/v1/evals", get(evals_route))
+        .route("/v1/evals/run", post(evals_run))
+        .route("/v1/standup", post(standup_route))
+        .route("/v1/standup/aggregate", get(standup_aggregate))
+        .route("/v1/machines", get(machines_route).post(machines_add))
+        .route("/v1/machines/plan", get(machines_plan))
+        .route("/v1/machines/{name}/probe", post(machines_probe))
+        .route("/v1/machines/{name}/profile", post(machines_profile))
         .route("/v1/chat", post(chat))
         .route("/v1/conversations", get(conversations))
         .route(
