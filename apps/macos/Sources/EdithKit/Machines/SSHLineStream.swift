@@ -56,10 +56,14 @@ public final class SSHLineStream: @unchecked Sendable {
         let stderr = stderrSplitter
         let deliver = onLine
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-            for line in stdout.receive(handle.availableData) { deliver(line, false) }
+            PipeReading.consume(handle) { data in
+                for line in stdout.receive(data) { deliver(line, false) }
+            }
         }
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            for line in stderr.receive(handle.availableData) { deliver(line, true) }
+            PipeReading.consume(handle) { data in
+                for line in stderr.receive(data) { deliver(line, true) }
+            }
         }
         let finish = onExit
         process.terminationHandler = { [stdoutPipe, stderrPipe] finished in

@@ -555,16 +555,17 @@ public final class YoutubeDownloader: ObservableObject {
         p.standardError = errPipe
 
         let stream: @Sendable (FileHandle) -> Void = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            Task { @MainActor in
-                guard let self, let index = self.indexOfItem(with: itemID) else { return }
-                if case .interrupted = self.items[index].status { return }
-                self.items[index].logs += text
-                let (progress, videoIndex, videoCount) = YoutubeDownloader.parseProgress(
-                    from: text)
-                self.items[index].status = .downloading(
-                    progress: progress, videoIndex: videoIndex, videoCount: videoCount)
+            PipeReading.consume(handle) { data in
+                guard let text = String(data: data, encoding: .utf8) else { return }
+                Task { @MainActor in
+                    guard let self, let index = self.indexOfItem(with: itemID) else { return }
+                    if case .interrupted = self.items[index].status { return }
+                    self.items[index].logs += text
+                    let (progress, videoIndex, videoCount) = YoutubeDownloader.parseProgress(
+                        from: text)
+                    self.items[index].status = .downloading(
+                        progress: progress, videoIndex: videoIndex, videoCount: videoCount)
+                }
             }
         }
         outPipe.fileHandleForReading.readabilityHandler = stream

@@ -146,6 +146,8 @@ struct DockerConsoleView: View {
         .task {
             await session.refreshImagesAndVolumes()
         }
+        .onAppear { session.beginDockerObservation() }
+        .onDisappear { session.endDockerObservation() }
     }
 
     private var sidebar: some View {

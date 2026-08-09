@@ -432,6 +432,46 @@ import Testing
     }
 }
 
+@Suite @MainActor struct MachineSessionResourceTests {
+    private func session() -> MachineSession {
+        MachineSession(machine: Machine(name: "This Mac", host: "localhost"), local: true)
+    }
+
+    @Test func dockerUsesTheBackgroundCadenceUntilObserved() {
+        let session = session()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.backgroundDockerPollInterval)
+        session.beginDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.foregroundDockerPollInterval)
+    }
+
+    @Test func dockerStaysForegroundedUntilEveryObserverLeaves() {
+        let session = session()
+        session.beginDockerObservation()
+        session.beginDockerObservation()
+        session.endDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.foregroundDockerPollInterval)
+        session.endDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.backgroundDockerPollInterval)
+    }
+
+    @Test func unmatchedDisappearCannotMakeTheObserverCountNegative() {
+        let session = session()
+        session.endDockerObservation()
+        session.endDockerObservation()
+        #expect(
+            session.currentDockerPollInterval
+                == MachineResourcePolicy.backgroundDockerPollInterval)
+    }
+}
+
 @Suite struct DockerDetailParsingTests {
     @Test func parsesTopOutput() {
         let output = """

@@ -83,7 +83,7 @@ function readdisks(  line, parts, name) {
     split(line, parts, " ")
     name = parts[3]
     if (name ~ /^(loop|ram|zram|fd|sr)/) continue
-    if (system("[ -e /sys/block/" name " ]") != 0) continue
+    if (!(name in blockDevices)) continue
     curDiskRead[name] = parts[6]
     curDiskWrite[name] = parts[10]
     curDiskMs[name] = parts[13]
@@ -144,13 +144,8 @@ function username(uid,  line, parts) {
   userCache[uid] = uid
   return uid
 }
-function cmdline(pid,  cmd, line) {
-  cmd = "tr \"\\000\" \" \" < /proc/" pid "/cmdline 2>/dev/null"
-  line = ""
-  cmd | getline line
-  close(cmd)
-  sub(/[ \t]+$/, "", line)
-  return line
+function cmdline(pid) {
+  return pidCommand[pid]
 }
 function emit_hello(  os, osid, line, model, virt) {
   os = ""; osid = ""
@@ -335,12 +330,26 @@ function shellLine(cmd,  line) {
   close(cmd)
   return line
 }
-function readPidList(  line, n, i) {
-  delete pidList
+function readBlockDevices(  cmd, line) {
+  delete blockDevices
+  cmd = "ls -1 /sys/block 2>/dev/null"
+  while ((cmd | getline line) > 0) blockDevices[line] = 1
+  close(cmd)
+}
+function readProcessList(  cmd, line, pid) {
+  delete pidList; delete pidCommand
   nPids = 0
-  line = shellLine("cd /proc 2>/dev/null && echo [0-9]*")
-  if (line == "" || line == "[0-9]*") return
-  nPids = split(line, pidList, " ")
+  cmd = "ps -ww -eo pid=,args= 2>/dev/null"
+  while ((cmd | getline line) > 0) {
+    sub(/^[ \t]+/, "", line)
+    pid = line
+    sub(/[ \t].*$/, "", pid)
+    if (pid !~ /^[0-9]+$/) continue
+    pidList[++nPids] = pid
+    sub(/^[^ \t]+[ \t]*/, "", line)
+    pidCommand[pid] = line
+  }
+  close(cmd)
 }
 function readSlowInputs(  cmd, line, parts, mounts, n, i) {
   nDf = 0; nThermal = 0; nHwmon = 0; nPsup = 0; nGpu = 0
@@ -393,7 +402,7 @@ function collect(  line, lparts, rparts, uparts, i) {
   line = firstline("/proc/uptime")
   split(line, uparts, " ")
   uptimeS = uparts[1]
-  readPidList()
+  readProcessList()
   for (i = 1; i <= nPids; i++) readpid(pidList[i])
 }
 BEGIN {
@@ -401,6 +410,7 @@ BEGIN {
   hello["kernel"] = shellLine("uname -r 2>/dev/null")
   hello["arch"] = shellLine("uname -m 2>/dev/null")
   hello["node"] = shellLine("uname -n 2>/dev/null")
+  readBlockDevices()
   if (interval + 0 < 1) interval = 2
   slowEvery = 15
   tick = 0
