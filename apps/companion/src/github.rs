@@ -125,7 +125,7 @@ impl GithubConnector {
             for event in &events {
                 for pending in observations_for(event) {
                     let inserted = sqlx::query_scalar::<_, i64>(
-                        "INSERT INTO observations (source, observed_at, kind, payload, dedupe_key) VALUES ('github', $1, $2, $3, $4) ON CONFLICT (dedupe_key) DO NOTHING RETURNING 1",
+                        "INSERT INTO observations (source, observed_at, kind, payload, dedupe_key) VALUES ('github', $1, $2, $3, $4) ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING RETURNING 1",
                     )
                     .bind(pending.observed_at)
                     .bind(pending.kind)
