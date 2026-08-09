@@ -684,6 +684,12 @@ public enum CommandTree {
                     CommandNode(
                         "episodes", "List recent companion episodes.",
                         options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "sync", "Pull a connector's activity into observations.",
+                        options: common + ["--endpoint"], arguments: [.free]),
+                    CommandNode(
+                        "observations", "List what the connectors saw you do.",
+                        options: common + ["--endpoint", "--limit", "--kind"]),
                 ]),
         ])
 

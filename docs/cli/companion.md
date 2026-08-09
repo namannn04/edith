@@ -397,6 +397,94 @@ Behaviour: this is a read-only `GET /v1/episodes`. `--limit` must be greater
 than zero. The backend returns at most 200 items, and an empty backend returns
 an empty JSON array or a table header with no rows.
 
+### `ed companion sync`
+
+Pulls a connector's recent activity into the observations table.
+
+Usage:
+
+```
+ed companion sync <connector> [--json] [--endpoint <url>]
+```
+
+Arguments:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `<connector>` | `github` | required | Which connector to sync; only `github` exists so far. |
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+
+`--json` shape:
+
+```json
+{
+  "eventsFetched": 87,
+  "observationsInserted": 42
+}
+```
+
+`eventsFetched` counts the GitHub events read this run; `observationsInserted` counts the observations that were new. Re-running immediately inserts nothing because every observation carries a dedupe key.
+
+Examples:
+
+```
+$ ed companion sync github
+fetched 87 events, 42 new observations
+```
+
+Behaviour: the companion reads up to three pages of the authenticated user's GitHub events with the token in its `GITHUB_TOKEN` environment variable. Push events become one `commit` observation per commit; pull request, issue and review events each become one observation. Without a configured token the companion answers 412 and the command fails with exit 4.
+
+### `ed companion observations`
+
+Lists the behavioural record the connectors have gathered.
+
+Usage:
+
+```
+ed companion observations [--json] [--endpoint <url>] [--limit <n>] [--kind <kind>]
+```
+
+Options:
+
+| Name | Type / values | Default | What it does |
+| --- | --- | --- | --- |
+| `--json` | flag | off | Emits one JSON document on stdout. |
+| `--endpoint` | URL | environment or local default | Uses this Companion API base URL. |
+| `--limit` | 1 to 200 | 20 | How many observations to list. |
+| `--kind` | `commit`, `pull_request`, `issue`, `review` | all | Only this observation kind. |
+
+`--json` shape:
+
+```json
+[
+  {
+    "id": "0d5c53a4-52f0-4be3-a121-c7f3ac53f7de",
+    "kind": "commit",
+    "observedAt": "2026-08-09T09:12:44Z",
+    "source": "github",
+    "summary": "pulkitxm/edith 72d2aeb Route audio files through ed companion ingest"
+  }
+]
+```
+
+Each item is one observed action: `source` names the connector, `kind` the action type, `summary` a one-line rendering, and `observedAt` when it happened. Newest first.
+
+Examples:
+
+```
+$ ed companion observations --kind commit --limit 3
+#  KIND    SUMMARY                                       OBSERVED
+1  commit  pulkitxm/edith 72d2aeb Route audio files ...  2026-08-09T09:12:44Z
+```
+
+Behaviour: read-only; an empty record prints a quiet line. Observations are what corroboration will check your claims against, so they never come from anything you wrote for the companion.
+
 ## Exit codes
 
 | Code | Meaning |

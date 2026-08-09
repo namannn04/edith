@@ -140,6 +140,32 @@ public struct CompanionIngestOutcome: Codable, Equatable, Sendable {
     }
 }
 
+public struct CompanionSyncOutcome: Codable, Equatable, Sendable {
+    public let eventsFetched: Int
+    public let observationsInserted: Int
+
+    public init(eventsFetched: Int, observationsInserted: Int) {
+        self.eventsFetched = eventsFetched
+        self.observationsInserted = observationsInserted
+    }
+}
+
+public struct CompanionObservation: Codable, Equatable, Sendable {
+    public let id: String
+    public let source: String
+    public let observedAt: String
+    public let kind: String
+    public let summary: String
+
+    public init(id: String, source: String, observedAt: String, kind: String, summary: String) {
+        self.id = id
+        self.source = source
+        self.observedAt = observedAt
+        self.kind = kind
+        self.summary = summary
+    }
+}
+
 public enum CompanionClientError: Error, Equatable, LocalizedError, Sendable {
     case unreachable(String)
     case badResponse(Int, String)
@@ -207,6 +233,24 @@ public struct CompanionClient: Sendable {
             throw CompanionClientError.unreachable(error.localizedDescription)
         }
         return try await self.request(request)
+    }
+
+    public func syncGithub() async throws -> CompanionSyncOutcome {
+        var request = URLRequest(url: url(for: "connectors/github/sync"))
+        request.httpMethod = "POST"
+        request.httpBody = Data()
+        return try await self.request(request, timeout: 120)
+    }
+
+    public func observations(limit: Int, kind: String?) async throws -> [CompanionObservation] {
+        var components = URLComponents(
+            url: url(for: "observations"), resolvingAgainstBaseURL: false)
+        var items = [URLQueryItem(name: "limit", value: String(limit))]
+        if let kind, !kind.isEmpty {
+            items.append(URLQueryItem(name: "kind", value: kind))
+        }
+        components?.queryItems = items
+        return try await request(URLRequest(url: components?.url ?? url(for: "observations")))
     }
 
     public func ingestAudio(name: String, data: Data, mtime: String?) async throws

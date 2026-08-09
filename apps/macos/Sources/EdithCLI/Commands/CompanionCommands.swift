@@ -17,8 +17,97 @@ struct CompanionCommand: AsyncParsableCommand {
             CompanionStatusCommand.self, CompanionDoctorCommand.self,
             CompanionSearchCommand.self, CompanionIndexCommand.self,
             CompanionIngestCommand.self, CompanionEpisodesCommand.self,
+            CompanionSyncCommand.self, CompanionObservationsCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
+}
+
+struct CompanionSyncCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "sync", abstract: "Pull a connector's activity into observations.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Argument(help: "Connector to sync; only github exists so far.")
+    var connector: String
+
+    func run() async throws {
+        try await execute {
+            guard connector == "github" else {
+                throw CLIFailure.usage(
+                    "unknown connector \(connector)", hint: "the only connector so far is github")
+            }
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.syncGithub()
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "eventsFetched": .int(outcome.eventsFetched),
+                        "observationsInserted": .int(outcome.observationsInserted),
+                    ]))
+                return
+            }
+            CLIOut.out(
+                "fetched \(outcome.eventsFetched) events, "
+                    + "\(outcome.observationsInserted) new observations")
+        }
+    }
+}
+
+struct CompanionObservationsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "observations", abstract: "List what the connectors saw you do.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Option(name: .long, help: "How many to list.")
+    var limit = 20
+
+    @Option(name: .long, help: "Only this observation kind.")
+    var kind: String?
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            let observations = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.observations(limit: limit, kind: kind)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .array(
+                        observations.map { observation in
+                            .object([
+                                "id": .string(observation.id),
+                                "source": .string(observation.source),
+                                "observedAt": .string(observation.observedAt),
+                                "kind": .string(observation.kind),
+                                "summary": .string(observation.summary),
+                            ])
+                        }))
+                return
+            }
+            guard !observations.isEmpty else {
+                CLIOut.out("no observations yet")
+                return
+            }
+            let rows = observations.enumerated().map { index, observation in
+                [
+                    String(index + 1), observation.kind, observation.summary,
+                    observation.observedAt,
+                ]
+            }
+            CLIOut.raw(TextTable.render(headers: ["#", "KIND", "SUMMARY", "OBSERVED"], rows: rows))
+        }
+    }
 }
 
 enum CompanionBridge {
