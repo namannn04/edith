@@ -552,6 +552,22 @@ private actor ProcessReadProbe {
 }
 
 @Suite struct MachineReconnectTests {
+    @Test func replayRemovesOnlyForwardsThatFailed() {
+        let machineID = UUID()
+        let first = PortForward(machineID: machineID, localPort: 8001, remotePort: 3001)
+        let second = PortForward(machineID: machineID, localPort: 8002, remotePort: 3002)
+        let third = PortForward(machineID: machineID, localPort: 8003, remotePort: 3003)
+        let remembered = Dictionary(
+            uniqueKeysWithValues: [first, second, third].map { ($0.id, $0) })
+
+        let retained = MachineForwardReplay.retainedForwards(
+            remembered, failedIDs: [second.id])
+
+        #expect(Set(retained.keys) == [first.id, third.id])
+        #expect(retained[first.id] == first)
+        #expect(retained[third.id] == third)
+    }
+
     @Test func waitsLongerAfterEachFailureThenSettlesOnAFixedGap() {
         #expect(MachineReconnect.delay(afterFailures: 0) == 0)
         let delays = (1...8).map { MachineReconnect.delay(afterFailures: $0) }
