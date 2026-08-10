@@ -328,7 +328,7 @@ public enum ConfigCatalog {
         SettingDefinition(
             "companionTab", .string, group: "companion",
             summary: "Companion screen shown on open.",
-            allowed: ["chat", "capture", "library", "mind", "settings"],
+            allowed: ["chat", "capture", "desk", "library", "mind", "setup", "settings"],
             fallback: .string("chat")),
     ]
 
