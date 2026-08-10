@@ -10,6 +10,61 @@ pub const REASON_PROVIDER: &str = "reason.provider";
 pub const REASON_URL: &str = "reason.url";
 pub const REASON_MODEL: &str = "reason.model";
 pub const REASON_API_KEY: &str = "reason.api_key";
+pub const GITHUB_TOKEN: &str = "connector.github_token";
+pub const NOTION_TOKEN: &str = "connector.notion_token";
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ConnectorTokens {
+    pub github: String,
+    pub notion: String,
+}
+
+impl ConnectorTokens {
+    pub fn from_env() -> Self {
+        Self {
+            github: std::env::var("GITHUB_TOKEN").unwrap_or_default(),
+            notion: std::env::var("NOTION_TOKEN").unwrap_or_default(),
+        }
+    }
+}
+
+pub fn hint(token: &str) -> Option<String> {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let tail = trimmed
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect::<String>();
+    Some(format!("set, ending {tail}"))
+}
+
+pub fn connector_tokens_from(
+    env: ConnectorTokens,
+    stored: &HashMap<String, String>,
+) -> ConnectorTokens {
+    let pick = |key: &str, fallback: String| {
+        stored
+            .get(key)
+            .cloned()
+            .filter(|value| !value.is_empty())
+            .unwrap_or(fallback)
+    };
+    ConnectorTokens {
+        github: pick(GITHUB_TOKEN, env.github),
+        notion: pick(NOTION_TOKEN, env.notion),
+    }
+}
+
+pub async fn connector_tokens(pool: &PgPool) -> ConnectorTokens {
+    let stored = load_all(pool).await.unwrap_or_default();
+    connector_tokens_from(ConnectorTokens::from_env(), &stored)
+}
 
 pub async fn load_all(pool: &PgPool) -> Result<HashMap<String, String>, sqlx::Error> {
     let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM settings")
@@ -53,6 +108,38 @@ pub async fn reason_config(pool: &PgPool) -> ReasonConfig {
 }
 
 #[derive(Clone)]
+pub struct ConnectorHandle {
+    github: Arc<RwLock<crate::github::GithubConnector>>,
+    notion: Arc<RwLock<crate::notion::NotionConnector>>,
+}
+
+impl ConnectorHandle {
+    pub fn new(tokens: ConnectorTokens) -> Self {
+        Self {
+            github: Arc::new(RwLock::new(crate::github::GithubConnector::with_token(
+                &tokens.github,
+            ))),
+            notion: Arc::new(RwLock::new(crate::notion::NotionConnector::with_token(
+                &tokens.notion,
+            ))),
+        }
+    }
+
+    pub async fn github(&self) -> crate::github::GithubConnector {
+        self.github.read().await.clone()
+    }
+
+    pub async fn notion(&self) -> crate::notion::NotionConnector {
+        self.notion.read().await.clone()
+    }
+
+    pub async fn replace(&self, tokens: ConnectorTokens) {
+        *self.github.write().await = crate::github::GithubConnector::with_token(&tokens.github);
+        *self.notion.write().await = crate::notion::NotionConnector::with_token(&tokens.notion);
+    }
+}
+
+#[derive(Clone)]
 pub struct ReasonHandle {
     inner: Arc<RwLock<ReasonClient>>,
 }
@@ -75,7 +162,10 @@ impl ReasonHandle {
 
 #[cfg(test)]
 mod tests {
-    use super::{REASON_API_KEY, REASON_MODEL, reason_config_from};
+    use super::{
+        ConnectorTokens, GITHUB_TOKEN, REASON_API_KEY, REASON_MODEL, connector_tokens_from, hint,
+        reason_config_from,
+    };
     use crate::reason::ReasonConfig;
     use std::collections::HashMap;
 
@@ -94,6 +184,25 @@ mod tests {
         assert_eq!(merged.provider, "openai");
         assert_eq!(merged.model, "claude-sonnet-5");
         assert_eq!(merged.api_key, "sk-live");
+    }
+
+    #[test]
+    fn a_stored_connector_token_beats_the_environment() {
+        let env = ConnectorTokens {
+            github: "gho_from_env".to_owned(),
+            notion: String::new(),
+        };
+        let mut stored = HashMap::new();
+        stored.insert(GITHUB_TOKEN.to_owned(), "gho_from_settings".to_owned());
+        let merged = connector_tokens_from(env, &stored);
+        assert_eq!(merged.github, "gho_from_settings");
+        assert!(merged.notion.is_empty());
+    }
+
+    #[test]
+    fn a_hint_never_returns_the_token() {
+        assert_eq!(hint("secret-abcd"), Some("set, ending abcd".to_owned()));
+        assert_eq!(hint("   "), None);
     }
 
     #[test]

@@ -306,3 +306,56 @@ public struct CompanionNotionOutcome: Codable, Equatable, Sendable {
     public let watermark: String?
     public let fullScan: Bool
 }
+
+public struct CompanionConnectorState: Codable, Equatable, Sendable {
+    public let configured: Bool
+    public let detail: String
+}
+
+public struct CompanionConnectorSettings: Codable, Equatable, Sendable {
+    public let github: CompanionConnectorState
+    public let notion: CompanionConnectorState
+    public let sources: [String]
+    public let importable: [String]
+}
+
+public struct CompanionImportOutcome: Codable, Equatable, Sendable {
+    public let source: String
+    public let entriesRead: Int
+    public let observationsInserted: Int
+    public let skipped: Int
+}
+
+public struct CompanionFact: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let subject: String
+    public let predicate: String
+    public let object: String
+    public let validFrom: String?
+    public let validTo: String?
+    public let createdAt: String
+    public let expiredAt: String?
+    public let confidence: Double?
+    public let supersededBy: String?
+}
+
+public struct CompanionCorrectOutcome: Codable, Equatable, Sendable {
+    public let id: String
+    public let status: String
+    public let statement: String
+}
+
+public struct CompanionCurateOutcome: Codable, Equatable, Sendable {
+    public let beliefsExamined: Int
+    public let linksMade: Int
+    public let contestedReopened: Int
+    public let retired: Int
+}
+
+public struct CompanionRebuildOutcome: Codable, Equatable, Sendable {
+    public let chunksDropped: Int?
+    public let beliefsRetired: Int?
+    public let factsExpired: Int?
+    public let episodesKept: Int?
+    public let ok: Bool?
+}

@@ -9,18 +9,19 @@ use uuid::Uuid;
 use crate::baseline::rescore;
 use crate::claims::{corroborate_claims, extract_claims};
 use crate::embed::EmbedClient;
-use crate::github::GithubConnector;
+
 use crate::indexer::index_pending;
-use crate::{commitments, core_memory, entities, hypotheses, inquire, lenses};
+use crate::{commitments, core_memory, entities, facts, hypotheses, inquire, lenses};
 use crate::reflect::reflect_run;
-use crate::settings::ReasonHandle;
+use crate::settings::{ConnectorHandle, ReasonHandle};
 
 #[derive(Clone)]
 pub struct NightlyDeps {
     pub pool: PgPool,
+    pub vault_dir: String,
     pub embed: EmbedClient,
     pub reason: ReasonHandle,
-    pub github: GithubConnector,
+    pub connectors: ConnectorHandle,
 }
 
 fn step(name: &str, result: Result<Value, String>) -> Value {
@@ -33,9 +34,9 @@ fn step(name: &str, result: Result<Value, String>) -> Value {
 pub async fn run_pipeline(deps: &NightlyDeps) -> (bool, Vec<Value>) {
     let mut steps = Vec::new();
 
-    if deps.github.configured() {
-        let result = deps
-            .github
+    let github = deps.connectors.github().await;
+    if github.configured() {
+        let result = github
             .sync(&deps.pool)
             .await
             .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
@@ -43,6 +44,18 @@ pub async fn run_pipeline(deps: &NightlyDeps) -> (bool, Vec<Value>) {
         steps.push(step("sync_github", result));
     } else {
         steps.push(step("sync_github", Ok(json!("skipped, no token"))));
+    }
+
+    let notion = deps.connectors.notion().await;
+    if notion.configured() {
+        let result = notion
+            .sync(&deps.pool, std::path::Path::new(&deps.vault_dir), false)
+            .await
+            .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+            .map_err(|error| error.to_string());
+        steps.push(step("sync_notion", result));
+    } else {
+        steps.push(step("sync_notion", Ok(json!("skipped, no token"))));
     }
 
     let result = index_pending(&deps.pool, &deps.embed)
@@ -77,6 +90,12 @@ pub async fn run_pipeline(deps: &NightlyDeps) -> (bool, Vec<Value>) {
         .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
         .map_err(|error| error.to_string());
     steps.push(step("entities", result));
+
+    let result = facts::extract(&deps.pool, &deps.embed, &reason)
+        .await
+        .map(|outcome| serde_json::to_value(outcome).unwrap_or(Value::Null))
+        .map_err(|error| error.to_string());
+    steps.push(step("facts", result));
 
     let result = corroborate_claims(&deps.pool, &reason)
         .await

@@ -124,6 +124,15 @@ enum UIParity {
             "Companion setup", "add a machine the stack could run on",
             ["companion", "machines", "add", "gpu-box"]),
         UICapability(
+            "Companion settings", "store a github or notion token",
+            ["companion", "connectors", "set", "--github", "gho_x"]),
+        UICapability(
+            "Companion settings", "import a calendar, music or youtube export",
+            ["companion", "connectors", "import", "music", "./export.json"]),
+        UICapability(
+            "Companion mind", "retire a belief that is wrong",
+            ["companion", "correct", "abc", "--retire"]),
+        UICapability(
             "Companion settings", "change the reasoner or its api key",
             ["companion", "reason", "set", "--provider", "anthropic", "--api-key", "sk-x"]),
         UICapability(

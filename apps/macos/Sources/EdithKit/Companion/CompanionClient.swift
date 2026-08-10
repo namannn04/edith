@@ -219,10 +219,48 @@ public struct CompanionAskOutcome: Codable, Equatable, Sendable {
 public struct CompanionRunStep: Codable, Equatable, Sendable {
     public let name: String
     public let ok: Bool
+    public let detail: String?
 
-    public init(name: String, ok: Bool) {
+    public init(name: String, ok: Bool, detail: String? = nil) {
         self.name = name
         self.ok = ok
+        self.detail = detail
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case ok
+        case detail
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        ok = try container.decode(Bool.self, forKey: .ok)
+        if let text = try? container.decode(String.self, forKey: .detail) {
+            detail = text
+        } else if let value = try? container.decode(JSONValueBox.self, forKey: .detail) {
+            detail = value.description
+        } else {
+            detail = nil
+        }
+    }
+}
+
+struct JSONValueBox: Decodable, CustomStringConvertible {
+    let description: String
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let object = try? container.decode([String: Double].self) {
+            description = object.sorted { $0.key < $1.key }
+                .map { "\($0.key) \(Int($0.value))" }
+                .joined(separator: ", ")
+        } else if let text = try? container.decode(String.self) {
+            description = text
+        } else {
+            description = ""
+        }
     }
 }
 
@@ -499,6 +537,55 @@ public struct CompanionClient: Sendable {
             throw CompanionClientError.unreachable(error.localizedDescription)
         }
         return try await self.request(request, timeout: 600)
+    }
+
+    public func connectorSettings() async throws -> CompanionConnectorSettings {
+        try await get("settings/connectors")
+    }
+
+    public func updateConnectorSettings(github: String?, notion: String?) async throws
+        -> CompanionConnectorSettings
+    {
+        try await post(
+            "settings/connectors", body: ConnectorTokenRequest(github: github, notion: notion))
+    }
+
+    public func importConnector(source: String, json: Data) async throws
+        -> CompanionImportOutcome
+    {
+        var request = URLRequest(url: url(for: "connectors/\(source)/import"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = json
+        return try await self.request(request, timeout: 900)
+    }
+
+    public func facts(asOf: String?, timeline: String, limit: Int) async throws
+        -> [CompanionFact]
+    {
+        var query = ["timeline": timeline, "limit": String(limit)]
+        if let asOf { query["asOf"] = asOf }
+        return try await get("facts", query: query)
+    }
+
+    public func correctBelief(id: String, retire: Bool, statement: String?) async throws
+        -> CompanionCorrectOutcome
+    {
+        try await post(
+            "beliefs/\(id)/correct",
+            body: CorrectRequest(retire: retire, statement: statement))
+    }
+
+    public func weekly() async throws -> CompanionCurateOutcome {
+        try await post("reflect/weekly", body: EmptyBody(), timeout: 1800)
+    }
+
+    public func db(_ action: String) async throws -> CompanionRebuildOutcome {
+        try await post("db/\(action)", body: EmptyBody(), timeout: 900)
+    }
+
+    public func rateTurn(id: String, rating: Int) async throws -> [String: CodableIgnored] {
+        try await post("turns/\(id)/feedback", body: RatingRequest(rating: rating))
     }
 
     public func personas() async throws -> [CompanionPersona] {
@@ -781,6 +868,20 @@ private struct ProfileRequest: Encodable {
 }
 
 private struct EmptyBody: Encodable {}
+
+private struct ConnectorTokenRequest: Encodable {
+    let github: String?
+    let notion: String?
+}
+
+private struct CorrectRequest: Encodable {
+    let retire: Bool
+    let statement: String?
+}
+
+private struct RatingRequest: Encodable {
+    let rating: Int
+}
 
 public struct MuteOutcome: Codable, Equatable, Sendable {
     public let topic: String

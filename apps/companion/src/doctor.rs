@@ -150,6 +150,7 @@ pub struct DoctorDeps<'a> {
     pub grounding: &'a GroundingClient,
     pub vision: &'a VisionClient,
     pub notion: &'a NotionConnector,
+    pub github: &'a crate::github::GithubConnector,
 }
 
 pub async fn run_doctor(deps: DoctorDeps<'_>) -> DoctorResult {
@@ -164,6 +165,7 @@ pub async fn run_doctor(deps: DoctorDeps<'_>) -> DoctorResult {
         grounding,
         vision,
         notion,
+        github,
     } = deps;
     let personas = persona::all();
     let checks = vec![
@@ -182,6 +184,7 @@ pub async fn run_doctor(deps: DoctorDeps<'_>) -> DoctorResult {
             vision.probe().await.map_err(|error| error.to_string()),
         ),
         check("notion", Ok(notion.describe())),
+        check("github", Ok(github.describe())),
         check("media tooling", tooling_check().await),
         check(
             "personas",

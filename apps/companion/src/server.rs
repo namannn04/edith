@@ -26,8 +26,7 @@ use crate::council::council_run;
 use crate::claims::{corroborate_claims, extract_claims};
 use crate::doctor::{DoctorDeps, run_doctor};
 use crate::embed::EmbedClient;
-use crate::github::GithubConnector;
-use crate::notion::NotionConnector;
+
 use crate::grounding::GroundingClient;
 use crate::friend::FriendDeps;
 use crate::indexer::index_pending;
@@ -38,14 +37,14 @@ use crate::persona;
 use crate::reflect::reflect_run;
 use crate::rerank::RerankClient;
 use crate::retrieve::{RetrievalPolicy, retrieve};
-use crate::settings::{self, ReasonHandle};
+use crate::settings::{self, ConnectorHandle, ReasonHandle};
 use crate::lang::SttRouter;
 use crate::media::{VideoDeps, ingest_image, ingest_video, kind_for};
 use crate::vision::VisionClient;
 use crate::turns::{RetrievedChunk, latency_since, log_turn};
 use crate::{
-    baseline, commitments, core_memory, entities, evals, hypotheses, inquire, lenses, machines,
-    standup,
+    baseline, commitments, connectors, core_memory, curate, entities, evals, facts, hypotheses,
+    inquire, lenses, machines, standup,
 };
 
 #[derive(Clone)]
@@ -56,8 +55,7 @@ pub struct AppState {
     pub embed: EmbedClient,
     pub stt: SttRouter,
     pub vision: VisionClient,
-    pub github: GithubConnector,
-    pub notion: NotionConnector,
+    pub connectors: ConnectorHandle,
     pub rerank: RerankClient,
     pub grounding: GroundingClient,
     pub reason: ReasonHandle,
@@ -106,6 +104,8 @@ fn error_response(status: StatusCode, detail: impl ToString) -> Response {
 
 async fn health(State(state): State<AppState>) -> Response {
     let reason = state.reason.current().await;
+    let notion = state.connectors.notion().await;
+    let github = state.connectors.github().await;
     let result = run_doctor(DoctorDeps {
         pool: &state.pool,
         redis: &state.redis,
@@ -116,7 +116,8 @@ async fn health(State(state): State<AppState>) -> Response {
         rerank: &state.rerank,
         grounding: &state.grounding,
         vision: &state.vision,
-        notion: &state.notion,
+        notion: &notion,
+        github: &github,
     })
     .await;
     let status = if result.ok {
@@ -965,6 +966,198 @@ async fn episode_titles(pool: &PgPool, ids: &[Uuid]) -> Vec<Value> {
     .collect()
 }
 
+async fn connectors_show(State(state): State<AppState>) -> Response {
+    let github = state.connectors.github().await;
+    let notion = state.connectors.notion().await;
+    Json(json!({
+        "github": {"configured": github.configured(), "detail": github.describe()},
+        "notion": {"configured": notion.configured(), "detail": notion.describe()},
+        "sources": connectors::SOURCES,
+        "importable": ["calendar", "music", "youtube"],
+    }))
+    .into_response()
+}
+
+async fn connectors_set(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let mut touched = Vec::new();
+    for (field, key) in [
+        ("github", settings::GITHUB_TOKEN),
+        ("notion", settings::NOTION_TOKEN),
+    ] {
+        let Some(token) = body.get(field).and_then(Value::as_str) else {
+            continue;
+        };
+        let result = if token.trim().is_empty() {
+            settings::remove(&state.pool, key).await
+        } else {
+            settings::put(&state.pool, key, token.trim()).await
+        };
+        if let Err(error) = result {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+        }
+        touched.push(field);
+    }
+    if touched.is_empty() {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "pass github or notion, empty to clear",
+        );
+    }
+    let tokens = settings::connector_tokens(&state.pool).await;
+    state.connectors.replace(tokens).await;
+    connectors_show(State(state)).await
+}
+
+async fn connectors_import(
+    State(state): State<AppState>,
+    Path(source): Path<String>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    match connectors::import(&state.pool, &source, &body).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_REQUEST, error),
+    }
+}
+
+async fn usage_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 256 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(kind) = body
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|kind| !kind.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "kind is required");
+    };
+    let observed_at = body
+        .get("observedAt")
+        .and_then(Value::as_str)
+        .and_then(crate::ingest::parse_file_date)
+        .unwrap_or_else(Utc::now);
+    let payload = body.get("payload").cloned().unwrap_or(json!({}));
+    match connectors::record_usage(&state.pool, kind, &payload, observed_at).await {
+        Ok(inserted) => Json(json!({"kind": kind, "inserted": inserted})).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn facts_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let as_of = query
+        .get("asOf")
+        .and_then(|value| crate::ingest::parse_file_date(value));
+    let timeline = query
+        .get("timeline")
+        .map(String::as_str)
+        .unwrap_or("valid");
+    match facts::list(&state.pool, as_of, timeline, limit_of(&query, 40)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn belief_correct(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let retire = body.get("retire").and_then(Value::as_bool).unwrap_or(false);
+    let edit = body.get("statement").and_then(Value::as_str);
+    match curate::correct(&state.pool, &state.embed, id, retire, edit).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) if error.to_string() == "no such belief" => {
+            error_response(StatusCode::NOT_FOUND, error)
+        }
+        Err(error) => error_response(StatusCode::BAD_REQUEST, error),
+    }
+}
+
+async fn weekly_route(State(state): State<AppState>) -> Response {
+    let reason = state.reason.current().await;
+    match curate::weekly(&state.pool, &state.embed, &reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn db_route(State(state): State<AppState>, Path(action): Path<String>) -> Response {
+    match action.as_str() {
+        "reindex" => match curate::reindex(&state.pool).await {
+            Ok(dropped) => Json(json!({"chunksDropped": dropped})).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        },
+        "rebuild-derived" => match curate::rebuild_derived(&state.pool).await {
+            Ok(outcome) => Json(outcome).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        },
+        "migrate" => match crate::migrate::run_migrations(&state.pool).await {
+            Ok(()) => Json(json!({"ok": true})).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        },
+        _ => error_response(
+            StatusCode::BAD_REQUEST,
+            "the actions are migrate, reindex and rebuild-derived",
+        ),
+    }
+}
+
+async fn feedback_route(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 16 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(rating) = body
+        .get("rating")
+        .and_then(Value::as_i64)
+        .filter(|rating| (-1..=1).contains(rating))
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "rating must be -1, 0 or 1");
+    };
+    let updated = sqlx::query("UPDATE retrievals SET feedback = $2 WHERE turn_id = $1")
+        .bind(id)
+        .bind(rating as i16)
+        .execute(&state.pool)
+        .await;
+    match updated {
+        Ok(updated) => Json(json!({
+            "turnId": id,
+            "rating": rating,
+            "retrievals": updated.rows_affected(),
+        }))
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
 async fn baselines(State(state): State<AppState>) -> Response {
     match baseline::baselines(&state.pool).await {
         Ok(rows) => {
@@ -1170,9 +1363,10 @@ async fn signals(
 async fn nightly_run(State(state): State<AppState>) -> Response {
     let deps = NightlyDeps {
         pool: state.pool.clone(),
+        vault_dir: state.vault_dir.to_string_lossy().into_owned(),
         embed: state.embed.clone(),
         reason: state.reason.clone(),
-        github: state.github.clone(),
+        connectors: state.connectors.clone(),
     };
     match record_run(&deps).await {
         Ok(run_id) => Json(serde_json::json!({ "runId": run_id })).into_response(),
@@ -1746,13 +1940,14 @@ async fn beliefs(
 }
 
 async fn github_sync(State(state): State<AppState>) -> Response {
-    if !state.github.configured() {
+    let github = state.connectors.github().await;
+    if !github.configured() {
         return error_response(
             StatusCode::PRECONDITION_FAILED,
-            "GITHUB_TOKEN is not configured on the companion",
+            "no github token; set it in Settings or with `ed companion connectors set`",
         );
     }
-    match state.github.sync(&state.pool).await {
+    match github.sync(&state.pool).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
@@ -1762,20 +1957,18 @@ async fn notion_sync(
     State(state): State<AppState>,
     Query(query): Query<HashMap<String, String>>,
 ) -> Response {
-    if !state.notion.configured() {
+    let notion = state.connectors.notion().await;
+    if !notion.configured() {
         return error_response(
             StatusCode::PRECONDITION_FAILED,
-            "NOTION_TOKEN is not configured on the companion",
+            "no notion token; set it in Settings or with `ed companion connectors set`",
         );
     }
     let full = query
         .get("full")
         .map(|value| value == "true" || value == "1")
         .unwrap_or(false);
-    match state
-        .notion
-        .sync(&state.pool, &state.vault_dir, full)
-        .await
+    match notion.sync(&state.pool, &state.vault_dir, full).await
     {
         Ok(outcome) => {
             spawn_index(&state);
@@ -2048,6 +2241,14 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/entities", get(entities_route))
         .route("/v1/lenses", get(lenses_route))
         .route("/v1/memory/why/{id}", get(memory_why))
+        .route("/v1/settings/connectors", get(connectors_show).post(connectors_set))
+        .route("/v1/connectors/{source}/import", post(connectors_import))
+        .route("/v1/connectors/edith/usage", post(usage_route))
+        .route("/v1/facts", get(facts_route))
+        .route("/v1/beliefs/{id}/correct", post(belief_correct))
+        .route("/v1/reflect/weekly", post(weekly_route))
+        .route("/v1/db/{action}", post(db_route))
+        .route("/v1/turns/{id}/feedback", post(feedback_route))
         .route("/v1/evals", get(evals_route))
         .route("/v1/evals/run", post(evals_run))
         .route("/v1/standup", post(standup_route))

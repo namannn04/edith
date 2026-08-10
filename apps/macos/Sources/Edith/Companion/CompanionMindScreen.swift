@@ -367,16 +367,20 @@ struct CompanionMindScreen: View {
                     Image(systemName: step.ok ? "checkmark" : "xmark")
                         .font(.system(size: UIScale.pt(8.5), weight: .bold))
                         .foregroundStyle(step.ok ? .green : .red)
-                    Text(step.name)
+                    Text(step.name.replacingOccurrences(of: "_", with: " "))
                         .font(.system(size: UIScale.pt(10.5)))
                         .foregroundStyle(DashSkin.inkSoft(dark))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .padding(.horizontal, UIScale.pt(8))
                 .padding(.vertical, UIScale.pt(3))
+                .fixedSize(horizontal: true, vertical: false)
                 .overlay {
                     RoundedRectangle(cornerRadius: UIScale.pt(7))
                         .strokeBorder(DashSkin.line(dark))
                 }
+                .help(step.detail ?? step.name)
             }
         }
     }

@@ -4,12 +4,15 @@ mod chat;
 mod chunker;
 mod claims;
 mod commitments;
+mod connectors;
 mod core_memory;
 mod council;
+mod curate;
 mod doctor;
 mod embed;
 mod entities;
 mod evals;
+mod facts;
 mod friend;
 mod frontmatter;
 mod github;
@@ -44,14 +47,13 @@ use std::env;
 use sqlx::postgres::PgPoolOptions;
 
 use crate::embed::EmbedClient;
-use crate::github::GithubConnector;
-use crate::notion::NotionConnector;
+
 use crate::grounding::GroundingClient;
 use crate::nightly::{NightlyDeps, spawn_scheduler};
 use crate::reason::ReasonClient;
 use crate::rerank::RerankClient;
 use crate::server::AppState;
-use crate::settings::ReasonHandle;
+use crate::settings::{ConnectorHandle, ReasonHandle};
 use crate::lang::SttRouter;
 use crate::vision::VisionClient;
 use crate::stt::SttClient;
@@ -68,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     migrate::run_migrations(&pool).await?;
     let redis = redis::Client::open(redis_url)?;
     let reason_config = settings::reason_config(&pool).await;
+    let connector_tokens = settings::connector_tokens(&pool).await;
     let state = AppState {
         pool,
         redis,
@@ -75,8 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         embed: EmbedClient::from_env(),
         stt: SttRouter::from_env(SttClient::from_env()),
         vision: VisionClient::from_env(),
-        github: GithubConnector::from_env(),
-        notion: NotionConnector::from_env(),
+        connectors: ConnectorHandle::new(connector_tokens),
         rerank: RerankClient::from_env(),
         grounding: GroundingClient::from_env(),
         reason: ReasonHandle::new(ReasonClient::from_config(reason_config)),
@@ -85,7 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool: state.pool.clone(),
         embed: state.embed.clone(),
         reason: state.reason.clone(),
-        github: state.github.clone(),
+        connectors: state.connectors.clone(),
+        vault_dir: state.vault_dir.to_string_lossy().into_owned(),
     });
     let listener = tokio::net::TcpListener::bind("0.0.0.0:4820").await?;
 

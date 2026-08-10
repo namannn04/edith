@@ -1,5 +1,7 @@
+import AppKit
 import EdithKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class CompanionSettingsModel: ObservableObject {
@@ -16,6 +18,12 @@ final class CompanionSettingsModel: ObservableObject {
     @Published private(set) var syncResult: String?
     @Published private(set) var error: String?
     @Published private(set) var loaded = false
+    @Published private(set) var connectors: CompanionConnectorSettings?
+    @Published var githubToken = ""
+    @Published var notionToken = ""
+    @Published private(set) var savingTokens = false
+    @Published private(set) var syncingNotion = false
+    @Published private(set) var importing = false
 
     private var client: CompanionClient {
         CompanionClient(baseURL: CompanionClient.endpoint(override: nil))
@@ -25,7 +33,74 @@ final class CompanionSettingsModel: ObservableObject {
         do {
             let settings = try await client.reasonSettings()
             apply(settings)
+            connectors = try? await client.connectorSettings()
             loaded = true
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func saveTokens() async {
+        guard !savingTokens else { return }
+        let github = githubToken.trimmingCharacters(in: .whitespaces)
+        let notion = notionToken.trimmingCharacters(in: .whitespaces)
+        guard !github.isEmpty || !notion.isEmpty else {
+            error = "Paste a token first; leaving both blank changes nothing."
+            return
+        }
+        savingTokens = true
+        defer { savingTokens = false }
+        do {
+            connectors = try await client.updateConnectorSettings(
+                github: github.isEmpty ? nil : github,
+                notion: notion.isEmpty ? nil : notion)
+            githubToken = ""
+            notionToken = ""
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func clearToken(_ which: String) async {
+        guard !savingTokens else { return }
+        savingTokens = true
+        defer { savingTokens = false }
+        do {
+            connectors = try await client.updateConnectorSettings(
+                github: which == "github" ? "" : nil,
+                notion: which == "notion" ? "" : nil)
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func importExport(source: String, url: URL) async {
+        guard !importing else { return }
+        importing = true
+        defer { importing = false }
+        do {
+            let data = try Data(contentsOf: url)
+            let outcome = try await client.importConnector(source: source, json: data)
+            syncResult =
+                "\(source): read \(outcome.entriesRead), stored "
+                + "\(outcome.observationsInserted)"
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func syncNotion() async {
+        guard !syncingNotion else { return }
+        syncingNotion = true
+        defer { syncingNotion = false }
+        do {
+            let outcome = try await client.syncNotion(full: false)
+            syncResult =
+                "\(outcome.pagesWritten) pages, \(outcome.episodesIngested) new episodes"
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -116,6 +191,7 @@ struct CompanionSettingsScreen: View {
                         connectionCard
                     }
                 }
+                connectorsCard
             }
             .pageContent(compact)
         }
@@ -243,24 +319,116 @@ struct CompanionSettingsScreen: View {
         }
     }
 
+    private var connectorsCard: some View {
+        SkinCard(
+            title: "Connectors",
+            note: "traces of what you actually did",
+            dark: dark
+        ) {
+            VStack(alignment: .leading, spacing: UIScale.pt(10)) {
+                tokenRow(
+                    label: "GitHub token",
+                    placeholder: "ghp_… or gho_…",
+                    text: $model.githubToken,
+                    state: model.connectors?.github,
+                    which: "github")
+                tokenRow(
+                    label: "Notion token",
+                    placeholder: "ntn_…",
+                    text: $model.notionToken,
+                    state: model.connectors?.notion,
+                    which: "notion")
+                HStack(spacing: UIScale.pt(8)) {
+                    Button(model.savingTokens ? "Saving…" : "Save tokens") {
+                        Task { await model.saveTokens() }
+                    }
+                    .disabled(model.savingTokens)
+                    Button(model.syncing ? "Syncing GitHub…" : "Sync GitHub") {
+                        Task { await model.syncGithub() }
+                    }
+                    .disabled(model.syncing || model.connectors?.github.configured != true)
+                    Button(model.syncingNotion ? "Syncing Notion…" : "Sync Notion") {
+                        Task { await model.syncNotion() }
+                    }
+                    .disabled(model.syncingNotion || model.connectors?.notion.configured != true)
+                }
+                Divider().opacity(0.3)
+                fieldLabel("Import an export")
+                HStack(spacing: UIScale.pt(8)) {
+                    ForEach(["calendar", "music", "youtube"], id: \.self) { source in
+                        Button(model.importing ? "Importing…" : source) {
+                            pickExport(source)
+                        }
+                        .disabled(model.importing)
+                    }
+                }
+                Text(
+                    "Tokens are stored on the companion, never on this Mac, and take effect "
+                        + "without a restart. Calendar, music and YouTube have no live API "
+                        + "worth using, so they come from an export you re-import."
+                )
+                .font(.system(size: UIScale.pt(11)))
+                .foregroundStyle(DashSkin.inkFaint(dark))
+            }
+        }
+    }
+
+    private func pickExport(_ source: String) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.message = "Pick the \(source) export to import"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { await model.importExport(source: source, url: url) }
+    }
+
+    private func tokenRow(
+        label: String, placeholder: String, text: Binding<String>,
+        state: CompanionConnectorState?, which: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: UIScale.pt(4)) {
+            HStack(spacing: UIScale.pt(8)) {
+                fieldLabel(label)
+                Spacer(minLength: 0)
+                Text(state?.detail ?? "not loaded")
+                    .font(.system(size: UIScale.pt(11)))
+                    .foregroundStyle(
+                        state?.configured == true ? DashSkin.inkSoft(dark)
+                            : DashSkin.inkFaint(dark)
+                    )
+                    .lineLimit(1)
+                if state?.configured == true {
+                    Button("Clear") {
+                        Task { await model.clearToken(which) }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: UIScale.pt(11)))
+                    .foregroundStyle(DashSkin.accent(dark))
+                    .pointerCursor()
+                    .disabled(model.savingTokens)
+                }
+            }
+            SecureField(placeholder, text: text)
+                .textFieldStyle(.plain)
+                .font(.system(size: UIScale.pt(12.5)))
+                .foregroundStyle(DashSkin.ink(dark))
+                .focusEffectDisabled()
+                .edithFieldSurface(focused: false)
+        }
+    }
+
     private var connectionCard: some View {
         SkinCard(title: "Connection", dark: dark) {
             VStack(alignment: .leading, spacing: UIScale.pt(6)) {
                 fieldLabel("Companion endpoint")
                 EdithTextField(placeholder: "http://127.0.0.1:4820", text: $endpoint)
-                HStack(spacing: UIScale.pt(6)) {
-                    Button(model.syncing ? "Syncing GitHub…" : "Sync GitHub") {
-                        Task { await model.syncGithub() }
-                    }
-                    .disabled(model.syncing)
-                    if let result = model.syncResult {
-                        Text(result)
-                            .font(.system(size: UIScale.pt(11)))
-                            .foregroundStyle(DashSkin.inkFaint(dark))
-                            .lineLimit(2)
-                    }
+                if let result = model.syncResult {
+                    Text(result)
+                        .font(.system(size: UIScale.pt(11)))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                        .lineLimit(2)
+                        .padding(.top, UIScale.pt(8))
                 }
-                .padding(.top, UIScale.pt(8))
             }
         }
     }

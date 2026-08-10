@@ -23,6 +23,7 @@ final class CompanionChatModel: ObservableObject {
     @Published var persona: String?
     @Published private(set) var council: CompanionCouncil?
     @Published private(set) var councilRunning = false
+    @Published private(set) var councilQuestion: String?
 
     private var client: CompanionClient {
         CompanionClient(baseURL: CompanionClient.endpoint(override: nil))
@@ -34,20 +35,28 @@ final class CompanionChatModel: ObservableObject {
 
     func askCouncil() async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !councilRunning, !streaming else { return }
+        guard !councilRunning, !streaming else { return }
+        guard !text.isEmpty else {
+            error = "Type the question first, then ask for a second opinion."
+            return
+        }
         councilRunning = true
+        councilQuestion = text
         defer { councilRunning = false }
-        draft = ""
         do {
-            council = try await client.council(question: text, personas: [])
+            let outcome = try await client.council(question: text, personas: [])
+            council = outcome
+            draft = ""
             error = nil
         } catch {
             self.error = error.localizedDescription
+            councilQuestion = nil
         }
     }
 
     func dismissCouncil() {
         council = nil
+        councilQuestion = nil
     }
 
     func loadConversations() async {
@@ -343,18 +352,20 @@ struct CompanionChatScreen: View {
                 personaChip(id: persona.id, label: persona.label)
             }
             Spacer(minLength: 0)
-            Button("Second opinion") {
+            Button(model.councilRunning ? "Asking three lenses…" : "Second opinion") {
                 Task { await model.askCouncil() }
             }
             .buttonStyle(.plain)
             .font(.system(size: UIScale.pt(11.5), weight: .medium))
             .foregroundStyle(
-                model.draft.trimmingCharacters(in: .whitespaces).isEmpty
-                    ? DashSkin.inkFaint(dark) : DashSkin.accent(dark)
+                model.councilRunning ? DashSkin.inkFaint(dark) : DashSkin.accent(dark)
             )
             .pointerCursor()
-            .disabled(model.councilRunning)
-            .help("Ask several lenses at once and find the crux")
+            .disabled(model.councilRunning || model.streaming)
+            .help(
+                model.councilRunning
+                    ? "Analyst, coach and skeptic are answering; this takes a minute"
+                    : "Type a question, then ask analyst, coach and skeptic at once")
         }
         .padding(.horizontal, PageMetrics.gutter(compact))
         .padding(.bottom, UIScale.pt(6))
@@ -383,7 +394,22 @@ struct CompanionChatScreen: View {
 
     @ViewBuilder
     private var councilPanel: some View {
-        if let council = model.council {
+        if model.councilRunning, model.council == nil {
+            HStack(spacing: UIScale.pt(8)) {
+                ProgressView().controlSize(.small)
+                Text(
+                    "Analyst, coach and skeptic are each answering \"\(model.councilQuestion ?? "")\""
+                )
+                .font(.system(size: UIScale.pt(12)))
+                .foregroundStyle(DashSkin.inkSoft(dark))
+                .lineLimit(2)
+            }
+            .padding(UIScale.pt(12))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+            .padding(.horizontal, PageMetrics.gutter(compact))
+            .padding(.bottom, UIScale.pt(8))
+        } else if let council = model.council {
             VStack(alignment: .leading, spacing: UIScale.pt(8)) {
                 ForEach(council.answers, id: \.persona) { answer in
                     VStack(alignment: .leading, spacing: UIScale.pt(2)) {

@@ -1474,3 +1474,363 @@ struct CompanionBaselinesCommand: AsyncParsableCommand {
         }
     }
 }
+
+struct CompanionConnectorsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "connectors",
+        abstract: "The tokens and exports the behavioural connectors run on.",
+        subcommands: [
+            CompanionConnectorsShowCommand.self, CompanionConnectorsSetCommand.self,
+            CompanionConnectorsImportCommand.self,
+        ],
+        defaultSubcommand: CompanionConnectorsShowCommand.self)
+}
+
+struct CompanionConnectorsShowCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "show", abstract: "Which connectors have a token, without printing it.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await execute {
+            let settings = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.connectorSettings()
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "github": .object([
+                            "configured": .bool(settings.github.configured),
+                            "detail": .string(settings.github.detail),
+                        ]),
+                        "notion": .object([
+                            "configured": .bool(settings.notion.configured),
+                            "detail": .string(settings.notion.detail),
+                        ]),
+                        "importable": .array(settings.importable.map(JSONValue.string)),
+                    ]))
+                return
+            }
+            CLIOut.out("github  \(settings.github.detail)")
+            CLIOut.out("notion  \(settings.notion.detail)")
+            CLIOut.out("import from a file: \(settings.importable.joined(separator: ", "))")
+        }
+    }
+}
+
+struct CompanionConnectorsSetCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "set", abstract: "Store a connector token on the companion.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Option(name: .long, help: "GitHub token; pass empty to clear it.")
+    var github: String?
+
+    @Option(name: .long, help: "Notion token; pass empty to clear it.")
+    var notion: String?
+
+    func run() async throws {
+        try await execute {
+            guard github != nil || notion != nil else {
+                throw CLIFailure.usage(
+                    "nothing to set", hint: "pass --github or --notion, empty to clear")
+            }
+            let settings = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.updateConnectorSettings(github: github, notion: notion)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "github": .string(settings.github.detail),
+                        "notion": .string(settings.notion.detail),
+                    ]))
+                return
+            }
+            CLIOut.out("github  \(settings.github.detail)")
+            CLIOut.out("notion  \(settings.notion.detail)")
+        }
+    }
+}
+
+struct CompanionConnectorsImportCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "import",
+        abstract: "Import a calendar, music or YouTube export as observations.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Argument(help: "calendar, music or youtube.")
+    var source: String
+
+    @Argument(help: "The exported JSON file.", completion: .file())
+    var path: String
+
+    func run() async throws {
+        try await execute {
+            let url = URL(fileURLWithPath: path.expandingTilde())
+            let data: Data
+            do {
+                data = try Data(contentsOf: url)
+            } catch {
+                throw CLIFailure.usage(
+                    "could not read \(url.path)", hint: error.localizedDescription)
+            }
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.importConnector(source: source, json: data)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "source": .string(outcome.source),
+                        "entriesRead": .int(outcome.entriesRead),
+                        "observationsInserted": .int(outcome.observationsInserted),
+                        "skipped": .int(outcome.skipped),
+                    ]))
+                return
+            }
+            CLIOut.out(
+                "read \(outcome.entriesRead) entries, stored "
+                    + "\(outcome.observationsInserted) new observations, skipped "
+                    + "\(outcome.skipped)")
+        }
+    }
+}
+
+struct CompanionFactsCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "facts",
+        abstract: "What was true, and what the companion believed at the time.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Option(name: .long, help: "A date to read the world as of.")
+    var asOf: String?
+
+    @Option(name: .long, help: "valid for what was true, believed for what it thought.")
+    var timeline = "valid"
+
+    @Option(name: .long, help: "How many to list.")
+    var limit = 30
+
+    func run() async throws {
+        try await execute {
+            let limit = try ArgumentChecks.positive(self.limit, "--limit")
+            guard ["valid", "believed"].contains(timeline) else {
+                throw CLIFailure.usage(
+                    "unknown timeline \(timeline)", hint: "pass valid or believed")
+            }
+            let rows = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.facts(asOf: asOf, timeline: timeline, limit: limit)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .array(
+                        rows.map { row in
+                            .object([
+                                "id": .string(row.id),
+                                "subject": .string(row.subject),
+                                "predicate": .string(row.predicate),
+                                "object": .string(row.object),
+                                "validFrom": .optional(row.validFrom),
+                                "validTo": .optional(row.validTo),
+                                "createdAt": .string(row.createdAt),
+                                "expiredAt": .optional(row.expiredAt),
+                                "supersededBy": .optional(row.supersededBy),
+                            ])
+                        }))
+                return
+            }
+            guard !rows.isEmpty else {
+                CLIOut.out("no facts recorded yet; the nightly run extracts them")
+                return
+            }
+            for row in rows {
+                let window = row.validTo.map { "until \($0.prefix(10))" } ?? "still true"
+                CLIOut.out(
+                    "\(row.subject) \(row.predicate) \(row.object)  "
+                        + "(\(row.validFrom?.prefix(10) ?? "unknown") \(window))")
+            }
+        }
+    }
+}
+
+struct CompanionForgetBeliefCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "correct",
+        abstract: "Retire a belief that is wrong, or rewrite it in your own words.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    @Flag(name: .long, help: "Retire it rather than rewriting it.")
+    var retire = false
+
+    @Option(name: .long, help: "What it should say instead.")
+    var edit: String?
+
+    @Argument(help: "The belief id.")
+    var id: String
+
+    func run() async throws {
+        try await execute {
+            guard retire || edit != nil else {
+                throw CLIFailure.usage(
+                    "nothing to change", hint: "pass --retire or --edit \"...\"")
+            }
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.correctBelief(id: id, retire: retire, statement: edit)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "id": .string(outcome.id),
+                        "status": .string(outcome.status),
+                        "statement": .string(outcome.statement),
+                    ]))
+                return
+            }
+            CLIOut.out("\(outcome.status)  \(outcome.statement)")
+        }
+    }
+}
+
+struct CompanionWeeklyCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "weekly",
+        abstract: "The wider pass: relate beliefs, reopen contested ones, retire unread ones.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await execute {
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.weekly()
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "beliefsExamined": .int(outcome.beliefsExamined),
+                        "linksMade": .int(outcome.linksMade),
+                        "contestedReopened": .int(outcome.contestedReopened),
+                        "retired": .int(outcome.retired),
+                    ]))
+                return
+            }
+            CLIOut.out(
+                "examined \(outcome.beliefsExamined), linked \(outcome.linksMade), "
+                    + "reopened \(outcome.contestedReopened), retired \(outcome.retired)")
+        }
+    }
+}
+
+struct CompanionDbCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "db",
+        abstract: "Migrate, reindex, or rebuild everything derived from the episodes.",
+        subcommands: [
+            CompanionDbMigrateCommand.self, CompanionDbReindexCommand.self,
+            CompanionDbRebuildCommand.self,
+        ],
+        defaultSubcommand: CompanionDbMigrateCommand.self)
+}
+
+struct CompanionDbMigrateCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "migrate", abstract: "Apply any migrations the backend has not run.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await CompanionDbRunner.run(action: "migrate", endpoint: endpoint, json: json)
+    }
+}
+
+struct CompanionDbReindexCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "reindex", abstract: "Drop the chunks so every episode is embedded again.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await CompanionDbRunner.run(action: "reindex", endpoint: endpoint, json: json)
+    }
+}
+
+struct CompanionDbRebuildCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "rebuild-derived",
+        abstract: "Throw away everything derived and rebuild it from the episodes.")
+
+    @Flag(name: .long, help: "Emit JSON on stdout.")
+    var json = false
+
+    @Option(name: .long, help: "Companion API base URL.")
+    var endpoint: String?
+
+    func run() async throws {
+        try await CompanionDbRunner.run(action: "rebuild-derived", endpoint: endpoint, json: json)
+    }
+}
+
+enum CompanionDbRunner {
+    static func run(action: String, endpoint: String?, json: Bool) async throws {
+        try await execute {
+            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                try await client.db(action)
+            }
+            guard !json else {
+                CLIOut.json(
+                    .object([
+                        "action": .string(action),
+                        "chunksDropped": .optional(outcome.chunksDropped.map(String.init)),
+                        "beliefsRetired": .optional(outcome.beliefsRetired.map(String.init)),
+                        "factsExpired": .optional(outcome.factsExpired.map(String.init)),
+                        "episodesKept": .optional(outcome.episodesKept.map(String.init)),
+                    ]))
+                return
+            }
+            if let kept = outcome.episodesKept {
+                CLIOut.out(
+                    "kept \(kept) episodes, dropped \(outcome.chunksDropped ?? 0) chunks, "
+                        + "retired \(outcome.beliefsRetired ?? 0) beliefs")
+            } else if let dropped = outcome.chunksDropped {
+                CLIOut.out("dropped \(dropped) chunks; `ed companion index` rebuilds them")
+            } else {
+                CLIOut.out("\(action) done")
+            }
+        }
+    }
+}

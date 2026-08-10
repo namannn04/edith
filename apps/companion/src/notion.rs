@@ -105,9 +105,13 @@ pub fn front_matter(page_id: &str, title: &str, edited: &str, url: &str) -> Stri
 
 impl NotionConnector {
     pub fn from_env() -> Self {
+        Self::with_token(&env::var("NOTION_TOKEN").unwrap_or_default())
+    }
+
+    pub fn with_token(token: &str) -> Self {
         Self {
             client: Client::new(),
-            token: env::var("NOTION_TOKEN").unwrap_or_default(),
+            token: token.trim().to_owned(),
         }
     }
 
@@ -116,10 +120,9 @@ impl NotionConnector {
     }
 
     pub fn describe(&self) -> String {
-        if self.configured() {
-            format!("token set, API {API_VERSION}")
-        } else {
-            "no NOTION_TOKEN".to_owned()
+        match crate::settings::hint(&self.token) {
+            Some(hint) => format!("{hint}, API {API_VERSION}"),
+            None => "no token; set it from the app or `ed companion connectors set`".to_owned(),
         }
     }
 

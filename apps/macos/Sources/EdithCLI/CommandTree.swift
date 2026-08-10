@@ -821,6 +821,43 @@ public enum CommandTree {
                         "baselines", "Your own delivery baselines.",
                         options: common + ["--endpoint"]),
                     CommandNode(
+                        "connectors", "The tokens the behavioural connectors run on.",
+                        children: [
+                            CommandNode(
+                                "show", "Which connectors have a token.",
+                                options: common + ["--endpoint"]),
+                            CommandNode(
+                                "set", "Store a connector token on the companion.",
+                                options: common + ["--endpoint", "--github", "--notion"]),
+                            CommandNode(
+                                "import", "Import a calendar, music or YouTube export.",
+                                options: common + ["--endpoint"],
+                                arguments: [.free, .localPath]),
+                        ]),
+                    CommandNode(
+                        "facts", "What was true, and what it believed at the time.",
+                        options: common + ["--endpoint", "--as-of", "--timeline", "--limit"]),
+                    CommandNode(
+                        "correct", "Retire a wrong belief, or rewrite it yourself.",
+                        options: common + ["--endpoint", "--retire", "--edit"],
+                        arguments: [.free]),
+                    CommandNode(
+                        "weekly", "The wider weekly pass over the beliefs.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "db", "Migrate, reindex, or rebuild what is derived.",
+                        children: [
+                            CommandNode(
+                                "migrate", "Apply any migrations not yet run.",
+                                options: common + ["--endpoint"]),
+                            CommandNode(
+                                "reindex", "Drop the chunks so episodes embed again.",
+                                options: common + ["--endpoint"]),
+                            CommandNode(
+                                "rebuild-derived", "Rebuild everything from the episodes.",
+                                options: common + ["--endpoint"]),
+                        ]),
+                    CommandNode(
                         "chat", "Talk with the companion, streamed as it thinks.",
                         options: common + ["--endpoint", "--conversation"], arguments: [.free]),
                     CommandNode(

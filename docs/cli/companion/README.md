@@ -52,6 +52,11 @@ For the machinery behind these commands, start at
 | `ed companion standup <file>` | Records a standup and checks it against the record. |
 | `ed companion machines` | Where the stack runs, and what each machine can do. |
 | `ed companion baselines` | Your own delivery baselines, which every signal is measured against. |
+| `ed companion connectors` | Tokens for GitHub and Notion, and imports for calendar, music and YouTube. |
+| `ed companion facts` | What was true, and what it believed at the time. |
+| `ed companion correct <id>` | Retires a wrong belief, or rewrites it in your words. |
+| `ed companion weekly` | The wider weekly pass: relate, reopen, retire. |
+| `ed companion db` | Migrate, reindex, or rebuild everything derived. |
 
 ## Commands
 
@@ -92,6 +97,11 @@ For the machinery behind these commands, start at
 - [`ed companion standup`](./standup.md)
 - [`ed companion machines`](./machines.md)
 - [`ed companion baselines`](./baselines.md)
+- [`ed companion connectors`](./connectors.md)
+- [`ed companion facts`](./facts.md)
+- [`ed companion correct`](./correct.md)
+- [`ed companion weekly`](./weekly.md)
+- [`ed companion db`](./db.md)
 
 ## Concept pages
 

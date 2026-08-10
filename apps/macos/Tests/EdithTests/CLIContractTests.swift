@@ -159,6 +159,30 @@ enum JSONContract {
             ["companion", "machines", "profile", "nowhere-at-all", "cpu-only", "--json"],
             mutatesTheMachine: true),
         JSONCase("ed companion baselines", ["companion", "baselines", "--json"]),
+        JSONCase("ed companion connectors show", ["companion", "connectors", "show", "--json"]),
+        JSONCase(
+            "ed companion connectors set",
+            ["companion", "connectors", "set", "--github", "gho_x", "--json"],
+            mutatesTheMachine: true),
+        JSONCase(
+            "ed companion connectors import",
+            ["companion", "connectors", "import", "music", "/tmp/nowhere.json", "--json"],
+            mutatesTheMachine: true),
+        JSONCase("ed companion facts", ["companion", "facts", "--json"]),
+        JSONCase(
+            "ed companion correct", ["companion", "correct", "abc", "--retire", "--json"],
+            mutatesTheMachine: true),
+        JSONCase(
+            "ed companion weekly", ["companion", "weekly", "--json"], mutatesTheMachine: true),
+        JSONCase(
+            "ed companion db migrate", ["companion", "db", "migrate", "--json"],
+            mutatesTheMachine: true),
+        JSONCase(
+            "ed companion db reindex", ["companion", "db", "reindex", "--json"],
+            mutatesTheMachine: true),
+        JSONCase(
+            "ed companion db rebuild-derived", ["companion", "db", "rebuild-derived", "--json"],
+            mutatesTheMachine: true),
         JSONCase(
             "ed companion ingest", ["companion", "ingest", "/tmp/nowhere.md", "--json"],
             mutatesTheMachine: true),
