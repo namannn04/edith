@@ -6,21 +6,34 @@ public struct HoverButton: ViewModifier {
 
     public init() {}
 
+    @ViewBuilder
     public func body(content: Content) -> some View {
-        content
-            .padding(UIScale.pt(4))
-            .background(
-                .primary.opacity(hovering ? 0.07 : 0),
-                in: RoundedRectangle(cornerRadius: UIScale.pt(6))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: UIScale.pt(6))
-                    .strokeBorder(.primary.opacity(hovering ? 0.18 : 0), lineWidth: UIScale.pt(0.5))
-            )
-            .shadow(color: .black.opacity(hovering ? 0.35 : 0), radius: UIScale.pt(4), y: 1)
-            .onHover { hovering = $0 }
-            .pointerCursor()
-            .animation(.easeOut(duration: 0.12), value: hovering)
+        if #available(macOS 26.0, *) {
+            content
+                .padding(UIScale.pt(4))
+                .glassEffect(
+                    .regular.interactive(), in: RoundedRectangle(cornerRadius: UIScale.pt(6))
+                )
+                .onHover { hovering = $0 }
+                .pointerCursor()
+                .animation(.easeOut(duration: 0.12), value: hovering)
+        } else {
+            content
+                .padding(UIScale.pt(4))
+                .background(
+                    .primary.opacity(hovering ? 0.07 : 0),
+                    in: RoundedRectangle(cornerRadius: UIScale.pt(6))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: UIScale.pt(6))
+                        .strokeBorder(
+                            .primary.opacity(hovering ? 0.18 : 0), lineWidth: UIScale.pt(0.5))
+                )
+                .shadow(color: .black.opacity(hovering ? 0.35 : 0), radius: UIScale.pt(4), y: 1)
+                .onHover { hovering = $0 }
+                .pointerCursor()
+                .animation(.easeOut(duration: 0.12), value: hovering)
+        }
     }
 }
 
@@ -62,10 +75,39 @@ extension View {
         }
     }
 
+    @ViewBuilder
     public func card() -> some View {
-        padding(13)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+        if #available(macOS 26.0, *) {
+            padding(13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+        } else {
+            padding(13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    .primary.opacity(0.05), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+        }
+    }
+
+    @available(macOS 26.0, *)
+    private func edithGlassStyle(_ tint: Color?, interactive: Bool) -> Glass {
+        var glass = Glass.regular
+        if let tint { glass = glass.tint(tint) }
+        if interactive { glass = glass.interactive() }
+        return glass
+    }
+
+    @ViewBuilder
+    public func edithGlass<S: Shape>(_ tint: Color? = nil, interactive: Bool = false, in shape: S)
+        -> some View
+    {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(edithGlassStyle(tint, interactive: interactive), in: shape)
+        } else if let tint {
+            self.background(tint.opacity(0.18), in: shape)
+        } else {
+            self.background(.thinMaterial, in: shape)
+        }
     }
 }
 

@@ -5,30 +5,42 @@ Issues and pull requests are welcome.
 ## Build and run
 
 ```bash
-cd apps/macos
-./build.sh            # build and run from dist/
+./build.sh            # build into dist/Edith.app and launch it
 ./build.sh --install  # build, copy to /Applications, launch
-./test.sh             # run the Swift test suite
+cd Packages/Edith && ./test.sh   # run the Swift test suite
 ```
 
-Needs only Xcode Command Line Tools (Swift 6). Use `./test.sh` rather than
-`swift test`; it adds the search paths for the Testing framework that ship with
-Command Line Tools.
+Needs Xcode, not just Command Line Tools: `edth.xcodeproj` at the repo root
+is what assembles the app. `build.sh` drives `xcodebuild` for the `EdithMain`
+scheme, which builds and embeds `EdithHelper` (the always-on menu bar
+companion, nested at `Contents/Library/LoginItems` and shipped as
+`Edith.app`), `EdithFiles` (nested at `Contents/Library/Applications`), and
+the `ed`/`edh` CLI tools (`Contents/MacOS`).
 
-`build.sh` also assembles a small `Edith.app` login item nested inside the main
-bundle (`Contents/Library/LoginItems`), the always-on menu bar companion that
-keeps running after the main app quits.
+All Swift code lives in one SwiftPM package, `Packages/Edith`. The Xcode
+targets are folder-synchronized onto `Packages/Edith/Sources/*`, so a file
+dropped into a target's directory builds with no project file to edit, and
+`swift build` and `swift test` work on the same sources without Xcode. Use
+`./test.sh` rather than `swift test`; it adds the search paths for the
+Testing framework that ships with Command Line Tools.
 
-Both bundles are signed ad-hoc by default. Ad-hoc signatures change on every
-rebuild, which resets permission grants (Accessibility, Screen Recording, and so
-on) and can duplicate login-item registrations. To avoid that, create a
-self-signed certificate once through Keychain Access → Certificate Assistant →
-Create a Certificate, name it "Edith Dev", Identity Type "Self Signed Root",
-Certificate Type "Code Signing", then build with:
+`build.sh` re-signs the bundle after `xcodebuild` rather than leaving Xcode's
+signature in place. Xcode writes a designated requirement that names the
+exact leaf certificate, so re-issuing or swapping that certificate (Apple
+Development to Developer ID, say) stops it matching and macOS drops every TCC
+grant the app had: Screen Recording, Accessibility, Calendar. Pinning the
+requirement to bundle id plus team id instead survives all of that. The
+identity is `EDITH_SIGN_IDENTITY`, else the first available Developer ID
+Application, self-signed `Edith Dev`, or Apple Development certificate, else
+ad-hoc. Ad-hoc signatures change on every rebuild, which is what resets those
+grants, so for day-to-day work create a self-signed certificate once through
+Keychain Access, Certificate Assistant, Create a Certificate, named
+"Edith Dev", Identity Type "Self Signed Root", Certificate Type
+"Code Signing".
 
-```bash
-EDITH_SIGN_IDENTITY="Edith Dev" ./build.sh --install
-```
+`AppIcon.icns` and the helper's `MenuBar.png` are checked in, generated from
+`Packages/Edith/Sources/Edith/Resources/appicon.png`. Run `make icon` after
+changing the artwork.
 
 ## Checks
 
@@ -42,19 +54,19 @@ Run `make ci` before pushing; the pre-push hook runs the same gates.
 | `make ci-lint` | Biome format and lint for `scripts/` and `apps/site`. |
 | `make ci-scripts` | The `bun test` suite for `scripts/`. |
 | `make ci-promo` | `npm ci` and type check for the Remotion promo video. |
-| `make ci-swift-check` | `swift format lint --strict`, `swift build` and the tests. |
+| `make ci-swift-check` | `swift format lint --strict`, a build of every scheme, and the tests. |
 | `make ci-swift` | `ci-swift-check` plus a full `build.sh` with bundle and codesign assertions. |
 
 Other targets: `make build`, `make install`, `make reset`, `make reinstall`,
-`make site-dev` (serves `apps/site` on port 8000), `make loc`.
+`make icon`, `make site-dev` (serves `apps/site` on port 8000), `make loc`.
 
 This repo is kept comment-free and CI enforces it. Run `bun run strip-comments`
 if one slips in. Write names and structure that do not need prose.
 
 ## Releases
 
-Merging anything under `apps/macos/` into `main` publishes a new patch version
-automatically. The `Release on merge` workflow bumps the last version component
+Merging anything under `Packages/Edith/`, `Resources/`, `edth.xcodeproj/` or
+`build.sh` into `main` publishes a new patch version automatically. The `Release on merge` workflow bumps the last version component
 (`0.0.1` becomes `0.0.2`, never `0.1.1`), builds and signs the app, generates a
 signed Sparkle appcast, commits the bump, tags it, and publishes the release.
 

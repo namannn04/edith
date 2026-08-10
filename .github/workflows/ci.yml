@@ -85,28 +85,36 @@ jobs:
 
   swift:
     runs-on: macos-26
-    defaults:
-      run:
-        working-directory: apps/macos
     steps:
       - uses: actions/checkout@v5
       - name: Format and lint (swift-format)
         run: swift format lint --strict --parallel --recursive Sources Tests Package.swift
-      - name: Type-check
-        run: swift build
+        working-directory: Packages/Edith
+      - name: Build every target
+        run: |
+          SIGN=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=)
+          for scheme in EdithMain EdithHelper EdithFiles ed edh; do
+            xcodebuild -project edth.xcodeproj -scheme "$scheme" -configuration Debug -derivedDataPath build "${SIGN[@]}" build
+          done
       - name: Tests
-        run: swift test
+        run: ./test.sh
+        working-directory: Packages/Edith
       - name: Build .app bundle (smoke test)
         run: ./build.sh --no-open
-      - name: Verify nested helper bundle and signing
+      - name: Verify nested bundles and signing
         run: |
           test -f dist/Edith.app/Contents/MacOS/Edith
-          test -f dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/claude.svg
-          test -f dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/codex.svg
+          test -x dist/Edith.app/Contents/MacOS/ed
+          test -x dist/Edith.app/Contents/MacOS/edh
+          test -f dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/Contents/Resources/claude.svg
+          test -f dist/Edith.app/Contents/Resources/Edith_EdithKit.bundle/Contents/Resources/codex.svg
           test -f dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/MacOS/Edith
           test -f dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/AppIcon.icns
-          test -f dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/claude.svg
-          test -f dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/codex.svg
+          test -f dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/MenuBar.png
+          test -f dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/Contents/Resources/claude.svg
+          test -f dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Resources/Edith_EdithKit.bundle/Contents/Resources/codex.svg
+          test -x "dist/Edith.app/Contents/Library/Applications/Edith Files.app/Contents/MacOS/EdithFiles"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "dist/Edith.app/Contents/Library/Applications/Edith Files.app/Contents/Info.plist" | grep -qx com.pulkit.edith.files
           /usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Info.plist | grep -qx Edith
           test -z "$(find dist/Edith.app -print | grep Helper)"
           for plist in dist/Edith.app/Contents/Info.plist dist/Edith.app/Contents/Library/LoginItems/Edith.app/Contents/Info.plist; do
@@ -115,4 +123,5 @@ jobs:
             done
           done
           codesign --verify dist/Edith.app/Contents/Library/LoginItems/Edith.app
-          codesign --verify dist/Edith.app
+          codesign --verify "dist/Edith.app/Contents/Library/Applications/Edith Files.app"
+          codesign --verify --deep --strict dist/Edith.app

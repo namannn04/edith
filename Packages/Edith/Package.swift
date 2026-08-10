@@ -4,6 +4,12 @@ import PackageDescription
 let package = Package(
     name: "Edith",
     platforms: [.macOS(.v14)],
+    products: [
+        .library(name: "Edith", targets: ["Edith"]),
+        .library(name: "EdithKit", targets: ["EdithKit"]),
+        .library(name: "EdithCLI", targets: ["EdithCLI"]),
+        .library(name: "Highlighter", targets: ["Highlighter"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
         .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.15.0"),
@@ -77,6 +83,7 @@ let package = Package(
         .executableTarget(
             name: "EdithHelper",
             dependencies: ["EdithKit"],
+            resources: [.copy("MenuBar.png")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(

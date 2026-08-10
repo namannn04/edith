@@ -39,7 +39,7 @@ avoid this:
 - Never leave `#Preview { }` macros in SwiftUI files: they fail the command-line SwiftPM
   build ("PreviewsMacros plugin not found").
 - `swift test` fails with "no such module 'Testing'" under Command Line Tools; run
-  `apps/macos/test.sh`, which adds the CLT Testing.framework search paths.
+  `Packages/Edith/test.sh`, which adds the CLT Testing.framework search paths.
 
 ## Committing around protected work-in-progress
 
@@ -101,11 +101,24 @@ on every push to `main` that touches `docs/`. Preview the output locally with
 `make wiki` (writes `.wiki-build/`, never pushes); `make wiki-push` publishes.
 The wiki is generated output: edit `docs/`, never the wiki.
 
+## Layout
+
+Every Swift source lives in one SwiftPM package, `Packages/Edith`: `Sources/Edith`
+(main app UI), `Sources/EdithKit` (shared core), `Sources/EdithCLI`, the vendored
+`Vendor/Highlighter`, thin `Sources/{EdithMain,EdithFiles,EdithHelper,ed,edh}`
+entry points, and `Tests/EdithTests`. `edth.xcodeproj` builds the app bundles from
+those same directories through folder-synchronized groups, so a new file needs no
+project edit: drop it in the target's directory and it builds. Never add a second
+copy of a source tree; there is one.
+
 ## Checks
 
 - `bun run check-comments` - no disallowed comments (all tracked source).
-- Swift checks run from `apps/macos/`: `swift build` (type-check), `swift test` / `./test.sh` (tests),
-  `swift format lint --strict --recursive Sources Tests Package.swift` (format + lint).
+- Swift checks: `make ci-swift-check` runs all of it. Individually, from `Packages/Edith`:
+  `swift format lint --strict --recursive Sources Tests Package.swift` (format + lint),
+  `./test.sh` (tests); and from the root
+  `xcodebuild -project edth.xcodeproj -scheme <EdithMain|EdithHelper|EdithFiles|ed|edh>
+  -configuration Debug build` (type-check per target).
 - `bun run lint` - Biome format + lint for `scripts/` and `apps/site`.
 - `bun test ./scripts` - JS tests. Do not pass a bare `scripts`; it also matches the
   gitignored `extras/` tree and reports unrelated failures.

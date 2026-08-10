@@ -67,7 +67,7 @@ link:
 
 ```
 /Applications/Edith.app/Contents/MacOS/ed install
-apps/macos/.build/release/ed install --directory $HOME/.local/bin
+build/Build/Products/Release/ed install --directory $HOME/.local/bin
 ```
 
 That second line is what `make cli` runs. If the self-link has already happened,
