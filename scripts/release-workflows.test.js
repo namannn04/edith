@@ -43,6 +43,10 @@ test("macOS notarization is conditional on its optional credentials", () => {
   expect(tagWorkflow).not.toContain("env.HAS_NOTARY != 'true'");
 });
 
+test("macOS release accepts the configured development certificate", () => {
+  expect(tagWorkflow).toContain('EDITH_RELEASE_ALLOW_DEV_SIGNING: "1"');
+});
+
 test("manual release delegates asset publication to the tag workflow", () => {
   expect(makefile).toContain('git push --atomic origin HEAD:main "v$(V)"');
   expect(makefile).not.toContain("gh release create");
