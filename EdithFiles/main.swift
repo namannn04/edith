@@ -1,1 +1,0 @@
-EdithFilesApp.main()
