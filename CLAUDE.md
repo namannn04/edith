@@ -39,7 +39,7 @@ avoid this:
 - Never leave `#Preview { }` macros in SwiftUI files: they fail the command-line SwiftPM
   build ("PreviewsMacros plugin not found").
 - `swift test` fails with "no such module 'Testing'" under Command Line Tools; run
-  `apps/macos/test.sh`, which adds the CLT Testing.framework search paths.
+  `Packages/Edith/test.sh`, which adds the CLT Testing.framework search paths.
 
 ## Committing around protected work-in-progress
 
@@ -104,14 +104,11 @@ The wiki is generated output: edit `docs/`, never the wiki.
 ## Checks
 
 - `bun run check-comments` - no disallowed comments (all tracked source).
-- Swift checks for `edth.xcodeproj`, the day-to-day project: `xcodebuild -project edth.xcodeproj
-  -scheme <EdithMain|EdithHelper|EdithFiles|ed|edh> -configuration Debug build` (type-check per
-  target), `swift format lint --strict --recursive EdithMain EdithHelper EdithFiles ed edh
-  Packages/EdithKit Packages/EdithCLI` (format + lint). `make ci-xcode-check` runs all of it.
-- Swift checks also still run from `apps/macos/` - the release source of truth until that
-  migration finishes (see `make release`), and the only place the test suite lives: `swift build`
-  (type-check), `swift test` / `./test.sh` (tests), `swift format lint --strict --recursive
-  Sources Tests Package.swift` (format + lint). `make ci-swift-check` runs all of it.
+- Swift checks: `make ci-swift-check` runs all of it. Individually, from `Packages/Edith`:
+  `swift format lint --strict --recursive Sources Tests Package.swift` (format + lint),
+  `./test.sh` (tests); and from the root
+  `xcodebuild -project edth.xcodeproj -scheme <EdithMain|EdithHelper|EdithFiles|ed|edh>
+  -configuration Debug build` (type-check per target).
 - `bun run lint` - Biome format + lint for `scripts/` and `apps/site`.
 - `bun test ./scripts` - JS tests. Do not pass a bare `scripts`; it also matches the
   gitignored `extras/` tree and reports unrelated failures.

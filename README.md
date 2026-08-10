@@ -1,4 +1,4 @@
-# <img src="EdithMain/Resources/appicon.png" width="30" align="top" alt=""> Edith
+# <img src="Packages/Edith/Sources/Edith/Resources/appicon.png" width="30" align="top" alt=""> Edith
 
 A native SwiftUI menu bar app for the Mac: a dark, minimal control center that
 replaces a shelf of single-purpose utilities and idles at about 22 MB.
