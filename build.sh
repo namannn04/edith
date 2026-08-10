@@ -19,6 +19,23 @@ USAGE
   exit 1
 }
 
+resolve_developer_dir() {
+  local candidate
+  candidate="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null)}"
+  if [ -x "$candidate/usr/bin/xcodebuild" ]; then echo "$candidate"; return; fi
+  for candidate in /Applications/Xcode*.app/Contents/Developer; do
+    if [ -x "$candidate/usr/bin/xcodebuild" ]; then echo "$candidate"; return; fi
+  done
+}
+
+DEVELOPER_DIR="$(resolve_developer_dir)"
+if [ -z "$DEVELOPER_DIR" ]; then
+  echo "Xcode is required to build edth.xcodeproj, Command Line Tools alone cannot." >&2
+  echo "Install Xcode, or point at it with xcode-select -s or DEVELOPER_DIR." >&2
+  exit 1
+fi
+export DEVELOPER_DIR
+
 find_identity() {
   security find-identity -v -p codesigning 2>/dev/null \
     | awk -F'"' -v pat="$1" '$0 ~ pat {print $2; exit}'
