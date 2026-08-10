@@ -1,32 +1,78 @@
 #!/usr/bin/env bash
-#
-#   ./build.sh                # build into build/Build/Products/Debug/Edith.app and launch it
-#   ./build.sh --install      # also copy to /Applications and launch from there
-#   ./build.sh --no-open      # build only, don't launch (used by CI)
-#   ./build.sh --pr 42        # resolve PR #42's branch via gh, build it from the
-#                             # worktree it is checked out in (created if
-#                             # missing), and install
-#   ./build.sh --branch name  # same, for a branch named directly
-#
-# This drives edth.xcodeproj (EdithMain scheme, Debug config) with xcodebuild.
-# Signing is CODE_SIGN_STYLE = Automatic, so it picks up whatever Apple
-# Development / Developer ID identity Xcode already trusts on this Mac.
-# Release signing and notarization are not wired up here - apps/macos/build.sh
-# is still what `make release` uses for that.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-INSTALL=0 NO_OPEN=0 PR="" BRANCH=""
+usage() {
+  cat >&2 <<'USAGE'
+usage: ./build.sh [--install] [--no-open] [--release] [--pr N | --branch NAME]
+
+  --install      copy to /Applications and launch from there
+  --no-open      build only, do not launch
+  --release      Release configuration, Developer ID signing required
+  --pr N         build PR N's branch from its worktree, creating one if needed
+  --branch NAME  same, for a branch named directly
+
+Signing identity is EDITH_SIGN_IDENTITY, else the first available Developer ID
+Application, "Edith Dev", or Apple Development certificate, else ad-hoc.
+See CONTRIBUTING.md for why the designated requirement is pinned to the team id.
+USAGE
+  exit 1
+}
+
+find_identity() {
+  security find-identity -v -p codesigning 2>/dev/null \
+    | awk -F'"' -v pat="$1" '$0 ~ pat {print $2; exit}'
+}
+
+team_id_for() {
+  security find-certificate -c "$1" -p 2>/dev/null \
+    | openssl x509 -noout -subject 2>/dev/null \
+    | sed -n 's/.*OU *= *\([^,/]*\).*/\1/p'
+}
+
+INSTALL=0 NO_OPEN=0 PR="" BRANCH="" RELEASE="${EDITH_RELEASE:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) INSTALL=1 ;;
     --no-open) NO_OPEN=1 ;;
+    --release) RELEASE=1 ;;
     --pr) PR="${2:?--pr needs a PR number}"; shift ;;
     --branch) BRANCH="${2:?--branch needs a branch name}"; shift ;;
-    *) echo "unknown option: $1" >&2; exit 1 ;;
+    *) usage ;;
   esac
   shift
 done
+
+SIGN_FLAGS=""
+if [ "$RELEASE" = 1 ]; then
+  SIGN_IDENTITY="${EDITH_SIGN_IDENTITY:-$(find_identity 'Developer ID Application')}"
+  case "$SIGN_IDENTITY" in
+    *"Developer ID Application"*)
+      SIGN_FLAGS="--options runtime --timestamp"
+      ;;
+    *)
+      if [ "${EDITH_RELEASE_ALLOW_DEV_SIGNING:-0}" = 1 ]; then
+        echo "WARNING: release build without Developer ID signing" >&2
+        echo "         (EDITH_RELEASE_ALLOW_DEV_SIGNING=1); artifact will not be" >&2
+        echo "         notarizable and Gatekeeper will warn on other Macs." >&2
+        SIGN_IDENTITY="${EDITH_SIGN_IDENTITY:-}"
+        SIGN_IDENTITY="${SIGN_IDENTITY:-$(find_identity 'Edith Dev')}"
+        SIGN_IDENTITY="${SIGN_IDENTITY:-$(find_identity 'Apple Development')}"
+        SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+      else
+        echo "release build blocked: a Developer ID Application signing identity is required" >&2
+        echo "set EDITH_RELEASE_ALLOW_DEV_SIGNING=1 to knowingly release with dev signing" >&2
+        exit 1
+      fi
+      ;;
+  esac
+else
+  SIGN_IDENTITY="${EDITH_SIGN_IDENTITY:-}"
+  SIGN_IDENTITY="${SIGN_IDENTITY:-$(find_identity 'Developer ID Application')}"
+  SIGN_IDENTITY="${SIGN_IDENTITY:-$(find_identity 'Edith Dev')}"
+  SIGN_IDENTITY="${SIGN_IDENTITY:-$(find_identity 'Apple Development')}"
+  SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+fi
 
 if [ -n "$PR" ]; then
   BRANCH="$(gh pr view "$PR" --json headRefName -q .headRefName)"
@@ -52,21 +98,67 @@ if [ -n "$BRANCH" ]; then
   fi
 fi
 
-DERIVED="build"
-xcodebuild -project edth.xcodeproj -scheme EdithMain -configuration Debug \
-  -derivedDataPath "$DERIVED" build
+CONFIG=Debug
+[ "$RELEASE" = 1 ] && CONFIG=Release
 
-APP="$DERIVED/Build/Products/Debug/Edith.app"
-test -d "$APP" || { echo "build did not produce $APP" >&2; exit 1; }
+TEAM_ID=""
+[ "$SIGN_IDENTITY" = "-" ] || TEAM_ID="$(team_id_for "$SIGN_IDENTITY" || true)"
+
+DERIVED=build
+xcodebuild -project edth.xcodeproj -scheme EdithMain -configuration "$CONFIG" \
+  -derivedDataPath "$DERIVED" \
+  CODE_SIGN_STYLE=Manual \
+  CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+  DEVELOPMENT_TEAM="$TEAM_ID" \
+  build
+
+BUILT="$DERIVED/Build/Products/$CONFIG/Edith.app"
+test -d "$BUILT" || { echo "build did not produce $BUILT" >&2; exit 1; }
+
+APP="dist/Edith.app"
+HELPER="$APP/Contents/Library/LoginItems/Edith.app"
+FILES_APP="$APP/Contents/Library/Applications/Edith Files.app"
+rm -rf dist && mkdir -p dist
+ditto "$BUILT" "$APP"
+
+if [ "$SIGN_IDENTITY" = "-" ]; then
+  echo "WARNING: no signing identity found; signing ad-hoc. The code signature" >&2
+  echo "         changes every build, so macOS TCC permission grants (Screen" >&2
+  echo "         Recording, Accessibility, Calendar, ...) reset on every reinstall." >&2
+  echo "         Use a Developer ID / Apple Development / self-signed 'Edith Dev'" >&2
+  echo "         identity, or set EDITH_SIGN_IDENTITY, so grants survive reinstalls." >&2
+fi
+
+sign() {
+  local identifier
+  identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$1/Contents/Info.plist")"
+  if [ -n "$TEAM_ID" ]; then
+    codesign --force --sign "$SIGN_IDENTITY" $SIGN_FLAGS --requirements \
+      "=designated => identifier \"$identifier\" and anchor apple generic and certificate leaf[subject.OU] = \"$TEAM_ID\"" \
+      "$1"
+  else
+    codesign --force --sign "$SIGN_IDENTITY" $SIGN_FLAGS "$1"
+  fi
+}
+
+sign_tool() {
+  codesign --force --sign "$SIGN_IDENTITY" $SIGN_FLAGS "$1"
+}
+
+sign_tool "$APP/Contents/MacOS/ed"
+sign_tool "$APP/Contents/MacOS/edh"
+sign "$HELPER"
+sign "$FILES_APP"
+sign "$APP"
 
 killall Edith 2>/dev/null || true
 pkill -x EdithHelper 2>/dev/null || true
 sleep 1
 
 if [ "$INSTALL" = 1 ]; then
-  rm -rf /Applications/Edith.app
+  rm -rf "/Applications/Edith.app"
   cp -R "$APP" /Applications/
-  [ "$NO_OPEN" = 1 ] || open /Applications/Edith.app
+  [ "$NO_OPEN" = 1 ] || open "/Applications/Edith.app"
 else
   [ "$NO_OPEN" = 1 ] || open "$APP"
 fi

@@ -4,7 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/macos/**"
+      - "Packages/Edith/**"
+      - "Resources/**"
+      - "edth.xcodeproj/**"
+      - "build.sh"
       - ".github/workflows/release-on-merge.yml"
   workflow_dispatch:
 
@@ -19,9 +22,6 @@ jobs:
   release:
     if: "!startsWith(github.event.head_commit.message, 'Bump version to ')"
     runs-on: macos-26
-    defaults:
-      run:
-        working-directory: apps/macos
     env:
       HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
@@ -115,8 +115,8 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           NEXT: ${{ steps.version.outputs.next }}
         run: |
-          GENERATE_APPCAST=".build/artifacts/sparkle/Sparkle/bin/generate_appcast"
-          test -x "$GENERATE_APPCAST" \
+          GENERATE_APPCAST="$(find build/SourcePackages/artifacts -type f -name generate_appcast -perm -u+x -print -quit)"
+          test -n "$GENERATE_APPCAST" \
             || { echo "release blocked: generate_appcast missing from the Sparkle artifact" >&2; exit 1; }
           rm -rf dist/appcast && mkdir dist/appcast
           cp Edith.dmg dist/appcast/

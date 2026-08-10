@@ -10,9 +10,6 @@ permissions:
 jobs:
   dmg:
     runs-on: macos-26
-    defaults:
-      run:
-        working-directory: apps/macos
     env:
       HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_ID != '' && secrets.NOTARY_ISSUER_ID != '' && secrets.NOTARY_KEY != '' }}

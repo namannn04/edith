@@ -4,8 +4,6 @@
 xcuserdata/
 dist/
 /build/
-# generated from Resources/appicon.png by build.sh
-apps/macos/Resources/AppIcon.icns
 local/
 node_modules/
 # usage data stays local - never pushed
@@ -26,8 +24,7 @@ apps/promo-video/out/
 
 .env
 .env.local
-apps/macos/*.dmg
-apps/macos/dmg-root/
-apps/macos/dist/
+/*.dmg
+/dmg-root/
 .vercel
 apps/companion/target/
