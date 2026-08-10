@@ -34,13 +34,35 @@ enum MachineAlert: Equatable, Sendable {
     }
 }
 
-struct MachineHealth: Equatable, Sendable {
+struct MachineHealth: Equatable, Sendable, Codable {
     var reachable: Bool
     var fullMounts: Set<String>
 
     init(reachable: Bool = true, fullMounts: Set<String> = []) {
         self.reachable = reachable
         self.fullMounts = fullMounts
+    }
+}
+
+enum MachineHealthStore {
+    static let defaultsKey = "machinesHealth"
+
+    static func load() -> [UUID: MachineHealth] {
+        guard let data = SharedDefaults.store.data(forKey: defaultsKey),
+            let stored = try? JSONDecoder().decode([String: MachineHealth].self, from: data)
+        else { return [:] }
+        return stored.reduce(into: [:]) { result, entry in
+            guard let id = UUID(uuidString: entry.key) else { return }
+            result[id] = entry.value
+        }
+    }
+
+    static func save(_ health: [UUID: MachineHealth]) {
+        let stored = health.reduce(into: [String: MachineHealth]()) { result, entry in
+            result[entry.key.uuidString] = entry.value
+        }
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        SharedDefaults.store.set(data, forKey: defaultsKey)
     }
 }
 
@@ -72,7 +94,7 @@ enum MachineMonitorLogic {
 @MainActor
 final class MachineMonitor: FeatureModule {
     private var timer: Timer?
-    private var health: [UUID: MachineHealth] = [:]
+    private var health: [UUID: MachineHealth] = MachineHealthStore.load()
     private var probing = false
     private let store = MachineStore()
 
@@ -108,6 +130,8 @@ final class MachineMonitor: FeatureModule {
         guard notifyDown || notifyDisk else { return }
         let threshold =
             SharedDefaults.store.object(forKey: "machinesDiskThreshold") as? Double ?? 90
+        let known = Set(machines.map(\.id))
+        health = health.filter { known.contains($0.key) }
         probing = true
         Task { @MainActor in
             defer { probing = false }
@@ -141,22 +165,52 @@ final class MachineMonitor: FeatureModule {
             machineName: machine.name, previous: previous, current: current, disks: disks,
             threshold: threshold, notifyDown: notifyDown, notifyDisk: notifyDisk)
         health[machine.id] = current
+        MachineHealthStore.save(health)
         for alert in alerts { MachineMonitor.notify(alert) }
     }
 
+    nonisolated static let mountsMarker = "@@EDITH-MOUNTS@@"
+
     nonisolated static let diskCommand =
-        "df -Pk 2>/dev/null | awk 'NR>1 && $1 ~ /^\\// {print $1, $2, $3, $4, $6}'"
+        "df -Pk 2>/dev/null; echo '\(mountsMarker)'; mount 2>/dev/null"
 
     nonisolated static func parseDisks(_ output: String) -> [MachineFilesystem] {
-        output.split(separator: "\n").compactMap { line in
-            let parts = line.split(separator: " ", maxSplits: 4, omittingEmptySubsequences: true)
-            guard parts.count == 5, let total = Int64(parts[1]), let used = Int64(parts[2]),
-                let available = Int64(parts[3]), total > 0
+        let sections = output.components(separatedBy: mountsMarker)
+        let readOnly = sections.count > 1 ? readOnlyMounts(sections[1]) : []
+        return sections[0].split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
+            guard parts.count == 6, parts[0].hasPrefix("/"), let total = Int64(parts[1]),
+                let used = Int64(parts[2]), let available = Int64(parts[3]), total > 0
             else { return nil }
+            let mount = String(parts[5])
+            guard !readOnly.contains(mount) else { return nil }
             return MachineFilesystem(
-                fs: String(parts[0]), mount: String(parts[4]), totalKB: total, usedKB: used,
+                fs: String(parts[0]), mount: mount, totalKB: total, usedKB: used,
                 availKB: available)
         }
+    }
+
+    nonisolated static func readOnlyMounts(_ output: String) -> Set<String> {
+        var mounts: Set<String> = []
+        for line in output.split(separator: "\n") {
+            let text = String(line)
+            guard let onRange = text.range(of: " on ") else { continue }
+            let rest = text[onRange.upperBound...]
+            let mountEnd =
+                rest.range(of: " type ", options: .backwards)?.lowerBound
+                ?? rest.range(of: " (", options: .backwards)?.lowerBound
+            guard let mountEnd else { continue }
+            guard let open = text.range(of: "(", options: .backwards),
+                let close = text.range(of: ")", options: .backwards),
+                open.upperBound < close.lowerBound
+            else { continue }
+            let options = text[open.upperBound..<close.lowerBound]
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            guard options.contains("ro") || options.contains("read-only") else { continue }
+            mounts.insert(String(rest[..<mountEnd]))
+        }
+        return mounts
     }
 
     nonisolated static func notify(
