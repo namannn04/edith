@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.pulkit.Edith</id>
+  <name>Edith</name>
+  <summary>Native control center for usage, machines, media, and utilities</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <description>
+    <p>Edith brings agent usage, remote machines, media, and desktop utilities into one efficient Ubuntu application.</p>
+  </description>
+  <launchable type="desktop-id">com.pulkit.Edith.desktop</launchable>
+  <provides>
+    <binary>edith-linux</binary>
+  </provides>
+</component>

@@ -122,11 +122,16 @@ products += [
 ]
 
 targets += [
+    .systemLibrary(
+        name: "CGTK",
+        pkgConfig: "gtk4",
+        providers: [.apt(["libgtk-4-dev"])]
+    ),
     .executableTarget(
         name: "EdithLinux",
-        dependencies: ["EdithCore"],
+        dependencies: ["EdithCore", "CGTK"],
         swiftSettings: [.swiftLanguageMode(.v5)]
-    )
+    ),
 ]
 #endif
 
