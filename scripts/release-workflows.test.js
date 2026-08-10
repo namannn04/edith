@@ -35,6 +35,7 @@ test("release waits for and publishes every platform asset", () => {
   expect(tagWorkflow).toContain("-name 'edith_*.deb'");
   expect(tagWorkflow).toContain("gh release create");
   expect(tagWorkflow).toContain("gh release upload");
+  expect(tagWorkflow).toContain('apt-get install -y "./$DEB"');
 });
 
 test("macOS notarization is conditional on its optional credentials", () => {

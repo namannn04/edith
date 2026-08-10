@@ -166,7 +166,7 @@ jobs:
             || { echo "release blocked: Debian package has the wrong version" >&2; exit 1; }
           dpkg-deb --info "$DEB"
           dpkg-deb --contents "$DEB"
-          apt-get install -y "$DEB"
+          apt-get install -y "./$DEB"
           edith-linux --diagnose
           mkdir release-linux
           cp "$DEB" release-linux/Edith.deb
