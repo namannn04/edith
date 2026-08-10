@@ -13,8 +13,10 @@ For the machinery behind these commands, start at
 [how the companion works](./concepts.md), the overview, then go deep:
 [memory](./concepts-memory.md), [ingestion](./concepts-ingestion.md),
 [chunks, embeddings and search](./concepts-search.md),
-[asking and chatting](./concepts-chat.md) and
-[the learning loop](./concepts-learning.md).
+[asking and chatting](./concepts-chat.md),
+[the learning loop](./concepts-learning.md),
+[reasoning it does on its own](./concepts-brain.md) and
+[not being a yes-man](./concepts-friend.md).
 
 ## At a glance
 
@@ -90,6 +92,17 @@ For the machinery behind these commands, start at
 - [`ed companion standup`](./standup.md)
 - [`ed companion machines`](./machines.md)
 - [`ed companion baselines`](./baselines.md)
+
+## Concept pages
+
+- [How the companion works](./concepts.md)
+- [Memory](./concepts-memory.md)
+- [Ingestion](./concepts-ingestion.md)
+- [Chunks, embeddings and search](./concepts-search.md)
+- [Asking and chatting](./concepts-chat.md)
+- [The learning loop](./concepts-learning.md)
+- [Reasoning it does on its own](./concepts-brain.md)
+- [Not being a yes-man](./concepts-friend.md)
 
 ## Exit codes
 
