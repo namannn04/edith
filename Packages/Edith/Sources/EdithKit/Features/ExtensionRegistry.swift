@@ -1,3 +1,4 @@
+import EdithCore
 import Foundation
 
 public enum ExtensionPermission: String, CaseIterable, Hashable, Sendable {
@@ -161,6 +162,8 @@ public struct ExtensionRegistryEntry: Identifiable, Equatable, Sendable {
     public let group: ExtensionGroup
     public let featured: Bool
     public let defaultsKey: String
+    public let requiredCapabilities: [PlatformCapability]
+    public let optionalCapabilities: [PlatformCapability]
     public let requiredPermissions: [ExtensionPermission]
     public let optionalPermissions: [ExtensionPermission]
     public let requiredTools: [CLIToolSpec]
@@ -168,6 +171,8 @@ public struct ExtensionRegistryEntry: Identifiable, Equatable, Sendable {
     public init(
         id: String, title: String, subtitle: String, symbolName: String,
         group: ExtensionGroup, featured: Bool, defaultsKey: String,
+        requiredCapabilities: [PlatformCapability],
+        optionalCapabilities: [PlatformCapability] = [],
         requiredPermissions: [ExtensionPermission] = [],
         optionalPermissions: [ExtensionPermission] = [], requiredTools: [CLIToolSpec] = []
     ) {
@@ -178,9 +183,18 @@ public struct ExtensionRegistryEntry: Identifiable, Equatable, Sendable {
         self.group = group
         self.featured = featured
         self.defaultsKey = defaultsKey
+        self.requiredCapabilities = requiredCapabilities
+        self.optionalCapabilities = optionalCapabilities
         self.requiredPermissions = requiredPermissions
         self.optionalPermissions = optionalPermissions
         self.requiredTools = requiredTools
+    }
+
+    public func availability(
+        on platformCapabilities: PlatformCapabilities
+    ) -> ExtensionPlatformAvailability {
+        platformCapabilities.availability(
+            required: requiredCapabilities, optional: optionalCapabilities)
     }
 }
 
@@ -190,69 +204,83 @@ public enum ExtensionRegistry {
             id: "usage", title: "Agent Usage",
             subtitle: "Claude and Codex limits, usage stats, and alerts.",
             symbolName: "chart.bar.fill", group: .agent, featured: true,
-            defaultsKey: "tabUsageEnabled", optionalPermissions: [.notifications],
+            defaultsKey: "tabUsageEnabled", requiredCapabilities: [.usageCollection],
+            optionalCapabilities: [.notifications], optionalPermissions: [.notifications],
             requiredTools: [.claudeCode, .codex]),
         ExtensionRegistryEntry(
             id: "system", title: "System",
             subtitle: "Running apps, prevent sleep, and the keyboard-cleaning lock.",
             symbolName: "switch.2", group: .system, featured: true,
-            defaultsKey: "tabSystemEnabled",
+            defaultsKey: "tabSystemEnabled", requiredCapabilities: [.runningApplications],
+            optionalCapabilities: [.preventSleep, .inputSuppression],
             optionalPermissions: [.accessibility, .inputMonitoring]),
         ExtensionRegistryEntry(
             id: "machines", title: "Machines",
             subtitle: "Your other computers over SSH: stats, files, Docker, and a terminal.",
             symbolName: "server.rack", group: .system, featured: true,
-            defaultsKey: "tabMachinesEnabled", optionalPermissions: [.notifications]),
+            defaultsKey: "tabMachinesEnabled", requiredCapabilities: [.machineManagement],
+            optionalCapabilities: [.notifications], optionalPermissions: [.notifications]),
         ExtensionRegistryEntry(
             id: "companion", title: "Companion",
             subtitle: "Your notes, voice memos and activity, remembered and searchable.",
             symbolName: "brain.head.profile", group: .agent, featured: false,
-            defaultsKey: "tabCompanionEnabled"),
+            defaultsKey: "tabCompanionEnabled", requiredCapabilities: [.companionService]),
         ExtensionRegistryEntry(
             id: "systemStats", title: "CPU & Memory in menu bar",
             subtitle: "Live CPU and memory readout as a menu bar item.",
             symbolName: "gauge.with.needle", group: .system, featured: false,
-            defaultsKey: "menuBarSystemStats"),
+            defaultsKey: "menuBarSystemStats", requiredCapabilities: [.systemMetrics]),
         ExtensionRegistryEntry(
             id: "micMute", title: "Mic Mute",
             subtitle: "Mute every microphone system-wide with ⌘⇧M or the menu bar icon.",
             symbolName: "mic.slash.fill", group: .system, featured: false,
-            defaultsKey: "micMuteEnabled"),
+            defaultsKey: "micMuteEnabled", requiredCapabilities: [.microphoneControl],
+            optionalCapabilities: [.globalShortcuts]),
         ExtensionRegistryEntry(
             id: "music", title: "Music",
             subtitle: "Plays your local music folder, with media keys.",
             symbolName: "music.note", group: .media, featured: false,
-            defaultsKey: "tabMusicEnabled", requiredTools: [.youtubeDownloader]),
+            defaultsKey: "tabMusicEnabled", requiredCapabilities: [.localMusicPlayback],
+            optionalCapabilities: [.mediaControls], requiredTools: [.youtubeDownloader]),
         ExtensionRegistryEntry(
             id: "calendar", title: "Calendar",
             subtitle: "Shows your schedule in the panel and the app.",
             symbolName: "calendar", group: .media, featured: false,
-            defaultsKey: "tabCalendarEnabled", requiredPermissions: [.calendar]),
+            defaultsKey: "tabCalendarEnabled", requiredCapabilities: [.calendarEvents],
+            requiredPermissions: [.calendar]),
         ExtensionRegistryEntry(
             id: "notchShelf", title: "Notch Shelf",
             subtitle: "File shelf, now playing, camera, and alerts around the notch.",
             symbolName: "tray.and.arrow.down", group: .media, featured: true,
-            defaultsKey: "notchShelfEnabled",
+            defaultsKey: "notchShelfEnabled", requiredCapabilities: [.fileShelf],
+            optionalCapabilities: [
+                .bluetoothMonitoring, .cameraPreview, .externalMediaControl,
+            ],
             optionalPermissions: [.bluetooth, .camera, .automation]),
         ExtensionRegistryEntry(
             id: "clipboard", title: "Clipboard",
             subtitle: "Clipboard history with instant paste.",
             symbolName: "doc.on.clipboard", group: .utilities, featured: true,
-            defaultsKey: "clipboardEnabled", optionalPermissions: [.accessibility]),
+            defaultsKey: "clipboardEnabled", requiredCapabilities: [.clipboardHistory],
+            optionalCapabilities: [.globalPaste, .globalShortcuts],
+            optionalPermissions: [.accessibility]),
         ExtensionRegistryEntry(
             id: "focusDim", title: "Focus Dim",
             subtitle: "Dims everything behind your active app.",
             symbolName: "circle.lefthalf.filled", group: .utilities, featured: false,
-            defaultsKey: "focusDimEnabled", requiredPermissions: [.screenRecording]),
+            defaultsKey: "focusDimEnabled", requiredCapabilities: [.windowDimming],
+            requiredPermissions: [.screenRecording]),
         ExtensionRegistryEntry(
             id: "presenter", title: "Presenter",
             subtitle: "Blurs sensitive numbers while sharing your screen.",
             symbolName: "theatermasks.fill", group: .utilities, featured: false,
-            defaultsKey: "presenterEnabled", requiredPermissions: [.screenRecording]),
+            defaultsKey: "presenterEnabled", requiredCapabilities: [.screenShareDetection],
+            requiredPermissions: [.screenRecording]),
         ExtensionRegistryEntry(
             id: "colorPicker", title: "Color Picker",
             subtitle: "System loupe on a hotkey, sampled color to your clipboard.",
             symbolName: "eyedropper", group: .utilities, featured: false,
-            defaultsKey: "colorPickerEnabled", requiredPermissions: [.screenRecording]),
+            defaultsKey: "colorPickerEnabled", requiredCapabilities: [.screenColorSampling],
+            optionalCapabilities: [.globalShortcuts], requiredPermissions: [.screenRecording]),
     ]
 }
