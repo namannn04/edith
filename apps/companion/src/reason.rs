@@ -317,14 +317,45 @@ async fn stream_deltas(
 }
 
 pub fn extract_json_array(text: &str) -> Option<Value> {
-    let start = text.find('[')?;
-    let end = text.rfind(']')?;
+    if let Some(start) = text.find('[')
+        && let Some(end) = text.rfind(']')
+        && end > start
+        && let Ok(value) = serde_json::from_str::<Value>(&text[start..=end])
+        && value.is_array()
+    {
+        return Some(value);
+    }
+    let start = text.find('{')?;
+    let end = text.rfind('}')?;
     if end <= start {
         return None;
     }
-    serde_json::from_str::<Value>(&text[start..=end])
-        .ok()
-        .filter(Value::is_array)
+    let object = serde_json::from_str::<Value>(&text[start..=end]).ok()?;
+    object
+        .as_object()?
+        .values()
+        .find(|value| value.is_array())
+        .cloned()
+}
+
+pub const JSON_ONLY_RETRY: &str = "That answer was not JSON. Answer again with the JSON array \
+alone: no prose, no headings, no markdown fences, starting with [ and ending with ].";
+
+impl ReasonClient {
+    pub async fn complete_array(&self, system: &str, user: &str) -> Result<Value, ReasonError> {
+        let first = self.complete(system, user).await?;
+        if let Some(array) = extract_json_array(&first) {
+            return Ok(array);
+        }
+        let retry = format!("{user}\n\n{JSON_ONLY_RETRY}");
+        let second = self.complete(system, &retry).await?;
+        extract_json_array(&second).ok_or_else(|| {
+            ReasonError(format!(
+                "the answer was not a JSON array after a retry: {}",
+                second.chars().take(200).collect::<String>()
+            ))
+        })
+    }
 }
 
 #[cfg(test)]
@@ -334,6 +365,13 @@ mod tests {
         sse_data_payload,
     };
     use serde_json::json;
+
+    #[test]
+    fn finds_an_array_wrapped_in_an_object() {
+        let text = "Here you go: {\"theories\": [{\"statement\": \"one\"}]}";
+        let value = extract_json_array(text).unwrap();
+        assert_eq!(value[0]["statement"], "one");
+    }
 
     #[test]
     fn finds_array_inside_prose() {

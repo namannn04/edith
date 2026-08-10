@@ -14,13 +14,17 @@ with worked examples and every term explained from scratch:
 | [Chunks, embeddings and search](./concepts-search.md) | How text becomes numbers and how nearest-neighbour search finds meaning, from first principles |
 | [Asking and chatting](./concepts-chat.md) | Retrieval, prompting, streaming, the stream filter, and how citations are policed |
 | [The learning loop](./concepts-learning.md) | Claims, observations, corroboration verdicts, belief life-cycles and the nightly run |
+| [Reasoning it does on its own](./concepts-brain.md) | Claims against observations, falsifiable theories, calibration in both directions, and the question ledger |
+| [Not being a yes-man](./concepts-friend.md) | Question reframing, counterfactuals, the blind critic, typed provenance and how opinions earn their standing |
 
 Two pipelines carry everything:
 
 - Every file: md, pdf or voice → SHA-256 dedupe → vault → episode → chunks →
   embeddings → searchable.
-- Every night at 02:00: sync GitHub → index → extract claims → corroborate →
-  reflect into beliefs.
+- Every night at 02:00: sync GitHub → index → rescore baselines → extract claims →
+  resolve entities → corroborate → track commitments → score calibration → reflect
+  into beliefs → resolve predictions → form theories → rewrite the standing summary
+  → rewrite the lens notes → rank the questions worth asking.
 
 ## The machine
 

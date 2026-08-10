@@ -53,6 +53,17 @@ impl SttClient {
         }
     }
 
+    pub fn at(base_url: &str) -> Self {
+        Self {
+            client: Client::new(),
+            base_url: base_url.trim_end_matches('/').to_owned(),
+        }
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     pub async fn transcribe(&self, name: &str, bytes: Vec<u8>) -> Result<Transcript, SttError> {
         let part = Part::bytes(bytes)
             .file_name(name.to_owned())

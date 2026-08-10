@@ -7,6 +7,9 @@ final class CompanionMindModel: ObservableObject {
     @Published private(set) var claims: [CompanionClaim] = []
     @Published private(set) var observations: [CompanionObservation] = []
     @Published private(set) var runs: [CompanionRun] = []
+    @Published private(set) var core: [CompanionCoreSection] = []
+    @Published private(set) var calibration: [CompanionCalibration] = []
+    @Published private(set) var savingCore = false
     @Published private(set) var runningNightly = false
     @Published private(set) var error: String?
 
@@ -21,7 +24,21 @@ final class CompanionMindModel: ObservableObject {
             claims = try await client.claims(limit: 30)
             observations = try await client.observations(limit: 40, kind: nil)
             runs = try await client.runs(limit: 5)
+            core = (try? await client.core()) ?? []
+            calibration = (try? await client.calibration()) ?? []
             error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func saveCore(section: String, content: String) async {
+        guard !savingCore else { return }
+        savingCore = true
+        defer { savingCore = false }
+        do {
+            _ = try await client.writeCore(section: section, content: content)
+            await refresh()
         } catch {
             self.error = error.localizedDescription
         }
@@ -62,6 +79,8 @@ struct CompanionMindScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var barsFilled = false
     @State private var detail: MindDetail?
+    @State private var editingSection: String?
+    @State private var sectionDraft = ""
 
     private var dark: Bool { scheme == .dark }
 
@@ -80,6 +99,8 @@ struct CompanionMindScreen: View {
                         nightlyCard
                     }
                 }
+                coreCard
+                calibrationCard
                 observationsCard
             }
             .pageContent(compact)
@@ -93,6 +114,91 @@ struct CompanionMindScreen: View {
         .sheet(item: $detail) { detail in
             MindDetailSheet(detail: detail, dark: dark, openEpisode: openEpisode) {
                 self.detail = nil
+            }
+        }
+    }
+
+    private var coreCard: some View {
+        SkinCard(title: "Who you are", note: "always in context", dark: dark) {
+            if model.core.isEmpty {
+                emptyText("Empty until the nightly run writes it, or until you write it yourself.")
+            } else {
+                VStack(alignment: .leading, spacing: UIScale.pt(8)) {
+                    ForEach(model.core, id: \.section) { section in
+                        VStack(alignment: .leading, spacing: UIScale.pt(3)) {
+                            HStack(spacing: UIScale.pt(8)) {
+                                Text(section.section.replacingOccurrences(of: "_", with: " "))
+                                    .font(.system(size: UIScale.pt(12), weight: .semibold))
+                                    .foregroundStyle(DashSkin.ink(dark))
+                                Spacer(minLength: 0)
+                                Text("by \(section.updatedBy)")
+                                    .font(.system(size: UIScale.pt(10.5)))
+                                    .foregroundStyle(DashSkin.inkFaint(dark))
+                                Button(editingSection == section.section ? "Cancel" : "Edit") {
+                                    if editingSection == section.section {
+                                        editingSection = nil
+                                    } else {
+                                        editingSection = section.section
+                                        sectionDraft = section.content
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: UIScale.pt(11)))
+                                .foregroundStyle(DashSkin.accent(dark))
+                                .pointerCursor()
+                            }
+                            if editingSection == section.section {
+                                TextField("", text: $sectionDraft, axis: .vertical)
+                                    .textFieldStyle(.plain)
+                                    .lineLimit(2...8)
+                                    .font(.system(size: UIScale.pt(12.5)))
+                                    .padding(UIScale.pt(8))
+                                    .background(DashSkin.paper2(dark))
+                                    .clipShape(
+                                        RoundedRectangle(cornerRadius: UIScale.pt(8)))
+                                Button("Save") {
+                                    let draft = sectionDraft
+                                    let name = section.section
+                                    editingSection = nil
+                                    Task { await model.saveCore(section: name, content: draft) }
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: UIScale.pt(11.5), weight: .medium))
+                                .foregroundStyle(DashSkin.accent(dark))
+                                .pointerCursor()
+                            } else {
+                                Text(section.content)
+                                    .font(.system(size: UIScale.pt(12.5)))
+                                    .foregroundStyle(DashSkin.inkSoft(dark))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var calibrationCard: some View {
+        SkinCard(title: "Calibration", note: "in both directions", dark: dark) {
+            if model.calibration.isEmpty {
+                emptyText("Nothing scored yet; this needs claims and records to compare.")
+            } else {
+                VStack(alignment: .leading, spacing: UIScale.pt(4)) {
+                    ForEach(model.calibration, id: \.domain) { row in
+                        HStack(spacing: UIScale.pt(8)) {
+                            Text(row.domain.replacingOccurrences(of: "_", with: " "))
+                                .font(.system(size: UIScale.pt(12)))
+                                .foregroundStyle(DashSkin.ink(dark))
+                            MindChip(
+                                label: row.direction.replacingOccurrences(of: "_", with: " "),
+                                tone: row.direction == "accurate" ? .green : .orange)
+                            Spacer(minLength: 0)
+                            Text("\(row.samples) times")
+                                .font(.system(size: UIScale.pt(11)))
+                                .foregroundStyle(DashSkin.inkFaint(dark))
+                        }
+                    }
+                }
             }
         }
     }
@@ -261,16 +367,20 @@ struct CompanionMindScreen: View {
                     Image(systemName: step.ok ? "checkmark" : "xmark")
                         .font(.system(size: UIScale.pt(8.5), weight: .bold))
                         .foregroundStyle(step.ok ? .green : .red)
-                    Text(step.name)
+                    Text(step.name.replacingOccurrences(of: "_", with: " "))
                         .font(.system(size: UIScale.pt(10.5)))
                         .foregroundStyle(DashSkin.inkSoft(dark))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .padding(.horizontal, UIScale.pt(8))
                 .padding(.vertical, UIScale.pt(3))
+                .fixedSize(horizontal: true, vertical: false)
                 .overlay {
                     RoundedRectangle(cornerRadius: UIScale.pt(7))
                         .strokeBorder(DashSkin.line(dark))
                 }
+                .help(step.detail ?? step.name)
             }
         }
     }

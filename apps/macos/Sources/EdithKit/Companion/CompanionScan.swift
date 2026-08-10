@@ -35,6 +35,24 @@ public struct CompanionAudioScanResult: Equatable, Sendable {
 public enum CompanionScan {
     public static let audioExtensions: Set<String> = ["wav", "m4a", "mp3", "ogg", "flac", "aiff"]
 
+    public static let imageExtensions: Set<String> = [
+        "jpg", "jpeg", "png", "heic", "heif", "webp", "gif",
+    ]
+
+    public static let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "mkv", "webm", "avi"]
+
+    public static func imageFiles(
+        at url: URL, limit maximumByteSize: Int = 48 * 1024 * 1024
+    ) throws -> CompanionAudioScanResult {
+        try binaryFiles(at: url, extensions: imageExtensions, maximumByteSize: maximumByteSize)
+    }
+
+    public static func videoFiles(
+        at url: URL, limit maximumByteSize: Int = 768 * 1024 * 1024
+    ) throws -> CompanionAudioScanResult {
+        try binaryFiles(at: url, extensions: videoExtensions, maximumByteSize: maximumByteSize)
+    }
+
     public static func pdfFiles(
         at url: URL, limit maximumByteSize: Int = 48 * 1024 * 1024
     ) throws -> CompanionAudioScanResult {
