@@ -25,7 +25,10 @@ install -Dm644 "$REPOSITORY_ROOT/packaging/linux/com.pulkit.Edith.metainfo.xml" 
 install -Dm644 "$PACKAGE_ROOT/Sources/Edith/Resources/appicon.png" \
     "$STAGE_ROOT/usr/share/icons/hicolor/512x512/apps/com.pulkit.Edith.png"
 
-DEPENDENCIES="$(dpkg-shlibdeps -O -e"$BINARY" 2>/dev/null | sed -n 's/^shlibs:Depends=//p')"
+DEPENDENCIES="$(
+    cd "$REPOSITORY_ROOT/packaging"
+    dpkg-shlibdeps -O -e"$BINARY" | sed -n 's/^shlibs:Depends=//p'
+)"
 {
     printf 'Package: edith\n'
     printf 'Version: %s\n' "$VERSION"
