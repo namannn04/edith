@@ -10,7 +10,7 @@ on:
       - "packaging/**"
       - "build.sh"
       - "Makefile"
-      - ".github/workflows/linux.yml"
+      - ".github/workflows/ci.yml"
       - ".github/workflows/release-on-merge.yml"
       - ".github/workflows/release.yml"
   workflow_dispatch:
