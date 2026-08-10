@@ -8,6 +8,11 @@
   <description>
     <p>Edith brings agent usage, remote machines, media, and desktop utilities into one efficient Ubuntu application.</p>
   </description>
+  <url type="homepage">https://github.com/pulkitxm/edith</url>
+  <developer id="com.pulkit">
+    <name>Pulkit</name>
+  </developer>
+  <content_rating type="oars-1.1" />
   <launchable type="desktop-id">com.pulkit.Edith.desktop</launchable>
   <provides>
     <binary>edith-linux</binary>
