@@ -158,6 +158,10 @@ gh secret set MACOS_CERT_P12 < <(base64 -i cert.p12)
 printf %s "<pick-a-password>" | gh secret set MACOS_CERT_PASSWORD
 ```
 
+A Developer ID Application certificate is preferred for public distribution.
+The workflow also accepts the configured Apple Development certificate so the
+signed release flow remains available, but Gatekeeper can warn on other Macs.
+
 The DMG is published as `Edith.dmg` rather than a versioned name so
 `releases/latest/download/Edith.dmg` always resolves to the newest build, which
 is what the website's download button uses. The Ubuntu asset is published as

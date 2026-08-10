@@ -62,6 +62,8 @@ jobs:
           rm -f "$RUNNER_TEMP/cert.p12"
 
       - name: Build the app
+        env:
+          EDITH_RELEASE_ALLOW_DEV_SIGNING: "1"
         run: ./build.sh --no-open --release
 
       - name: Package the DMG
