@@ -163,11 +163,13 @@ jobs:
           dpkg-deb --contents "$DEB"
           apt-get install -y "$DEB"
           edith-linux --diagnose
+          mkdir release-linux
+          cp "$DEB" release-linux/Edith.deb
 
       - uses: actions/upload-artifact@v4
         with:
           name: release-linux
-          path: dist/linux/*.deb
+          path: release-linux/Edith.deb
           if-no-files-found: error
           retention-days: 1
 
@@ -190,20 +192,18 @@ jobs:
       - name: Verify release assets
         run: |
           test -f release-assets/Edith.dmg
+          test -f release-assets/Edith.deb
           test -f release-assets/appcast.xml
-          DEB="$(find release-assets -maxdepth 1 -name 'edith_*.deb' -print -quit)"
-          test -n "$DEB" || { echo "release blocked: Debian package is missing" >&2; exit 1; }
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          DEB="$(find release-assets -maxdepth 1 -name 'edith_*.deb' -print -quit)"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" --clobber \
-              release-assets/Edith.dmg release-assets/appcast.xml "$DEB"
+              release-assets/Edith.dmg release-assets/Edith.deb release-assets/appcast.xml
           else
             gh release create "$RELEASE_TAG" --title "Edith $RELEASE_TAG" --generate-notes \
-              release-assets/Edith.dmg release-assets/appcast.xml "$DEB"
+              release-assets/Edith.dmg release-assets/Edith.deb release-assets/appcast.xml
           fi

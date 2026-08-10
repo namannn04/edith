@@ -29,6 +29,7 @@ test("tag workflow supports direct and reusable releases", () => {
 test("release waits for and publishes every platform asset", () => {
   expect(tagWorkflow).toContain("needs: [dmg, deb]");
   expect(tagWorkflow).toContain("release-assets/Edith.dmg");
+  expect(tagWorkflow).toContain("release-assets/Edith.deb");
   expect(tagWorkflow).toContain("release-assets/appcast.xml");
   expect(tagWorkflow).toContain("-name 'edith_*.deb'");
   expect(tagWorkflow).toContain("gh release create");

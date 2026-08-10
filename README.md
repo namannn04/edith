@@ -8,7 +8,7 @@ app. No licence key, no account, no paid tier.
 
 **[Download for macOS](https://github.com/pulkitxm/edith/releases/latest/download/Edith.dmg)**
 
-**[Download the Ubuntu preview](https://github.com/pulkitxm/edith/releases/latest)**
+**[Download the Ubuntu preview](https://github.com/pulkitxm/edith/releases/latest/download/Edith.deb)**
 · [edith.pulkit.page](https://edith.pulkit.page)
 · [Wiki](https://github.com/pulkitxm/edith/wiki)
 

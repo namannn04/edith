@@ -152,8 +152,9 @@ printf %s "<pick-a-password>" | gh secret set MACOS_CERT_PASSWORD
 
 The DMG is published as `Edith.dmg` rather than a versioned name so
 `releases/latest/download/Edith.dmg` always resolves to the newest build, which
-is what the website's download button uses. The Ubuntu asset is versioned as
-`edith_<version>_amd64.deb` and is available on the same release page.
+is what the website's download button uses. The Ubuntu asset is published as
+`Edith.deb` for the same stable latest-release URL, while its Debian metadata
+retains the release version.
 
 ### Why signing identity matters
 
