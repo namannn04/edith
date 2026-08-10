@@ -28,6 +28,8 @@ jobs:
         run: |
           dpkg-deb --info dist/linux/*.deb
           dpkg-deb --contents dist/linux/*.deb
+          apt-get install -y ./dist/linux/*.deb
+          edith-linux --diagnose
       - uses: actions/upload-artifact@v4
         with:
           name: edith-ubuntu-amd64

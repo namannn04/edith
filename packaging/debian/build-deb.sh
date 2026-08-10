@@ -18,6 +18,8 @@ BINARY="$BINARY_DIRECTORY/edith-linux"
 rm -rf "$STAGE_ROOT"
 mkdir -p "$STAGE_ROOT/DEBIAN" "$OUTPUT_DIRECTORY"
 install -Dm755 "$BINARY" "$STAGE_ROOT/usr/bin/edith-linux"
+STAGED_BINARY="$STAGE_ROOT/usr/bin/edith-linux"
+strip --strip-unneeded "$STAGED_BINARY"
 install -Dm644 "$REPOSITORY_ROOT/packaging/linux/com.pulkit.Edith.desktop" \
     "$STAGE_ROOT/usr/share/applications/com.pulkit.Edith.desktop"
 install -Dm644 "$REPOSITORY_ROOT/packaging/linux/com.pulkit.Edith.metainfo.xml" \
@@ -27,7 +29,7 @@ install -Dm644 "$PACKAGE_ROOT/Sources/Edith/Resources/appicon.png" \
 
 DEPENDENCIES="$(
     cd "$REPOSITORY_ROOT/packaging"
-    dpkg-shlibdeps -O -e"$BINARY" | sed -n 's/^shlibs:Depends=//p'
+    dpkg-shlibdeps -O -e"$STAGED_BINARY" | sed -n 's/^shlibs:Depends=//p'
 )"
 {
     printf 'Package: edith\n'
