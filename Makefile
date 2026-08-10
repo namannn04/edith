@@ -3,6 +3,14 @@ PKG := Packages/Edith
 SCHEMES := EdithMain EdithHelper EdithFiles ed edh
 SIGN_OVERRIDES := CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
 
+SELECTED_DEV_DIR := $(shell xcode-select -p 2>/dev/null)
+ifneq ($(wildcard $(SELECTED_DEV_DIR)/usr/bin/xcodebuild),)
+  DEVELOPER_DIR := $(SELECTED_DEV_DIR)
+else
+  DEVELOPER_DIR := $(firstword $(wildcard /Applications/Xcode*.app/Contents/Developer))
+endif
+export DEVELOPER_DIR
+
 .PHONY: build install reset reinstall release loc ci ci-comments ci-secrets ci-lint ci-scripts ci-site ci-promo ci-swift ci-swift-check site-dev cli icon wiki wiki-push
 
 ci:
@@ -68,6 +76,8 @@ ci-promo:
 	cd apps/promo-video && npm ci && npx tsc --noEmit
 
 ci-swift-check:
+	@test -n "$(DEVELOPER_DIR)" \
+	  || { echo "Xcode is required to build edth.xcodeproj; install it or run xcode-select -s" >&2; exit 1; }
 	cd $(PKG) && swift format lint --strict --parallel --recursive Sources Tests Package.swift
 	@set -eu; for scheme in $(SCHEMES); do \
 	  xcodebuild -project edth.xcodeproj -scheme "$$scheme" -configuration Debug -derivedDataPath build \
