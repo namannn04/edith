@@ -101,6 +101,16 @@ on every push to `main` that touches `docs/`. Preview the output locally with
 `make wiki` (writes `.wiki-build/`, never pushes); `make wiki-push` publishes.
 The wiki is generated output: edit `docs/`, never the wiki.
 
+## Layout
+
+Every Swift source lives in one SwiftPM package, `Packages/Edith`: `Sources/Edith`
+(main app UI), `Sources/EdithKit` (shared core), `Sources/EdithCLI`, the vendored
+`Vendor/Highlighter`, thin `Sources/{EdithMain,EdithFiles,EdithHelper,ed,edh}`
+entry points, and `Tests/EdithTests`. `edth.xcodeproj` builds the app bundles from
+those same directories through folder-synchronized groups, so a new file needs no
+project edit: drop it in the target's directory and it builds. Never add a second
+copy of a source tree; there is one.
+
 ## Checks
 
 - `bun run check-comments` - no disallowed comments (all tracked source).

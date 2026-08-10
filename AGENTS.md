@@ -14,6 +14,16 @@ Do not write comments in code. This repo is kept comment-free and CI enforces it
 Write code clear enough not to need comments. If a name or a block needs
 explaining, improve the name or the structure instead of adding prose.
 
+## Layout
+
+Every Swift source lives in one SwiftPM package, `Packages/Edith`: `Sources/Edith`
+(main app UI), `Sources/EdithKit` (shared core), `Sources/EdithCLI`, the vendored
+`Vendor/Highlighter`, thin `Sources/{EdithMain,EdithFiles,EdithHelper,ed,edh}`
+entry points, and `Tests/EdithTests`. `edth.xcodeproj` builds the app bundles from
+those same directories through folder-synchronized groups, so a new file needs no
+project edit: drop it in the target's directory and it builds. Never add a second
+copy of a source tree; there is one.
+
 ## Checks
 
 - `bun run check-comments` - no disallowed comments (all tracked source).
