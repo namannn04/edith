@@ -21,19 +21,31 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::ask::ask_run;
-use crate::chat::{chat_stream, event_json, resolve_conversation};
+use crate::chat::{ChatDeps, chat_stream, event_json, resolve_conversation};
+use crate::council::council_run;
 use crate::claims::{corroborate_claims, extract_claims};
-use crate::doctor::run_doctor;
+use crate::doctor::{DoctorDeps, run_doctor};
 use crate::embed::EmbedClient;
-use crate::github::GithubConnector;
-use crate::indexer::{halfvec_literal, index_pending};
+
+use crate::grounding::GroundingClient;
+use crate::friend::FriendDeps;
+use crate::indexer::index_pending;
 use crate::ingest::{IngestFile, ingest_audio, ingest_files, ingest_pdf, parse_file_date};
 use crate::nightly::{NightlyDeps, record_run};
 use crate::reason::ReasonClient;
+use crate::persona;
 use crate::reflect::reflect_run;
-use crate::settings::{self, ReasonHandle};
-use crate::stt::SttClient;
+use crate::rerank::RerankClient;
+use crate::retrieve::{RetrievalPolicy, retrieve};
+use crate::settings::{self, ConnectorHandle, ReasonHandle};
+use crate::lang::SttRouter;
+use crate::media::{VideoDeps, ingest_image, ingest_video, kind_for};
+use crate::vision::VisionClient;
 use crate::turns::{RetrievedChunk, latency_since, log_turn};
+use crate::{
+    baseline, commitments, connectors, core_memory, curate, entities, evals, facts, hypotheses,
+    inquire, lenses, machines, standup,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -41,8 +53,11 @@ pub struct AppState {
     pub redis: Client,
     pub vault_dir: PathBuf,
     pub embed: EmbedClient,
-    pub stt: SttClient,
-    pub github: GithubConnector,
+    pub stt: SttRouter,
+    pub vision: VisionClient,
+    pub connectors: ConnectorHandle,
+    pub rerank: RerankClient,
+    pub grounding: GroundingClient,
     pub reason: ReasonHandle,
 }
 
@@ -89,14 +104,21 @@ fn error_response(status: StatusCode, detail: impl ToString) -> Response {
 
 async fn health(State(state): State<AppState>) -> Response {
     let reason = state.reason.current().await;
-    let result = run_doctor(
-        &state.pool,
-        &state.redis,
-        &state.vault_dir,
-        &state.embed,
-        &state.stt,
-        &reason,
-    )
+    let notion = state.connectors.notion().await;
+    let github = state.connectors.github().await;
+    let result = run_doctor(DoctorDeps {
+        pool: &state.pool,
+        redis: &state.redis,
+        vault_dir: &state.vault_dir,
+        embed: &state.embed,
+        stt: &state.stt,
+        reason: &reason,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+        vision: &state.vision,
+        notion: &notion,
+        github: &github,
+    })
     .await;
     let status = if result.ok {
         StatusCode::OK
@@ -232,10 +254,12 @@ async fn ingest_audio_route(State(state): State<AppState>, request: Request) -> 
         return error_response(StatusCode::BAD_REQUEST, "Audio must be at most 48MB");
     }
 
+    let reason = state.reason.current().await;
     match ingest_audio(
         &state.pool,
         &state.vault_dir,
         &state.stt,
+        &reason,
         name.to_owned(),
         audio,
         mtime,
@@ -276,10 +300,982 @@ async fn ask(State(state): State<AppState>, request: Request) -> Response {
     let Some(question) = question else {
         return error_response(StatusCode::BAD_REQUEST, "question is required");
     };
-    match ask_run(&state.pool, &state.embed, &reason, &question).await {
+    let persona_id = serde_json::from_slice::<Value>(&bytes)
+        .ok()
+        .and_then(|body| {
+            body.get("persona")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+        });
+    let deps = FriendDeps {
+        pool: &state.pool,
+        embed: &state.embed,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+        reason: &reason,
+    };
+    match ask_run(&deps, &question, persona_id.as_deref()).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
+}
+
+async fn personas(State(_state): State<AppState>) -> Response {
+    Json(persona::all()).into_response()
+}
+
+async fn council(State(state): State<AppState>, request: Request) -> Response {
+    let reason = state.reason.current().await;
+    if !reason.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no reasoning provider is configured on the companion",
+        );
+    }
+    let bytes = match to_bytes(request.into_body(), 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(question) = body
+        .get("question")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|question| !question.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "question is required");
+    };
+    let requested = body
+        .get("personas")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let deps = FriendDeps {
+        pool: &state.pool,
+        embed: &state.embed,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+        reason: &reason,
+    };
+    match council_run(&deps, question, &requested).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn core_memory_route(State(state): State<AppState>) -> Response {
+    match core_memory::load(&state.pool).await {
+        Ok(sections) => Json(sections).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn core_memory_write(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 256 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let section = body.get("section").and_then(Value::as_str).unwrap_or("");
+    let content = body.get("content").and_then(Value::as_str).unwrap_or("");
+    if !core_memory::SECTIONS.contains(&section) {
+        return error_response(StatusCode::BAD_REQUEST, "unknown core memory section");
+    }
+    match core_memory::put(&state.pool, section, content.trim(), "user").await {
+        Ok(()) => Json(serde_json::json!({"section": section, "ok": true})).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn limit_of(query: &HashMap<String, String>, fallback: i64) -> i64 {
+    query
+        .get("limit")
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .unwrap_or(fallback)
+        .clamp(1, 500)
+}
+
+async fn hypotheses_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match hypotheses::list(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn hypotheses_run(State(state): State<AppState>) -> Response {
+    let reason = state.reason.current().await;
+    let resolved = hypotheses::resolve_due(&state.pool, &reason).await;
+    let formed = hypotheses::generate(&state.pool, &state.embed, &reason).await;
+    match (resolved, formed) {
+        (Ok(resolved), Ok(formed)) => Json(serde_json::json!({
+            "resolved": resolved,
+            "generated": formed,
+        }))
+        .into_response(),
+        (Err(error), _) | (_, Err(error)) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn predictions_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    type Row = (
+        Uuid,
+        Uuid,
+        String,
+        String,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+        Option<String>,
+    );
+    let rows = sqlx::query_as::<_, Row>(
+        "SELECT p.id, p.hypothesis_id, p.statement, p.observable, p.window_start, p.window_end, p.resolved_at, p.outcome FROM predictions p ORDER BY p.window_end DESC LIMIT $1",
+    )
+    .bind(limit_of(&query, 40))
+    .fetch_all(&state.pool)
+    .await;
+    match rows {
+        Ok(rows) => Json(
+            rows.into_iter()
+                .map(|row| {
+                    serde_json::json!({
+                        "id": row.0,
+                        "hypothesisId": row.1,
+                        "statement": row.2,
+                        "observable": row.3,
+                        "windowStart": date_string(row.4),
+                        "windowEnd": date_string(row.5),
+                        "resolvedAt": row.6.map(date_string),
+                        "outcome": row.7,
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn commitments_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match commitments::commitments(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn discrepancies_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match commitments::discrepancies(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn discrepancy_override(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(real) = body
+        .get("real")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|real| !real.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "real is required");
+    };
+    match commitments::override_discrepancy(&state.pool, id, real).await {
+        Ok(true) => Json(serde_json::json!({"id": id, "ok": true})).into_response(),
+        Ok(false) => error_response(StatusCode::NOT_FOUND, "no such discrepancy"),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn calibration_route(State(state): State<AppState>) -> Response {
+    match commitments::calibration_profile(&state.pool).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn questions_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match inquire::list(&state.pool, limit_of(&query, 30)).await {
+        Ok(rows) => {
+            let muted = inquire::muted(&state.pool).await.unwrap_or_default();
+            let asked = inquire::asked_today(&state.pool).await.unwrap_or(0);
+            Json(serde_json::json!({
+                "questions": rows,
+                "muted": muted,
+                "askedToday": asked,
+                "dailyBudget": inquire::DAILY_BUDGET,
+            }))
+            .into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_next(State(state): State<AppState>) -> Response {
+    if let Err(error) = inquire::seed_onboarding(&state.pool).await {
+        return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+    }
+    match inquire::next(&state.pool).await {
+        Ok(Some(question)) => {
+            if let Err(error) = inquire::mark_asked(&state.pool, question.id).await {
+                return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+            }
+            Json(serde_json::json!({"question": question})).into_response()
+        }
+        Ok(None) => Json(serde_json::json!({
+            "question": Value::Null,
+            "askedToday": inquire::asked_today(&state.pool).await.unwrap_or(0),
+            "dailyBudget": inquire::DAILY_BUDGET,
+        }))
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_answer(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 512 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(text) = body
+        .get("answer")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "answer is required");
+    };
+    match inquire::answer(&state.pool, id, text).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) if error.to_string() == "no such question" => {
+            error_response(StatusCode::NOT_FOUND, error)
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_skip(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    match inquire::skip(&state.pool, id).await {
+        Ok(true) => Json(serde_json::json!({"id": id, "status": "skipped"})).into_response(),
+        Ok(false) => error_response(StatusCode::NOT_FOUND, "no such question"),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn question_mute(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(topic) = body
+        .get("topic")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|topic| !topic.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "topic is required");
+    };
+    match inquire::mute(&state.pool, &topic.to_lowercase()).await {
+        Ok(suppressed) => {
+            Json(serde_json::json!({"topic": topic, "suppressed": suppressed})).into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn entities_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    if let Some(name) = query.get("name").map(|value| value.trim()).filter(|value| !value.is_empty())
+    {
+        return match entities::timeline(&state.pool, name, limit_of(&query, 40)).await {
+            Ok(rows) => Json(serde_json::json!({"name": name, "timeline": rows})).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        };
+    }
+    match entities::list(&state.pool, limit_of(&query, 40)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn lenses_route(State(state): State<AppState>) -> Response {
+    match lenses::list(&state.pool).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn evals_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match evals::history(&state.pool, limit_of(&query, 20)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn evals_run(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let reason = state.reason.current().await;
+    let deps = FriendDeps {
+        pool: &state.pool,
+        embed: &state.embed,
+        rerank: &state.rerank,
+        grounding: &state.grounding,
+        reason: &reason,
+    };
+    match evals::run(&deps, query.get("persona").map(String::as_str)).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn standup_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 4 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(text) = body
+        .get("text")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "text is required");
+    };
+    let verify = body
+        .get("verify")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let reason = state.reason.current().await;
+    match standup::record(&state.pool, &state.vault_dir, &reason, text, verify).await {
+        Ok(outcome) => {
+            spawn_index(&state);
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn standup_aggregate(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let aggregate = standup::aggregate(&state.pool).await;
+    let phrase = match query.get("phrase").map(String::as_str).filter(|phrase| !phrase.is_empty()) {
+        Some(phrase) => standup::phrase_history(&state.pool, phrase).await.ok(),
+        None => None,
+    };
+    match aggregate {
+        Ok(aggregate) => Json(json!({
+            "aggregate": aggregate,
+            "phrase": phrase,
+            "dueSoon": standup::due_soon(&state.pool).await.unwrap_or(0),
+        }))
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_route(State(state): State<AppState>) -> Response {
+    match machines::list(&state.pool).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_add(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(name) = body
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "name is required");
+    };
+    let transport = body
+        .get("transport")
+        .and_then(Value::as_str)
+        .unwrap_or("local");
+    if !["local", "ssh", "context"].contains(&transport) {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "transport must be local, ssh or context",
+        );
+    }
+    let endpoint = body.get("endpoint").and_then(Value::as_str).unwrap_or("");
+    match machines::add(&state.pool, name, transport, endpoint).await {
+        Ok(id) => Json(json!({"id": id, "name": name, "transport": transport})).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_probe(State(state): State<AppState>, Path(name): Path<String>) -> Response {
+    match machines::probe(&state.pool, &name).await {
+        Ok(machine) => Json(machine).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn machines_plan(State(state): State<AppState>) -> Response {
+    match machines::plan(&state.pool).await {
+        Ok(plan) => Json(plan).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn machines_profile(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 16 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(profile) = body
+        .get("profile")
+        .and_then(Value::as_str)
+        .filter(|profile| {
+            ["gpu-large", "gpu-small", "apple-metal", "cpu-only"].contains(profile)
+        })
+    else {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "profile must be gpu-large, gpu-small, apple-metal or cpu-only",
+        );
+    };
+    match machines::set_profile(&state.pool, &name, profile).await {
+        Ok(true) => Json(json!({"name": name, "profile": profile})).into_response(),
+        Ok(false) => error_response(StatusCode::NOT_FOUND, "no such machine"),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn memory_why(State(state): State<AppState>, Path(id): Path<Uuid>) -> Response {
+    type BeliefRow = (
+        String,
+        String,
+        f32,
+        f32,
+        String,
+        String,
+        Vec<Uuid>,
+        Vec<Uuid>,
+        String,
+        DateTime<Utc>,
+        DateTime<Utc>,
+        Option<Uuid>,
+    );
+    if let Ok(Some(belief)) = sqlx::query_as::<_, BeliefRow>(
+        "SELECT statement, kind, confidence, stability, corroboration, status, evidence_episode_ids, counter_evidence_episode_ids, extractor_version, first_formed, last_confirmed, superseded_by FROM beliefs WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        let evidence = episode_titles(&state.pool, &belief.6).await;
+        let counter = episode_titles(&state.pool, &belief.7).await;
+        let links = sqlx::query_as::<_, (Uuid, String, String)>(
+            "SELECT b.id, l.relation, b.statement FROM belief_links l JOIN beliefs b ON b.id = l.to_id WHERE l.from_id = $1",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        return Json(json!({
+            "kind": "belief",
+            "id": id,
+            "statement": belief.0,
+            "beliefKind": belief.1,
+            "confidence": belief.2,
+            "stability": belief.3,
+            "corroboration": belief.4,
+            "status": belief.5,
+            "promptVersion": belief.8,
+            "firstFormed": date_string(belief.9),
+            "lastConfirmed": date_string(belief.10),
+            "supersededBy": belief.11,
+            "evidence": evidence,
+            "counterEvidence": counter,
+            "links": links.iter().map(|(to, relation, statement)| json!({
+                "id": to, "relation": relation, "statement": statement,
+            })).collect::<Vec<_>>(),
+        }))
+        .into_response();
+    }
+
+    type HypothesisRow = (
+        String,
+        String,
+        String,
+        f32,
+        f32,
+        i32,
+        Vec<String>,
+        DateTime<Utc>,
+        String,
+    );
+    if let Ok(Some(row)) = sqlx::query_as::<_, HypothesisRow>(
+        "SELECT statement, mechanism, status, prior, posterior, test_count, alternative_explanations, formed_at, generated_by FROM hypotheses WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        let revisions = sqlx::query_as::<_, (DateTime<Utc>, f32, String, String)>(
+            "SELECT at, posterior, status, note FROM hypothesis_revisions WHERE hypothesis_id = $1 ORDER BY at",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        let predictions = sqlx::query_as::<_, (Uuid, String, String, Option<String>)>(
+            "SELECT id, statement, observable, outcome FROM predictions WHERE hypothesis_id = $1 ORDER BY window_end",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        return Json(json!({
+            "kind": "hypothesis",
+            "id": id,
+            "statement": row.0,
+            "mechanism": row.1,
+            "status": row.2,
+            "prior": row.3,
+            "posterior": row.4,
+            "testCount": row.5,
+            "alternatives": row.6,
+            "formedAt": date_string(row.7),
+            "generatedBy": row.8,
+            "revisions": revisions.iter().map(|(at, posterior, status, note)| json!({
+                "at": date_string(*at), "posterior": posterior, "status": status, "note": note,
+            })).collect::<Vec<_>>(),
+            "predictions": predictions.iter().map(|(id, statement, observable, outcome)| json!({
+                "id": id, "statement": statement, "observable": observable, "outcome": outcome,
+            })).collect::<Vec<_>>(),
+        }))
+        .into_response();
+    }
+
+    type ClaimRow = (Uuid, String, String, DateTime<Utc>, bool);
+    if let Ok(Some(claim)) = sqlx::query_as::<_, ClaimRow>(
+        "SELECT episode_id, statement, claim_type, asserted_at, testable FROM claims WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        let verdicts = sqlx::query_as::<_, (String, String, DateTime<Utc>)>(
+            "SELECT verdict, note, checked_at FROM corroborations WHERE claim_id = $1 ORDER BY checked_at",
+        )
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+        return Json(json!({
+            "kind": "claim",
+            "id": id,
+            "statement": claim.1,
+            "claimType": claim.2,
+            "assertedAt": date_string(claim.3),
+            "testable": claim.4,
+            "episode": episode_titles(&state.pool, &[claim.0]).await,
+            "verdicts": verdicts.iter().map(|(verdict, note, at)| json!({
+                "verdict": verdict, "note": note, "at": date_string(*at),
+            })).collect::<Vec<_>>(),
+        }))
+        .into_response();
+    }
+
+    error_response(
+        StatusCode::NOT_FOUND,
+        "no belief, hypothesis or claim with that id",
+    )
+}
+
+async fn episode_titles(pool: &PgPool, ids: &[Uuid]) -> Vec<Value> {
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    sqlx::query_as::<_, (Uuid, DateTime<Utc>, String, String)>(
+        "SELECT id, occurred_at, kind, left(body_original, 240) FROM episodes WHERE id = ANY($1) ORDER BY occurred_at",
+    )
+    .bind(ids)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(id, occurred_at, kind, excerpt)| {
+        json!({
+            "episodeId": id,
+            "occurredAt": date_string(occurred_at),
+            "kind": kind,
+            "excerpt": excerpt,
+        })
+    })
+    .collect()
+}
+
+async fn connectors_show(State(state): State<AppState>) -> Response {
+    let github = state.connectors.github().await;
+    let notion = state.connectors.notion().await;
+    Json(json!({
+        "github": {"configured": github.configured(), "detail": github.describe()},
+        "notion": {"configured": notion.configured(), "detail": notion.describe()},
+        "sources": connectors::SOURCES,
+        "importable": ["calendar", "music", "youtube"],
+    }))
+    .into_response()
+}
+
+async fn connectors_set(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let mut touched = Vec::new();
+    for (field, key) in [
+        ("github", settings::GITHUB_TOKEN),
+        ("notion", settings::NOTION_TOKEN),
+    ] {
+        let Some(token) = body.get(field).and_then(Value::as_str) else {
+            continue;
+        };
+        let result = if token.trim().is_empty() {
+            settings::remove(&state.pool, key).await
+        } else {
+            settings::put(&state.pool, key, token.trim()).await
+        };
+        if let Err(error) = result {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+        }
+        touched.push(field);
+    }
+    if touched.is_empty() {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "pass github or notion, empty to clear",
+        );
+    }
+    let tokens = settings::connector_tokens(&state.pool).await;
+    state.connectors.replace(tokens).await;
+    connectors_show(State(state)).await
+}
+
+async fn connectors_import(
+    State(state): State<AppState>,
+    Path(source): Path<String>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    match connectors::import(&state.pool, &source, &body).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_REQUEST, error),
+    }
+}
+
+async fn usage_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 256 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(kind) = body
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|kind| !kind.is_empty())
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "kind is required");
+    };
+    let observed_at = body
+        .get("observedAt")
+        .and_then(Value::as_str)
+        .and_then(crate::ingest::parse_file_date)
+        .unwrap_or_else(Utc::now);
+    let payload = body.get("payload").cloned().unwrap_or(json!({}));
+    match connectors::record_usage(&state.pool, kind, &payload, observed_at).await {
+        Ok(inserted) => Json(json!({"kind": kind, "inserted": inserted})).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn facts_route(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let as_of = query
+        .get("asOf")
+        .and_then(|value| crate::ingest::parse_file_date(value));
+    let timeline = query
+        .get("timeline")
+        .map(String::as_str)
+        .unwrap_or("valid");
+    match facts::list(&state.pool, as_of, timeline, limit_of(&query, 40)).await {
+        Ok(rows) => Json(rows).into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn belief_correct(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let retire = body.get("retire").and_then(Value::as_bool).unwrap_or(false);
+    let edit = body.get("statement").and_then(Value::as_str);
+    match curate::correct(&state.pool, &state.embed, id, retire, edit).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) if error.to_string() == "no such belief" => {
+            error_response(StatusCode::NOT_FOUND, error)
+        }
+        Err(error) => error_response(StatusCode::BAD_REQUEST, error),
+    }
+}
+
+async fn weekly_route(State(state): State<AppState>) -> Response {
+    let reason = state.reason.current().await;
+    match curate::weekly(&state.pool, &state.embed, &reason).await {
+        Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn db_route(State(state): State<AppState>, Path(action): Path<String>) -> Response {
+    match action.as_str() {
+        "reindex" => match curate::reindex(&state.pool).await {
+            Ok(dropped) => Json(json!({"chunksDropped": dropped})).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        },
+        "rebuild-derived" => match curate::rebuild_derived(&state.pool).await {
+            Ok(outcome) => Json(outcome).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        },
+        "migrate" => match crate::migrate::run_migrations(&state.pool).await {
+            Ok(()) => Json(json!({"ok": true})).into_response(),
+            Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+        },
+        _ => error_response(
+            StatusCode::BAD_REQUEST,
+            "the actions are migrate, reindex and rebuild-derived",
+        ),
+    }
+}
+
+async fn feedback_route(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    request: Request,
+) -> Response {
+    let bytes = match to_bytes(request.into_body(), 16 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+    let Some(rating) = body
+        .get("rating")
+        .and_then(Value::as_i64)
+        .filter(|rating| (-1..=1).contains(rating))
+    else {
+        return error_response(StatusCode::BAD_REQUEST, "rating must be -1, 0 or 1");
+    };
+    let updated = sqlx::query("UPDATE retrievals SET feedback = $2 WHERE turn_id = $1")
+        .bind(id)
+        .bind(rating as i16)
+        .execute(&state.pool)
+        .await;
+    match updated {
+        Ok(updated) => Json(json!({
+            "turnId": id,
+            "rating": rating,
+            "retrievals": updated.rows_affected(),
+        }))
+        .into_response(),
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+async fn baselines(State(state): State<AppState>) -> Response {
+    match baseline::baselines(&state.pool).await {
+        Ok(rows) => {
+            let seconds = baseline::audio_seconds(&state.pool).await.unwrap_or(0.0);
+            Json(serde_json::json!({
+                "audioSeconds": seconds,
+                "coldStart": seconds < baseline::COLD_START_SECONDS,
+                "baselines": rows,
+            }))
+            .into_response()
+        }
+        Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
+    }
+}
+
+fn decoded_upload(body: &Value, cap: usize) -> Result<(String, Vec<u8>, Option<String>), String> {
+    let Some(object) = body.as_object() else {
+        return Err("Body must be an object".to_owned());
+    };
+    let Some(name) = object
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err("name is required".to_owned());
+    };
+    let Some(data) = object.get("dataB64").and_then(Value::as_str) else {
+        return Err("dataB64 is required".to_owned());
+    };
+    let mtime = match object.get("mtime") {
+        None | Some(Value::Null) => None,
+        Some(value) => match value
+            .as_str()
+            .filter(|value| parse_file_date(value).is_some())
+        {
+            Some(value) => Some(value.to_owned()),
+            None => return Err("mtime must be a date".to_owned()),
+        },
+    };
+    let decoded = match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(decoded) if !decoded.is_empty() => decoded,
+        Ok(_) => return Err("dataB64 is empty".to_owned()),
+        Err(_) => return Err("dataB64 is not valid base64".to_owned()),
+    };
+    if decoded.len() > cap {
+        return Err(format!("Upload must be at most {}MB", cap / (1024 * 1024)));
+    }
+    Ok((name.to_owned(), decoded, mtime))
+}
+
+async fn ingest_image_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 64 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let (name, image, mtime) = match decoded_upload(&body, 48 * 1024 * 1024) {
+        Ok(parts) => parts,
+        Err(detail) => return error_response(StatusCode::BAD_REQUEST, detail),
+    };
+    match ingest_image(
+        &state.pool,
+        &state.vault_dir,
+        &state.vision,
+        name,
+        image,
+        mtime,
+    )
+    .await
+    {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn ingest_video_route(State(state): State<AppState>, request: Request) -> Response {
+    let bytes = match to_bytes(request.into_body(), 1024 * 1024 * 1024).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let body = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(body) => body,
+        Err(_) => return error_response(StatusCode::BAD_REQUEST, "Invalid JSON body"),
+    };
+    let (name, video, mtime) = match decoded_upload(&body, 768 * 1024 * 1024) {
+        Ok(parts) => parts,
+        Err(detail) => return error_response(StatusCode::BAD_REQUEST, detail),
+    };
+    let reason = state.reason.current().await;
+    let deps = VideoDeps {
+        pool: &state.pool,
+        vault_dir: &state.vault_dir,
+        stt: &state.stt,
+        vision: &state.vision,
+        reason: &reason,
+    };
+    match ingest_video(&deps, name, video, mtime).await {
+        Ok(outcome) => {
+            if outcome.status == "ingested" {
+                spawn_index(&state);
+            }
+            Json(outcome).into_response()
+        }
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn media_kind_route(Query(query): Query<HashMap<String, String>>) -> Response {
+    let name = query.get("name").map(String::as_str).unwrap_or_default();
+    Json(json!({ "name": name, "kind": kind_for(name) })).into_response()
 }
 
 async fn ingest_pdf_route(State(state): State<AppState>, request: Request) -> Response {
@@ -367,9 +1363,10 @@ async fn signals(
 async fn nightly_run(State(state): State<AppState>) -> Response {
     let deps = NightlyDeps {
         pool: state.pool.clone(),
+        vault_dir: state.vault_dir.to_string_lossy().into_owned(),
         embed: state.embed.clone(),
         reason: state.reason.clone(),
-        github: state.github.clone(),
+        connectors: state.connectors.clone(),
     };
     match record_run(&deps).await {
         Ok(run_id) => Json(serde_json::json!({ "runId": run_id })).into_response(),
@@ -419,17 +1416,23 @@ async fn chat(State(state): State<AppState>, request: Request) -> Response {
         Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     };
 
+    let persona_id = body
+        .get("persona")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
     let (events, receiver) = mpsc::unbounded_channel();
     tokio::spawn(async move {
-        chat_stream(
-            &state.pool,
-            &state.embed,
-            &reason,
-            conversation_id,
-            &message,
-            &events,
-        )
-        .await;
+        let deps = ChatDeps {
+            pool: &state.pool,
+            embed: &state.embed,
+            rerank: &state.rerank,
+            grounding: &state.grounding,
+            reason: &reason,
+            persona: persona_id,
+        };
+        chat_stream(&deps, conversation_id, &message, &events).await;
     });
     let sse = stream::unfold(receiver, |mut receiver| async move {
         receiver.recv().await.map(|event| (event, receiver))
@@ -937,14 +1940,40 @@ async fn beliefs(
 }
 
 async fn github_sync(State(state): State<AppState>) -> Response {
-    if !state.github.configured() {
+    let github = state.connectors.github().await;
+    if !github.configured() {
         return error_response(
             StatusCode::PRECONDITION_FAILED,
-            "GITHUB_TOKEN is not configured on the companion",
+            "no github token; set it in Settings or with `ed companion connectors set`",
         );
     }
-    match state.github.sync(&state.pool).await {
+    match github.sync(&state.pool).await {
         Ok(outcome) => Json(outcome).into_response(),
+        Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
+    }
+}
+
+async fn notion_sync(
+    State(state): State<AppState>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let notion = state.connectors.notion().await;
+    if !notion.configured() {
+        return error_response(
+            StatusCode::PRECONDITION_FAILED,
+            "no notion token; set it in Settings or with `ed companion connectors set`",
+        );
+    }
+    let full = query
+        .get("full")
+        .map(|value| value == "true" || value == "1")
+        .unwrap_or(false);
+    match notion.sync(&state.pool, &state.vault_dir, full).await
+    {
+        Ok(outcome) => {
+            spawn_index(&state);
+            Json(outcome).into_response()
+        }
         Err(error) => error_response(StatusCode::BAD_GATEWAY, error),
     }
 }
@@ -1060,74 +2089,35 @@ async fn search(
         .unwrap_or(8)
         .clamp(1, 50) as usize;
 
-    let query_embedding = match state.embed.embed(&[q.to_owned()]).await {
-        Ok(mut vectors) => halfvec_literal(&vectors.remove(0)),
-        Err(error) => return error_response(StatusCode::BAD_GATEWAY, error),
+    let policy = RetrievalPolicy {
+        k,
+        ..RetrievalPolicy::default()
+    };
+    let outcome = match retrieve(&state.pool, &state.embed, &state.rerank, q, &policy).await {
+        Ok(outcome) => outcome,
+        Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
     };
 
-    type CandidateRow = (Uuid, Uuid, i32, String, String, DateTime<Utc>, String);
-    let vector_rows = sqlx::query_as::<_, CandidateRow>(
-        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::halfvec LIMIT 50",
-    )
-    .bind(&query_embedding)
-    .fetch_all(&state.pool)
-    .await;
-    let text_rows = sqlx::query_as::<_, CandidateRow>(
-        "SELECT c.id, c.episode_id, c.ord, c.text_original, e.title, e.occurred_at, e.kind FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.tsv @@ websearch_to_tsquery('english', $1) ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('english', $1)) DESC LIMIT 50",
-    )
-    .bind(q)
-    .fetch_all(&state.pool)
-    .await;
-
-    let (vector_rows, text_rows) = match (vector_rows, text_rows) {
-        (Ok(vector_rows), Ok(text_rows)) => (vector_rows, text_rows),
-        (Err(error), _) | (_, Err(error)) => {
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
-        }
-    };
-
-    let mut fused: HashMap<Uuid, (CandidateRow, f64)> = HashMap::new();
-    for rows in [vector_rows, text_rows] {
-        for (rank, row) in rows.into_iter().enumerate() {
-            let contribution = 1.0 / (60.0 + rank as f64 + 1.0);
-            fused
-                .entry(row.0)
-                .and_modify(|entry| entry.1 += contribution)
-                .or_insert((row, contribution));
-        }
-    }
-    let mut ranked: Vec<(CandidateRow, f64)> = fused.into_values().collect();
-    ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
-    ranked.truncate(k);
-
-    let results = ranked
-        .into_iter()
-        .map(
-            |((chunk_id, episode_id, ord, text, title, occurred_at, kind), score)| SearchResult {
-                chunk_id,
-                episode_id,
-                ord,
-                title,
-                occurred_at: date_string(occurred_at),
-                kind,
-                snippet: snippet(&text),
-                score: (score * 1e6).round() / 1e6,
-            },
-        )
+    let results = outcome
+        .items
+        .iter()
+        .map(|item| SearchResult {
+            chunk_id: item.item_id,
+            episode_id: item.episode_id.unwrap_or(item.item_id),
+            ord: 0,
+            title: item.title.clone(),
+            occurred_at: date_string(item.occurred_at),
+            kind: item.item_type.clone(),
+            snippet: snippet(&item.text),
+            score: ((item.scores.rerank.unwrap_or(item.scores.fused) as f64) * 1e6).round() / 1e6,
+        })
         .collect::<Vec<_>>();
 
-    let retrieved = results
+    let retrieved = outcome
+        .items
         .iter()
         .enumerate()
-        .map(|(rank, result)| RetrievedChunk {
-            chunk_id: result.chunk_id,
-            episode_id: result.episode_id,
-            rank: rank as i32 + 1,
-            score_vec: None,
-            score_text: None,
-            score_fused: Some(result.score as f32),
-            was_cited: false,
-        })
+        .map(|(rank, item)| RetrievedChunk::from_item(item, rank as i32 + 1, false))
         .collect::<Vec<_>>();
     log_turn(
         &state.pool,
@@ -1221,13 +2211,52 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/ingest", post(ingest))
         .route("/v1/ingest/audio", post(ingest_audio_route))
         .route("/v1/ingest/pdf", post(ingest_pdf_route))
+        .route("/v1/ingest/image", post(ingest_image_route))
+        .route("/v1/ingest/video", post(ingest_video_route))
+        .route("/v1/media/kind", get(media_kind_route))
         .route("/v1/index", post(index))
         .route("/v1/search", get(search))
         .route("/v1/connectors/github/sync", post(github_sync))
+        .route("/v1/connectors/notion/sync", post(notion_sync))
         .route("/v1/observations", get(observations))
         .route("/v1/reflect", post(reflect))
         .route("/v1/beliefs", get(beliefs))
         .route("/v1/ask", post(ask))
+        .route("/v1/council", post(council))
+        .route("/v1/personas", get(personas))
+        .route("/v1/core", get(core_memory_route).post(core_memory_write))
+        .route("/v1/baselines", get(baselines))
+        .route("/v1/hypotheses", get(hypotheses_route))
+        .route("/v1/hypotheses/run", post(hypotheses_run))
+        .route("/v1/predictions", get(predictions_route))
+        .route("/v1/commitments", get(commitments_route))
+        .route("/v1/discrepancies", get(discrepancies_route))
+        .route("/v1/discrepancies/{id}/override", post(discrepancy_override))
+        .route("/v1/calibration", get(calibration_route))
+        .route("/v1/questions", get(questions_route))
+        .route("/v1/questions/next", post(question_next))
+        .route("/v1/questions/{id}/answer", post(question_answer))
+        .route("/v1/questions/{id}/skip", post(question_skip))
+        .route("/v1/questions/mute", post(question_mute))
+        .route("/v1/entities", get(entities_route))
+        .route("/v1/lenses", get(lenses_route))
+        .route("/v1/memory/why/{id}", get(memory_why))
+        .route("/v1/settings/connectors", get(connectors_show).post(connectors_set))
+        .route("/v1/connectors/{source}/import", post(connectors_import))
+        .route("/v1/connectors/edith/usage", post(usage_route))
+        .route("/v1/facts", get(facts_route))
+        .route("/v1/beliefs/{id}/correct", post(belief_correct))
+        .route("/v1/reflect/weekly", post(weekly_route))
+        .route("/v1/db/{action}", post(db_route))
+        .route("/v1/turns/{id}/feedback", post(feedback_route))
+        .route("/v1/evals", get(evals_route))
+        .route("/v1/evals/run", post(evals_run))
+        .route("/v1/standup", post(standup_route))
+        .route("/v1/standup/aggregate", get(standup_aggregate))
+        .route("/v1/machines", get(machines_route).post(machines_add))
+        .route("/v1/machines/plan", get(machines_plan))
+        .route("/v1/machines/{name}/probe", post(machines_probe))
+        .route("/v1/machines/{name}/profile", post(machines_profile))
         .route("/v1/chat", post(chat))
         .route("/v1/conversations", get(conversations))
         .route(

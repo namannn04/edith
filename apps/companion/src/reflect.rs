@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::embed::EmbedClient;
 use crate::indexer::halfvec_literal;
-use crate::reason::{ReasonClient, ReasonError, extract_json_array};
+use crate::reason::{ReasonClient, ReasonError};
 
 const EXTRACTOR_VERSION: &str = "reflect-v1";
 
@@ -94,10 +94,7 @@ pub async fn reflect_run(
         .join("\n\n");
     let known_ids = episodes.iter().map(|row| row.0).collect::<Vec<_>>();
 
-    let answer = reason.complete(SYSTEM_PROMPT, &material).await?;
-    let Some(candidates) = extract_json_array(&answer) else {
-        return Err(format!("reflection answer had no JSON array: {answer}").into());
-    };
+    let candidates = reason.complete_array(SYSTEM_PROMPT, &material).await?;
 
     for candidate in candidates.as_array().into_iter().flatten() {
         let Some(statement) = candidate

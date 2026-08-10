@@ -41,11 +41,20 @@ struct PendingObservation {
 
 impl GithubConnector {
     pub fn from_env() -> Self {
+        Self::with_token(&env::var("GITHUB_TOKEN").unwrap_or_default())
+    }
+
+    pub fn with_token(token: &str) -> Self {
         Self {
             client: Client::new(),
-            token: env::var("GITHUB_TOKEN")
-                .ok()
-                .filter(|token| !token.is_empty()),
+            token: Some(token.trim().to_owned()).filter(|token| !token.is_empty()),
+        }
+    }
+
+    pub fn describe(&self) -> String {
+        match &self.token {
+            Some(token) => crate::settings::hint(token).unwrap_or_else(|| "set".to_owned()),
+            None => "no token; set it from the app or `ed companion connectors set`".to_owned(),
         }
     }
 

@@ -276,9 +276,11 @@ extension CompanionClient {
         return try await self.request(request, timeout: 1800)
     }
 
-    public func chat(message: String, conversationId: String?) -> AsyncThrowingStream<
-        CompanionChatEvent, Error
-    > {
+    public func chat(message: String, conversationId: String?, persona: String? = nil)
+        -> AsyncThrowingStream<
+            CompanionChatEvent, Error
+        >
+    {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -287,7 +289,8 @@ extension CompanionClient {
                     request.timeoutInterval = 600
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.httpBody = try JSONEncoder().encode(
-                        ChatRequest(message: message, conversationId: conversationId))
+                        ChatRequest(
+                            message: message, conversationId: conversationId, persona: persona))
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
                     guard let http = response as? HTTPURLResponse else {
                         throw CompanionClientError.unreachable(
@@ -361,6 +364,7 @@ extension CompanionClient {
 private struct ChatRequest: Encodable {
     let message: String
     let conversationId: String?
+    let persona: String?
 }
 
 private struct ReasonSettingsRequest: Encodable {

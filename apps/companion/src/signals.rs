@@ -1,6 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::baseline::episode_context_bucket;
 use crate::stt::TranscriptSegment;
 
 const EXTRACTOR: &str = "segments-v1";
@@ -63,9 +64,10 @@ pub async fn store_signals(
     episode_id: Uuid,
     signals: &[Signal],
 ) -> Result<(), sqlx::Error> {
+    let bucket = episode_context_bucket(pool, episode_id).await;
     for signal in signals {
         sqlx::query(
-            "INSERT INTO signals (episode_id, t_start_s, t_end_s, kind, value, extractor) VALUES ($1, $2, $3, $4, $5, $6)",
+            "INSERT INTO signals (episode_id, t_start_s, t_end_s, kind, value, extractor, context_bucket) VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(episode_id)
         .bind(signal.t_start_s)
@@ -73,6 +75,7 @@ pub async fn store_signals(
         .bind(signal.kind)
         .bind(signal.value)
         .bind(EXTRACTOR)
+        .bind(&bucket)
         .execute(pool)
         .await?;
     }
@@ -82,7 +85,8 @@ pub async fn store_signals(
 #[cfg(test)]
 mod tests {
     use super::signals_from_segments;
-    use crate::stt::TranscriptSegment;
+    use crate::baseline::episode_context_bucket;
+use crate::stt::TranscriptSegment;
 
     fn segment(start: f32, end: f32, text: &str) -> TranscriptSegment {
         TranscriptSegment {

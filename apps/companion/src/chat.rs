@@ -7,10 +7,17 @@ use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 use crate::ask::{AskCitation, resolve_support};
+use crate::core_memory;
 use crate::embed::EmbedClient;
-use crate::indexer::halfvec_literal;
+use crate::grounding::GroundingClient;
+use crate::lenses;
+use crate::persona::{self, Persona};
 use crate::reason::{ReasonClient, extract_json_array};
-use crate::turns::{RetrievedChunk, latency_since, log_turn};
+use crate::rerank::RerankClient;
+use crate::retrieve::{
+    RetrievedItem, belief_channel, evidence_block, observation_channel, retrieve,
+};
+use crate::turns::{RetrievedChunk, TurnRecord, latency_since, log_turn_record};
 
 pub const CITATIONS_MARKER: &str = "@@CITATIONS@@";
 const THINK_OPEN: &str = "<think>";
@@ -132,9 +139,7 @@ fn date_string(date: DateTime<Utc>) -> String {
     date.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
 }
 
-type ChunkRow = (Uuid, Uuid, String, String, DateTime<Utc>);
-
-fn validate_citations(parsed: Option<&Value>, chunks: &[ChunkRow]) -> Vec<AskCitation> {
+fn validate_citations(parsed: Option<&Value>, chunks: &[RetrievedItem]) -> Vec<AskCitation> {
     let mut citations = Vec::new();
     for citation in parsed.and_then(Value::as_array).into_iter().flatten() {
         let Some(episode_id) = citation
@@ -144,8 +149,9 @@ fn validate_citations(parsed: Option<&Value>, chunks: &[ChunkRow]) -> Vec<AskCit
         else {
             continue;
         };
-        let Some((_, _, text, title, occurred_at)) =
-            chunks.iter().find(|(_, id, _, _, _)| *id == episode_id)
+        let Some(item) = chunks
+            .iter()
+            .find(|item| item.episode_id == Some(episode_id))
         else {
             continue;
         };
@@ -158,14 +164,14 @@ fn validate_citations(parsed: Option<&Value>, chunks: &[ChunkRow]) -> Vec<AskCit
         let support = resolve_support(
             citation.get("support").and_then(Value::as_str),
             &quote,
-            text,
+            &item.text,
         );
         citations.push(AskCitation {
             episode_id,
             quote,
             support,
-            title: title.clone(),
-            occurred_at: date_string(*occurred_at),
+            title: item.title.clone(),
+            occurred_at: date_string(item.occurred_at),
         });
     }
     citations
@@ -200,27 +206,41 @@ pub async fn resolve_conversation(
     }
 }
 
+pub struct ChatDeps<'a> {
+    pub pool: &'a PgPool,
+    pub embed: &'a EmbedClient,
+    pub rerank: &'a RerankClient,
+    pub grounding: &'a GroundingClient,
+    pub reason: &'a ReasonClient,
+    pub persona: Option<String>,
+}
+
 pub async fn chat_stream(
-    pool: &PgPool,
-    embed: &EmbedClient,
-    reason: &ReasonClient,
+    deps: &ChatDeps<'_>,
     conversation_id: Uuid,
     message: &str,
     events: &UnboundedSender<ChatEvent>,
 ) {
-    if let Err(error) = run(pool, embed, reason, conversation_id, message, events).await {
+    if let Err(error) = run(deps, conversation_id, message, events).await {
         let _ = events.send(ChatEvent::Failed(error.to_string()));
     }
 }
 
+fn chat_persona(id: Option<&str>) -> Persona {
+    id.and_then(persona::find)
+        .unwrap_or_else(persona::default_persona)
+}
+
 async fn run(
-    pool: &PgPool,
-    embed: &EmbedClient,
-    reason: &ReasonClient,
+    deps: &ChatDeps<'_>,
     conversation_id: Uuid,
     message: &str,
     events: &UnboundedSender<ChatEvent>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let pool = deps.pool;
+    let embed = deps.embed;
+    let reason = deps.reason;
+    let lens = chat_persona(deps.persona.as_deref());
     let started = std::time::Instant::now();
     let model = reason.describe();
     let _ = events.send(ChatEvent::Meta {
@@ -241,29 +261,36 @@ async fn run(
         .execute(pool)
         .await?;
 
-    let query_embedding = halfvec_literal(&embed.embed(&[message.to_owned()]).await?.remove(0));
-    let chunks = sqlx::query_as::<_, ChunkRow>(
-        "SELECT c.id, c.episode_id, c.text_original, e.title, e.occurred_at FROM chunks c JOIN episodes e ON e.id = c.episode_id WHERE c.embedding IS NOT NULL ORDER BY c.embedding <=> $1::halfvec LIMIT 8",
-    )
-    .bind(&query_embedding)
-    .fetch_all(pool)
-    .await?;
+    let policy = lens.policy();
+    let retrieval = retrieve(pool, embed, deps.rerank, message, &policy).await?;
+    let chunks = retrieval.items;
+    let beliefs = belief_channel(pool, embed, message, &policy)
+        .await
+        .unwrap_or_default();
+    let observations = observation_channel(pool, message, &policy, Utc::now())
+        .await
+        .unwrap_or_default();
 
-    let material = if chunks.is_empty() {
+    let material = evidence_block(&chunks, &beliefs, &observations);
+    let material = if material.trim().is_empty() {
         "(the memory is empty so far)".to_owned()
     } else {
-        chunks
-            .iter()
-            .map(|(_, episode_id, text, title, occurred_at)| {
-                format!(
-                    "episode {episode_id} ({}) {title}\n{text}",
-                    occurred_at.format("%Y-%m-%d")
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n\n")
+        material
     };
-    let system = format!("{SYSTEM_PREFIX}\n\nExcerpts:\n\n{material}");
+    let core = core_memory::block(pool).await;
+    let mut system = SYSTEM_PREFIX.to_owned();
+    if !core.is_empty() {
+        system.push_str(&format!("\n\nWho they are right now:\n{core}"));
+    }
+    let lens_note = lenses::load(pool, &lens.id).await;
+    system.push_str(&format!("\n\n{}", lens.voice_text));
+    if !lens_note.trim().is_empty() {
+        system.push_str(&format!(
+            "\n\nWhat this lens has learned about being useful to them:\n{}",
+            lens_note.trim()
+        ));
+    }
+    system.push_str(&format!("\n\n{material}"));
 
     let mut messages = history;
     messages.push(("user".to_owned(), message.to_owned()));
@@ -310,22 +337,32 @@ async fn run(
         .execute(pool)
         .await?;
 
+    let grounding = deps.grounding.score(&material, &answer).await;
     let retrieved = chunks
         .iter()
         .enumerate()
-        .map(|(rank, (chunk_id, episode_id, _, _, _))| RetrievedChunk {
-            chunk_id: *chunk_id,
-            episode_id: *episode_id,
-            rank: rank as i32 + 1,
-            score_vec: Some(1.0 / (rank as f32 + 1.0)),
-            score_text: None,
-            score_fused: None,
-            was_cited: citations
+        .map(|(rank, item)| {
+            let cited = citations
                 .iter()
-                .any(|citation| citation.episode_id == *episode_id),
+                .any(|citation| Some(citation.episode_id) == item.episode_id);
+            RetrievedChunk::from_item(item, rank as i32 + 1, cited)
         })
         .collect::<Vec<_>>();
-    log_turn(pool, "chat", message, Some(&model), latency_ms, &retrieved).await;
+    log_turn_record(
+        pool,
+        TurnRecord {
+            kind: "chat",
+            query: message,
+            model: Some(&model),
+            persona: Some(&lens.id),
+            prompt_version: Some(crate::friend::PROMPT_VERSION),
+            grounding_score: Some(grounding.score),
+            abstained: false,
+            latency_ms,
+        },
+        &retrieved,
+    )
+    .await;
 
     let _ = events.send(ChatEvent::Done {
         message_id,

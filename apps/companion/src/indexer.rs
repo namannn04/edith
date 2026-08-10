@@ -80,15 +80,21 @@ pub async fn index_pending(
     embed_client: &EmbedClient,
 ) -> Result<IndexOutcome, IndexFailure> {
     let mut outcome = IndexOutcome::default();
-    let episodes = sqlx::query_as::<_, (Uuid, String)>(
-        "SELECT e.id, e.body_original FROM episodes e WHERE NOT EXISTS (SELECT 1 FROM chunks c WHERE c.episode_id = e.id) ORDER BY e.occurred_at, e.id LIMIT 500",
+    let episodes = sqlx::query_as::<_, (Uuid, String, Option<String>)>(
+        "SELECT e.id, e.body_original, e.body_en FROM episodes e WHERE NOT EXISTS (SELECT 1 FROM chunks c WHERE c.episode_id = e.id) ORDER BY e.occurred_at, e.id LIMIT 500",
     )
     .fetch_all(pool)
     .await
     .map_err(|error| IndexFailure::database(outcome, error))?;
 
-    for (episode_id, body_original) in episodes {
-        let chunks = chunk_text(body_without_front_matter(&body_original));
+    for (episode_id, body_original, body_en) in episodes {
+        let originals = chunk_text(body_without_front_matter(&body_original));
+        let chunks = match &body_en {
+            Some(english) if english.trim() != body_original.trim() => {
+                chunk_text(body_without_front_matter(english))
+            }
+            _ => originals.clone(),
+        };
         let mut embeddings = Vec::with_capacity(chunks.len());
         for batch in chunks.chunks(16) {
             let mut batch_embeddings = embed_client
@@ -106,11 +112,13 @@ pub async fn index_pending(
         for (ord, (text, embedding)) in chunks.iter().zip(&embeddings).enumerate() {
             let embedding = halfvec_literal(embedding);
             let token_count = (text.chars().count() / 4) as i32;
+            let original = originals.get(ord).unwrap_or(text);
             let result = sqlx::query(
-                "INSERT INTO chunks (episode_id, ord, text_original, text_en, embedding, token_count, embed_model) VALUES ($1, $2, $3, $3, $4::halfvec, $5, $6) ON CONFLICT (episode_id, ord) DO NOTHING",
+                "INSERT INTO chunks (episode_id, ord, text_original, text_en, embedding, token_count, embed_model) VALUES ($1, $2, $3, $4, $5::halfvec, $6, $7) ON CONFLICT (episode_id, ord) DO NOTHING",
             )
             .bind(episode_id)
             .bind(ord as i32)
+            .bind(original)
             .bind(text)
             .bind(embedding)
             .bind(token_count)

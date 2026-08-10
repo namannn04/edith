@@ -64,8 +64,7 @@ pub async fn extract_claims(
     };
 
     for (episode_id, occurred_at, body) in episodes {
-        let answer = reason.complete(EXTRACT_PROMPT, &body).await?;
-        let Some(candidates) = extract_json_array(&answer) else {
+        let Ok(candidates) = reason.complete_array(EXTRACT_PROMPT, &body).await else {
             continue;
         };
         for candidate in candidates.as_array().into_iter().flatten() {

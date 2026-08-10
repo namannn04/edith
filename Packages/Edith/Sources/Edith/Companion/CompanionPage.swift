@@ -6,8 +6,10 @@ import UniformTypeIdentifiers
 enum CompanionTab: String, CaseIterable, Identifiable {
     case chat
     case capture
+    case desk
     case library
     case mind
+    case setup
     case settings
 
     var id: String { rawValue }
@@ -16,8 +18,10 @@ enum CompanionTab: String, CaseIterable, Identifiable {
         switch self {
         case .chat: return "Chat"
         case .capture: return "Capture"
+        case .desk: return "Desk"
         case .library: return "Library"
         case .mind: return "Mind"
+        case .setup: return "Setup"
         case .settings: return "Settings"
         }
     }
@@ -26,8 +30,10 @@ enum CompanionTab: String, CaseIterable, Identifiable {
         switch self {
         case .chat: return "bubble.left.and.text.bubble.right"
         case .capture: return "mic"
+        case .desk: return "tray.full"
         case .library: return "books.vertical"
         case .mind: return "brain"
+        case .setup: return "server.rack"
         case .settings: return "gearshape"
         }
     }
@@ -63,6 +69,8 @@ struct CompanionPage: View {
     @StateObject private var capture = CompanionCaptureModel()
     @StateObject private var library = CompanionLibraryModel()
     @StateObject private var mind = CompanionMindModel()
+    @StateObject private var desk = CompanionDeskModel()
+    @StateObject private var setup = CompanionSetupModel()
     @StateObject private var reason = CompanionSettingsModel()
     @AppStorage("companionTab", store: SharedDefaults.store)
     private var tabRaw = CompanionTab.chat.rawValue
@@ -193,7 +201,7 @@ struct CompanionPage: View {
                 Text("Drop to remember")
                     .font(DashSkin.serif(UIScale.pt(20), weight: .semibold))
                     .foregroundStyle(DashSkin.ink(dark))
-                Text("Markdown notes, voice recordings, PDFs")
+                Text("Notes, recordings, photos, video, PDFs")
                     .font(.system(size: UIScale.pt(12)))
                     .foregroundStyle(DashSkin.inkSoft(dark))
             }
@@ -213,6 +221,14 @@ struct CompanionPage: View {
                 .opacity(tab == .capture ? 1 : 0)
                 .allowsHitTesting(tab == .capture)
                 .accessibilityHidden(tab != .capture)
+            screen(.desk)
+                .opacity(tab == .desk ? 1 : 0)
+                .allowsHitTesting(tab == .desk)
+                .accessibilityHidden(tab != .desk)
+            screen(.setup)
+                .opacity(tab == .setup ? 1 : 0)
+                .allowsHitTesting(tab == .setup)
+                .accessibilityHidden(tab != .setup)
             screen(.library)
                 .opacity(tab == .library ? 1 : 0)
                 .allowsHitTesting(tab == .library)
@@ -239,6 +255,8 @@ struct CompanionPage: View {
                     Task { await library.select(id) }
                 })
         case .capture: CompanionCaptureScreen(model: capture, home: home)
+        case .desk: CompanionDeskScreen(model: desk)
+        case .setup: CompanionSetupScreen(model: setup)
         case .library: CompanionLibraryScreen(model: library, home: home)
         case .mind:
             CompanionMindScreen(
