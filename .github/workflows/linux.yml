@@ -8,22 +8,19 @@ on:
 
 jobs:
   ubuntu:
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Bump version to ')
     runs-on: ubuntu-24.04
     container: swift:6.3.2-noble
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install native dependencies
-        run: apt-get update && apt-get install -y libgtk-4-dev desktop-file-utils appstream dpkg-dev
+        run: apt-get update && apt-get install -y libgtk-4-dev desktop-file-utils appstream dpkg-dev make
       - name: Test portable core
-        run: swift test --package-path Packages/Edith
-      - name: Build native application
-        run: swift build --package-path Packages/Edith -c release --product edith-linux
+        run: make linux-test
       - name: Validate desktop metadata
-        run: |
-          desktop-file-validate packaging/linux/com.pulkit.Edith.desktop
-          appstreamcli validate --no-net packaging/linux/com.pulkit.Edith.metainfo.xml
+        run: make linux-metadata
       - name: Build Debian package
-        run: packaging/debian/build-deb.sh
+        run: make linux-package
       - name: Verify Debian package
         run: |
           dpkg-deb --info dist/linux/*.deb
@@ -34,3 +31,4 @@ jobs:
         with:
           name: edith-ubuntu-amd64
           path: dist/linux/*.deb
+          if-no-files-found: error
