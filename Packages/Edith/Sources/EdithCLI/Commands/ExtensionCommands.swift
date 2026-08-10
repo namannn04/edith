@@ -1,5 +1,4 @@
 import ArgumentParser
-import EdithCore
 import EdithKit
 import Foundation
 
