@@ -110,9 +110,9 @@ Merging application, packaging, or release workflow changes into `main` publishe
 a new patch version automatically. The `Release on merge` workflow validates the
 release secrets, bumps the last version component (`0.0.1` becomes `0.0.2`, never
 `0.1.1`), commits the bump, and creates the tag. The tag workflow builds the signed
-and notarized DMG and the Ubuntu package in parallel, generates the signed Sparkle
-appcast, installs and diagnoses the Debian package, then publishes all three assets
-to one GitHub Release.
+DMG and the Ubuntu package in parallel, notarizes the DMG when Apple credentials are
+available, generates the signed Sparkle appcast, installs and diagnoses the Debian
+package, then publishes all three assets to one GitHub Release.
 
 `make release V=1.8.0` validates a clean, current `main`, commits the requested
 version, and pushes the tag atomically. The tag workflow builds and publishes the
@@ -125,6 +125,14 @@ three release assets.
 | `SPARKLE_PRIVATE_KEY` | Signs the appcast. Without it the workflow refuses to publish. |
 | `MACOS_CERT_P12` | Base64 of the exported signing certificate and private key. |
 | `MACOS_CERT_PASSWORD` | The password on that `.p12`. |
+
+### Optional notarization secrets
+
+The workflow notarizes and staples the DMG when all three Apple credentials are
+configured. A signed DMG is still published when they are absent.
+
+| Secret | Why |
+| --- | --- |
 | `NOTARY_KEY_ID` | Identifies the App Store Connect API key used for notarization. |
 | `NOTARY_ISSUER_ID` | Identifies the App Store Connect API key issuer. |
 | `NOTARY_KEY` | Contains the App Store Connect API private key. |

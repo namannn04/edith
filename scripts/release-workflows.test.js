@@ -18,6 +18,7 @@ test("merge workflow invokes the reusable release after tagging", () => {
   expect(mergeWorkflow).toContain("uses: ./.github/workflows/release.yml");
   expect(mergeWorkflow).toContain(`release_tag: ${jobTagOutput}`);
   expect(mergeWorkflow).not.toContain("gh release create");
+  expect(mergeWorkflow).not.toContain("HAS_NOTARY");
 });
 
 test("tag workflow supports direct and reusable releases", () => {
@@ -34,6 +35,12 @@ test("release waits for and publishes every platform asset", () => {
   expect(tagWorkflow).toContain("-name 'edith_*.deb'");
   expect(tagWorkflow).toContain("gh release create");
   expect(tagWorkflow).toContain("gh release upload");
+});
+
+test("macOS notarization is conditional on its optional credentials", () => {
+  expect(tagWorkflow).toContain("HAS_NOTARY:");
+  expect(tagWorkflow).toContain("if: env.HAS_NOTARY == 'true'");
+  expect(tagWorkflow).not.toContain("env.HAS_NOTARY != 'true'");
 });
 
 test("manual release delegates asset publication to the tag workflow", () => {

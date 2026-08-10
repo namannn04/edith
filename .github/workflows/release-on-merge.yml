@@ -31,16 +31,15 @@ jobs:
     env:
       HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
-      HAS_NOTARY: ${{ secrets.NOTARY_KEY_ID != '' && secrets.NOTARY_ISSUER_ID != '' && secrets.NOTARY_KEY != '' }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Require release secrets
-        if: env.HAS_SIGNING != 'true' || env.HAS_SPARKLE_KEY != 'true' || env.HAS_NOTARY != 'true'
+        if: env.HAS_SIGNING != 'true' || env.HAS_SPARKLE_KEY != 'true'
         run: |
-          echo "release blocked: signing, Sparkle, and notarization secrets are required" >&2
+          echo "release blocked: signing and Sparkle secrets are required" >&2
           exit 1
 
       - name: Work out the next patch version

@@ -30,9 +30,9 @@ jobs:
           ref: ${{ inputs.release_tag || github.ref_name }}
 
       - name: Require release secrets
-        if: env.HAS_SIGNING != 'true' || env.HAS_SPARKLE_KEY != 'true' || env.HAS_NOTARY != 'true'
+        if: env.HAS_SIGNING != 'true' || env.HAS_SPARKLE_KEY != 'true'
         run: |
-          echo "release blocked: signing, Sparkle, and notarization secrets are required" >&2
+          echo "release blocked: signing and Sparkle secrets are required" >&2
           exit 1
 
       - name: Verify tag matches app version
@@ -73,6 +73,7 @@ jobs:
           rm -rf dmg-root
 
       - name: Notarize and staple
+        if: env.HAS_NOTARY == 'true'
         env:
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
@@ -107,10 +108,12 @@ jobs:
           grep -q 'sparkle:edSignature=' dist/appcast/appcast.xml \
             || { echo "release blocked: appcast is not signed" >&2; exit 1; }
 
-      - name: Verify signatures
-        run: |
-          codesign --verify --deep --strict dist/Edith.app
-          spctl -a -t open --context context:primary-signature Edith.dmg
+      - name: Verify code signatures
+        run: codesign --verify --deep --strict dist/Edith.app
+
+      - name: Verify notarized disk image
+        if: env.HAS_NOTARY == 'true'
+        run: spctl -a -t open --context context:primary-signature Edith.dmg
 
       - name: Stage macOS release assets
         run: |
