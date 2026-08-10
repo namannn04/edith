@@ -117,3 +117,4 @@ answer, and it feeds straight back into the question ledger.
 - [`ed companion hypotheses`](./hypotheses.md), the theories in practice
 - [`ed companion inquire`](./inquire.md), the question ledger in practice
 - [How the companion works](./concepts.md), the hub
+- [All `ed` commands](../README.md)

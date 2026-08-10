@@ -80,3 +80,4 @@ suite measures per session rather than per turn.
 - [`ed companion personas`](./personas.md), the lenses these passes belong to
 - [Asking and chatting](./concepts-chat.md), the pipeline they sit inside
 - [How the companion works](./concepts.md), the hub
+- [All `ed` commands](../README.md)
