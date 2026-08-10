@@ -393,7 +393,8 @@ struct CompanionSettingsScreen: View {
                 Text(state?.detail ?? "not loaded")
                     .font(.system(size: UIScale.pt(11)))
                     .foregroundStyle(
-                        state?.configured == true ? DashSkin.inkSoft(dark)
+                        state?.configured == true
+                            ? DashSkin.inkSoft(dark)
                             : DashSkin.inkFaint(dark)
                     )
                     .lineLimit(1)
