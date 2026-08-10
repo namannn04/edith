@@ -508,7 +508,8 @@ public struct CompanionClient: Sendable {
     public func askPersona(question: String, persona: String?) async throws
         -> CompanionAskOutcome
     {
-        try await post("ask", body: PersonaAskRequest(question: question, persona: persona),
+        try await post(
+            "ask", body: PersonaAskRequest(question: question, persona: persona),
             timeout: 900)
     }
 

@@ -19,9 +19,35 @@ final class CompanionChatModel: ObservableObject {
     @Published private(set) var model: String?
     @Published private(set) var error: String?
     @Published private(set) var loaded = false
+    @Published private(set) var personas: [CompanionPersona] = []
+    @Published var persona: String?
+    @Published private(set) var council: CompanionCouncil?
+    @Published private(set) var councilRunning = false
 
     private var client: CompanionClient {
         CompanionClient(baseURL: CompanionClient.endpoint(override: nil))
+    }
+
+    func loadPersonas() async {
+        personas = (try? await client.personas()) ?? []
+    }
+
+    func askCouncil() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !councilRunning, !streaming else { return }
+        councilRunning = true
+        defer { councilRunning = false }
+        draft = ""
+        do {
+            council = try await client.council(question: text, personas: [])
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func dismissCouncil() {
+        council = nil
     }
 
     func loadConversations() async {
@@ -76,7 +102,8 @@ final class CompanionChatModel: ObservableObject {
             DisplayMessage(
                 id: replyId, role: "assistant", content: "", citations: [], streaming: true))
         do {
-            for try await event in client.chat(message: text, conversationId: activeConversationId)
+            for try await event in client.chat(
+                message: text, conversationId: activeConversationId, persona: persona)
             {
                 switch event {
                 case let .meta(conversationId, model):
@@ -133,6 +160,7 @@ struct CompanionChatScreen: View {
         }
         .task {
             await model.loadConversations()
+            await model.loadPersonas()
         }
     }
 
@@ -211,6 +239,8 @@ struct CompanionChatScreen: View {
                     .padding(.horizontal, PageMetrics.gutter(compact))
                     .padding(.top, UIScale.pt(6))
             }
+            councilPanel
+            personaBar
             composer
         }
     }
@@ -304,6 +334,87 @@ struct CompanionChatScreen: View {
             }
         }
         .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+
+    private var personaBar: some View {
+        HStack(spacing: UIScale.pt(6)) {
+            personaChip(id: nil, label: "Default")
+            ForEach(model.personas, id: \.id) { persona in
+                personaChip(id: persona.id, label: persona.label)
+            }
+            Spacer(minLength: 0)
+            Button("Second opinion") {
+                Task { await model.askCouncil() }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: UIScale.pt(11.5), weight: .medium))
+            .foregroundStyle(
+                model.draft.trimmingCharacters(in: .whitespaces).isEmpty
+                    ? DashSkin.inkFaint(dark) : DashSkin.accent(dark)
+            )
+            .pointerCursor()
+            .disabled(model.councilRunning)
+            .help("Ask several lenses at once and find the crux")
+        }
+        .padding(.horizontal, PageMetrics.gutter(compact))
+        .padding(.bottom, UIScale.pt(6))
+    }
+
+    private func personaChip(id: String?, label: String) -> some View {
+        let selected = model.persona == id
+        return Button {
+            model.persona = id
+        } label: {
+            Text(label)
+                .font(.system(size: UIScale.pt(11.5), weight: .medium))
+                .padding(.horizontal, UIScale.pt(9))
+                .padding(.vertical, UIScale.pt(4))
+                .foregroundStyle(selected ? DashSkin.ink(dark) : DashSkin.inkFaint(dark))
+                .background {
+                    if selected {
+                        Capsule().fill(DashSkin.paper2(dark))
+                    }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+    }
+
+    @ViewBuilder
+    private var councilPanel: some View {
+        if let council = model.council {
+            VStack(alignment: .leading, spacing: UIScale.pt(8)) {
+                ForEach(council.answers, id: \.persona) { answer in
+                    VStack(alignment: .leading, spacing: UIScale.pt(2)) {
+                        Text(answer.label)
+                            .font(.system(size: UIScale.pt(12), weight: .semibold))
+                            .foregroundStyle(DashSkin.ink(dark))
+                        Text(answer.answer)
+                            .font(.system(size: UIScale.pt(12.5)))
+                            .foregroundStyle(DashSkin.inkSoft(dark))
+                    }
+                }
+                Divider().opacity(0.3)
+                Text("the crux: \(council.crux)")
+                    .font(.system(size: UIScale.pt(12.5), weight: .medium))
+                    .foregroundStyle(DashSkin.ink(dark))
+                if !council.cruxQuestion.isEmpty {
+                    Text(council.cruxQuestion)
+                        .font(.system(size: UIScale.pt(12)))
+                        .foregroundStyle(DashSkin.inkFaint(dark))
+                }
+                Button("Close") { model.dismissCouncil() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: UIScale.pt(11.5)))
+                    .foregroundStyle(DashSkin.accent(dark))
+                    .pointerCursor()
+            }
+            .padding(UIScale.pt(12))
+            .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
+            .padding(.horizontal, PageMetrics.gutter(compact))
+            .padding(.bottom, UIScale.pt(8))
+        }
     }
 
     private var composer: some View {

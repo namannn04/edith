@@ -670,7 +670,8 @@ struct CompanionIngestCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Companion API base URL.")
     var endpoint: String?
 
-    @Argument(help: "A note, recording, photo, video or PDF, or a folder of them.",
+    @Argument(
+        help: "A note, recording, photo, video or PDF, or a folder of them.",
         completion: .file())
     var path: String
 

@@ -75,7 +75,7 @@ public struct CompanionCoreSection: Codable, Equatable, Sendable {
     public let updatedBy: String
 }
 
-public struct CompanionHypothesis: Codable, Equatable, Sendable {
+public struct CompanionHypothesis: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     public let statement: String
     public let mechanism: String
@@ -88,7 +88,7 @@ public struct CompanionHypothesis: Codable, Equatable, Sendable {
     public let generatedBy: String
 }
 
-public struct CompanionPrediction: Codable, Equatable, Sendable {
+public struct CompanionPrediction: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     public let hypothesisId: String
     public let statement: String
@@ -109,7 +109,7 @@ public struct CompanionCommitment: Codable, Equatable, Sendable {
     public let userOverride: String?
 }
 
-public struct CompanionDiscrepancy: Codable, Equatable, Sendable {
+public struct CompanionDiscrepancy: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     public let claim: String
     public let kind: String
@@ -126,7 +126,7 @@ public struct CompanionCalibration: Codable, Equatable, Sendable {
     public let averageMagnitude: Double
 }
 
-public struct CompanionQuestion: Codable, Equatable, Sendable {
+public struct CompanionQuestion: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     public let question: String
     public let motive: String
@@ -236,7 +236,7 @@ public struct CompanionStandupReport: Codable, Equatable, Sendable {
     public let dueSoon: Int
 }
 
-public struct CompanionMachine: Codable, Equatable, Sendable {
+public struct CompanionMachine: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     public let name: String
     public let transport: String

@@ -77,7 +77,8 @@ struct CompanionPersonasCommand: AsyncParsableCommand {
                                 "observationWeight": .double(
                                     persona.evidence.observationWeight),
                                 "k": .int(persona.retrieval.k),
-                                "windowDays": .optional(persona.retrieval.windowDays.map(String.init)),
+                                "windowDays": .optional(
+                                    persona.retrieval.windowDays.map(String.init)),
                             ])
                         }))
                 return
