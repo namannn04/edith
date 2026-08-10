@@ -16,11 +16,13 @@ public enum BundledResources {
         fileManager: FileManager = .default
     ) -> URL? {
         for directory in directories {
-            let candidate =
-                directory
-                .appendingPathComponent("\(bundleName).bundle")
-                .appendingPathComponent(file)
-            if fileManager.isReadableFile(atPath: candidate.path) { return candidate }
+            let bundle = directory.appendingPathComponent("\(bundleName).bundle")
+            for candidate in [
+                bundle.appendingPathComponent(file),
+                bundle.appendingPathComponent("Contents/Resources").appendingPathComponent(file),
+            ] where fileManager.isReadableFile(atPath: candidate.path) {
+                return candidate
+            }
         }
         return nil
     }
