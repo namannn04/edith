@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::embed::EmbedClient;
 use crate::indexer::halfvec_literal;
-use crate::reason::{ReasonClient, ReasonError, extract_json_array};
+use crate::reason::{ReasonClient, ReasonError};
 
 const KINDS: [&str; 5] = ["person", "project", "place", "organisation", "thing"];
 
@@ -184,8 +184,7 @@ pub async fn extract(
     };
 
     for (episode_id, body) in episodes {
-        let answer = reason.complete(EXTRACT_PROMPT, &body).await?;
-        let Some(candidates) = extract_json_array(&answer) else {
+        let Ok(candidates) = reason.complete_array(EXTRACT_PROMPT, &body).await else {
             continue;
         };
         for candidate in candidates.as_array().into_iter().flatten() {

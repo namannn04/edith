@@ -202,10 +202,7 @@ pub async fn generate(
         },
     );
 
-    let answer = reason.complete(GENERATE_PROMPT, &material).await?;
-    let Some(candidates) = extract_json_array(&answer) else {
-        return Err(format!("hypothesis answer had no JSON array: {answer}").into());
-    };
+    let candidates = reason.complete_array(GENERATE_PROMPT, &material).await?;
 
     for candidate in candidates.as_array().into_iter().flatten() {
         let Some(statement) = candidate

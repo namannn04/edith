@@ -6,7 +6,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::reason::{ReasonClient, ReasonError, extract_json_array};
+use crate::reason::{ReasonClient, ReasonError};
 
 pub const SECTIONS: [&str; 6] = [
     "identity",
@@ -162,10 +162,7 @@ pub async fn rewrite(
     let prompt = format!(
         "Current summary:\n{current_block}\n\nWhat the system now believes:\n{belief_block}\n\nRecent episodes:\n{recent_block}"
     );
-    let answer = reason.complete(SYSTEM_PROMPT, &prompt).await?;
-    let Some(candidates) = extract_json_array(&answer) else {
-        return Err(format!("core memory answer had no JSON array: {answer}").into());
-    };
+    let candidates = reason.complete_array(SYSTEM_PROMPT, &prompt).await?;
 
     for candidate in candidates.as_array().into_iter().flatten() {
         let Some(section) = candidate
