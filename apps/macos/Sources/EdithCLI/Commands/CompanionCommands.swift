@@ -24,7 +24,15 @@ struct CompanionCommand: AsyncParsableCommand {
             CompanionForgetCommand.self, CompanionExtractCommand.self,
             CompanionClaimsCommand.self, CompanionCorroborateCommand.self,
             CompanionRunsCommand.self, CompanionNightlyCommand.self,
-            CompanionReasonCommand.self,
+            CompanionReasonCommand.self, CompanionPersonasCommand.self,
+            CompanionCouncilCommand.self, CompanionCoreCommand.self,
+            CompanionWhyCommand.self, CompanionHypothesesCommand.self,
+            CompanionPredictionsCommand.self, CompanionCommitmentsCommand.self,
+            CompanionDiscrepanciesCommand.self, CompanionCalibrationCommand.self,
+            CompanionInquireCommand.self, CompanionEntitiesCommand.self,
+            CompanionLensesCommand.self, CompanionEvalCommand.self,
+            CompanionStandupCommand.self, CompanionMachinesCommand.self,
+            CompanionBaselinesCommand.self,
         ],
         defaultSubcommand: CompanionStatusCommand.self)
 }
@@ -204,43 +212,25 @@ struct CompanionAskCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Companion API base URL.")
     var endpoint: String?
 
+    @Option(name: .long, help: "Which lens answers: analyst, friend, coach or skeptic.")
+    var persona: String?
+
     @Argument(help: "The question to answer.")
     var question: String
 
     func run() async throws {
         try await execute {
             let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
-                try await client.ask(question: question)
+                try await client.askPersona(question: question, persona: persona)
             }
             guard !json else {
-                CLIOut.json(
-                    .object([
-                        "answer": .string(outcome.answer),
-                        "citations": .array(
-                            outcome.citations.map { citation in
-                                .object([
-                                    "episodeId": .string(citation.episodeId),
-                                    "quote": .string(citation.quote),
-                                    "support": .string(citation.support),
-                                    "title": .string(citation.title),
-                                    "occurredAt": .string(citation.occurredAt),
-                                ])
-                            }),
-                        "chunksConsidered": .int(outcome.chunksConsidered),
-                        "model": .string(outcome.model),
-                    ]))
+                CLIOut.json(CompanionBridge.askJSON(outcome))
                 return
             }
-            CLIOut.out(outcome.answer)
-            for (index, citation) in outcome.citations.enumerated() {
-                let tag =
-                    citation.support == "inference"
-                    ? "reading between the lines" : citation.support
-                CLIOut.out("[\(index + 1)] \(citation.title) (\(citation.occurredAt))  [\(tag)]")
-                if !citation.quote.isEmpty, citation.support != "inference" {
-                    CLIOut.out("    \u{201C}\(citation.quote)\u{201D}")
-                }
-            }
+            CompanionBridge.printAnswer(
+                answer: outcome.answer, citations: outcome.citations,
+                grounding: outcome.grounding, abstained: outcome.abstained,
+                opinion: outcome.opinion)
         }
     }
 }
@@ -337,29 +327,52 @@ struct CompanionSyncCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Companion API base URL.")
     var endpoint: String?
 
-    @Argument(help: "Connector to sync; only github exists so far.")
+    @Flag(name: .long, help: "Reconcile every page rather than what changed since last time.")
+    var full = false
+
+    @Argument(help: "Connector to sync: github or notion.")
     var connector: String
 
     func run() async throws {
         try await execute {
-            guard connector == "github" else {
+            switch connector {
+            case "github":
+                let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                    try await client.syncGithub()
+                }
+                guard !json else {
+                    CLIOut.json(
+                        .object([
+                            "eventsFetched": .int(outcome.eventsFetched),
+                            "observationsInserted": .int(outcome.observationsInserted),
+                        ]))
+                    return
+                }
+                CLIOut.out(
+                    "fetched \(outcome.eventsFetched) events, "
+                        + "\(outcome.observationsInserted) new observations")
+            case "notion":
+                let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                    try await client.syncNotion(full: full)
+                }
+                guard !json else {
+                    CLIOut.json(
+                        .object([
+                            "pagesSeen": .int(outcome.pagesSeen),
+                            "pagesWritten": .int(outcome.pagesWritten),
+                            "episodesIngested": .int(outcome.episodesIngested),
+                            "watermark": .optional(outcome.watermark),
+                            "fullScan": .bool(outcome.fullScan),
+                        ]))
+                    return
+                }
+                CLIOut.out(
+                    "saw \(outcome.pagesSeen) pages, wrote \(outcome.pagesWritten), "
+                        + "\(outcome.episodesIngested) new episodes")
+            default:
                 throw CLIFailure.usage(
-                    "unknown connector \(connector)", hint: "the only connector so far is github")
+                    "unknown connector \(connector)", hint: "the connectors are github and notion")
             }
-            let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
-                try await client.syncGithub()
-            }
-            guard !json else {
-                CLIOut.json(
-                    .object([
-                        "eventsFetched": .int(outcome.eventsFetched),
-                        "observationsInserted": .int(outcome.observationsInserted),
-                    ]))
-                return
-            }
-            CLIOut.out(
-                "fetched \(outcome.eventsFetched) events, "
-                    + "\(outcome.observationsInserted) new observations")
         }
     }
 }
@@ -648,7 +661,8 @@ struct CompanionDoctorCommand: AsyncParsableCommand {
 
 struct CompanionIngestCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "ingest", abstract: "Ingest Markdown notes and voice recordings as episodes.")
+        commandName: "ingest",
+        abstract: "Ingest notes, recordings, photos, video and PDFs as episodes.")
 
     @Flag(name: .long, help: "Emit JSON on stdout.")
     var json = false
@@ -656,7 +670,8 @@ struct CompanionIngestCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Companion API base URL.")
     var endpoint: String?
 
-    @Argument(help: "Markdown or audio file, or a folder of them.", completion: .file())
+    @Argument(help: "A note, recording, photo, video or PDF, or a folder of them.",
+        completion: .file())
     var path: String
 
     func run() async throws {
@@ -665,10 +680,14 @@ struct CompanionIngestCommand: AsyncParsableCommand {
             let scan: CompanionScanResult
             let audioScan: CompanionAudioScanResult
             let pdfScan: CompanionAudioScanResult
+            let imageScan: CompanionAudioScanResult
+            let videoScan: CompanionAudioScanResult
             do {
                 scan = try CompanionScan.markdownFiles(at: url)
                 audioScan = try CompanionScan.audioFiles(at: url)
                 pdfScan = try CompanionScan.pdfFiles(at: url)
+                imageScan = try CompanionScan.imageFiles(at: url)
+                videoScan = try CompanionScan.videoFiles(at: url)
             } catch {
                 throw CLIFailure.usage(
                     "could not scan \(url.path)", hint: error.localizedDescription)
@@ -676,14 +695,19 @@ struct CompanionIngestCommand: AsyncParsableCommand {
             for name in scan.skipped {
                 CLIOut.note("skipped \(name): larger than 2MB")
             }
-            for name in audioScan.skipped + pdfScan.skipped {
+            for name in audioScan.skipped + pdfScan.skipped + imageScan.skipped {
                 CLIOut.note("skipped \(name): larger than 48MB")
             }
-            guard !scan.files.isEmpty || !audioScan.files.isEmpty || !pdfScan.files.isEmpty
-            else {
+            for name in videoScan.skipped {
+                CLIOut.note("skipped \(name): larger than 768MB")
+            }
+            let binaryCount =
+                audioScan.files.count + pdfScan.files.count + imageScan.files.count
+                + videoScan.files.count
+            guard !scan.files.isEmpty || binaryCount > 0 else {
                 throw CLIFailure.usage(
-                    "no Markdown, audio or PDF files found at \(url.path)",
-                    hint: "pass a .md, audio or .pdf file, or a folder containing them")
+                    "nothing ingestable found at \(url.path)",
+                    hint: "pass a note, recording, photo, video or PDF, or a folder of them")
             }
             var outcomes: [CompanionIngestOutcome] = []
             for start in stride(from: 0, to: scan.files.count, by: 200) {
@@ -708,8 +732,23 @@ struct CompanionIngestCommand: AsyncParsableCommand {
                 }
                 outcomes.append(outcome)
             }
+            for file in imageScan.files {
+                let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                    try await client.ingestImage(
+                        name: file.name, data: file.data, mtime: file.mtime)
+                }
+                outcomes.append(outcome)
+            }
+            for file in videoScan.files {
+                let outcome = try await CompanionBridge.request(endpoint: endpoint) { client in
+                    try await client.ingestVideo(
+                        name: file.name, data: file.data, mtime: file.mtime)
+                }
+                outcomes.append(outcome)
+            }
             let skippedCount =
                 scan.skipped.count + audioScan.skipped.count + pdfScan.skipped.count
+                + imageScan.skipped.count + videoScan.skipped.count
             let ingested = outcomes.filter { $0.status == "ingested" }.count
             let duplicates = outcomes.filter { $0.status == "duplicate" }.count
             guard !json else {

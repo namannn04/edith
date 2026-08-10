@@ -189,14 +189,30 @@ public struct CompanionAskOutcome: Codable, Equatable, Sendable {
     public let citations: [CompanionAskCitation]
     public let chunksConsidered: Int
     public let model: String
+    public let persona: String
+    public let abstained: Bool
+    public let grounding: CompanionGrounding
+    public let reframed: String?
+    public let opinion: String?
+    public let beliefs: [CompanionBeliefHit]
+    public let stages: [String]
 
     public init(
-        answer: String, citations: [CompanionAskCitation], chunksConsidered: Int, model: String
+        answer: String, citations: [CompanionAskCitation], chunksConsidered: Int, model: String,
+        persona: String, abstained: Bool, grounding: CompanionGrounding, reframed: String?,
+        opinion: String?, beliefs: [CompanionBeliefHit], stages: [String]
     ) {
         self.answer = answer
         self.citations = citations
         self.chunksConsidered = chunksConsidered
         self.model = model
+        self.persona = persona
+        self.abstained = abstained
+        self.grounding = grounding
+        self.reframed = reframed
+        self.opinion = opinion
+        self.beliefs = beliefs
+        self.stages = stages
     }
 }
 
@@ -485,6 +501,188 @@ public struct CompanionClient: Sendable {
         return try await self.request(request, timeout: 600)
     }
 
+    public func personas() async throws -> [CompanionPersona] {
+        try await get("personas")
+    }
+
+    public func askPersona(question: String, persona: String?) async throws
+        -> CompanionAskOutcome
+    {
+        try await post("ask", body: PersonaAskRequest(question: question, persona: persona),
+            timeout: 900)
+    }
+
+    public func council(question: String, personas: [String]) async throws -> CompanionCouncil {
+        try await post(
+            "council", body: CouncilRequest(question: question, personas: personas), timeout: 1800)
+    }
+
+    public func core() async throws -> [CompanionCoreSection] {
+        try await get("core")
+    }
+
+    public func writeCore(section: String, content: String) async throws -> [String: String] {
+        try await post("core", body: CoreWriteRequest(section: section, content: content))
+    }
+
+    public func hypotheses(limit: Int) async throws -> [CompanionHypothesis] {
+        try await get("hypotheses", query: ["limit": String(limit)])
+    }
+
+    public func runHypotheses() async throws -> [String: CodableIgnored] {
+        try await post("hypotheses/run", body: EmptyBody(), timeout: 1800)
+    }
+
+    public func predictions(limit: Int) async throws -> [CompanionPrediction] {
+        try await get("predictions", query: ["limit": String(limit)])
+    }
+
+    public func commitments(limit: Int) async throws -> [CompanionCommitment] {
+        try await get("commitments", query: ["limit": String(limit)])
+    }
+
+    public func discrepancies(limit: Int) async throws -> [CompanionDiscrepancy] {
+        try await get("discrepancies", query: ["limit": String(limit)])
+    }
+
+    public func overrideDiscrepancy(id: String, real: String) async throws -> [String: String] {
+        try await post("discrepancies/\(id)/override", body: OverrideRequest(real: real))
+    }
+
+    public func calibration() async throws -> [CompanionCalibration] {
+        try await get("calibration")
+    }
+
+    public func questions(limit: Int) async throws -> CompanionQuestionList {
+        try await get("questions", query: ["limit": String(limit)])
+    }
+
+    public func nextQuestion() async throws -> CompanionNextQuestion {
+        try await post("questions/next", body: EmptyBody(), timeout: 60)
+    }
+
+    public func answerQuestion(id: String, answer: String) async throws
+        -> CompanionQuestionAnswer
+    {
+        try await post("questions/\(id)/answer", body: AnswerRequest(answer: answer), timeout: 120)
+    }
+
+    public func skipQuestion(id: String) async throws -> [String: String] {
+        try await post("questions/\(id)/skip", body: EmptyBody())
+    }
+
+    public func muteTopic(_ topic: String) async throws -> MuteOutcome {
+        try await post("questions/mute", body: MuteRequest(topic: topic))
+    }
+
+    public func entities(limit: Int) async throws -> [CompanionEntity] {
+        try await get("entities", query: ["limit": String(limit)])
+    }
+
+    public func lenses() async throws -> [CompanionLens] {
+        try await get("lenses")
+    }
+
+    public func evals(limit: Int) async throws -> [CompanionEvalRun] {
+        try await get("evals", query: ["limit": String(limit)])
+    }
+
+    public func runEvals(persona: String?) async throws -> CompanionEvalOutcome {
+        var query: [String: String] = [:]
+        if let persona { query["persona"] = persona }
+        return try await post("evals/run", body: EmptyBody(), query: query, timeout: 3600)
+    }
+
+    public func standup(text: String, verify: Bool) async throws -> CompanionStandupOutcome {
+        try await post("standup", body: StandupRequest(text: text, verify: verify), timeout: 1800)
+    }
+
+    public func standupAggregate() async throws -> CompanionStandupReport {
+        try await get("standup/aggregate")
+    }
+
+    public func machines() async throws -> [CompanionMachine] {
+        try await get("machines")
+    }
+
+    public func addMachine(name: String, transport: String, endpoint: String) async throws
+        -> [String: String]
+    {
+        try await post(
+            "machines",
+            body: MachineRequest(name: name, transport: transport, endpoint: endpoint))
+    }
+
+    public func probeMachine(name: String) async throws -> CompanionMachine {
+        try await post("machines/\(name)/probe", body: EmptyBody(), timeout: 300)
+    }
+
+    public func machinePlan() async throws -> CompanionPlan {
+        try await get("machines/plan")
+    }
+
+    public func setMachineProfile(name: String, profile: String) async throws -> [String: String] {
+        try await post("machines/\(name)/profile", body: ProfileRequest(profile: profile))
+    }
+
+    public func baselines() async throws -> CompanionBaselines {
+        try await get("baselines")
+    }
+
+    public func syncNotion(full: Bool) async throws -> CompanionNotionOutcome {
+        try await post(
+            "connectors/notion/sync", body: EmptyBody(), query: ["full": full ? "true" : "false"],
+            timeout: 1800)
+    }
+
+    public func ingestImage(name: String, data: Data, mtime: String?) async throws
+        -> CompanionIngestOutcome
+    {
+        try await post(
+            "ingest/image",
+            body: AudioIngestRequest(name: name, dataB64: data.base64EncodedString(), mtime: mtime),
+            timeout: 900)
+    }
+
+    public func ingestVideo(name: String, data: Data, mtime: String?) async throws
+        -> CompanionIngestOutcome
+    {
+        try await post(
+            "ingest/video",
+            body: AudioIngestRequest(name: name, dataB64: data.base64EncodedString(), mtime: mtime),
+            timeout: 3600)
+    }
+
+    public func why(id: String) async throws -> MemoryChain {
+        try await get("memory/why/\(id)")
+    }
+
+    func get<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
+        var components = URLComponents(url: url(for: path), resolvingAgainstBaseURL: false)
+        components?.queryItems = query.sorted { $0.key < $1.key }
+            .map { URLQueryItem(name: $0.key, value: $0.value) }
+        return try await request(URLRequest(url: components?.url ?? url(for: path)))
+    }
+
+    func post<Body: Encodable, T: Decodable>(
+        _ path: String, body: Body, query: [String: String] = [:], timeout: TimeInterval = 30
+    ) async throws -> T {
+        var components = URLComponents(url: url(for: path), resolvingAgainstBaseURL: false)
+        if !query.isEmpty {
+            components?.queryItems = query.sorted { $0.key < $1.key }
+                .map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+        var request = URLRequest(url: components?.url ?? url(for: path))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw CompanionClientError.unreachable(error.localizedDescription)
+        }
+        return try await self.request(request, timeout: timeout)
+    }
+
     func get<T: Decodable>(_ path: String, allowing: Set<Int> = []) async throws -> T {
         try await request(URLRequest(url: url(for: path)), allowing: allowing)
     }
@@ -537,4 +735,98 @@ private struct AudioIngestRequest: Encodable {
 
 private struct AskRequest: Encodable {
     let question: String
+}
+
+private struct PersonaAskRequest: Encodable {
+    let question: String
+    let persona: String?
+}
+
+private struct CouncilRequest: Encodable {
+    let question: String
+    let personas: [String]
+}
+
+private struct CoreWriteRequest: Encodable {
+    let section: String
+    let content: String
+}
+
+private struct OverrideRequest: Encodable {
+    let real: String
+}
+
+private struct AnswerRequest: Encodable {
+    let answer: String
+}
+
+private struct MuteRequest: Encodable {
+    let topic: String
+}
+
+private struct StandupRequest: Encodable {
+    let text: String
+    let verify: Bool
+}
+
+private struct MachineRequest: Encodable {
+    let name: String
+    let transport: String
+    let endpoint: String
+}
+
+private struct ProfileRequest: Encodable {
+    let profile: String
+}
+
+private struct EmptyBody: Encodable {}
+
+public struct MuteOutcome: Codable, Equatable, Sendable {
+    public let topic: String
+    public let suppressed: Int
+}
+
+public struct CodableIgnored: Codable, Equatable, Sendable {
+    public init(from decoder: Decoder) throws {}
+    public func encode(to encoder: Encoder) throws {}
+}
+
+public struct MemoryChainEpisode: Codable, Equatable, Sendable {
+    public let episodeId: String
+    public let occurredAt: String
+    public let kind: String
+    public let excerpt: String
+}
+
+public struct MemoryChainRevision: Codable, Equatable, Sendable {
+    public let at: String
+    public let posterior: Double
+    public let status: String
+    public let note: String
+}
+
+public struct MemoryChainVerdict: Codable, Equatable, Sendable {
+    public let verdict: String
+    public let note: String
+    public let at: String
+}
+
+public struct MemoryChain: Codable, Equatable, Sendable {
+    public let kind: String
+    public let id: String
+    public let statement: String
+    public let status: String?
+    public let confidence: Double?
+    public let stability: Double?
+    public let corroboration: String?
+    public let promptVersion: String?
+    public let mechanism: String?
+    public let prior: Double?
+    public let posterior: Double?
+    public let alternatives: [String]?
+    public let evidence: [MemoryChainEpisode]?
+    public let counterEvidence: [MemoryChainEpisode]?
+    public let episode: [MemoryChainEpisode]?
+    public let revisions: [MemoryChainRevision]?
+    public let verdicts: [MemoryChainVerdict]?
 }

@@ -115,6 +115,15 @@ enum UIParity {
         UICapability(
             "Companion mind", "run the nightly pipeline", ["companion", "nightly"]),
         UICapability(
+            "Companion mind", "edit a section of the standing summary",
+            ["companion", "core", "set", "values", "honest"]),
+        UICapability(
+            "Companion desk", "show the question it wants to ask today",
+            ["companion", "inquire", "next"]),
+        UICapability(
+            "Companion setup", "add a machine the stack could run on",
+            ["companion", "machines", "add", "gpu-box"]),
+        UICapability(
             "Companion settings", "change the reasoner or its api key",
             ["companion", "reason", "set", "--provider", "anthropic", "--api-key", "sk-x"]),
         UICapability(

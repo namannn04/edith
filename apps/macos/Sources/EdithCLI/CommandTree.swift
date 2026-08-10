@@ -690,7 +690,7 @@ public enum CommandTree {
                         arguments: [.free]),
                     CommandNode(
                         "sync", "Pull a connector's activity into observations.",
-                        options: common + ["--endpoint"], arguments: [.free]),
+                        options: common + ["--endpoint", "--full"], arguments: [.free]),
                     CommandNode(
                         "observations", "List what the connectors saw you do.",
                         options: common + ["--endpoint", "--limit", "--kind"]),
@@ -702,7 +702,124 @@ public enum CommandTree {
                         options: common + ["--endpoint", "--limit"]),
                     CommandNode(
                         "ask", "Ask a question answered from your own memory.",
+                        options: common + ["--endpoint", "--persona"], arguments: [.free]),
+                    CommandNode(
+                        "council", "Ask several lenses at once and find the crux.",
+                        options: common + ["--endpoint", "--personas"], arguments: [.free]),
+                    CommandNode(
+                        "personas", "List the lenses that can answer, and how each thinks.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "lenses", "What each lens learned about being useful to you.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "core", "Read or edit the standing summary of who you are.",
+                        children: [
+                            CommandNode(
+                                "show", "Print the standing summary section by section.",
+                                options: common + ["--endpoint"]),
+                            CommandNode(
+                                "set", "Rewrite one section of the standing summary.",
+                                options: common + ["--endpoint"], arguments: [.free, .free]),
+                        ]),
+                    CommandNode(
+                        "why", "Print the whole chain behind a belief, theory or claim.",
                         options: common + ["--endpoint"], arguments: [.free]),
+                    CommandNode(
+                        "hypotheses", "The theories it holds about you.",
+                        children: [
+                            CommandNode(
+                                "ls", "List the theories and how they are faring.",
+                                options: common + ["--endpoint", "--limit"]),
+                            CommandNode(
+                                "run", "Resolve due predictions, then form new theories.",
+                                options: common + ["--endpoint"]),
+                        ]),
+                    CommandNode(
+                        "predictions", "What it expects to happen, and what did.",
+                        options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "commitments", "What you said you would do, and what happened.",
+                        options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "discrepancies", "Where your account and the record parted company.",
+                        children: [
+                            CommandNode(
+                                "ls", "List where the two parted company.",
+                                options: common + ["--endpoint", "--limit"]),
+                            CommandNode(
+                                "override", "Say the work was real and the record missed it.",
+                                options: common + ["--endpoint", "--real"], arguments: [.free]),
+                        ]),
+                    CommandNode(
+                        "calibration", "How your account compares with the record.",
+                        options: common + ["--endpoint"]),
+                    CommandNode(
+                        "inquire", "The questions it wants to ask you.",
+                        children: [
+                            CommandNode(
+                                "next", "The one question worth asking right now.",
+                                options: common + ["--endpoint", "--explain"]),
+                            CommandNode(
+                                "answer", "Answer a question it asked.",
+                                options: common + ["--endpoint"], arguments: [.free, .free]),
+                            CommandNode(
+                                "skip", "Pass on a question.",
+                                options: common + ["--endpoint"], arguments: [.free]),
+                            CommandNode(
+                                "mute", "Never be asked about a topic again.",
+                                options: common + ["--endpoint"], arguments: [.free]),
+                            CommandNode(
+                                "ls", "Every question queued, asked or dropped.",
+                                options: common + ["--endpoint", "--limit"]),
+                        ]),
+                    CommandNode(
+                        "entities", "The people, projects and places it knows.",
+                        options: common + ["--endpoint", "--limit"]),
+                    CommandNode(
+                        "eval", "Score the friend layer against the cases it should fail.",
+                        children: [
+                            CommandNode(
+                                "run", "Run the suite now and print every case.",
+                                options: common + ["--endpoint", "--persona"]),
+                            CommandNode(
+                                "ls", "Past eval runs.",
+                                options: common + ["--endpoint", "--limit"]),
+                        ]),
+                    CommandNode(
+                        "standup", "Record a standup and see what they add up to.",
+                        children: [
+                            CommandNode(
+                                "record", "Record a standup, optionally verified.",
+                                options: common + ["--endpoint", "--verify"],
+                                arguments: [.localPath]),
+                            CommandNode(
+                                "report", "What your standups have added up to.",
+                                options: common + ["--endpoint"]),
+                        ]),
+                    CommandNode(
+                        "machines", "Where the companion stack runs.",
+                        children: [
+                            CommandNode(
+                                "ls", "Every machine registered, and what was found.",
+                                options: common + ["--endpoint"]),
+                            CommandNode(
+                                "add", "Register a machine the stack could run on.",
+                                options: common + ["--endpoint", "--transport", "--at"],
+                                arguments: [.free]),
+                            CommandNode(
+                                "probe", "Ask a machine what it is rather than assuming.",
+                                options: common + ["--endpoint"], arguments: [.free]),
+                            CommandNode(
+                                "plan", "What would run where, before anything starts.",
+                                options: common + ["--endpoint"]),
+                            CommandNode(
+                                "profile", "Override the tier a machine was given.",
+                                options: common + ["--endpoint"], arguments: [.free, .free]),
+                        ]),
+                    CommandNode(
+                        "baselines", "Your own delivery baselines.",
+                        options: common + ["--endpoint"]),
                     CommandNode(
                         "chat", "Talk with the companion, streamed as it thinks.",
                         options: common + ["--endpoint", "--conversation"], arguments: [.free]),
