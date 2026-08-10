@@ -77,6 +77,7 @@ public struct PlatformCapabilities: Equatable, Sendable {
     public static let macOS = PlatformCapabilities(
         platform: .macOS,
         states: states(
+            defaultState: .available,
             overriding: [
                 .bluetoothMonitoring: .permissionRequired,
                 .calendarEvents: .permissionRequired,
@@ -92,23 +93,26 @@ public struct PlatformCapabilities: Equatable, Sendable {
     public static let ubuntu = PlatformCapabilities(
         platform: .linux,
         states: states(
+            defaultState: .unsupported("No Ubuntu implementation is available yet."),
             overriding: [
-                .cameraPreview: .permissionRequired,
-                .clipboardHistory: .permissionRequired,
+                .cameraPreview: .integrationRequired("PipeWire camera integration"),
+                .clipboardHistory: .integrationRequired("Wayland clipboard integration"),
                 .globalPaste: .integrationRequired("GNOME input integration"),
-                .globalShortcuts: .permissionRequired,
+                .globalShortcuts: .integrationRequired("XDG GlobalShortcuts portal"),
                 .inputSuppression: .integrationRequired("GNOME Shell extension"),
-                .screenColorSampling: .permissionRequired,
+                .notifications: .integrationRequired("freedesktop notification service"),
+                .screenColorSampling: .integrationRequired("XDG Screenshot portal"),
                 .screenShareDetection: .integrationRequired("GNOME Shell extension"),
                 .windowDimming: .integrationRequired("GNOME Shell extension"),
             ]))
 
     private static func states(
+        defaultState: PlatformCapabilityState,
         overriding overrides: [PlatformCapability: PlatformCapabilityState]
     ) -> [PlatformCapability: PlatformCapabilityState] {
         var states = Dictionary(
             uniqueKeysWithValues: PlatformCapability.allCases.map {
-                ($0, PlatformCapabilityState.available)
+                ($0, defaultState)
             })
         for (capability, state) in overrides { states[capability] = state }
         return states

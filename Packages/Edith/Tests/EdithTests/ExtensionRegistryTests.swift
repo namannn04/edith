@@ -114,9 +114,9 @@ import Testing
         #expect(clipboard.availability(on: .macOS) == .available)
         #expect(
             clipboard.availability(on: .ubuntu)
-                == .degraded([.globalPaste]))
+                == .unavailable([.clipboardHistory]))
         #expect(focusDim.availability(on: .ubuntu) == .unavailable([.windowDimming]))
-        #expect(usage.availability(on: .ubuntu) == .available)
+        #expect(usage.availability(on: .ubuntu) == .unavailable([.usageCollection]))
     }
 
     @Test func capabilityTiersDoNotOverlap() {

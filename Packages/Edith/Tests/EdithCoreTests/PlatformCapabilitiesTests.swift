@@ -9,10 +9,25 @@ import Testing
         }
     }
 
-    @Test func ubuntuReportsPortalCapabilitiesAsSupported() {
-        #expect(PlatformCapabilities.ubuntu.state(for: .globalShortcuts).isSupported)
-        #expect(PlatformCapabilities.ubuntu.state(for: .screenColorSampling).isSupported)
-        #expect(PlatformCapabilities.ubuntu.state(for: .clipboardHistory).isSupported)
+    @Test func ubuntuDoesNotClaimUnimplementedCapabilities() {
+        for capability in PlatformCapability.allCases {
+            #expect(!PlatformCapabilities.ubuntu.state(for: capability).isSupported)
+        }
+    }
+
+    @Test func ubuntuIdentifiesPlannedNativeIntegrations() {
+        let plannedCapabilities: [PlatformCapability] = [
+            .cameraPreview, .clipboardHistory, .globalPaste, .globalShortcuts, .inputSuppression,
+            .notifications, .screenColorSampling, .screenShareDetection, .windowDimming,
+        ]
+
+        for capability in plannedCapabilities {
+            guard case .integrationRequired = PlatformCapabilities.ubuntu.state(for: capability)
+            else {
+                Issue.record("Expected an Ubuntu integration for \(capability.rawValue)")
+                continue
+            }
+        }
     }
 
     @Test func ubuntuBlocksExtensionsThatNeedShellIntegration() {
@@ -23,7 +38,13 @@ import Testing
     }
 
     @Test func missingOptionalCapabilitiesDegradeAnExtension() {
-        let availability = PlatformCapabilities.ubuntu.availability(
+        let capabilities = PlatformCapabilities(
+            platform: .linux,
+            states: [
+                .clipboardHistory: .available,
+                .globalPaste: .integrationRequired("GNOME input integration"),
+            ])
+        let availability = capabilities.availability(
             required: [.clipboardHistory], optional: [.globalPaste])
 
         #expect(availability == .degraded([.globalPaste]))
