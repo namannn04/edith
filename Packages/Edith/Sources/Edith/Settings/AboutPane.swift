@@ -63,12 +63,11 @@ struct AboutPane: View {
                 .lineSpacing(3)
                 .frame(maxWidth: UIScale.pt(460))
             Button {
-                NSWorkspace.shared.open(URL(string: "https://pulkit.page")!)
+                NSWorkspace.shared.open(Self.repository)
             } label: {
                 HStack(spacing: UIScale.pt(6)) {
-                    Image(systemName: "link")
-                        .font(.system(size: UIScale.pt(11), weight: .semibold))
-                    Text("pulkit.page")
+                    githubMark
+                    Text("pulkitxm/edith")
                         .font(.system(size: UIScale.pt(12), weight: .semibold))
                 }
                 .foregroundStyle(.white)
@@ -78,6 +77,7 @@ struct AboutPane: View {
             }
             .buttonStyle(.plain)
             .pointerCursor()
+            .help("Open the repository on GitHub")
             .padding(.top, UIScale.pt(2))
             contributorWall
             Text("Made with ♥ by Pulkit")
@@ -92,6 +92,21 @@ struct AboutPane: View {
         }
     }
 
+    private static let repository = URL(string: "https://github.com/pulkitxm/edith")!
+
+    @ViewBuilder private var githubMark: some View {
+        if let mark = ProviderLogo.image(named: "github") {
+            Image(nsImage: mark)
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .frame(width: UIScale.pt(12), height: UIScale.pt(12))
+        } else {
+            Image(systemName: "link")
+                .font(.system(size: UIScale.pt(11), weight: .semibold))
+        }
+    }
+
     private var avatarColumns: [GridItem] {
         [GridItem(.adaptive(minimum: UIScale.pt(52)), spacing: UIScale.pt(10))]
     }
@@ -99,7 +114,7 @@ struct AboutPane: View {
     @ViewBuilder private var contributorWall: some View {
         if !contributors.isEmpty {
             VStack(spacing: UIScale.pt(10)) {
-                Text("Built by")
+                Text("Contributors")
                     .font(.system(size: UIScale.pt(11), weight: .semibold))
                     .foregroundStyle(.secondary)
                 LazyVGrid(columns: avatarColumns, spacing: UIScale.pt(10)) {
