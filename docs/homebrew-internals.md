@@ -668,10 +668,17 @@ requires knowing what runs before it.
 `.github/workflows/release-on-merge.yml` runs on pushes to `main` that touch the app
 or its packaging. It computes the next patch version from
 `Resources/Info.plist`, bumps both plists, commits as `Bump version to X.Y.Z`, tags
-`vX.Y.Z`, and pushes. It then calls the reusable release workflow with that tag.
+`vX.Y.Z`, and pushes. That is all it does: pushing the tag is what starts the
+release, because `release.yml` triggers on `v*` tags.
 
-It skips itself when the head commit message starts with `Bump version to `, which
-is what stops the version bump from triggering another release.
+The tag push starts a workflow only because it is made with `RELEASE_PUSH_TOKEN`.
+Pushes authenticated with the `GITHUB_TOKEN` an Actions run is given deliberately do
+not trigger further workflows, which is GitHub's loop protection. This is worth
+knowing before changing how the release pushes: swapping that token back would leave
+the tag on the remote with nothing building it.
+
+The workflow also skips itself when the head commit message starts with
+`Bump version to `, which stops its own bump commit from starting a second run.
 
 ### Build
 
@@ -710,7 +717,7 @@ The whole job, from `.github/workflows/release.yml`:
     needs: publish
     runs-on: ubuntu-latest
     env:
-      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
         with:
