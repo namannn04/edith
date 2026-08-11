@@ -1885,16 +1885,17 @@ label.action {
 
 .brew-install pre {
   flex: 1;
-  overflow-x: auto;
+  min-width: 0;
   margin: 0;
 }
 
 .brew-install code {
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 11px;
   font-family: var(--font-mono);
   line-height: 1.7;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .brew-copy {
