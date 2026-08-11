@@ -7,7 +7,7 @@ const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const readme = readFileSync("README.md", "utf8");
 const doc = readFileSync("docs/homebrew.md", "utf8");
 const site = readFileSync("apps/site/index.html", "utf8");
-const installCommand = "brew install --cask pulkitxm/edith/edith";
+const installCommand = "brew install --cask pulkitxm/tap/edith";
 const releaseTagRef = ["$", "{RELEASE_TAG}"].join("");
 
 test("the cask names a released disk image by version", () => {
@@ -44,7 +44,7 @@ test("uninstalling quits every bundle and zapping clears Edith's own state", () 
 });
 
 test("the release mirrors the bumped cask to the tap repository", () => {
-  expect(releaseWorkflow).toContain("github.com/pulkitxm/homebrew-edith.git");
+  expect(releaseWorkflow).toContain("github.com/pulkitxm/homebrew-tap.git");
   expect(releaseWorkflow).toContain("TAP_PUSH_TOKEN");
   expect(releaseWorkflow).toContain("cp Casks/edith.rb tap/Casks/edith.rb");
   expect(releaseWorkflow).toContain(

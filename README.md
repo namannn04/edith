@@ -10,7 +10,7 @@ app. No licence key, no account, no paid tier.
 or install it with Homebrew:
 
 ```
-brew install --cask pulkitxm/edith/edith
+brew install --cask pulkitxm/tap/edith
 ```
 
 That taps, installs the app and puts `ed` and `edh` on your `PATH`. Edith updates itself

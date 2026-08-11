@@ -3,17 +3,17 @@
 `Casks/edith.rb` is authored in this repository, next to the source it installs. The
 release workflow rewrites its version and checksum from the disk image it just
 published, then mirrors the file to
-[pulkitxm/homebrew-edith](https://github.com/pulkitxm/homebrew-edith), the tap
+[pulkitxm/homebrew-tap](https://github.com/pulkitxm/homebrew-tap), the tap
 Homebrew actually clones. That repository is generated output; never edit it by hand.
 
 ## Install
 
 ```
-brew install --cask pulkitxm/edith/edith
+brew install --cask pulkitxm/tap/edith
 ```
 
 There is no separate tap step. `brew install` resolves the fully qualified
-`user/repository/token` form and taps `pulkitxm/homebrew-edith` for you before it
+`user/repository/token` form and taps `pulkitxm/homebrew-tap` for you before it
 installs. The tap exists as its own repository because Homebrew only accepts the
 short `brew tap pulkitxm/edith` form for repositories named `homebrew-<name>`, and
 because cloning a few kilobytes of cask beats cloning this repository.
@@ -76,7 +76,7 @@ brew uninstall --cask --zap edith
 Stop tracking the tap entirely with:
 
 ```
-brew untap pulkitxm/edith
+brew untap pulkitxm/tap
 ```
 
 ## Releasing
@@ -88,6 +88,6 @@ to `main`, and pushes the same file to the tap repository. That commit touches o
 `Casks/`, which is outside the paths that trigger a release, so it cannot loop.
 
 Pushing to the tap needs a `TAP_PUSH_TOKEN` secret on this repository: a fine
-grained personal access token scoped to `pulkitxm/homebrew-edith` with read and
+grained personal access token scoped to `pulkitxm/homebrew-tap` with read and
 write access to contents. Without it the job fails loudly rather than releasing a
 version the tap does not know about.

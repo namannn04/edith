@@ -266,7 +266,7 @@ jobs:
           test -n "$TAP_PUSH_TOKEN" \
             || { echo "cask mirror blocked: TAP_PUSH_TOKEN is required" >&2; exit 1; }
           git clone --depth 1 \
-            "https://x-access-token:${TAP_PUSH_TOKEN}@github.com/pulkitxm/homebrew-edith.git" tap
+            "https://x-access-token:${TAP_PUSH_TOKEN}@github.com/pulkitxm/homebrew-tap.git" tap
           cp Casks/edith.rb tap/Casks/edith.rb
           cd tap
           if git diff --quiet -- Casks/edith.rb; then
