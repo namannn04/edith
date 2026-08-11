@@ -31,15 +31,25 @@ jobs:
     env:
       HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+      HAS_PUSH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PUSH_TOKEN }}
+          persist-credentials: true
 
       - name: Require release secrets
         if: env.HAS_SIGNING != 'true' || env.HAS_SPARKLE_KEY != 'true'
         run: |
           echo "release blocked: signing and Sparkle secrets are required" >&2
+          exit 1
+
+      - name: Require a token that may push to a protected main
+        if: env.HAS_PUSH_TOKEN != 'true'
+        run: |
+          echo "release blocked: RELEASE_PUSH_TOKEN is required to push the version bump" >&2
+          echo "main is protected by a ruleset, and GITHUB_TOKEN cannot bypass it" >&2
           exit 1
 
       - name: Work out the next patch version

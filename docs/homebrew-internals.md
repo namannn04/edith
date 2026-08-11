@@ -716,6 +716,8 @@ The whole job, from `.github/workflows/release.yml`:
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PUSH_TOKEN }}
+          persist-credentials: true
 
       - uses: actions/download-artifact@v5
         with:
@@ -737,6 +739,17 @@ The whole job, from `.github/workflows/release.yml`:
 ```
 
 Design notes on the parts that are not obvious.
+
+**`RELEASE_PUSH_TOKEN`, not `GITHUB_TOKEN`.** `main` is protected by a ruleset
+requiring pull requests and status checks. The token an Actions run is handed cannot
+bypass it, and on a personal repository the GitHub Actions app cannot be added to a
+ruleset bypass list at all: the API answers `Actor GitHub Actions integration must
+be part of the ruleset source or owner organization`. The ruleset does grant the
+repository admin role an unconditional bypass, and a fine grained personal access
+token acts as its owner, so checking out with one lets the push through. This is the
+standard arrangement for a personal repository that both protects its default branch
+and automates its releases; the same secret is what lets the version bump land in
+`release-on-merge.yml`.
 
 **`ref: main`, not the tag.** The tag points at the commit that was built. The cask
 bump has to land on the branch people install from, so the checkout is `main` and
@@ -948,9 +961,19 @@ gh api repos/pulkitxm/homebrew-tap/contents/Casks/edith.rb --jq .content | base6
 
 The `version` line should be the release you just cut.
 
-### Set up TAP_PUSH_TOKEN
+### Set up the two push tokens
 
-Required once, before the first release that runs the `cask` job.
+Both are required once, before the first release that runs the `cask` job.
+
+`RELEASE_PUSH_TOKEN` lets the release jobs push to a protected `main`: a fine
+grained token scoped to `pulkitxm/edith` with read and write access to Contents,
+created by someone with the repository admin role, whose ruleset bypass it inherits.
+
+```
+gh secret set RELEASE_PUSH_TOKEN --repo pulkitxm/edith
+```
+
+`TAP_PUSH_TOKEN` lets the mirror step push to the tap.
 
 1. Create a fine-grained personal access token.
 2. Scope it to `pulkitxm/homebrew-tap` only.
@@ -1009,6 +1032,7 @@ question worth asking after a failed release run.
 | Error naming `pulkitxm/edith` | Two-segment name, does not match the tap regex | Three segments: `pulkitxm/tap/edith` |
 | `SHA256 mismatch` | Cask version and checksum are out of step, or the release asset was replaced | Recompute from the published DMG, fix both repositories |
 | Release green, tap still on the old version | `cask` job's mirror step failed, usually a missing or expired `TAP_PUSH_TOKEN` | Fix the secret, re-run the job |
+| `GH013: Repository rule violations found for refs/heads/main` | A job pushed to `main` with `GITHUB_TOKEN`, which no ruleset bypass covers | Check out with `RELEASE_PUSH_TOKEN` |
 | `brew upgrade` never updates Edith | `auto_updates true`, working as designed | `brew upgrade --cask --greedy edith` |
 | `brew info` shows an older version than the running app | Sparkle updated in place | Cosmetic; a greedy upgrade re-syncs it |
 | Gatekeeper warning on first launch | Build was not notarized; Homebrew applied quarantine like any download | Notary secrets in the release workflow |
