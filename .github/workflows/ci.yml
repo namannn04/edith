@@ -58,7 +58,7 @@ jobs:
           area linux '^(Packages/Edith/|Resources/|packaging/|Makefile$|\.github/workflows/(ci|release)\.yml$)'
           area promo '^apps/promo-video/'
           area site '^apps/site/'
-          area scripts '^(scripts/|package\.json$|bun\.lock$|biome\.json$)'
+          area scripts '^(scripts/|Casks/|package\.json$|bun\.lock$|biome\.json$)'
           area source '\.(swift|js|mjs|ts|tsx|css|json|ya?ml|html)$'
 
   checks:

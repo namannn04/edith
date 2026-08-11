@@ -212,3 +212,49 @@ jobs:
             gh release create "$RELEASE_TAG" --title "Edith $RELEASE_TAG" --generate-notes \
               release-assets/Edith.dmg release-assets/Edith.deb release-assets/appcast.xml
           fi
+
+  cask:
+    needs: publish
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-macos
+          path: release-assets
+
+      - name: Update the cask to the published disk image
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          SHA="$(sha256sum release-assets/Edith.dmg | cut -d' ' -f1)"
+          sed -i \
+            -e "s/^  version \".*\"$/  version \"$VERSION\"/" \
+            -e "s/^  sha256 \".*\"$/  sha256 \"$SHA\"/" \
+            Casks/edith.rb
+          grep -qx "  version \"$VERSION\"" Casks/edith.rb \
+            || { echo "cask bump blocked: version was not rewritten" >&2; exit 1; }
+          grep -qx "  sha256 \"$SHA\"" Casks/edith.rb \
+            || { echo "cask bump blocked: sha256 was not rewritten" >&2; exit 1; }
+
+      - name: Commit the cask bump to main
+        run: |
+          if git diff --quiet -- Casks/edith.rb; then
+            echo "cask already points at $RELEASE_TAG"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/edith.rb
+          git commit -m "Update the Homebrew cask to ${RELEASE_TAG}"
+          for attempt in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          echo "cask bump blocked: could not push to main" >&2
+          exit 1
