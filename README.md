@@ -7,6 +7,17 @@ Free and open source under the [GPL-3.0](LICENSE). Every feature is in the one
 app. No licence key, no account, no paid tier.
 
 **[Download for macOS](https://github.com/pulkitxm/edith/releases/latest/download/Edith.dmg)**
+or install it with Homebrew, this repository is its own tap:
+
+```
+brew tap pulkitxm/edith https://github.com/pulkitxm/edith
+brew install --cask edith
+```
+
+That installs the app and puts `ed` and `edh` on your `PATH`. Edith updates itself
+through Sparkle, so `brew upgrade --cask --greedy edith` is the way to force
+Homebrew to fetch a newer release. Full command list:
+[docs/homebrew.md](docs/homebrew.md).
 
 **[Download the Ubuntu preview](https://github.com/pulkitxm/edith/releases/latest/download/Edith.deb)**
 · [edith.pulkit.page](https://edith.pulkit.page)
