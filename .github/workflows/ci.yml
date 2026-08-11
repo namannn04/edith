@@ -14,7 +14,8 @@ jobs:
     if: >-
       github.event_name != 'push'
       || (!startsWith(github.event.head_commit.message, 'Bump version to ')
-      && !startsWith(github.event.head_commit.message, 'Update the Homebrew cask to '))
+      && !startsWith(github.event.head_commit.message, 'Update the Homebrew cask to ')
+      && !startsWith(github.event.head_commit.message, 'Refresh the contributor list'))
     runs-on: ubuntu-latest
     outputs:
       swift: ${{ steps.areas.outputs.swift }}
@@ -34,11 +35,11 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           BEFORE: ${{ github.event.before }}
         run: |
-          if [ -n "$BEFORE" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null \
+          if [ -n "$BASE_REF" ]; then
+            base="$(git merge-base "origin/$BASE_REF" HEAD)"
+          elif [ -n "$BEFORE" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null \
             && git merge-base --is-ancestor "$BEFORE" HEAD 2>/dev/null; then
             base="$BEFORE"
-          elif [ -n "$BASE_REF" ]; then
-            base="$(git merge-base "origin/$BASE_REF" HEAD)"
           else
             base=""
           fi
