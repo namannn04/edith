@@ -19,7 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       swift: ${{ steps.areas.outputs.swift }}
+      docs: ${{ steps.areas.outputs.docs }}
       linux: ${{ steps.areas.outputs.linux }}
+      workflows: ${{ steps.areas.outputs.workflows }}
       promo: ${{ steps.areas.outputs.promo }}
       site: ${{ steps.areas.outputs.site }}
       scripts: ${{ steps.areas.outputs.scripts }}
@@ -59,8 +61,10 @@ jobs:
               echo "$1: skip"
             fi
           }
-          area swift '^(Packages/Edith/|Resources/|docs/|edth\.xcodeproj/|build\.sh$|Makefile$)'
-          area linux '^(Packages/Edith/|Resources/|packaging/|Makefile$|\.github/workflows/(ci|release)\.yml$)'
+          area swift '^(Packages/Edith/|Resources/|edth\.xcodeproj/|build\.sh$|Makefile$)'
+          area docs '^docs/'
+          area linux '^(Packages/Edith/|Resources/|packaging/|Makefile$)'
+          area workflows '^\.github/workflows/(ci|release)\.yml$'
           area promo '^apps/promo-video/'
           area site '^apps/site/'
           area scripts '^(scripts/|Casks/|package\.json$|bun\.lock$|biome\.json$)'
@@ -90,7 +94,7 @@ jobs:
 
   ubuntu:
     needs: changes
-    if: needs.changes.outputs.linux == 'true'
+    if: needs.changes.outputs.linux == 'true' || needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-24.04
     container: swift:6.3.2-noble
     steps:
@@ -135,7 +139,7 @@ jobs:
 
   swift-build:
     needs: changes
-    if: needs.changes.outputs.swift == 'true'
+    if: needs.changes.outputs.swift == 'true' || needs.changes.outputs.workflows == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
@@ -155,7 +159,7 @@ jobs:
 
   swift-test:
     needs: changes
-    if: needs.changes.outputs.swift == 'true'
+    if: needs.changes.outputs.swift == 'true' || needs.changes.outputs.docs == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
