@@ -70,10 +70,11 @@ struct AboutPane: View {
                     Text("pulkitxm/edith")
                         .font(.system(size: UIScale.pt(12), weight: .semibold))
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(theme)
                 .padding(.horizontal, UIScale.pt(16))
                 .padding(.vertical, UIScale.pt(8))
-                .background(theme, in: Capsule())
+                .background(theme.opacity(0.16), in: Capsule())
+                .overlay(Capsule().strokeBorder(theme.opacity(0.38), lineWidth: 1))
             }
             .buttonStyle(.plain)
             .pointerCursor()
