@@ -23,7 +23,7 @@ Contents:
 10. [The cask DSL, stanza by stanza](#10-the-cask-dsl-stanza-by-stanza)
 11. [Edith's cask, annotated line by line](#11-ediths-cask-annotated-line-by-line)
 12. [The release pipeline this plugs into](#12-the-release-pipeline-this-plugs-into)
-13. [The cask job](#13-the-cask-job)
+13. [The cask bump](#13-the-cask-bump)
 14. [The tap repository](#14-the-tap-repository)
 15. [Decision log](#15-decision-log)
 16. [Runbook](#16-runbook)
