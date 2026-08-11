@@ -6,15 +6,17 @@ on:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
   changes:
     if: >-
       github.event_name != 'push'
-      || (!startsWith(github.event.head_commit.message, 'Bump version to ')
-      && !startsWith(github.event.head_commit.message, 'Update the Homebrew cask to ')
+      || (!startsWith(github.event.head_commit.message, 'Release v')
       && !startsWith(github.event.head_commit.message, 'Refresh the contributor list'))
     runs-on: ubuntu-latest
     outputs:
@@ -175,3 +177,17 @@ jobs:
       - name: Tests
         run: ./test.sh
         working-directory: Packages/Edith
+
+  release:
+    needs: [changes, checks, ubuntu, promo-video, swift-build, swift-test]
+    if: >-
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.changes.result == 'success'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+      && (needs.changes.outputs.swift == 'true' || needs.changes.outputs.linux == 'true')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    secrets: inherit
