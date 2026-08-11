@@ -7,6 +7,7 @@ const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const readme = readFileSync("README.md", "utf8");
 const doc = readFileSync("docs/homebrew.md", "utf8");
 const site = readFileSync("apps/site/index.html", "utf8");
+const deepDoc = readFileSync("docs/homebrew-internals.md", "utf8");
 const installCommand = "brew install --cask pulkitxm/tap/edith";
 const releaseTagRef = ["$", "{RELEASE_TAG}"].join("");
 
@@ -60,6 +61,15 @@ test("the release bumps the cask after the assets are published", () => {
     `git commit -m "Update the Homebrew cask to ${releaseTagRef}"`,
   );
   expect(releaseWorkflow).toContain("git push origin HEAD:main");
+});
+
+test("the deep dive is linked and explains the resolution rules", () => {
+  expect(doc).toContain("homebrew-internals.md");
+  expect(readme).toContain("docs/homebrew-internals.md");
+  expect(deepDoc).toContain("HOMEBREW_TAP_CASK_REGEX");
+  expect(deepDoc).toContain("ensure_installed!");
+  expect(deepDoc).toContain(installCommand);
+  expect(deepDoc.split("\n").length).toBeGreaterThan(1000);
 });
 
 test("cask edits run the script tests", () => {

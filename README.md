@@ -16,7 +16,8 @@ brew install --cask pulkitxm/tap/edith
 That taps, installs the app and puts `ed` and `edh` on your `PATH`. Edith updates itself
 through Sparkle, so `brew upgrade --cask --greedy edith` is the way to force
 Homebrew to fetch a newer release. Full command list:
-[docs/homebrew.md](docs/homebrew.md).
+[docs/homebrew.md](docs/homebrew.md), and
+[how it all works](docs/homebrew-internals.md).
 
 **[Download the Ubuntu preview](https://github.com/pulkitxm/edith/releases/latest/download/Edith.deb)**
 · [edith.pulkit.page](https://edith.pulkit.page)

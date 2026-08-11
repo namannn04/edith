@@ -1,5 +1,9 @@
 # Homebrew
 
+For how Homebrew itself works, what taps and casks are, and why this pipeline is
+shaped the way it is, see [homebrew-internals.md](homebrew-internals.md). This page
+is the command reference.
+
 `Casks/edith.rb` is authored in this repository, next to the source it installs. The
 release workflow rewrites its version and checksum from the disk image it just
 published, then mirrors the file to
