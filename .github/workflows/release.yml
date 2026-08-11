@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.rebuild || 'main' }}
+          ref: ${{ inputs.rebuild || github.sha }}
           fetch-depth: 0
 
       - name: Require release secrets
@@ -377,10 +377,5 @@ jobs:
           git add Casks/edith.rb
           git commit -m "Update the Edith cask to ${RELEASE_TAG}"
           git push origin HEAD:main
-
-      - name: Verify the tap carries the release
-        if: env.REBUILD == ''
-        run: |
-          curl -fsSL "https://raw.githubusercontent.com/pulkitxm/homebrew-tap/main/Casks/edith.rb" \
-            | grep -qx "  version \"$RELEASE_VERSION\"" \
-            || { echo "release blocked: the tap does not carry $RELEASE_VERSION" >&2; exit 1; }
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$(git rev-parse HEAD)" \
+            || { echo "release blocked: the tap did not take $RELEASE_TAG" >&2; exit 1; }
