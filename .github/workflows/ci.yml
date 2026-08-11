@@ -14,7 +14,8 @@ jobs:
     if: >-
       github.event_name != 'push'
       || (!startsWith(github.event.head_commit.message, 'Bump version to ')
-      && !startsWith(github.event.head_commit.message, 'Update the Homebrew cask to '))
+      && !startsWith(github.event.head_commit.message, 'Update the Homebrew cask to ')
+      && !startsWith(github.event.head_commit.message, 'Refresh the contributor list'))
     runs-on: ubuntu-latest
     outputs:
       swift: ${{ steps.areas.outputs.swift }}
