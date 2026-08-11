@@ -1,19 +1,22 @@
 # Homebrew
 
-The Edith repository is its own Homebrew tap. There is no second repository to
-maintain: `Casks/edith.rb` sits beside the source, and the release workflow rewrites
-its version and checksum from the disk image it just published, so the cask always
-points at the newest release.
+`Casks/edith.rb` is authored in this repository, next to the source it installs. The
+release workflow rewrites its version and checksum from the disk image it just
+published, then mirrors the file to
+[pulkitxm/homebrew-edith](https://github.com/pulkitxm/homebrew-edith), the tap
+Homebrew actually clones. That repository is generated output; never edit it by hand.
 
 ## Install
 
 ```
-brew tap pulkitxm/edith https://github.com/pulkitxm/edith
-brew install --cask edith
+brew install --cask pulkitxm/edith/edith
 ```
 
-The tap URL is required because the repository is named `edith` rather than
-`homebrew-edith`. Tapping clones the full repository, roughly 50 MB.
+There is no separate tap step. `brew install` resolves the fully qualified
+`user/repository/token` form and taps `pulkitxm/homebrew-edith` for you before it
+installs. The tap exists as its own repository because Homebrew only accepts the
+short `brew tap pulkitxm/edith` form for repositories named `homebrew-<name>`, and
+because cloning a few kilobytes of cask beats cloning this repository.
 
 The cask installs `Edith.app` into `/Applications` and links the two command line
 tools that ship inside the bundle:
@@ -80,6 +83,11 @@ brew untap pulkitxm/edith
 
 Nothing about the cask is hand-edited. The `cask` job in
 `.github/workflows/release.yml` runs after the release is published, hashes the
-`Edith.dmg` it built, rewrites the `version` and `sha256` lines, and commits the
-result to `main`. That commit touches only `Casks/`, which is outside the paths that
-trigger a release, so it cannot loop.
+`Edith.dmg` it built, rewrites the `version` and `sha256` lines, commits the result
+to `main`, and pushes the same file to the tap repository. That commit touches only
+`Casks/`, which is outside the paths that trigger a release, so it cannot loop.
+
+Pushing to the tap needs a `TAP_PUSH_TOKEN` secret on this repository: a fine
+grained personal access token scoped to `pulkitxm/homebrew-edith` with read and
+write access to contents. Without it the job fails loudly rather than releasing a
+version the tap does not know about.
