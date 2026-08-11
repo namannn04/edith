@@ -1,16 +1,11 @@
 name: Release
 
 on:
-  workflow_call:
-    inputs:
-      release_tag:
-        required: true
-        type: string
   push:
     tags: ["v*"]
 
 concurrency:
-  group: release-${{ inputs.release_tag || github.ref_name }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -23,11 +18,11 @@ jobs:
       HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_ID != '' && secrets.NOTARY_ISSUER_ID != '' && secrets.NOTARY_KEY != '' }}
-      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.release_tag || github.ref_name }}
+          ref: ${{ github.ref_name }}
 
       - name: Require release secrets
         if: env.HAS_SIGNING != 'true' || env.HAS_SPARKLE_KEY != 'true'
@@ -134,11 +129,11 @@ jobs:
     runs-on: ubuntu-24.04
     container: swift:6.3.2-noble
     env:
-      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.release_tag || github.ref_name }}
+          ref: ${{ github.ref_name }}
 
       - name: Install native dependencies
         run: apt-get update && apt-get install -y libgtk-4-dev desktop-file-utils appstream dpkg-dev make
@@ -182,7 +177,7 @@ jobs:
     needs: [dmg, deb]
     runs-on: ubuntu-latest
     env:
-      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/download-artifact@v5
         with:
@@ -217,7 +212,7 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     env:
-      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
         with:

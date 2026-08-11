@@ -26,8 +26,6 @@ jobs:
   version:
     if: "!startsWith(github.event.head_commit.message, 'Bump version to ')"
     runs-on: macos-26
-    outputs:
-      release_tag: ${{ steps.version.outputs.tag }}
     env:
       HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
@@ -96,10 +94,3 @@ jobs:
           git tag "v${NEXT}"
           git push origin HEAD:main
           git push origin "v${NEXT}"
-
-  release:
-    needs: version
-    uses: ./.github/workflows/release.yml
-    with:
-      release_tag: ${{ needs.version.outputs.release_tag }}
-    secrets: inherit
