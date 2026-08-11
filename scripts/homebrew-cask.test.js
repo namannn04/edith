@@ -6,7 +6,8 @@ const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const readme = readFileSync("README.md", "utf8");
 const doc = readFileSync("docs/homebrew.md", "utf8");
-const tapCommand = "brew tap pulkitxm/edith https://github.com/pulkitxm/edith";
+const site = readFileSync("apps/site/index.html", "utf8");
+const installCommand = "brew install --cask pulkitxm/edith/edith";
 const releaseTagRef = ["$", "{RELEASE_TAG}"].join("");
 
 test("the cask names a released disk image by version", () => {
@@ -42,6 +43,15 @@ test("uninstalling quits every bundle and zapping clears Edith's own state", () 
   );
 });
 
+test("the release mirrors the bumped cask to the tap repository", () => {
+  expect(releaseWorkflow).toContain("github.com/pulkitxm/homebrew-edith.git");
+  expect(releaseWorkflow).toContain("TAP_PUSH_TOKEN");
+  expect(releaseWorkflow).toContain("cp Casks/edith.rb tap/Casks/edith.rb");
+  expect(releaseWorkflow).toContain(
+    `git commit -m "Update the Edith cask to ${releaseTagRef}"`,
+  );
+});
+
 test("the release bumps the cask after the assets are published", () => {
   expect(releaseWorkflow).toContain("needs: publish");
   expect(releaseWorkflow).toContain("sha256sum release-assets/Edith.dmg");
@@ -57,9 +67,9 @@ test("cask edits run the script tests", () => {
 });
 
 test("the tap is documented where people look for a download", () => {
-  expect(readme).toContain(tapCommand);
-  expect(readme).toContain("brew install --cask edith");
-  expect(doc).toContain(tapCommand);
+  expect(readme).toContain(installCommand);
+  expect(site).toContain(installCommand);
+  expect(doc).toContain(installCommand);
   expect(doc).toContain("brew upgrade --cask --greedy edith");
   expect(doc).toContain("brew uninstall --cask --zap edith");
 });

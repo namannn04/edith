@@ -258,3 +258,23 @@ jobs:
           done
           echo "cask bump blocked: could not push to main" >&2
           exit 1
+
+      - name: Mirror the cask to the tap repository
+        env:
+          TAP_PUSH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
+        run: |
+          test -n "$TAP_PUSH_TOKEN" \
+            || { echo "cask mirror blocked: TAP_PUSH_TOKEN is required" >&2; exit 1; }
+          git clone --depth 1 \
+            "https://x-access-token:${TAP_PUSH_TOKEN}@github.com/pulkitxm/homebrew-edith.git" tap
+          cp Casks/edith.rb tap/Casks/edith.rb
+          cd tap
+          if git diff --quiet -- Casks/edith.rb; then
+            echo "the tap already carries $RELEASE_TAG"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/edith.rb
+          git commit -m "Update the Edith cask to ${RELEASE_TAG}"
+          git push origin HEAD:main
