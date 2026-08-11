@@ -48,6 +48,13 @@ test("macOS release accepts the configured development certificate", () => {
   expect(tagWorkflow).toContain('EDITH_RELEASE_ALLOW_DEV_SIGNING: "1"');
 });
 
+test("jobs that push to main use a token that clears the ruleset", () => {
+  const pushToken = ["$", "{{ secrets.RELEASE_PUSH_TOKEN }}"].join("");
+  expect(mergeWorkflow).toContain(`token: ${pushToken}`);
+  expect(mergeWorkflow).toContain("RELEASE_PUSH_TOKEN is required");
+  expect(tagWorkflow).toContain(`token: ${pushToken}`);
+});
+
 test("manual release delegates asset publication to the tag workflow", () => {
   expect(makefile).toContain('git push --atomic origin HEAD:main "v$(V)"');
   expect(makefile).not.toContain("gh release create");

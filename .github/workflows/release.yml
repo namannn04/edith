@@ -223,6 +223,8 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PUSH_TOKEN }}
+          persist-credentials: true
 
       - uses: actions/download-artifact@v5
         with:
