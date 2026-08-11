@@ -99,8 +99,7 @@ refresh only touches files that changed.
 
 ## Contributors
 
-Everyone who has landed a change in Edith. The list is refreshed daily from the
-GitHub API, and the same faces appear in the app under Settings, About.
+Thank you to everyone who has shipped a change in Edith.
 
 <!-- contributors:start -->
 
