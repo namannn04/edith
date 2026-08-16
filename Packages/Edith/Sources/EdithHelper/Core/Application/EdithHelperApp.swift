@@ -136,6 +136,61 @@ struct EdithApp: App {
         _ = IPC.observe(IPC.Name.lidAwakeSettingsChanged) {
             services.lidAwake?.syncSettings()
         }
+        _ = IPC.observe(
+            IPC.Name.requestLidAwakeAction,
+            info: { info in
+                guard let rawAction = info[LidAwakeIPC.actionKey] as? String,
+                    let action = LidAwakeIPC.Action(rawValue: rawAction)
+                else {
+                    IPC.post(
+                        IPC.Name.lidAwakeActionResult,
+                        userInfo: [
+                            LidAwakeIPC.okKey: false,
+                            LidAwakeIPC.errorKey: "The Lid Awake action is invalid.",
+                        ])
+                    return
+                }
+                if action == .on, services.lidAwake == nil {
+                    SharedDefaults.store.set(true, forKey: LidAwakeState.enabledKey)
+                    services.sync()
+                }
+                guard let engine = services.lidAwake else {
+                    var payload = lidAwakeInactivePayload()
+                    payload[LidAwakeIPC.okKey] = action != .on
+                    if action == .on {
+                        payload[LidAwakeIPC.errorKey] = "The Lid Awake extension could not start."
+                    }
+                    IPC.post(IPC.Name.lidAwakeActionResult, userInfo: payload)
+                    return
+                }
+                switch action {
+                case .status:
+                    var payload = engine.statusPayload()
+                    payload[LidAwakeIPC.okKey] = true
+                    IPC.post(IPC.Name.lidAwakeActionResult, userInfo: payload)
+                case .on:
+                    guard let rawSession = info[LidAwakeIPC.sessionKey] as? String,
+                        let session = LidAwakeSession(rawValue: rawSession)
+                    else {
+                        var payload = engine.statusPayload()
+                        payload[LidAwakeIPC.okKey] = false
+                        payload[LidAwakeIPC.errorKey] = "The Lid Awake session is invalid."
+                        IPC.post(IPC.Name.lidAwakeActionResult, userInfo: payload)
+                        return
+                    }
+                    engine.start(session: session) { outcome in
+                        IPC.post(
+                            IPC.Name.lidAwakeActionResult,
+                            userInfo: engine.resultPayload(outcome))
+                    }
+                case .off:
+                    engine.stop { outcome in
+                        IPC.post(
+                            IPC.Name.lidAwakeActionResult,
+                            userInfo: engine.resultPayload(outcome))
+                    }
+                }
+            })
         _ = IPC.observe(IPC.Name.requestCalendarEvents) {
             Task { @MainActor in
                 guard let store = services.calendar else {
@@ -182,6 +237,22 @@ struct EdithApp: App {
             EmptyView()
         }
     }
+}
+
+private func lidAwakeInactivePayload() -> [String: Any] {
+    [
+        "extensionEnabled": false,
+        "active": false,
+        "requestedActive": false,
+        "applying": false,
+        "batterySuspended": false,
+        "session": LidAwakeState.session().rawValue,
+        "batteryThreshold": SharedDefaults.store.integer(
+            forKey: LidAwakeState.batteryThresholdKey),
+        "restoreOnQuit": LidAwakeState.restoresOnQuit(),
+        "helperStatus": "notRegistered",
+        "appRunning": true,
+    ]
 }
 
 private func dispatchGlobalHotKey(_ id: UInt32) {

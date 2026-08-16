@@ -18,6 +18,7 @@ import Testing
     @Test func theTopLevelOffersCommandsAndMachines() {
         let result = Self.plan(["ed", ""], 1)
         #expect(result.candidates.contains("config"))
+        #expect(result.candidates.contains("lid-awake"))
         #expect(result.candidates.contains("machines"))
         #expect(result.candidates.contains("tuf"))
         #expect(result.remoteMachine == nil)
@@ -59,6 +60,13 @@ import Testing
     @Test func extensionIDsCompleteForEnable() {
         let result = Self.plan(["ed", "extensions", "enable", "cli"], 3)
         #expect(result.candidates == ["clipboard"])
+    }
+
+    @Test func lidAwakeCommandsAndFlagsComplete() {
+        let commands = Self.plan(["ed", "lid-awake", ""], 2)
+        #expect(commands.candidates == ["status", "on", "off", "battery", "restore-on-quit"])
+        let flags = Self.plan(["ed", "lid-awake", "on", "--u"], 3)
+        #expect(flags.candidates == ["--until-lid-reopens"])
     }
 
     @Test func machineNamesCompleteInsideTheMachinesTree() {

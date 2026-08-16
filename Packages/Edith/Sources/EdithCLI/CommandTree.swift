@@ -141,6 +141,23 @@ public enum CommandTree {
                         arguments: [.extensionID]),
                 ]),
             CommandNode(
+                "lid-awake", "Keep the Mac running with its lid closed.",
+                children: [
+                    CommandNode("status", "Show the live state.", options: common),
+                    CommandNode(
+                        "on", "Keep running with the lid closed.", aliases: ["start"],
+                        options: ["--json", "--help", "--for", "--until-lid-reopens"]),
+                    CommandNode(
+                        "off", "Restore normal lid-close sleep.", aliases: ["stop"],
+                        options: common),
+                    CommandNode(
+                        "battery", "Set low-battery auto-pause.", options: common,
+                        arguments: [.free]),
+                    CommandNode(
+                        "restore-on-quit", "Choose whether quitting restores sleep.",
+                        options: common, arguments: [.free]),
+                ]),
+            CommandNode(
                 "permissions", "Inspect and request Edith's macOS permissions.",
                 children: [
                     CommandNode(

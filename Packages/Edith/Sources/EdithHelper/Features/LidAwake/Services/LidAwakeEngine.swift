@@ -72,14 +72,25 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
         if wanted { start(session: session) } else { stop() }
     }
 
-    func start(session: LidAwakeSession) {
-        guard !applying, !stopped else { return }
-        let shouldOverride = lastBattery.map {
-            !$0.onAC && $0.percent < batteryThreshold
-        } ?? false
+    func start(
+        session: LidAwakeSession, completion: ((LidAwakeOutcome) -> Void)? = nil
+    ) {
+        guard !stopped else {
+            completion?(.failed("Lid Awake is not available."))
+            return
+        }
+        guard !applying else {
+            completion?(.failed("Lid Awake is already changing state."))
+            return
+        }
+        let shouldOverride =
+            lastBattery.map {
+                !$0.onAC && $0.percent < batteryThreshold
+            } ?? false
         if active, !batterySuspended {
             configureSession(session, deadline: nil)
             publishState()
+            completion?(.applied)
             return
         }
         applySystemState(
@@ -88,18 +99,31 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
             suspendedAfter: false,
             overrideAfter: shouldOverride,
             sessionAfter: session,
-            configureSessionAfter: true)
+            configureSessionAfter: true,
+            completion: completion)
     }
 
-    func stop() {
-        guard !applying, active || intent else { return }
+    func stop(completion: ((LidAwakeOutcome) -> Void)? = nil) {
+        guard !stopped else {
+            completion?(.failed("Lid Awake is not available."))
+            return
+        }
+        guard !applying else {
+            completion?(.failed("Lid Awake is already changing state."))
+            return
+        }
+        guard active || intent else {
+            completion?(.applied)
+            return
+        }
         applySystemState(
             false,
             intentAfter: false,
             suspendedAfter: false,
             overrideAfter: false,
             sessionAfter: session,
-            configureSessionAfter: false)
+            configureSessionAfter: false,
+            completion: completion)
     }
 
     func refreshFromSystem() {
@@ -122,8 +146,51 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
 
     func syncSettings() {
         guard !stopped else { return }
+        if batterySuspended, batteryThreshold == 0, intent, !applying {
+            applySystemState(
+                true,
+                intentAfter: true,
+                suspendedAfter: false,
+                overrideAfter: false,
+                sessionAfter: session,
+                configureSessionAfter: false)
+            return
+        }
         if let lastBattery { handleBattery(lastBattery) }
         updateRemaining()
+    }
+
+    func statusPayload() -> [String: Any] {
+        var payload: [String: Any] = [
+            "extensionEnabled": true,
+            "active": active,
+            "requestedActive": intent,
+            "applying": applying,
+            "batterySuspended": batterySuspended,
+            "session": session.rawValue,
+            "batteryThreshold": batteryThreshold,
+            "restoreOnQuit": LidAwakeState.restoresOnQuit(),
+            "helperStatus": privilegedClient.state.rawValue,
+            "appRunning": true,
+        ]
+        if let remaining { payload["remainingSeconds"] = remaining }
+        if let lastError { payload["lastError"] = lastError }
+        return payload
+    }
+
+    func resultPayload(_ outcome: LidAwakeOutcome) -> [String: Any] {
+        var payload = statusPayload()
+        switch outcome {
+        case .applied:
+            payload[LidAwakeIPC.okKey] = true
+        case .cancelled:
+            payload[LidAwakeIPC.okKey] = false
+            payload[LidAwakeIPC.errorKey] = "The change was cancelled."
+        case .failed(let message):
+            payload[LidAwakeIPC.okKey] = false
+            payload[LidAwakeIPC.errorKey] = message
+        }
+        return payload
     }
 
     private var batteryThreshold: Int {
@@ -175,7 +242,8 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
         suspendedAfter: Bool,
         overrideAfter: Bool,
         sessionAfter: LidAwakeSession,
-        configureSessionAfter: Bool
+        configureSessionAfter: Bool,
+        completion: ((LidAwakeOutcome) -> Void)? = nil
     ) {
         guard !applying else { return }
         applying = true
@@ -190,7 +258,8 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
                 suspendedAfter: suspendedAfter,
                 overrideAfter: overrideAfter,
                 sessionAfter: sessionAfter,
-                configureSessionAfter: configureSessionAfter)
+                configureSessionAfter: configureSessionAfter,
+                completion: completion)
         }
     }
 
@@ -219,7 +288,8 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
         suspendedAfter: Bool,
         overrideAfter: Bool,
         sessionAfter: LidAwakeSession,
-        configureSessionAfter: Bool
+        configureSessionAfter: Bool,
+        completion: ((LidAwakeOutcome) -> Void)?
     ) {
         applying = false
         switch outcome {
@@ -248,6 +318,7 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
         case .failed(let message):
             lastError = message
         }
+        completion?(outcome)
     }
 
     private func configureSession(_ session: LidAwakeSession, deadline: Date?) {
@@ -260,7 +331,8 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
             LidAwakeState.setSessionDeadline(nil)
         case .fifteenMinutes, .thirtyMinutes, .oneHour, .twoHours:
             let minutes = session.minutes ?? 0
-            let target = deadline.flatMap { $0 > Date() ? $0 : nil }
+            let target =
+                deadline.flatMap { $0 > Date() ? $0 : nil }
                 ?? Date().addingTimeInterval(TimeInterval(minutes) * 60)
             autoOffTimer.start(deadline: target)
             LidAwakeState.setSessionDeadline(target)

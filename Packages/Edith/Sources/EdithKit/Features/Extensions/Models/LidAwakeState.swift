@@ -50,6 +50,19 @@ public enum LidAwakeState {
     }
 }
 
+public enum LidAwakeIPC {
+    public enum Action: String, Sendable {
+        case status
+        case on
+        case off
+    }
+
+    public static let actionKey = "action"
+    public static let sessionKey = "session"
+    public static let okKey = "ok"
+    public static let errorKey = "error"
+}
+
 public enum LidAwakeSession: String, CaseIterable, Sendable {
     case indefinite
     case fifteenMinutes

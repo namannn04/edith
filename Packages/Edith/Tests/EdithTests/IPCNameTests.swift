@@ -27,6 +27,10 @@ import Testing
         IPC.Name.requestKeyboardClean,
         IPC.Name.openPanel,
         IPC.Name.toggleLidAwake,
+        IPC.Name.setLidAwakeSession,
+        IPC.Name.lidAwakeSettingsChanged,
+        IPC.Name.requestLidAwakeAction,
+        IPC.Name.lidAwakeActionResult,
         IPC.Name.lidAwakeChanged,
     ]
 

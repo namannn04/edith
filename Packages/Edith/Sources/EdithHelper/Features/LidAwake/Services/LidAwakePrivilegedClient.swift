@@ -2,7 +2,7 @@ import EdithKit
 import Foundation
 import ServiceManagement
 
-enum LidAwakePrivilegedClientState: Equatable {
+enum LidAwakePrivilegedClientState: String, Equatable {
     case notRegistered
     case awaitingApproval
     case enabled
@@ -83,9 +83,10 @@ final class LidAwakePrivilegedClient {
         let connection = connection ?? makeConnection()
         self.connection = connection
         var connectionError: Error?
-        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-            connectionError = error
-        } as? LidAwakePrivilegedProtocol
+        let proxy =
+            connection.remoteObjectProxyWithErrorHandler { error in
+                connectionError = error
+            } as? LidAwakePrivilegedProtocol
 
         if let connectionError {
             connection.invalidate()
