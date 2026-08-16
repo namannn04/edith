@@ -37,7 +37,8 @@ import Testing
             plist["BundleProgram"] as? String
                 == "Contents/Library/PrivilegedHelperTools/com.pulkit.edith.lidawake")
         let associated = plist["AssociatedBundleIdentifiers"] as? [String]
-        #expect(associated?.contains("com.pulkit.edith.statusbar") == true)
+        #expect(
+            associated?.contains(LidAwakePrivilegedService.clientBundleIdentifier) == true)
         let build = try String(
             contentsOf: root.appendingPathComponent("build.sh"), encoding: .utf8)
         #expect(

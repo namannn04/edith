@@ -60,22 +60,31 @@ final class LidAwakeHelper: NSObject, NSXPCListenerDelegate, LidAwakePrivilegedP
     }
 
     private static func loadClientRequirement() -> SecRequirement? {
-        let executable = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
-        let app =
-            executable
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        var code: SecStaticCode?
+        var ownCode: SecCode?
         guard
-            SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess,
-            let code
+            SecCodeCopySelf([], &ownCode) == errSecSuccess,
+            let ownCode
         else { return nil }
+        var ownStaticCode: SecStaticCode?
+        guard
+            SecCodeCopyStaticCode(ownCode, [], &ownStaticCode) == errSecSuccess,
+            let ownStaticCode
+        else { return nil }
+        var information: CFDictionary?
+        guard
+            SecCodeCopySigningInformation(
+                ownStaticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information)
+                == errSecSuccess,
+            let values = information as? [CFString: Any],
+            let teamIdentifier = values[kSecCodeInfoTeamIdentifier] as? String
+        else { return nil }
+        let expression =
+            "identifier \"\(LidAwakePrivilegedService.clientBundleIdentifier)\" and anchor apple generic and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
         var requirement: SecRequirement?
-        guard SecCodeCopyDesignatedRequirement(code, [], &requirement) == errSecSuccess else {
-            return nil
-        }
+        guard
+            SecRequirementCreateWithString(expression as CFString, [], &requirement)
+                == errSecSuccess
+        else { return nil }
         return requirement
     }
 
