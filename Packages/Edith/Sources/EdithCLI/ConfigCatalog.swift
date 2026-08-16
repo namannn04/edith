@@ -427,6 +427,13 @@ public enum ConfigCatalog {
             AppStorageKeys.General.preventSleep, .bool, group: "system",
             summary: "Keep the Mac awake (Keep Awake).", fallback: .bool(false)),
         SettingDefinition(
+            LidAwakeState.enabledKey, .bool, group: "system",
+            summary: "Lid Awake extension: keep running with the lid shut.",
+            fallback: .bool(false)),
+        SettingDefinition(
+            LidAwakeState.restoreOnQuitKey, .bool, group: "system",
+            summary: "Restore normal lid-close sleep when Edith quits.", fallback: .bool(true)),
+        SettingDefinition(
             "systemAppsSort", .string, group: "system", summary: "Running apps sort column.",
             fallback: .string("memory")),
         SettingDefinition(
