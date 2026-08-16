@@ -137,11 +137,25 @@ xcodebuild -project edth.xcodeproj -scheme EdithMain -configuration "$CONFIG" \
 BUILT="$DERIVED/Build/Products/$CONFIG/Edith.app"
 test -d "$BUILT" || { echo "build did not produce $BUILT" >&2; exit 1; }
 
+SWIFT_BIN="$(DEVELOPER_DIR="$DEVELOPER_DIR" xcrun --find swift)"
+SWIFT_CONFIGURATION=debug
+[ "$CONFIG" = Release ] && SWIFT_CONFIGURATION=release
+"$SWIFT_BIN" build --package-path Packages/Edith --configuration "$SWIFT_CONFIGURATION" \
+  --product EdithLidAwakeHelper
+PRIVILEGED_HELPER_BUILD="$($SWIFT_BIN build --package-path Packages/Edith \
+  --configuration "$SWIFT_CONFIGURATION" --show-bin-path)/EdithLidAwakeHelper"
+
 APP="dist/Edith.app"
 HELPER="$APP/Contents/Library/LoginItems/Edith.app"
 FILES_APP="$APP/Contents/Library/Applications/Edith Files.app"
+PRIVILEGED_HELPER="$APP/Contents/Library/PrivilegedHelperTools/com.pulkit.edith.lidawake"
+LAUNCH_DAEMONS="$APP/Contents/Library/LaunchDaemons"
 rm -rf dist && mkdir -p dist
 ditto "$BUILT" "$APP"
+
+mkdir -p "$(dirname "$PRIVILEGED_HELPER")" "$LAUNCH_DAEMONS"
+cp "$PRIVILEGED_HELPER_BUILD" "$PRIVILEGED_HELPER"
+cp Resources/com.pulkit.edith.lidawake.plist "$LAUNCH_DAEMONS/"
 
 rm -rf "$FILES_APP/Contents/Frameworks"
 
@@ -180,6 +194,7 @@ sign_tool() {
 
 sign_tool "$APP/Contents/MacOS/ed"
 sign_tool "$APP/Contents/MacOS/edh"
+sign_tool "$PRIVILEGED_HELPER"
 sign_tool "$APP/Contents/Frameworks/Sparkle.framework"
 sign "$HELPER"
 sign "$FILES_APP"
