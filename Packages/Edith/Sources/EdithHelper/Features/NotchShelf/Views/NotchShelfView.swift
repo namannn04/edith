@@ -334,6 +334,32 @@ private struct NotchHomeTab: View {
                 actionTile("laptopcomputer", "Lid awake", active: lidAwakeActive) {
                     controller.toggleLidAwake()
                 }
+                .contextMenu {
+                    Button("Indefinitely") {
+                        controller.startLidAwake(.indefinite)
+                    }
+                    Button("15 minutes") {
+                        controller.startLidAwake(.fifteenMinutes)
+                    }
+                    Button("30 minutes") {
+                        controller.startLidAwake(.thirtyMinutes)
+                    }
+                    Button("1 hour") {
+                        controller.startLidAwake(.oneHour)
+                    }
+                    Button("2 hours") {
+                        controller.startLidAwake(.twoHours)
+                    }
+                    Button("Until lid reopens") {
+                        controller.startLidAwake(.untilLidReopens)
+                    }
+                    if lidAwakeActive {
+                        Divider()
+                        Button("Turn off") {
+                            controller.stopLidAwake()
+                        }
+                    }
+                }
             }
             if presenterEnabled {
                 actionTile("person.wave.2", "Presenter", active: presenterMode) {

@@ -788,6 +788,16 @@ final class NotchShelfController: FeatureModule {
         lidAwakeEngine?.toggle()
     }
 
+    func startLidAwake(_ session: LidAwakeSession) {
+        collapseNow()
+        lidAwakeEngine?.start(session: session)
+    }
+
+    func stopLidAwake() {
+        collapseNow()
+        lidAwakeEngine?.stop()
+    }
+
     func openNowPlayingApp() {
         let source = nowPlaying?.source
         collapseNow()
