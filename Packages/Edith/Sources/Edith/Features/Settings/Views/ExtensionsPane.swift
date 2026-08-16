@@ -88,14 +88,8 @@ struct ExtensionsPane: View {
                 })
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: UIScale.pt(18)) {
-                        section("ENABLED", entries: enabledEntries)
-                        section("AVAILABLE", entries: availableEntries)
-                    }
-                    .pageContent(compact)
-                    .animation(
-                        Motion.animation(Motion.snap, reduceMotion: reduceMotion),
-                        value: enabledEntries.map(\.id))
+                    extensionGrid
+                        .pageContent(compact)
                 }
                 .scrollIndicators(.never)
                 .onAppear {
@@ -177,35 +171,16 @@ struct ExtensionsPane: View {
             entries: ExtensionRegistry.entries, query: query, category: category)
     }
 
-    private var enabledEntries: [ExtensionRegistryEntry] {
-        filteredEntries.filter { enabledBinding(for: $0).wrappedValue }
-    }
-
-    private var availableEntries: [ExtensionRegistryEntry] {
-        filteredEntries.filter { !enabledBinding(for: $0).wrappedValue }
-    }
-
-    @ViewBuilder
-    private func section(_ title: String, entries: [ExtensionRegistryEntry]) -> some View {
-        if !entries.isEmpty {
-            VStack(alignment: .leading, spacing: UIScale.pt(10)) {
-                HStack(spacing: UIScale.pt(6)) {
-                    eyebrow(title)
-                    Text("\(entries.count)")
-                        .font(.system(size: UIScale.pt(10), weight: .semibold))
-                        .foregroundStyle(.quaternary)
-                }
-                LazyVGrid(columns: gridColumns, spacing: UIScale.pt(14)) {
-                    ForEach(entries) { entry in
-                        ExtensionMarketplaceCard(
-                            entry: entry,
-                            enabled: permissionAwareBinding(for: entry),
-                            dark: colorScheme == .dark,
-                            open: { openSettings(for: entry) }
-                        )
-                        .id(entry.id)
-                    }
-                }
+    private var extensionGrid: some View {
+        LazyVGrid(columns: gridColumns, spacing: UIScale.pt(14)) {
+            ForEach(filteredEntries) { entry in
+                ExtensionMarketplaceCard(
+                    entry: entry,
+                    enabled: permissionAwareBinding(for: entry),
+                    dark: colorScheme == .dark,
+                    open: { openSettings(for: entry) }
+                )
+                .id(entry.id)
             }
         }
     }

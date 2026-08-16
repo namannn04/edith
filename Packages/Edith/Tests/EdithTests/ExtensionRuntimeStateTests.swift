@@ -46,6 +46,19 @@ import Testing
         }
     }
 
+    @Test func extensionsScreenUsesOneStableCardOrder() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Edith/Features/Settings/Views/ExtensionsPane.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(source.contains("ForEach(filteredEntries)"))
+        #expect(!source.contains("enabledEntries"))
+        #expect(!source.contains("availableEntries"))
+    }
+
     @Test func focusDimSeparatesInstalledFromActive() {
         #expect(FocusDimState.enabledKey != FocusDimState.activeKey)
         let defaults = UserDefaults(suiteName: "test.focusdim")!
