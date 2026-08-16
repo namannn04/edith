@@ -41,7 +41,7 @@ struct LidAwakeRows: View {
                 }
                 .pointerCursor()
                 Text(
-                    "The first activation may ask macOS to approve Edith's privileged helper. After that, shelf toggles are silent."
+                    "The first activation may open Login Items for one-time approval of Edith's background helper. After that, shelf toggles are silent."
                 )
                 .font(.system(size: UIScale.pt(10))).foregroundStyle(.secondary)
                 Picker("Session", selection: sessionBinding) {

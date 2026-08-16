@@ -174,7 +174,9 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
             "appRunning": true,
         ]
         if let remaining { payload["remainingSeconds"] = remaining }
-        if let lastError { payload["lastError"] = lastError }
+        if let lastError = lastError ?? privilegedClient.registrationError {
+            payload["lastError"] = lastError
+        }
         return payload
     }
 
@@ -183,9 +185,6 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
         switch outcome {
         case .applied:
             payload[LidAwakeIPC.okKey] = true
-        case .cancelled:
-            payload[LidAwakeIPC.okKey] = false
-            payload[LidAwakeIPC.errorKey] = "The change was cancelled."
         case .failed(let message):
             payload[LidAwakeIPC.okKey] = false
             payload[LidAwakeIPC.errorKey] = message
@@ -264,21 +263,12 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
     }
 
     private func apply(systemActive: Bool) async -> LidAwakeOutcome {
-        if privilegedClient.isUsable {
-            do {
-                try await privilegedClient.setSleepDisabled(systemActive)
-                return .applied
-            } catch {
-                let fallback = await Task.detached(priority: .userInitiated) {
-                    Self.applyViaOsascript(active: systemActive)
-                }.value
-                if case .failed = fallback { return .failed(error.localizedDescription) }
-                return fallback
-            }
+        do {
+            try await privilegedClient.setSleepDisabled(systemActive)
+            return .applied
+        } catch {
+            return .failed(error.localizedDescription)
         }
-        return await Task.detached(priority: .userInitiated) {
-            Self.applyViaOsascript(active: systemActive)
-        }.value
     }
 
     private func finish(
@@ -313,8 +303,6 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
             lastError = nil
             NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
             publishState()
-        case .cancelled:
-            lastError = nil
         case .failed(let message):
             lastError = message
         }
@@ -388,25 +376,6 @@ final class LidAwakeEngine: ObservableObject, FeatureModule {
         LidAwakeState.setActive(active)
         LidAwakeState.setSession(session)
         IPC.post(IPC.Name.lidAwakeChanged)
-    }
-
-    private nonisolated static func applyViaOsascript(active: Bool) -> LidAwakeOutcome {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: LidAwakeCommand.authorizationToolPath)
-        process.arguments = ["-e", LidAwakeCommand.privilegedScript(active: active)]
-        let errors = Pipe()
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = errors
-        do {
-            try process.run()
-        } catch {
-            return .failed(error.localizedDescription)
-        }
-        let data = errors.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return LidAwakeCommand.outcome(
-            status: process.terminationStatus,
-            errorOutput: String(data: data, encoding: .utf8) ?? "")
     }
 
     private nonisolated static func readSystemState() -> Bool {

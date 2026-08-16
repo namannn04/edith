@@ -20,9 +20,10 @@ Running it without a subcommand is the same as `ed lid-awake status`.
 `on`, `off` and live `status` use the running menu bar app. They wait for the
 same engine used by the shelf and extension popup, so a successful command means
 the system setting was actually applied. `on` enables the extension if needed.
-The first activation can still require macOS approval for Edith's privileged
-helper. Later changes use that helper without asking for the administrator
-password again.
+The first activation opens System Settings when macOS still needs approval for
+Edith's background helper. Turn on the Edith item that affects all users once,
+then run the command again. Later changes use that helper without asking for the
+administrator password again. Edith does not fall back to a password dialog.
 
 `status` also works while Edith is closed. In that case it reports the last
 stored state with `appRunning` set to `false` and `helperStatus` set to

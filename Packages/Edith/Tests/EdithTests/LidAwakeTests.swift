@@ -2,6 +2,7 @@ import Foundation
 import Testing
 
 @testable import EdithKit
+@testable import EdithHelper
 
 @Suite struct LidAwakeTests {
     @Test func commandTogglesTheLidCloseSleepPathway() {
@@ -10,11 +11,42 @@ import Testing
         #expect(LidAwakeCommand.shellCommand(active: true) == "/usr/bin/pmset -a disablesleep 1")
     }
 
-    @Test func privilegedScriptAsksForAdministratorRights() {
-        let script = LidAwakeCommand.privilegedScript(active: true)
-        #expect(script.hasPrefix("do shell script \""))
-        #expect(script.hasSuffix("\" with administrator privileges"))
-        #expect(script.contains(LidAwakeCommand.shellCommand(active: true)))
+    @Test func unavailableHelperErrorsGiveTheCorrectRecovery() {
+        let approval = LidAwakePrivilegedClientError.helperUnavailable(.awaitingApproval)
+        #expect(
+            approval.errorDescription?.contains("System Settings > General > Login Items") == true)
+        let missing = LidAwakePrivilegedClientError.helperUnavailable(.notFound)
+        #expect(missing.errorDescription?.contains("Reinstall Edith") == true)
+        let registration = LidAwakePrivilegedClientError.helperUnavailable(.notRegistered)
+        #expect(registration.errorDescription?.contains("Reopen Edith") == true)
+    }
+
+    @Test func daemonIsPackagedInsideItsCallingApp() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let plistURL = root.appendingPathComponent("Resources/com.pulkit.edith.lidawake.plist")
+        let plistData = try Data(contentsOf: plistURL)
+        let plist = try #require(
+            PropertyListSerialization.propertyList(from: plistData, format: nil)
+                as? [String: Any])
+        #expect(
+            plist["BundleProgram"] as? String
+                == "Contents/Library/PrivilegedHelperTools/com.pulkit.edith.lidawake")
+        let associated = plist["AssociatedBundleIdentifiers"] as? [String]
+        #expect(associated?.contains("com.pulkit.edith.statusbar") == true)
+        let build = try String(
+            contentsOf: root.appendingPathComponent("build.sh"), encoding: .utf8)
+        #expect(
+            build.contains(
+                "PRIVILEGED_HELPER=\"$HELPER/Contents/Library/PrivilegedHelperTools/com.pulkit.edith.lidawake\""
+            ))
+        #expect(
+            build.contains(
+                "LAUNCH_DAEMONS=\"$HELPER/Contents/Library/LaunchDaemons\""))
     }
 
     @Test func powerSettingsReportSleepDisabled() {
@@ -34,23 +66,6 @@ import Testing
         #expect(!LidAwakeCommand.sleepDisabled(inPowerSettings: off))
         #expect(!LidAwakeCommand.sleepDisabled(inPowerSettings: "Currently in use:\n standby 1"))
         #expect(!LidAwakeCommand.sleepDisabled(inPowerSettings: ""))
-    }
-
-    @Test func successfulRunIsApplied() {
-        #expect(LidAwakeCommand.outcome(status: 0, errorOutput: "") == .applied)
-    }
-
-    @Test func dismissedPasswordPromptIsNotAnError() {
-        let cancelled = "execution error: User canceled. (-128)"
-        #expect(LidAwakeCommand.outcome(status: 1, errorOutput: cancelled) == .cancelled)
-    }
-
-    @Test func failureKeepsTheReasonUserFacing() {
-        let denied = "execution error: The administrator password was incorrect. (-60007)"
-        #expect(LidAwakeCommand.outcome(status: 1, errorOutput: denied) == .failed(denied))
-        #expect(
-            LidAwakeCommand.outcome(status: 3, errorOutput: "   \n")
-                == .failed("pmset exited with status 3"))
     }
 
     @Test func installedAndActiveAreSeparateState() {

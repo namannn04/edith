@@ -164,13 +164,11 @@ public struct LidAwakeLidSessionTracker: Sendable {
 
 public enum LidAwakeOutcome: Equatable, Sendable {
     case applied
-    case cancelled
     case failed(String)
 }
 
 public enum LidAwakeCommand {
     public static let toolPath = "/usr/bin/pmset"
-    public static let authorizationToolPath = "/usr/bin/osascript"
 
     public static func arguments(active: Bool) -> [String] {
         ["-a", "disablesleep", active ? "1" : "0"]
@@ -178,10 +176,6 @@ public enum LidAwakeCommand {
 
     public static func shellCommand(active: Bool) -> String {
         ([toolPath] + arguments(active: active)).joined(separator: " ")
-    }
-
-    public static func privilegedScript(active: Bool) -> String {
-        "do shell script \"\(shellCommand(active: active))\" with administrator privileges"
     }
 
     public static func sleepDisabled(inPowerSettings output: String) -> Bool {
@@ -193,17 +187,6 @@ public enum LidAwakeCommand {
         return false
     }
 
-    public static func outcome(status: Int32, errorOutput: String) -> LidAwakeOutcome {
-        guard status != 0 else { return .applied }
-        if errorOutput.contains("-128")
-            || errorOutput.localizedCaseInsensitiveContains("User canceled")
-        {
-            return .cancelled
-        }
-        let lastLine = errorOutput.split(whereSeparator: { $0.isNewline }).last.map { String($0) }
-        let message = (lastLine ?? "").trimmingCharacters(in: .whitespaces)
-        return .failed(message.isEmpty ? "pmset exited with status \(status)" : message)
-    }
 }
 
 @objc public protocol LidAwakePrivilegedProtocol {
