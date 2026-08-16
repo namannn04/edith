@@ -25,6 +25,7 @@ products += [
     .library(name: "EdithKit", targets: ["EdithKit"]),
     .library(name: "EdithCLI", targets: ["EdithCLI"]),
     .library(name: "Highlighter", targets: ["Highlighter"]),
+    .executable(name: "EdithLidAwakeHelper", targets: ["EdithLidAwakeHelper"]),
 ]
 
 dependencies += [
@@ -66,6 +67,12 @@ targets += [
     .executableTarget(
         name: "edh",
         dependencies: ["EdithCLI"],
+        swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
+    .executableTarget(
+        name: "EdithLidAwakeHelper",
+        dependencies: ["EdithKit"],
+        path: "Sources/EdithLidAwakeHelper",
         swiftSettings: [.swiftLanguageMode(.v5)]
     ),
     .target(

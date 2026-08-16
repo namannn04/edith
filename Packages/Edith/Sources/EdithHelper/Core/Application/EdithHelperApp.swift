@@ -122,6 +122,21 @@ struct EdithApp: App {
         _ = IPC.observe(IPC.Name.presenterPauseAuto) {
             services.presenter?.pauseUntilShareEnds()
         }
+        _ = IPC.observe(IPC.Name.toggleLidAwake) {
+            services.lidAwake?.toggle()
+        }
+        _ = IPC.observe(
+            IPC.Name.setLidAwakeSession,
+            info: { info in
+                guard let rawValue = info["session"] as? String,
+                    let session = LidAwakeSession(rawValue: rawValue)
+                else { return }
+                services.lidAwake?.start(session: session)
+            })
+        _ = IPC.observe(IPC.Name.lidAwakeSettingsChanged) {
+            services.lidAwake?.syncSettings()
+        }
+        LidAwakeActionBridge.shared.install(services: services)
         _ = IPC.observe(IPC.Name.requestCalendarEvents) {
             Task { @MainActor in
                 guard let store = services.calendar else {

@@ -15,6 +15,7 @@ final class AppServices {
     private(set) var focusDim: FocusDimEngine?
     private(set) var presenter: PresenterDetector?
     private(set) var micMute: MicMuteEngine?
+    private(set) var lidAwake: LidAwakeEngine?
     private(set) var systemStats: SystemStatsStatusItem?
 
     static func preferenceOnByDefault(_ key: String) -> Bool {
@@ -150,6 +151,14 @@ final class AppServices {
         }
         micMute?.syncSettings()
 
+        let lidAwakeOn = Self.extensionEnabled(LidAwakeState.enabledKey)
+        if lidAwakeOn, lidAwake == nil { lidAwake = LidAwakeEngine() }
+        if !lidAwakeOn, let engine = lidAwake {
+            engine.uninstall()
+            lidAwake = nil
+        }
+        notchShelf?.attachLidAwake(lidAwake)
+
         let statsOn = Self.extensionEnabled(AppStorageKeys.MenuBar.systemStats)
         if statsOn, systemStats == nil { systemStats = SystemStatsStatusItem() }
         if !statsOn, let stats = systemStats {
@@ -163,6 +172,8 @@ final class AppServices {
         notchShelf?.syncAlerts()
         notchShelf?.rebuildPanels()
         system?.syncPreventSleep()
+        lidAwake?.refreshFromSystem()
+        lidAwake?.syncSettings()
         focusDim?.applySettings()
         presenter?.applySettings()
     }

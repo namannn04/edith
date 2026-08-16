@@ -26,6 +26,12 @@ import Testing
         IPC.Name.requestMusicState,
         IPC.Name.requestKeyboardClean,
         IPC.Name.openPanel,
+        IPC.Name.toggleLidAwake,
+        IPC.Name.setLidAwakeSession,
+        IPC.Name.lidAwakeSettingsChanged,
+        IPC.Name.requestLidAwakeAction,
+        IPC.Name.lidAwakeActionResult,
+        IPC.Name.lidAwakeChanged,
     ]
 
     @Test func namesAreUnique() {

@@ -51,6 +51,7 @@ current platform scope.
 - **Mic mute** - system-wide microphone kill switch with a menu bar indicator.
 - **Focus dim** - dims every screen except the window you are working in.
 - **System tools** - prevent-sleep toggle, CPU and memory readout, and a keyboard-cleaning lock that auto-restores after 60s.
+- **Lid awake** - keeps the Mac running with the lid shut, on battery and unplugged.
 - **Disk cleaner** - scans build caches, package managers and old logs.
 - **Global shortcut** - toggle the panel from anywhere, ⌥⌘E by default and re-recordable.
 
@@ -61,6 +62,7 @@ does. `edh` and `edith` are the same binary.
 
 ```
 ed config set preventSleep true     every setting the UI exposes, applied live
+ed lid-awake on --for 30m           keep running with the lid shut for 30 minutes
 ed usage limits --json              the same numbers the rings show
 ed machines ls                      the computers Edith can reach over SSH
 ed tuf docker ps                    run anything on one of them
@@ -125,3 +127,8 @@ You may use, study, modify and redistribute it; any version you distribute must
 also be released under the GPL-3.0 with its source available.
 
 Sparkle, used for in-app updates, is distributed under the MIT licence.
+
+## Attribution
+
+The lid-awake feature was inspired by [Awayke](https://github.com/daemonphantom/Awayke),
+an MIT-licensed macOS utility by daemonphantom.

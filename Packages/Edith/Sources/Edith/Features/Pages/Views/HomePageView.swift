@@ -22,6 +22,8 @@ struct HomePage: View {
     @AppStorage(AppStorageKeys.Presenter.enabled, store: SharedDefaults.store) private
         var presenterEnabled =
         false
+    @AppStorage(LidAwakeState.enabledKey, store: SharedDefaults.store) private
+        var lidAwakeEnabled = false
     @Environment(\.colorScheme) private var scheme
     @State private var usageCardHeight: CGFloat?
     @Environment(\.automaticViewActionsEnabled) private var automaticActionsEnabled
@@ -39,13 +41,13 @@ struct HomePage: View {
                         ViewThatFits(in: .horizontal) {
                             HStack(alignment: .top, spacing: UIScale.pt(16)) {
                                 WorldClocksCard(dark: dark)
-                                if systemEnabled || presenterEnabled {
+                                if systemEnabled || presenterEnabled || lidAwakeEnabled {
                                     QuickActionsCard(dark: dark)
                                 }
                             }
                             VStack(spacing: UIScale.pt(16)) {
                                 WorldClocksCard(dark: dark)
-                                if systemEnabled || presenterEnabled {
+                                if systemEnabled || presenterEnabled || lidAwakeEnabled {
                                     QuickActionsCard(dark: dark)
                                 }
                             }
@@ -525,14 +527,23 @@ private struct QuickActionsCard: View {
         false
     @AppStorage(AppStorageKeys.Tabs.systemEnabled, store: SharedDefaults.store) private
         var systemEnabled = false
+    @AppStorage(LidAwakeState.enabledKey, store: SharedDefaults.store) private
+        var lidAwakeEnabled = false
     @AppStorage(AppStorageKeys.General.theme, store: SharedDefaults.store) private var themeName =
         "accent"
+    @State private var lidAwakeActive = SharedDefaults.store.bool(
+        forKey: LidAwakeState.activeKey)
 
     private var theme: Color { themeColor(themeName) }
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: UIScale.pt(12)),
+            count: 4)
+    }
 
     var body: some View {
         SkinCard(title: "Quick actions", dark: dark) {
-            HStack(alignment: .top, spacing: UIScale.pt(12)) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: UIScale.pt(12)) {
                 if systemEnabled {
                     tile(
                         icon: "keyboard", title: "Clean keys",
@@ -556,8 +567,22 @@ private struct QuickActionsCard: View {
                         if !presenterMode { IPC.post(IPC.Name.presenterPauseAuto) }
                     }
                 }
+                if lidAwakeEnabled {
+                    tile(
+                        icon: "laptopcomputer", title: "Lid awake",
+                        sub: "Keep running with the lid closed", active: lidAwakeActive
+                    ) {
+                        IPC.post(IPC.Name.toggleLidAwake)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.lidAwakeChanged)
+        ) { _ in
+            lidAwakeActive = SharedDefaults.store.bool(forKey: LidAwakeState.activeKey)
         }
     }
 

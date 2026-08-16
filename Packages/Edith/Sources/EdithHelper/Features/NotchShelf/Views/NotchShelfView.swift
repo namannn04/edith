@@ -288,6 +288,7 @@ private struct NotchHomeTab: View {
         var systemEnabled = true
     @AppStorage(AppStorageKeys.Notch.shelfShowMusic, store: SharedDefaults.store) private
         var showMusic = true
+    @AppStorage("lidAwakeActive", store: SharedDefaults.store) private var lidAwakeActive = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -307,7 +308,9 @@ private struct NotchHomeTab: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            if systemEnabled || presenterEnabled || controller.canPickColor {
+            if systemEnabled || presenterEnabled || controller.canPickColor
+                || controller.canToggleLidAwake
+            {
                 quickActions
             }
         }
@@ -325,6 +328,37 @@ private struct NotchHomeTab: View {
                 ) {
                     preventSleep.toggle()
                     controller.collapseNow()
+                }
+            }
+            if controller.canToggleLidAwake {
+                actionTile("laptopcomputer", "Lid awake", active: lidAwakeActive) {
+                    controller.toggleLidAwake()
+                }
+                .contextMenu {
+                    Button("Indefinitely") {
+                        controller.startLidAwake(.indefinite)
+                    }
+                    Button("15 minutes") {
+                        controller.startLidAwake(.fifteenMinutes)
+                    }
+                    Button("30 minutes") {
+                        controller.startLidAwake(.thirtyMinutes)
+                    }
+                    Button("1 hour") {
+                        controller.startLidAwake(.oneHour)
+                    }
+                    Button("2 hours") {
+                        controller.startLidAwake(.twoHours)
+                    }
+                    Button("Until lid reopens") {
+                        controller.startLidAwake(.untilLidReopens)
+                    }
+                    if lidAwakeActive {
+                        Divider()
+                        Button("Turn off") {
+                            controller.stopLidAwake()
+                        }
+                    }
                 }
             }
             if presenterEnabled {

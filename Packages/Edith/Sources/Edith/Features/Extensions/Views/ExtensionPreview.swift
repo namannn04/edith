@@ -21,6 +21,7 @@ struct ExtensionPreview: View {
         case "machines": machinesPreview(phase: phase)
         case "systemStats": systemStatsPreview(phase: phase)
         case "micMute": micMutePreview(phase: phase)
+        case "lidAwake": lidAwakePreview(phase: phase)
         case "calendar": calendarPreview(phase: phase)
         case "notchShelf": notchPreview(phase: phase)
         case "clipboard": clipboardPreview(phase: phase)
@@ -193,6 +194,36 @@ struct ExtensionPreview: View {
                 .rotationEffect(.degrees(-32))
                 .offset(y: CGFloat(-slashExit * 13))
                 .opacity(slashVisibility)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func lidAwakePreview(phase: Double) -> some View {
+        let progress = loopProgress(phase, duration: 3.6)
+        let close = smoothed(clamped((progress - 0.12) / 0.3))
+        let open = smoothed(clamped((progress - 0.74) / 0.2))
+        let shut = close - open
+        let pulse = (sin(phase * 3.1) + 1) / 2
+        return VStack(spacing: UIScale.pt(0)) {
+            RoundedRectangle(cornerRadius: UIScale.pt(4), style: .continuous)
+                .fill(DashSkin.paper2(dark))
+                .overlay {
+                    RoundedRectangle(cornerRadius: UIScale.pt(4), style: .continuous)
+                        .strokeBorder(DashSkin.lineStrong(dark))
+                }
+                .frame(width: UIScale.pt(58), height: UIScale.pt(36))
+                .rotation3DEffect(
+                    .degrees(-88 * shut), axis: (x: 1, y: 0, z: 0), anchor: .bottom,
+                    perspective: 0.4)
+            Capsule()
+                .fill(DashSkin.lineStrong(dark))
+                .frame(width: UIScale.pt(68), height: UIScale.pt(5))
+        }
+        .overlay(alignment: .bottom) {
+            Circle()
+                .fill(brandAccent.opacity(0.45 + pulse * 0.45))
+                .frame(width: UIScale.pt(7), height: UIScale.pt(7))
+                .offset(y: UIScale.pt(13))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

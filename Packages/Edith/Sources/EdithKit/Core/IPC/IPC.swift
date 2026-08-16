@@ -76,6 +76,16 @@ public enum IPC {
             "com.pulkit.edith.musicRevealFolder")
         public static let presenterPauseAuto = Notification.Name(
             "com.pulkit.edith.presenterPauseAuto")
+        public static let toggleLidAwake = Notification.Name("com.pulkit.edith.toggleLidAwake")
+        public static let setLidAwakeSession = Notification.Name(
+            "com.pulkit.edith.setLidAwakeSession")
+        public static let lidAwakeSettingsChanged = Notification.Name(
+            "com.pulkit.edith.lidAwakeSettingsChanged")
+        public static let requestLidAwakeAction = Notification.Name(
+            "com.pulkit.edith.requestLidAwakeAction")
+        public static let lidAwakeActionResult = Notification.Name(
+            "com.pulkit.edith.lidAwakeActionResult")
+        public static let lidAwakeChanged = Notification.Name("com.pulkit.edith.lidAwakeChanged")
         public static let requestUpdateCheck = Notification.Name(
             "com.pulkit.edith.requestUpdateCheck")
         public static let updateCheckFinished = Notification.Name(

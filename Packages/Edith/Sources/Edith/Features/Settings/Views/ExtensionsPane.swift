@@ -60,6 +60,8 @@ struct ExtensionsPane: View {
     @AppStorage(AppStorageKeys.ColorPicker.enabled, store: SharedDefaults.store) private
         var colorPickerEnabled =
         false
+    @AppStorage(LidAwakeState.enabledKey, store: SharedDefaults.store) private
+        var lidAwakeEnabled = false
     @AppStorage(AppStorageKeys.Presenter.enabled, store: SharedDefaults.store) private
         var presenterEnabled =
         false
@@ -86,14 +88,8 @@ struct ExtensionsPane: View {
                 })
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: UIScale.pt(18)) {
-                        section("ENABLED", entries: enabledEntries)
-                        section("AVAILABLE", entries: availableEntries)
-                    }
-                    .pageContent(compact)
-                    .animation(
-                        Motion.animation(Motion.snap, reduceMotion: reduceMotion),
-                        value: enabledEntries.map(\.id))
+                    extensionGrid
+                        .pageContent(compact)
                 }
                 .scrollIndicators(.never)
                 .onAppear {
@@ -175,35 +171,16 @@ struct ExtensionsPane: View {
             entries: ExtensionRegistry.entries, query: query, category: category)
     }
 
-    private var enabledEntries: [ExtensionRegistryEntry] {
-        filteredEntries.filter { enabledBinding(for: $0).wrappedValue }
-    }
-
-    private var availableEntries: [ExtensionRegistryEntry] {
-        filteredEntries.filter { !enabledBinding(for: $0).wrappedValue }
-    }
-
-    @ViewBuilder
-    private func section(_ title: String, entries: [ExtensionRegistryEntry]) -> some View {
-        if !entries.isEmpty {
-            VStack(alignment: .leading, spacing: UIScale.pt(10)) {
-                HStack(spacing: UIScale.pt(6)) {
-                    eyebrow(title)
-                    Text("\(entries.count)")
-                        .font(.system(size: UIScale.pt(10), weight: .semibold))
-                        .foregroundStyle(.quaternary)
-                }
-                LazyVGrid(columns: gridColumns, spacing: UIScale.pt(14)) {
-                    ForEach(entries) { entry in
-                        ExtensionMarketplaceCard(
-                            entry: entry,
-                            enabled: permissionAwareBinding(for: entry),
-                            dark: colorScheme == .dark,
-                            open: { openSettings(for: entry) }
-                        )
-                        .id(entry.id)
-                    }
-                }
+    private var extensionGrid: some View {
+        LazyVGrid(columns: gridColumns, spacing: UIScale.pt(14)) {
+            ForEach(filteredEntries) { entry in
+                ExtensionMarketplaceCard(
+                    entry: entry,
+                    enabled: permissionAwareBinding(for: entry),
+                    dark: colorScheme == .dark,
+                    open: { openSettings(for: entry) }
+                )
+                .id(entry.id)
             }
         }
     }
@@ -274,6 +251,7 @@ struct ExtensionsPane: View {
         case FocusDimState.enabledKey: $focusDimEnabled
         case AppStorageKeys.Presenter.enabled: $presenterEnabled
         case AppStorageKeys.ColorPicker.enabled: $colorPickerEnabled
+        case LidAwakeState.enabledKey: $lidAwakeEnabled
         default: .constant(false)
         }
     }
@@ -487,6 +465,7 @@ private struct ExtensionSettingsSheet: View {
         switch entry.id {
         case "micMute", "systemStats": 300
         case "machines": 420
+        case "lidAwake": 400
         case "music": 460
         case "focusDim", "colorPicker": 430
         case "system": 500
@@ -550,6 +529,7 @@ private struct ExtensionDetailRows: View {
         case "machines": MachinesRows()
         case "systemStats": SystemStatsRows()
         case "micMute": MicMuteRows()
+        case "lidAwake": LidAwakeRows()
         case "music": MusicRows()
         case "notchShelf": NotchShelfRows()
         case "clipboard": ClipboardRows()
