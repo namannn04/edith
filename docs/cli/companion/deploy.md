@@ -29,16 +29,16 @@ when the local host is the recommended candidate.
 Examples:
 
 ```
-$ ed companion deploy "TUF Wired"
-the companion running on TUF Wired, cpu, reached on port 4820
+$ ed companion deploy "Studio Mac"
+the companion running on Studio Mac, cpu, reached on port 4820
 
-$ ed companion deploy "TUF Wired" --adopt
-the companion running on TUF Wired, cpu, reached on port 4820
+$ ed companion deploy "Studio Mac" --adopt
+the companion running on Studio Mac, cpu, reached on port 4820
 ```
 
 A machine that cannot run it yet is refused with the reason and the fix, so
-nothing half-starts. The tier is derived from what the host actually has: a GPU
-box gets the GPU overlay, a Mac gets the Apple one, everything else gets CPU.
+nothing half-starts. The tier is derived from the Mac processor: Apple silicon
+uses the Apple Metal overlay and Intel uses CPU.
 
 Deploying creates the directory and looks for companion source in
 `EDITH_COMPANION_SOURCE`, `~/Desktop/Edith/apps/companion`, then
