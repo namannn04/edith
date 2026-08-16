@@ -27,6 +27,7 @@ key.
 | [`ed config`](./config/README.md) | Every setting the UI exposes, and the full setting catalogue |
 | [`ed app`](./app/README.md) | One-shot actions the app performs: open, quit, relaunch, update checks |
 | [`ed extensions`](./extensions/README.md) | Turning Edith's features on and off |
+| [`ed lid-awake`](./lid-awake/README.md) | Closed-lid sessions, battery auto-pause and live state |
 | [`ed permissions`](./permissions/README.md) | Inspecting and requesting Edith's macOS permissions |
 | [`ed usage`](./usage/README.md) | Agent usage: limits, cost, tokens, per-day, per-model and per-project |
 | [`ed system`](./system/README.md) | CPU, memory, load, network and mounted volumes |
@@ -58,6 +59,7 @@ key.
 ```
 ed guide                         the built-in manual
 ed config ls                     every setting and its current value
+ed lid-awake on --for 30m        keep running with the lid closed for 30 minutes
 ed usage limits --json           the numbers behind the rate-limit rings
 ed system stats --follow         this Mac, sampled continuously
 ed machines ls                   the computers Edith can reach

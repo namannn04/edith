@@ -34,6 +34,7 @@ public enum Guide {
         ed config ls                every setting, with its current value
         ed config describe <key>    one setting: type, scope, allowed values
         ed extensions ls            every extension and whether it is on
+        ed lid-awake status          closed-lid state, session, battery and helper
         ed permissions ls           every macOS permission Edith uses
         ed usage sources            the agents that produced your usage history
         ed schema                   JSON Schema for the config document
@@ -77,6 +78,18 @@ public enum Guide {
         ed extensions enable machines
         ed extensions disable notchShelf
         ed extensions info clipboard
+        ```
+
+        Lid Awake has runtime verbs because changing the system power state is not
+        the same as writing a preference:
+
+        ```
+        ed lid-awake on
+        ed lid-awake on --for 30m
+        ed lid-awake on --until-lid-reopens
+        ed lid-awake battery 20
+        ed lid-awake status --json
+        ed lid-awake off
         ```
 
         ## Machines

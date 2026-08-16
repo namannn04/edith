@@ -62,6 +62,7 @@ does. `edh` and `edith` are the same binary.
 
 ```
 ed config set preventSleep true     every setting the UI exposes, applied live
+ed lid-awake on --for 30m           keep running with the lid shut for 30 minutes
 ed usage limits --json              the same numbers the rings show
 ed machines ls                      the computers Edith can reach over SSH
 ed tuf docker ps                    run anything on one of them

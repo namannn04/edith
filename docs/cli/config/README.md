@@ -205,6 +205,11 @@ not here cannot be set, and `import` skips it.
 | `SUAutomaticallyUpdate` | bool | `true` | standard | Download and install updates automatically. |
 | `tabSystemEnabled` | bool | `true` | shared | System extension: running apps, prevent sleep and the cleaning lock. |
 | `preventSleep` | bool | `false` | shared | Keep the Mac awake (Keep Awake). |
+| `lidAwakeEnabled` | bool | `false` | shared | Enable the Lid Awake extension. |
+| `lidAwakeRestoreOnQuit` | bool | `true` | shared | Restore normal lid-close sleep when Edith quits. |
+| `lidAwakeSession` | string: `indefinite`, `fifteenMinutes`, `thirtyMinutes`, `oneHour`, `twoHours`, `untilLidReopens` | `indefinite` | shared | Session used when Lid Awake starts. |
+| `lidAwakeBatteryThreshold` | int | `0` | shared | Battery percentage below which Lid Awake pauses; 0 disables it. |
+| `lidAwakeActive` | bool, read only | `false` | shared | Whether Lid Awake is currently preventing lid-close sleep. |
 | `systemAppsSort` | string | `memory` | shared | Running apps sort column. |
 | `systemAppsSortAsc` | bool | `false` | shared | Sort running apps ascending. |
 
