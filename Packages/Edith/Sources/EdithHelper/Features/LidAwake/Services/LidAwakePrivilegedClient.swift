@@ -51,13 +51,14 @@ final class LidAwakePrivilegedClient {
     private(set) var registrationError: String?
 
     var state: LidAwakePrivilegedClientState {
-        let serviceState: LidAwakePrivilegedClientState = switch service.status {
-        case .notRegistered: .notRegistered
-        case .enabled: .enabled
-        case .requiresApproval: .awaitingApproval
-        case .notFound: .notFound
-        @unknown default: .notFound
-        }
+        let serviceState: LidAwakePrivilegedClientState =
+            switch service.status {
+            case .notRegistered: .notRegistered
+            case .enabled: .enabled
+            case .requiresApproval: .awaitingApproval
+            case .notFound: .notFound
+            @unknown default: .notFound
+            }
         return approvalRequired && serviceState != .enabled ? .awaitingApproval : serviceState
     }
 

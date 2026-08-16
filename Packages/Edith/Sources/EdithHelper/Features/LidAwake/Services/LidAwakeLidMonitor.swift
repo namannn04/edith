@@ -32,7 +32,8 @@ final class LidAwakeLidMonitor {
             kIOGeneralInterest,
             { context, _, messageType, _ in
                 guard messageType == lidAwakeClamshellStateChangeMessage,
-                      let context else { return }
+                    let context
+                else { return }
                 Unmanaged<LidAwakeLidMonitor>.fromOpaque(context)
                     .takeUnretainedValue().emitCurrentState()
             },
@@ -65,11 +66,12 @@ final class LidAwakeLidMonitor {
 
     private func emitCurrentState() {
         guard rootDomain != IO_OBJECT_NULL,
-              let property = IORegistryEntryCreateCFProperty(
-                  rootDomain,
-                  kAppleClamshellStateKey as CFString,
-                  kCFAllocatorDefault,
-                  0)?.takeRetainedValue() as? NSNumber else { return }
+            let property = IORegistryEntryCreateCFProperty(
+                rootDomain,
+                kAppleClamshellStateKey as CFString,
+                kCFAllocatorDefault,
+                0)?.takeRetainedValue() as? NSNumber
+        else { return }
         let closed = property.boolValue
         guard closed != isClosed else { return }
         isClosed = closed
