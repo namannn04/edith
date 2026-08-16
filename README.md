@@ -1,4 +1,4 @@
-# <img src="apps/macos/Sources/Edith/Resources/appicon.png" width="30" align="top" alt=""> Edith
+# <img src="Packages/Edith/Sources/Edith/Resources/appicon.png" width="30" align="top" alt=""> Edith
 
 A native SwiftUI menu bar app for the Mac: a dark, minimal control center that
 replaces a shelf of single-purpose utilities and idles at about 22 MB.
@@ -7,9 +7,26 @@ Free and open source under the [GPL-3.0](LICENSE). Every feature is in the one
 app. No licence key, no account, no paid tier.
 
 **[Download for macOS](https://github.com/pulkitxm/edith/releases/latest/download/Edith.dmg)**
-· [edith.pulkit.page](https://edith.pulkit.page)
+or install it with Homebrew:
 
-Requires macOS 14 or later on Apple Silicon.
+```
+brew install --cask pulkitxm/tap/edith
+```
+
+That taps, installs the app and puts `ed` and `edh` on your `PATH`. Edith updates itself
+through Sparkle, so `brew upgrade --cask --greedy edith` is the way to force
+Homebrew to fetch a newer release. Full command list:
+[docs/homebrew.md](docs/homebrew.md), and
+[how it all works](docs/homebrew-internals.md).
+
+**[Download the Ubuntu preview](https://github.com/pulkitxm/edith/releases/latest/download/Edith.deb)**
+· [edith.pulkit.page](https://edith.pulkit.page)
+· [Wiki](https://github.com/pulkitxm/edith/wiki)
+
+The macOS app requires macOS 14 or later on Apple Silicon. The Ubuntu preview
+targets Ubuntu 24.04 LTS on `amd64`; see the
+[Ubuntu development guide](docs/ubuntu-development.md) for source builds and the
+current platform scope.
 
 ## Features
 
@@ -21,6 +38,7 @@ Requires macOS 14 or later on Apple Silicon.
 - **Dashboard** - KPIs with per-day, model, source, project and hourly charts, plus a sortable model table.
 - **Activity heatmap** - GitHub-style daily spend calendar across your full history.
 - **Project drilldown** - spend by project, worktree and chat, across both agents.
+- **Fleet usage** - the same collector runs on your SSH machines and folds their agents in as their own sources, so the totals cover every box you code on.
 
 **Everything else on the shelf**
 
@@ -36,6 +54,25 @@ Requires macOS 14 or later on Apple Silicon.
 - **Lid awake** - keeps the Mac running with the lid shut, on battery and unplugged.
 - **Disk cleaner** - scans build caches, package managers and old logs.
 - **Global shortcut** - toggle the panel from anywhere, ⌥⌘E by default and re-recordable.
+
+## Command line
+
+Installing Edith installs `ed`, a first-class CLI that reaches everything the UI
+does. `edh` and `edith` are the same binary.
+
+```
+ed config set preventSleep true     every setting the UI exposes, applied live
+ed usage limits --json              the same numbers the rings show
+ed machines ls                      the computers Edith can reach over SSH
+ed tuf docker ps                    run anything on one of them
+```
+
+Every read command takes `--json`, stdout is exactly one document, logs go to
+stderr, and exit codes are reliable, so an agent can drive Edith headlessly.
+
+Full reference: **[docs/cli](docs/cli/README.md)**, one page per command group,
+also published to the [wiki](https://github.com/pulkitxm/edith/wiki). `ed guide`
+prints the same material as a built-in manual.
 
 ## Privacy
 
@@ -60,6 +97,22 @@ share of one core:
 Disabling a tab tears down its timers and background jobs entirely, per-frame UI
 only redraws while the panel is open, and the usage collector caches parses so a
 refresh only touches files that changed.
+
+## Contributors
+
+Thank you to everyone who has shipped a change in Edith.
+
+<!-- contributors:start -->
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/pulkitxm"><img src="https://avatars.githubusercontent.com/u/65671483?v=4&s=64" width="64" height="64" alt="pulkitxm" /><br /><sub>pulkitxm</sub></a></td>
+    <td align="center"><a href="https://github.com/Vivek09Chahal"><img src="https://avatars.githubusercontent.com/u/103368320?v=4&s=64" width="64" height="64" alt="Vivek09Chahal" /><br /><sub>Vivek09Chahal</sub></a></td>
+    <td align="center"><a href="https://github.com/Sohan-Rout"><img src="https://avatars.githubusercontent.com/u/172136330?v=4&s=64" width="64" height="64" alt="Sohan-Rout" /><br /><sub>Sohan-Rout</sub></a></td>
+  </tr>
+</table>
+
+<!-- contributors:end -->
 
 ## Contributing
 
