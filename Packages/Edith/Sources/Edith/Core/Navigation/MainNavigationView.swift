@@ -286,6 +286,8 @@ struct MainWindowView: View {
         false
     @AppStorage(AppStorageKeys.General.preventSleep, store: SharedDefaults.store) private
         var preventSleep = false
+    @AppStorage(LidAwakeState.enabledKey, store: SharedDefaults.store) private
+        var lidAwakeEnabled = false
     @AppStorage(AppStorageKeys.Presenter.mode, store: SharedDefaults.store) private
         var presenterMode = false
     @AppStorage(AppStorageKeys.Presenter.enabled, store: SharedDefaults.store) private
@@ -322,6 +324,8 @@ struct MainWindowView: View {
     @State private var presenterQuickActionsPresented = false
     @State private var hoveredPresenterQuickAction: String?
     @State private var keyboardCleanTrigger = 0
+    @State private var lidAwakeActive = SharedDefaults.store.bool(
+        forKey: LidAwakeState.activeKey)
     @Namespace private var sidebarSelectionNamespace
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -463,6 +467,12 @@ struct MainWindowView: View {
             if automaticActionsEnabled {
                 permissionsNeedAttention = PermissionsStatus.current
             }
+        }
+        .onReceive(
+            DistributedNotificationCenter.default().publisher(
+                for: IPC.Name.lidAwakeChanged)
+        ) { _ in
+            lidAwakeActive = SharedDefaults.store.bool(forKey: LidAwakeState.activeKey)
         }
     }
 
@@ -829,6 +839,15 @@ struct MainWindowView: View {
             }
             if presenterEnabled {
                 presenterQuickActionTile
+            }
+            if lidAwakeEnabled {
+                quickActionTile(
+                    icon: "laptopcomputer", title: "Lid awake", active: lidAwakeActive,
+                    trigger: lidAwakeActive ? 1 : 0,
+                    help: "Keep this Mac running with the lid closed"
+                ) {
+                    IPC.post(IPC.Name.toggleLidAwake)
+                }
             }
         }
     }
