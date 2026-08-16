@@ -249,6 +249,13 @@ enum JSONContract {
         JSONCase("ed extensions enable", ["extensions", "enable", "clipboard", "--json"]),
         JSONCase("ed extensions disable", ["extensions", "disable", "clipboard", "--json"]),
         JSONCase("ed extensions info", ["extensions", "info", "clipboard", "--json"]),
+        JSONCase("ed lid-awake status", ["lid-awake", "status", "--json"]),
+        JSONCase("ed lid-awake on", ["lid-awake", "on", "--json"]),
+        JSONCase("ed lid-awake off", ["lid-awake", "off", "--json"]),
+        JSONCase("ed lid-awake battery", ["lid-awake", "battery", "20", "--json"]),
+        JSONCase(
+            "ed lid-awake restore-on-quit",
+            ["lid-awake", "restore-on-quit", "true", "--json"]),
         JSONCase("ed permissions ls", ["permissions", "ls", "--json"]),
         JSONCase("ed permissions request", ["permissions", "request", "calendar", "--json"]),
         JSONCase("ed permissions refresh", ["permissions", "refresh", "--json"]),
