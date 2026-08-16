@@ -89,4 +89,47 @@ import Testing
         defaults.set(false, forKey: LidAwakeState.restoreOnQuitKey)
         #expect(!LidAwakeState.restoresOnQuit(defaults))
     }
+
+    @Test func batteryPolicySuspendsBelowThresholdAndResumesOnAC() {
+        #expect(
+            LidAwakeBatteryPolicy.decide(
+                intent: true, suspended: false, percent: 9, onAC: false, threshold: 10)
+                == .suspend)
+        #expect(
+            LidAwakeBatteryPolicy.decide(
+                intent: true, suspended: true, percent: 14, onAC: true, threshold: 10)
+                == .none)
+        #expect(
+            LidAwakeBatteryPolicy.decide(
+                intent: true, suspended: true, percent: 15, onAC: true, threshold: 10)
+                == .resume)
+    }
+
+    @Test func batteryOverrideLastsUntilAC() {
+        #expect(LidAwakeBatteryPolicy.shouldKeepOverride(true, onAC: false))
+        #expect(!LidAwakeBatteryPolicy.shouldKeepOverride(true, onAC: true))
+        #expect(!LidAwakeBatteryPolicy.shouldKeepOverride(false, onAC: false))
+    }
+
+    @Test func lidSessionEndsAfterCloseAndReopen() {
+        var tracker = LidAwakeLidSessionTracker()
+        tracker.start(lidClosed: false)
+        #expect(tracker.isActive)
+        let remainedOpen = tracker.handle(lidClosed: false)
+        #expect(!remainedOpen)
+        let startedSession = tracker.handle(lidClosed: true)
+        #expect(!startedSession)
+        let endedSession = tracker.handle(lidClosed: false)
+        #expect(endedSession)
+        #expect(!tracker.isActive)
+    }
+
+    @Test func lidSessionStartedWithClosedLidWaitsForReopen() {
+        var tracker = LidAwakeLidSessionTracker()
+        tracker.start(lidClosed: true)
+        let remainedClosed = tracker.handle(lidClosed: true)
+        #expect(!remainedClosed)
+        let endedSession = tracker.handle(lidClosed: false)
+        #expect(endedSession)
+    }
 }
