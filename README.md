@@ -126,3 +126,8 @@ You may use, study, modify and redistribute it; any version you distribute must
 also be released under the GPL-3.0 with its source available.
 
 Sparkle, used for in-app updates, is distributed under the MIT licence.
+
+## Attribution
+
+The lid-awake feature was inspired by [Awayke](https://github.com/daemonphantom/Awayke),
+an MIT-licensed macOS utility by daemonphantom.
