@@ -59,6 +59,19 @@ import Testing
         #expect(!source.contains("availableEntries"))
     }
 
+    @Test func homeQuickActionsUseFourColumnsAndIncludeLidAwake() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Edith/Features/Pages/Views/HomePageView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        #expect(source.contains("count: 4"))
+        #expect(source.contains("title: \"Lid awake\""))
+        #expect(source.contains("IPC.post(IPC.Name.toggleLidAwake)"))
+    }
+
     @Test func focusDimSeparatesInstalledFromActive() {
         #expect(FocusDimState.enabledKey != FocusDimState.activeKey)
         let defaults = UserDefaults(suiteName: "test.focusdim")!
