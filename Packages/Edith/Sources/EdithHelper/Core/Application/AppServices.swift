@@ -173,6 +173,7 @@ final class AppServices {
         notchShelf?.rebuildPanels()
         system?.syncPreventSleep()
         lidAwake?.refreshFromSystem()
+        lidAwake?.syncSettings()
         focusDim?.applySettings()
         presenter?.applySettings()
     }

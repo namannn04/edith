@@ -77,6 +77,8 @@ public enum IPC {
         public static let presenterPauseAuto = Notification.Name(
             "com.pulkit.edith.presenterPauseAuto")
         public static let toggleLidAwake = Notification.Name("com.pulkit.edith.toggleLidAwake")
+        public static let setLidAwakeSession = Notification.Name(
+            "com.pulkit.edith.setLidAwakeSession")
         public static let lidAwakeChanged = Notification.Name("com.pulkit.edith.lidAwakeChanged")
         public static let requestUpdateCheck = Notification.Name(
             "com.pulkit.edith.requestUpdateCheck")
