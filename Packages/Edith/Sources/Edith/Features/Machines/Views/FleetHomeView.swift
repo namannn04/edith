@@ -59,10 +59,7 @@ struct FleetHomeView: View {
         }
         .padding(.horizontal, UIScale.pt(14))
         .padding(.vertical, UIScale.pt(10))
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(12)))
-        .overlay {
-            RoundedRectangle(cornerRadius: UIScale.pt(12)).strokeBorder(DashSkin.line(dark))
-        }
+        .widgetBar(cornerRadius: 12, fill: DashSkin.paper2(dark), stroke: DashSkin.line(dark))
     }
 
     private func bannerDetail(_ fleet: FleetSummary) -> String {

@@ -237,18 +237,15 @@ struct DashboardView: View {
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DashSkin.paper2(dark))
-                .overlay(
-                    RoundedRectangle(cornerRadius: UIScale.pt(14)).strokeBorder(
-                        DashSkin.line(dark), lineWidth: UIScale.pt(1))
+                .widgetBar(
+                    cornerRadius: 14,
+                    fill: DashSkin.paper2(dark),
+                    stroke: DashSkin.line(dark),
+                    shadow: .black.opacity(dark ? 0.3 : 0.05),
+                    shadowRadius: 8,
+                    shadowY: 4,
+                    clipsContent: true
                 )
-                .clipShape(RoundedRectangle(cornerRadius: UIScale.pt(14)))
-                .background {
-                    RoundedRectangle(cornerRadius: UIScale.pt(14))
-                        .fill(DashSkin.paper2(dark))
-                        .shadow(
-                            color: .black.opacity(dark ? 0.3 : 0.05), radius: UIScale.pt(8), y: 4)
-                }
             }
         }
     }
@@ -405,14 +402,10 @@ struct DashboardView: View {
             .pointerCursor()
             .font(DashSkin.mono(11, weight: active ? .semibold : .regular))
             .padding(.horizontal, UIScale.pt(11)).padding(.vertical, UIScale.pt(5))
-            .background(
-                active ? AnyShapeStyle(acc) : AnyShapeStyle(DashSkin.paper2(dark)),
-                in: RoundedRectangle(cornerRadius: UIScale.pt(8))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: UIScale.pt(8))
-                    .strokeBorder(
-                        active ? Color.clear : DashSkin.lineStrong(dark), lineWidth: UIScale.pt(1))
+            .widgetBar(
+                cornerRadius: 8,
+                fill: active ? AnyShapeStyle(acc) : AnyShapeStyle(DashSkin.paper2(dark)),
+                stroke: active ? Color.clear : DashSkin.lineStrong(dark)
             )
             .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(DashSkin.ink(dark)))
     }
@@ -769,13 +762,8 @@ private struct FilterChip: ViewModifier {
         content
             .padding(.horizontal, UIScale.pt(10))
             .padding(.vertical, UIScale.pt(5))
-            .background(
-                DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(8))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: UIScale.pt(8))
-                    .strokeBorder(DashSkin.lineStrong(dark), lineWidth: UIScale.pt(1))
-            )
+            .widgetBar(
+                cornerRadius: 8, fill: DashSkin.paper2(dark), stroke: DashSkin.lineStrong(dark))
     }
 }
 

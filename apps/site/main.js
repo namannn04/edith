@@ -276,7 +276,7 @@ function startPlatformDownload() {
   if (note) {
     note.textContent =
       platform === "macos"
-        ? "Free forever. Requires macOS 14+ on Apple Silicon."
+        ? "Free forever. Requires macOS Sonoma (v14)+ on Apple Silicon."
         : "Free forever. Ubuntu 24.04 LTS on amd64. Native preview.";
   }
   const otherDownloads = document.querySelector("[data-other-downloads]");

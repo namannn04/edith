@@ -411,7 +411,7 @@ struct CleanerCard: View {
             }
         }
         .padding(UIScale.pt(10))
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(10)))
+        .widgetBar(cornerRadius: 10, fill: DashSkin.paper2(dark))
         .clipped()
         .transition(.opacity)
     }
@@ -557,9 +557,7 @@ private struct DrivePickerSheet: View {
                                 Spacer()
                             }
                             .padding(.horizontal, UIScale.pt(12)).padding(.vertical, UIScale.pt(8))
-                            .background(
-                                DashSkin.paper2(dark),
-                                in: RoundedRectangle(cornerRadius: UIScale.pt(8)))
+                            .widgetBar(cornerRadius: 8, fill: DashSkin.paper2(dark))
                         }
                         .buttonStyle(.plain).pointerCursor()
                     }
@@ -641,7 +639,7 @@ private struct DrivePickerSheet: View {
             .buttonStyle(.plain).pointerCursor().help("Remove this folder")
         }
         .padding(.horizontal, UIScale.pt(12)).padding(.vertical, UIScale.pt(8))
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(8)))
+        .widgetBar(cornerRadius: 8, fill: DashSkin.paper2(dark))
     }
 
     private func chooseFolder() {
@@ -797,7 +795,7 @@ private struct DriveRow: View {
                     DashSkin.inkFaint(dark))
         }
         .padding(UIScale.pt(10))
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(10)))
+        .widgetBar(cornerRadius: 10, fill: DashSkin.paper2(dark))
     }
 }
 
@@ -813,7 +811,7 @@ private struct DriveSkeleton: View {
         }
         .foregroundStyle(DashSkin.inkFaint(dark).opacity(pulse ? 0.25 : 0.1))
         .padding(UIScale.pt(10))
-        .background(DashSkin.paper2(dark), in: RoundedRectangle(cornerRadius: UIScale.pt(10)))
+        .widgetBar(cornerRadius: 10, fill: DashSkin.paper2(dark))
         .onAppear {
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
                 pulse = true
