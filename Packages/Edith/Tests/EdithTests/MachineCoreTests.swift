@@ -102,6 +102,18 @@ import Testing
     }
 }
 
+@Suite struct SSHConnectionPlatformTests {
+    @Test func supportsMacOSAndLinux() {
+        #expect(SSHConnection.supportsPlatform("Darwin"))
+        #expect(SSHConnection.supportsPlatform("Linux"))
+    }
+
+    @Test func rejectsUnknownRemotePlatforms() {
+        #expect(!SSHConnection.supportsPlatform("FreeBSD"))
+        #expect(!SSHConnection.supportsPlatform(""))
+    }
+}
+
 @Suite struct MachineModelsTests {
     @Test func sshTargetUsesAliasWhenConfigSourced() {
         let machine = Machine(
@@ -278,6 +290,15 @@ import Testing
         #expect(text.contains("sysctl"))
         #expect(text.contains("vm_stat"))
         #expect(text.contains("top -l 1"))
+    }
+
+    @Test func collectorUsesLinuxMetricsSources() {
+        let text = String(decoding: MachineCollector.script() ?? Data(), as: UTF8.self)
+        #expect(text.contains("/etc/os-release"))
+        #expect(text.contains("/proc/stat"))
+        #expect(text.contains("/proc/meminfo"))
+        #expect(text.contains("/proc/diskstats"))
+        #expect(text.contains("/proc/net/dev"))
     }
 
     @Test func collectorScriptResourceExists() {
