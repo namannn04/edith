@@ -1,17 +1,16 @@
+import Foundation
 import Testing
-import EventKit
 @testable import EdithKit
 
 @Suite struct CalendarDayEventsTests {
-    private static let scratchStore = EKEventStore()
-
-    private static func event(title: String, start: Date, allDay: Bool = false) -> EKEvent {
-        let event = EKEvent(eventStore: scratchStore)
-        event.title = title
-        event.startDate = start
-        event.endDate = start.addingTimeInterval(1800)
-        event.isAllDay = allDay
-        return event
+    private static func event(
+        title: String, start: Date, allDay: Bool = false
+    ) -> CalendarEventPayload {
+        CalendarEventPayload(
+            title: title,
+            start: start,
+            end: start.addingTimeInterval(1800),
+            isAllDay: allDay)
     }
 
     @Test func sortsAllDayFirstThenByStartTime() {
@@ -39,13 +38,41 @@ import EventKit
     @Test func removesMatchingEventsAcrossCalendars() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let first = Self.event(title: "Daily Standup", start: start)
-        let duplicate = Self.event(title: "Daily Standup", start: start)
+        var duplicate = Self.event(title: "Daily Standup", start: start)
         duplicate.location = "Synced from another account"
 
         let deduplicated = CalendarDayEvents.deduplicated([first, duplicate])
 
         #expect(deduplicated.count == 1)
-        #expect(deduplicated.first === first)
+        #expect(deduplicated.first?.id == first.id)
+    }
+
+    @Test func removesEventsWithInvisibleProviderDifferences() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = Self.event(title: "Daily Standup", start: start)
+        var duplicate = Self.event(
+            title: "  Daily\nStandup  ", start: start.addingTimeInterval(20))
+        duplicate.end = first.end.addingTimeInterval(20)
+
+        let deduplicated = CalendarDayEvents.deduplicated([first, duplicate])
+
+        #expect(deduplicated.count == 1)
+        #expect(deduplicated.first?.id == first.id)
+    }
+
+    @Test func removesMatchingAllDayEventsWithDifferentStoredDurations() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let start = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        var first = Self.event(title: "Holiday", start: start, allDay: true)
+        var duplicate = Self.event(title: "Holiday", start: start, allDay: true)
+        first.end = calendar.date(byAdding: .day, value: 1, to: start)!
+        duplicate.end = calendar.date(byAdding: .day, value: 2, to: start)!
+
+        let deduplicated = CalendarDayEvents.deduplicated(
+            [first, duplicate], calendar: calendar)
+
+        #expect(deduplicated.count == 1)
     }
 
     @Test func retainsEventsWhenIdentityFieldsDiffer() {
@@ -54,8 +81,8 @@ import EventKit
         let differentTitle = Self.event(title: "Team Standup", start: start)
         let differentStart = Self.event(
             title: "Daily Standup", start: start.addingTimeInterval(60))
-        let differentEnd = Self.event(title: "Daily Standup", start: start)
-        differentEnd.endDate = start.addingTimeInterval(3600)
+        var differentEnd = Self.event(title: "Daily Standup", start: start)
+        differentEnd.end = start.addingTimeInterval(3600)
         let allDay = Self.event(title: "Daily Standup", start: start, allDay: true)
 
         let deduplicated = CalendarDayEvents.deduplicated([
@@ -91,6 +118,141 @@ import EventKit
 
         #expect(groups.count == 1)
         #expect(groups[0].events.count == 1)
+    }
+}
+
+@Suite struct CalendarTextTests {
+    private static func event(
+        minutes: Int, allDay: Bool = false
+    ) -> CalendarEventPayload {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        return CalendarEventPayload(
+            title: "Event",
+            start: start,
+            end: start.addingTimeInterval(TimeInterval(minutes * 60)),
+            isAllDay: allDay)
+    }
+
+    @Test func formatsUsefulDurations() {
+        #expect(CalendarText.duration(for: Self.event(minutes: 30)) == "30 min")
+        #expect(CalendarText.duration(for: Self.event(minutes: 60)) == "1 hr")
+        #expect(CalendarText.duration(for: Self.event(minutes: 150)) == "2 hr 30 min")
+    }
+
+    @Test func labelsAllDayEventsWithoutSecondaryTime() {
+        let event = Self.event(minutes: 1_440, allDay: true)
+
+        #expect(CalendarText.startTime(for: event) == "All day")
+        #expect(CalendarText.timeDetail(for: event) == nil)
+    }
+
+    @Test func summarizesParticipantResponses() {
+        var event = Self.event(minutes: 30)
+        event.attendees = [
+            Self.participant(status: "accepted"),
+            Self.participant(status: "accepted"),
+            Self.participant(status: "pending"),
+            Self.participant(status: "declined"),
+        ]
+
+        #expect(CalendarText.responseSummary(for: event) == "2 accepted · 1 pending · 1 declined")
+    }
+
+    @Test func limitsAttendeeNames() {
+        var event = Self.event(minutes: 30)
+        event.attendees = (1...8).map {
+            Self.participant(name: "Person \($0)", status: "pending")
+        }
+
+        #expect(
+            CalendarText.attendeeNames(for: event)
+                == "Person 1, Person 2, Person 3, Person 4, Person 5, Person 6 +2 more")
+    }
+
+    private static func participant(
+        name: String? = nil, status: String
+    ) -> CalendarParticipantPayload {
+        CalendarParticipantPayload(
+            name: name,
+            address: nil,
+            status: status,
+            role: "required",
+            isCurrentUser: false)
+    }
+}
+
+@Suite struct CalendarEventActionsTests {
+    private static func event(
+        location: String? = nil, latitude: Double? = nil, longitude: Double? = nil
+    ) -> CalendarEventPayload {
+        CalendarEventPayload(
+            title: "Planning",
+            start: Date(timeIntervalSinceReferenceDate: 123_456),
+            end: Date(timeIntervalSinceReferenceDate: 127_056),
+            isAllDay: false,
+            location: location,
+            latitude: latitude,
+            longitude: longitude)
+    }
+
+    @Test func targetsCalendarApplication() {
+        #expect(CalendarEventActions.calendarApplicationURL.lastPathComponent == "Calendar.app")
+        #expect(CalendarEventActions.calendarApplicationURL.isFileURL)
+    }
+
+    @Test func createsMapsLinkWithCoordinates() {
+        let url = CalendarEventActions.locationURL(
+            for: Self.event(location: "Conference Room", latitude: 12.9, longitude: 77.6))
+        let components = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+        let query = Dictionary(
+            uniqueKeysWithValues: (components?.queryItems ?? []).compactMap { item in
+                item.value.map { (item.name, $0) }
+            })
+
+        #expect(components?.host == "maps.apple.com")
+        #expect(query["q"] == "Conference Room")
+        #expect(query["ll"] == "12.9,77.6")
+    }
+
+    @Test func omitsDirectionsWithoutLocation() {
+        #expect(CalendarEventActions.locationURL(for: Self.event()) == nil)
+        #expect(CalendarEventActions.locationURL(for: Self.event(location: "   ")) == nil)
+    }
+}
+
+@Suite struct CalendarEventPayloadTests {
+    @Test func roundTripsExtendedEventData() {
+        let participant = CalendarParticipantPayload(
+            name: "Taylor",
+            address: "mailto:taylor@example.com",
+            status: "accepted",
+            role: "required",
+            isCurrentUser: false)
+        let event = CalendarEventPayload(
+            id: "event-1",
+            title: "Planning",
+            calendar: "Work",
+            calendarColor: CalendarColorPayload(red: 1, green: 0.5, blue: 0, alpha: 1),
+            start: Date(timeIntervalSince1970: 1_700_000_000),
+            end: Date(timeIntervalSince1970: 1_700_003_600),
+            isAllDay: false,
+            location: "Conference Room",
+            latitude: 12.9,
+            longitude: 77.6,
+            meetingURL: "https://meet.google.com/abc-defg-hij",
+            url: "https://example.com/event",
+            notes: "Review the proposal",
+            organizer: participant,
+            attendees: [participant],
+            isRecurring: true,
+            status: "confirmed",
+            availability: "busy",
+            timeZone: "Asia/Kolkata",
+            hasAlarms: true)
+
+        let decoded = CalendarEventBridge.decode(CalendarEventBridge.encode([event]))
+
+        #expect(decoded == [event])
     }
 }
 
